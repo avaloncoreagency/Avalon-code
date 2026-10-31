@@ -6,7 +6,7 @@ export async function updateSession(request: NextRequest) {
   let response = NextResponse.next({ request });
   const path = request.nextUrl.pathname;
   const isApi = path === "/api" || path.startsWith("/api/");
-  const isPublicAuth = path === "/admin/login" || path === "/admin/auth/callback" || path === "/login";
+  const isPublicAuth = path === "/admin/login" || path === "/admin/auth/callback" || path === "/login" || ["/admin/signup", "/admin/forgot-password", "/admin/reset-password", "/admin/auth/confirm"].includes(path);
   const finish = (result: NextResponse) => {
     response.cookies.getAll().forEach(cookie => result.cookies.set(cookie));
     result.headers.set("Cache-Control", "private, no-store");
@@ -21,7 +21,7 @@ export async function updateSession(request: NextRequest) {
     return finish(NextResponse.redirect(target));
   }
   // The callback exchanges its own PKCE code; do not refresh an old identity first.
-  if (path === "/admin/auth/callback") return finish(response);
+  if (path === "/admin/auth/callback" || path === "/admin/auth/confirm") return finish(response);
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const key = process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY;
   let member = null;
@@ -39,7 +39,7 @@ export async function updateSession(request: NextRequest) {
     try { member = await getAuthorizedMember(supabase); } catch { /* Fail closed. */ }
   }
   if (isPublicAuth) {
-    if (member) return finish(NextResponse.redirect(new URL("/admin/dashboard", request.url)));
+    if (member && (path === "/admin/login" || path === "/login")) return finish(NextResponse.redirect(new URL("/admin/dashboard", request.url)));
     return finish(response);
   }
   if (!member) {

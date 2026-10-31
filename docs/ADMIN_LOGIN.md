@@ -59,3 +59,48 @@ No schema, real users or production settings were changed.
   `public`; `agency_memberships` is absent. No SQL or provisioning was performed.
 - Live Google login, owner accounts, session renewal/logout and database RLS are
   pending the approved nonproduction setup above; no real identities were used.
+
+## Invitation and recovery extension
+
+The testing database is the existing branch `feature/avalon-auth-rls`, reference
+`thdgrczotqapnvcjefoi`, under the main project. Branch inspection and read-only SQL
+confirm profiles and agency_memberships with RLS; do not repeat the migration.
+The earlier main-project inspection did not describe this branch.
+
+Routes now include `/admin/signup`, `/admin/forgot-password`,
+`/admin/reset-password` and `/admin/auth/confirm`. Signup never calls signUp:
+only an administrator-issued, verified invite allows password setup. Password
+setup and membership provisioning are separate. Never provision the infrastructure
+account as owner. Existing Google identities should be reused by UUID, with
+password set on that same identity rather than creating a second account.
+
+In testing only, set a random server-only AUTH_FLOW_SECRET (32+ characters),
+keep AUTH_PASSWORD_LOGIN_ENABLED=false until Preview verification is approved,
+and point Preview Supabase URL/key exclusively at the testing branch. Do not
+copy the testing configuration to Production. Supabase's Auth rate limits must
+remain enabled; configure email cooldowns and SMTP before sending real messages.
+No application signup, invitation sender or membership writer is exposed.
+
+Configure the branch's Invite user email template link as:
+`{{ .RedirectTo }}/admin/auth/confirm?token_hash={{ .TokenHash }}&type=invite`
+and pass the exact Preview origin (no path) as redirectTo when an approved
+administrator sends an invitation. For Reset Password use:
+`{{ .SiteURL }}/admin/auth/confirm?token_hash={{ .TokenHash }}&type=recovery`.
+Set Site URL to the exact testing Preview origin; allowlist that origin plus
+`/admin/auth/callback` and `/admin/reset-password`. Links are verified by Supabase
+with expiry and one-time use; password forms additionally require a signed,
+HttpOnly, 15-minute, user/purpose-bound cookie. No token is logged.
+
+OAuth diagnosis: the testing branch's real authorize endpoint redirects to
+accounts.google.com using Client ID
+`e7k1bq8biu6r7c53dnbp9jo6bocnssuo.apps.googleusercontent.com` and the correct URI
+`https://thdgrczotqapnvcjefoi.supabase.co/auth/v1/callback`.
+For invalid_client, compare Supabase Authentication > Sign In / Providers >
+Google > Client IDs against Google Cloud > Google Auth Platform > Clients >
+the Web application's Client ID. Replace an absent/deleted/wrong ID there and
+set Client Secret from that same client directly in Supabase. Add the callback
+above under Authorized redirect URIs. Client validity/secret pairing cannot be
+confirmed with the current tools. Never send the secret through chat.
+
+No provider credentials, Preview environment variables or email templates were
+changed, no invitations were sent, and no live email/Google success is claimed.

@@ -29,7 +29,7 @@ export async function signIn(formData: FormData) {
   const email = formData.get("email");
   const password = formData.get("password");
   if (typeof email !== "string" || typeof password !== "string" || !email || !password ||
-      email.length > 320 || password.length > 1024) redirect("/admin/login?error=invalid");
+      email.length > 320 || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) || password.length > 1024) redirect("/admin/login?error=invalid");
   const supabase = await createClient();
   const { error } = await supabase.auth.signInWithPassword({ email, password });
   if (error) redirect("/admin/login?error=invalid");

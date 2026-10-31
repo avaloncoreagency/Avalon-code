@@ -37,7 +37,8 @@ function SecurityIcon({ kind }: { kind: "shield" | "lock" | "data" }) {
   </svg>;
 }
 
-export function LoginPanel({ error, passwordEnabled }: { error?: string; passwordEnabled: boolean }) {
+export function LoginPanel({ error, passwordEnabled, updated }: { error?: string; passwordEnabled: boolean; updated?: boolean }) {
+  const [showPassword, setShowPassword] = useState(false);
   const [language, setLanguage] = useState<"en" | "es">("en");
   useEffect(() => {
     try { const saved = localStorage.getItem("avalon-language"); if (saved === "es" || saved === "en") setLanguage(saved); } catch { /* Storage is optional. */ }
@@ -56,14 +57,17 @@ export function LoginPanel({ error, passwordEnabled }: { error?: string; passwor
     <section className={styles.panel} aria-labelledby="welcome">
       <svg className={styles.emblem} viewBox="0 0 140 130" aria-hidden="true"><defs><linearGradient id="avalon-mark" x1="0" y1="1" x2="1" y2="0"><stop stopColor="#00eaff"/><stop offset=".48" stopColor="#6750ff"/><stop offset="1" stopColor="#fa59ff"/></linearGradient></defs><circle cx="70" cy="64" r="57" fill="none" stroke="#7334d0" opacity=".5"/><path d="M70 12 131 112H99L70 62 40 112H9ZM70 79 91 115H49Z" fill="url(#avalon-mark)"/></svg>
       <h1 id="welcome">{t.welcome}</h1><p className={styles.intro}>{t.intro}<br />{t.portalName}</p>
+      {updated && <p role="status">{language === "es" ? "Contraseña guardada. Inicia sesión; el acceso requiere autorización." : "Password saved. Sign in; access requires authorization."}</p>}
       {message && <p className={styles.error} role="alert">{message}</p>}
       {passwordEnabled && <><form action={signIn} className={styles.passwordForm}>
         <label htmlFor="email">{t.email}</label><input id="email" name="email" type="email" autoComplete="email" maxLength={320} required />
-        <label htmlFor="password">{t.password}</label><input id="password" name="password" type="password" autoComplete="current-password" maxLength={1024} required />
+        <label htmlFor="password">{t.password}</label><input id="password" name="password" type={showPassword ? "text" : "password"} autoComplete="current-password" maxLength={1024} required />
+        <button type="button" onClick={() => setShowPassword(!showPassword)}>{language === "es" ? (showPassword ? "Ocultar contraseña" : "Mostrar contraseña") : (showPassword ? "Hide password" : "Show password")}</button>
+        <a href="/admin/forgot-password">{language === "es" ? "Olvidé mi contraseña" : "Forgot password"}</a>
         <Submit label={t.login} pendingLabel={t.pending} />
       </form><div className={styles.divider}>{t.or}</div></>}
       <form action={signInWithGoogle}><Submit label={t.google} pendingLabel={t.pending} google /></form>
-      <p className={styles.note}>{t.note}</p>
+      <p className={styles.note}>{t.note}<br /><a href="/admin/signup">{language === "es" ? "Registro por invitación" : "Sign up by invitation"}</a></p>
       <div className={styles.security}>{([['shield', t.access], ['lock', t.identity], ['data', t.data]] as const).map(([kind, label]) => <div key={kind}><SecurityIcon kind={kind} /><span>{label}</span></div>)}</div>
     </section>
     <div className={styles.platform} aria-hidden="true" />

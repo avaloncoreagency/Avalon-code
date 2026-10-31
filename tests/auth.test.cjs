@@ -144,3 +144,49 @@ test('Google action uses the configured callback and server-side OAuth redirect'
     assert.equal(result.headers.get('location'), null);
   } finally { process.env.APP_ORIGIN = saved; }
 });
+
+test('private password setup requires a verified purpose-bound link and never inserts membership', async () => {
+  process.env.AUTH_PASSWORD_LOGIN_ENABLED = 'true';
+  let proof = false, updated = false, cleared = false;
+  const actions = load('src/app/admin/password-actions.ts', {
+    '@/lib/supabase/server': { createClient: async () => ({ auth: {
+      getUser: async () => ({ data: { user: { id: 'verified-user' } }, error: null }),
+      updateUser: async ({ password }) => { assert.equal(password, 'synthetic-password-123'); updated = true; return { error: null }; },
+      signOut: async () => ({ error: null }),
+    } }) },
+    '@/lib/auth/policy': policy,
+    '@/lib/auth/email-flow': { validPasswordFlow: async (id, type) => { assert.equal(id, 'verified-user'); assert.equal(type, 'invite'); return proof; }, clearPasswordFlow: async () => { cleared = true; } },
+    'next/navigation': { redirect: path => { throw Error(path); } },
+  });
+  const form = new FormData(); form.set('flow', 'invite'); form.set('password', 'synthetic-password-123'); form.set('confirm', 'synthetic-password-123');
+  await assert.rejects(actions.savePassword(form), /error=expired/); assert.equal(updated, false);
+  proof = true; await assert.rejects(actions.savePassword(form), /updated=1/); assert.equal(updated, true); assert.equal(cleared, true);
+  delete process.env.AUTH_PASSWORD_LOGIN_ENABLED;
+});
+test('recovery responses do not reveal whether Supabase recognizes an email', async () => {
+  process.env.AUTH_PASSWORD_LOGIN_ENABLED = 'true';
+  const actions = load('src/app/admin/password-actions.ts', {
+    '@/lib/supabase/server': { createClient: async () => ({ auth: { resetPasswordForEmail: async () => { throw Error('unknown account'); } } }) },
+    '@/lib/auth/policy': policy, '@/lib/auth/email-flow': {},
+    'next/navigation': { redirect: path => { throw Error(path); } },
+  });
+  const form = new FormData(); form.set('email', 'synthetic@example.test');
+  await assert.rejects(actions.requestRecovery(form), /forgot-password\?sent=1/);
+  delete process.env.AUTH_PASSWORD_LOGIN_ENABLED;
+});
+test('email-flow proof rejects tampering, wrong user and wrong purpose', async () => {
+  process.env.AUTH_FLOW_SECRET = 'synthetic-test-only-secret-at-least-32-characters';
+  let cookie;
+  const flow = load('src/lib/auth/email-flow.ts', {
+    'next/headers': { cookies: async () => ({ set: (_name, value) => { cookie = value; }, get: () => cookie ? { value: cookie } : undefined }) },
+  });
+  await flow.grantPasswordFlow('verified-user', 'invite');
+  assert.equal(await flow.validPasswordFlow('verified-user', 'invite'), true);
+  assert.equal(await flow.validPasswordFlow('different-user', 'invite'), false);
+  assert.equal(await flow.validPasswordFlow('verified-user', 'recovery'), false);
+  cookie += 'tampered';
+  assert.equal(await flow.validPasswordFlow('verified-user', 'invite'), false);
+  await flow.clearPasswordFlow();
+  assert.equal(await flow.validPasswordFlow('verified-user', 'invite'), false);
+  delete process.env.AUTH_FLOW_SECRET;
+});
