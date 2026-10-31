@@ -35,3 +35,15 @@
 6. Explicit approval before real user creation, invitations, production SQL, PR merge or deployment.
 
 **Resume here:** resolve CP-04 items in order. Do not skip gates or mark them complete without evidence.
+
+## CP-05 — Connected-environment inspection
+- Supabase project listing returned exactly one connected project: `ltbwzcrxeuczdhhtbqgm` (main project). No isolated test project available.
+- GitHub PR-triggered workflow-run lookup for commit `1314fb95e1c888c3d6c787d066108ba24929dcbd` returned no runs; CI pass not established.
+- Do not run RLS tests against the only connected project.
+- Creating a second hosted Supabase project may incur charges; obtain a quoted price and explicit consent before provisioning.
+- The existing workflow is not a substitute for a lockfile or a passing build.
+
+## CP-06 — Safe stop condition
+- No founders' Auth accounts or invitations created.
+- No migration applied, no production deploy, no merge.
+- Remaining work requires isolated test infrastructure and real execution evidence; do not mark completed based on code review alone.
