@@ -138,9 +138,9 @@ test('OAuth PKCE, SSR cookies, owner gate, refresh and logout over HTTP', { time
     assert.equal(dashboard.status, 200);
     assert.match(await dashboard.text(), /owner/);
     for (const slug of ['crm', 'website-designer', 'ecommerce-designer', 'crm-creator', 'ai-receptionist', 'marketing-hub']) {
-      const module = await request('/admin/workspace/' + slug);
-      assert.equal(module.status, 200);
-      assert.match(await module.text(), /Espacio preparado/);
+      const moduleResponse = await request('/admin/workspace/' + slug);
+      assert.equal(moduleResponse.status, 200);
+      assert.match(await moduleResponse.text(), /Espacio preparado/);
     }
     assert.equal((await request('/admin/workspace/unknown')).status, 404);
     assert.match(dashboard.headers.get('cache-control'), /no-store/);
