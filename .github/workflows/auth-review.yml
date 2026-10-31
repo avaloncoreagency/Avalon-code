@@ -1,5 +1,8 @@
 name: Avalon Auth Review CI
 on:
+  pull_request:
+    branches:
+      - feature/avalon-auth-rls
   workflow_dispatch:
   push:
     branches:
@@ -15,9 +18,11 @@ jobs:
         with:
           node-version: '22'
       - name: Install dependencies
-        run: npm install --no-package-lock
+        run: npm ci
       - name: Typecheck
         run: npm run typecheck
+      - name: Auth tests
+        run: npm test
       - name: Production build (not deployed)
         run: npm run build
         env:
