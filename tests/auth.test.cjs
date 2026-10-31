@@ -3,21 +3,21 @@ const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');
 const ts = require('typescript');
-const { NextRequest, NextResponse } = require('next/server');
+const { NextRequest } = require('next/server');
 
 // Load the actual TypeScript handlers with isolated Supabase/Next adapters.
 function load(file, mocks = {}) {
   const filename = path.resolve(file);
   const source = ts.transpileModule(fs.readFileSync(filename, 'utf8'), { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2020 } }).outputText;
-  const module = { exports: {} };
+  const loaded = { exports: {} };
   const localRequire = id => {
     if (id in mocks) return mocks[id];
     if (id === 'server-only') return {};
     if (id.startsWith('.')) return load(path.resolve(path.dirname(filename), id + '.ts'), mocks);
     return require(id);
   };
-  new Function('require', 'module', 'exports', source)(localRequire, module, module.exports);
-  return module.exports;
+  new Function('require', 'module', 'exports', source)(localRequire, loaded, loaded.exports);
+  return loaded.exports;
 }
 const policy = load('src/lib/auth/policy.ts');
 function client({ role = 'owner', user = { id: 'verified-uuid', app_metadata: { provider: 'google' } }, authError = null, membershipError = null } = {}) {
@@ -131,4 +131,16 @@ test('Google action uses the configured callback and server-side OAuth redirect'
     'next/navigation': { redirect: location => { throw Error(location); } },
   });
   await assert.rejects(actions.signInWithGoogle(), /https:\/\/example.supabase.co\/auth\/v1\/authorize/);
+});
+
+ test('callback returns a clear uncached 503 when application origin is missing', async () => {
+  const saved = process.env.APP_ORIGIN;
+  delete process.env.APP_ORIGIN;
+  try {
+    const { handler } = callback();
+    const result = await handler(new NextRequest('http://localhost:3000/admin/auth/callback?code=synthetic'));
+    assert.equal(result.status, 503);
+    assert.match(result.headers.get('cache-control'), /no-store/);
+    assert.equal(result.headers.get('location'), null);
+  } finally { process.env.APP_ORIGIN = saved; }
 });

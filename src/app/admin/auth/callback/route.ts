@@ -4,8 +4,15 @@ import { getAuthorizedMember } from "@/lib/auth/access";
 import { getAppOrigin } from "@/lib/auth/policy";
 
 export async function GET(request: NextRequest) {
+  let origin: string;
+  try { origin = getAppOrigin(); } catch {
+    return NextResponse.json({ error: "Authentication is not configured." }, {
+      status: 503,
+      headers: { "Cache-Control": "private, no-store", "Referrer-Policy": "no-referrer" },
+    });
+  }
   const destination = (path: string) => {
-    const response = NextResponse.redirect(new URL(path, getAppOrigin()));
+    const response = NextResponse.redirect(new URL(path, origin));
     response.headers.set("Cache-Control", "private, no-store");
     response.headers.set("Referrer-Policy", "no-referrer");
     return response;

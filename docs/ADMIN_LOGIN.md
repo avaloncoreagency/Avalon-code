@@ -42,14 +42,20 @@ No schema, real users or production settings were changed.
 
 ## Local verification — 2026-10-31
 
-- `npm test`: 18 passing tests with synthetic identities and mocked Supabase.
+- `npm test`: 19 passing tests with synthetic identities and mocked Supabase.
 - `npm run typecheck` and `npm run build`: passed (Next.js 15.5.28).
 - `npm audit --omit=dev`: zero reported vulnerabilities. Exact PostCSS and sharp
   overrides address transitive advisories without a Next.js major migration.
 - Chromium: 1440×1000, 768×1024 and 375×812; no horizontal overflow or JS errors.
   EN/ES persistence, missing-config error, public home, private redirects and
   API 401 verified against the local production build.
-- `npm run lint`: blocked by the pre-existing missing ESLint 9 flat configuration
-  (`ESLint couldn't find an eslint.config.(js|mjs|cjs) file`).
+- `npm run lint`: passed with the Next.js/TypeScript flat configuration now included.
+- `npm run test:integration`: real production Next.js + Supabase SSR over local
+  HTTP, with synthetic Auth/Data endpoints: two owner UUIDs have identical
+  access, PKCE challenge/verifier and cookies work, refresh renews the session,
+  HUD logout clears cookies, callback replay/missing verifier and nonmembers
+  are rejected. This verifies the application integration, not live Google/RLS.
+- Read-only inspection of the linked Supabase project returned no tables in
+  `public`; `agency_memberships` is absent. No SQL or provisioning was performed.
 - Live Google login, owner accounts, session renewal/logout and database RLS are
   pending the approved nonproduction setup above; no real identities were used.
