@@ -53,3 +53,23 @@
 - Explicitly approve any production migration, PR merge, and deployment separately.
 
 **Current status:** prepared for review, not production-ready. No database migration applied; no invitations sent.
+
+## Confirmed founders (do not use as authorization claims)
+- Miguel — avalonagencymh@gmail.com — requested role: owner.
+- Samuel — avaloncoreagencysm@gmail.com — requested role: owner.
+- Emails are onboarding identifiers only; database authorization must use verified auth.users UUIDs.
+- No accounts have been created or invited; no membership rows have been inserted.
+
+## Verification performed
+- Supabase project migration history returned zero migrations at the time of review.
+- Supabase security advisor returned no lints (does not validate unapplied SQL).
+- Added a generic login failure message and a sign-out action on the feature branch.
+- Container has Node.js/npm, but cannot reach GitHub over DNS, so a real install/build and SQL execution in an isolated database were **not** completed.
+- Do not claim that RLS has passed functional tests.
+
+## Next explicit approval gates
+1. Prepare an isolated Supabase development database and run actual migration + RLS tests.
+2. Install/pin dependencies and run typecheck/build, review results and fix failures.
+3. Review preview-deployment behavior, repository visibility and Auth settings.
+4. Obtain explicit approval before creating accounts or sending invitations.
+5. Obtain separate explicit approval before any production migration, merge or deployment.
