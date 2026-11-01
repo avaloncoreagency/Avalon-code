@@ -15,7 +15,7 @@ export async function Suite({ children, active = 'dashboard' }: { children: Reac
   return <div className={s.shell}>
     <aside className={s.sidebar}><Link className={s.brand} href="/admin/dashboard">AVALON<span>CORE AGENCY / OS</span></Link>
       <nav aria-label="Navegación principal"><Link aria-current={active === 'dashboard' ? 'page' : undefined} href="/admin/dashboard">◈ Dashboard</Link>{modules.map(m => <Link key={m.slug} aria-current={active === m.slug ? 'page' : undefined} href={`/admin/workspace/${m.slug}`}><span>{m.icon}</span> {m.name}</Link>)}</nav>
-      <div className={s.account}><span>SESIÓN ACTIVA · {member.role}</span><p>{user.email}</p><form action={signOut}><button>Cerrar sesión ↗</button></form></div>
+      <div className={s.account}><span>SESIÓN ACTIVA · {member.role}</span><p><strong aria-hidden="true">{user.email?.slice(0, 1).toUpperCase()} · </strong>{user.email}</p><form action={signOut}><button>Cerrar sesión ↗</button></form></div>
     </aside>
     <main className={s.main}><header className={s.top}><span>ESPACIO PRIVADO</span><span>Avalon Core Agency</span></header>{children}<footer className={s.footer}>AVALON OS · AI. PEOPLE. SYSTEMS.</footer></main>
   </div>;

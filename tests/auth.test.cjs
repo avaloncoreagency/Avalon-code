@@ -190,3 +190,21 @@ test('email-flow proof rejects tampering, wrong user and wrong purpose', async (
   assert.equal(await flow.validPasswordFlow('verified-user', 'invite'), false);
   delete process.env.AUTH_FLOW_SECRET;
 });
+test('SMTP-free magiclink verifies identity before granting password setup, without owner provisioning', async () => {
+  process.env.AUTH_PASSWORD_LOGIN_ENABLED = 'true';
+  process.env.APP_ORIGIN = 'http://localhost:3000';
+  let verified = false;
+  const route = load('src/app/admin/auth/confirm/route.ts', {
+    '@/lib/supabase/server': { createClient: async () => ({ auth: { verifyOtp: async input => {
+      assert.equal(input.type, 'magiclink'); verified = true;
+      return { data: { user: { id: 'verified-existing-id' } }, error: null };
+    } } }) },
+    '@/lib/auth/policy': policy,
+    '@/lib/auth/email-flow': { grantPasswordFlow: async (id, purpose) => {
+      assert.equal(verified, true); assert.equal(id, 'verified-existing-id'); assert.equal(purpose, 'invite');
+    } },
+  });
+  const response = await route.GET(new NextRequest('http://localhost:3000/admin/auth/confirm?type=magiclink&token_hash=synthetic'));
+  assert.equal(response.headers.get('location'), 'http://localhost:3000/admin/signup');
+  delete process.env.AUTH_PASSWORD_LOGIN_ENABLED;
+});

@@ -7,13 +7,16 @@ export async function GET(request: NextRequest) {
   const type = request.nextUrl.searchParams.get("type");
   const token_hash = request.nextUrl.searchParams.get("token_hash");
   let path = "/admin/login?error=callback";
-  if (process.env.AUTH_PASSWORD_LOGIN_ENABLED === "true" && token_hash && (type === "invite" || type === "recovery")) {
+  if (process.env.AUTH_PASSWORD_LOGIN_ENABLED === "true" && token_hash && (type === "invite" || type === "recovery" || type === "magiclink")) {
     try {
       const client = await createClient();
       const { data, error } = await client.auth.verifyOtp({ token_hash, type });
       if (!error && data.user) {
-        await grantPasswordFlow(data.user.id, type);
-        path = type === "invite" ? "/admin/signup" : "/admin/reset-password";
+        // An admin-generated magic link can verify an existing account without SMTP.
+        // It grants password setup only; dashboard access still requires membership.
+        const purpose = type === "recovery" ? "recovery" : "invite";
+        await grantPasswordFlow(data.user.id, purpose);
+        path = purpose === "invite" ? "/admin/signup" : "/admin/reset-password";
       }
     } catch { /* Fail closed without exposing tokens. */ }
   }

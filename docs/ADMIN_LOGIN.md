@@ -104,3 +104,25 @@ confirmed with the current tools. Never send the secret through chat.
 
 No provider credentials, Preview environment variables or email templates were
 changed, no invitations were sent, and no live email/Google success is claimed.
+
+## Existing account confirmation without SMTP
+
+Read-only audit on 2026-11-01: Samuel is confirmed with an owner membership;
+Miguel exists unconfirmed without membership. Neither has a recorded first login.
+Do not change auth.users with SQL or mark confirmation artificially.
+
+A trusted operator with Supabase Auth Admin access can check the existing user UUID,
+then call `auth.admin.generateLink({ type: 'magiclink', email: existingEmail })`.
+This generates a link without sending mail. Use the returned hashed_token to build
+`APP_ORIGIN/admin/auth/confirm?type=magiclink&token_hash=...`. Never print or commit
+the token/link; deliver it only to Miguel through an independently verified private
+channel. He must consume the link himself. The callback verifies it with Supabase
+and permits choosing a password; it never creates an owner membership. Verify
+email_confirmed_at and the same UUID afterward, then provision owner through the
+trusted administrative process. Do not call generateLink for an unknown/nonexistent
+email (it may create an account), and do not use updateUserById(email_confirm:true)
+as a substitute for identity verification. Existing Supabase expiry/one-use rules apply.
+
+No Auth Admin credentials or authenticated browser are available to this agent;
+the link has not been generated or delivered. Google and email delivery are not
+claimed as working. Public signup must remain disabled in hosted Auth settings.
