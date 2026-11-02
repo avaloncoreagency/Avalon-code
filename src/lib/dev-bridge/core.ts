@@ -45,7 +45,7 @@ export async function github(config:Config, since?:string, previous?:Github, api
   if(!config.githubToken)throw Error('GitHub connection unavailable');
   if(!/^[\w.-]+\/[\w.-]+$/.test(config.repo))throw Error('Invalid repository');
   const base=`/repos/${config.repo}`;
-  const [issueRows,prs,branchRows,commitRows]=await Promise.all([api.pages(base+'/issues?state=all'+(since?'&since='+encodeURIComponent(since):'')),api.pages(base+'/pulls?state=open'),api.pages(base+'/branches'),api.pages(base+'/commits?sha='+encodeURIComponent(process.env.BRIDGE_CODE_REF??'feature/avalon-dev-bridge')+(since?'&since='+encodeURIComponent(since):''))]);
+  const [issueRows,prs,branchRows,commitRows]=await Promise.all([api.pages(base+'/issues?state=all'+(since?'&since='+encodeURIComponent(since):'')),api.pages(base+'/pulls?state=open'),api.pages(base+'/branches'),api.pages(base+'/commits?sha='+encodeURIComponent(process.env.BRIDGE_CODE_REF??'main')+(since?'&since='+encodeURIComponent(since):''))]);
   const issueMap=new Map((previous?.issues??[]).map(i=>[i.number,i]));
   for(const i of issueRows.filter(i=>!i.pull_request)) {
     if(Date.parse(issueMap.get(Number(i.number))?.updated_at??'')>Date.parse(str(i.updated_at)))continue;
@@ -76,7 +76,7 @@ export async function github(config:Config, since?:string, previous?:Github, api
     const ci=Number(combined.total_count)>0&&combined.state!=='success'?(combined.state==='pending'?'PENDING':'FAILED'):!complete||!runs.length?'UNKNOWN':runs.some(r=>['failure','cancelled','timed_out','action_required'].includes(str(r.conclusion)))?'FAILED':runs.every(r=>r.conclusion==='success'||r.conclusion==='skipped'||r.conclusion==='neutral')?'PASSED':'PENDING';
     pulls.push({number:n,title:redact(str(detail.title)),branch:str(head.ref),base_branch:str(baseRef.ref),base_sha:str(baseRef.sha),head_sha:sha,url:str(detail.html_url),files:files.map(f=>str(f.filename)),ci,reviews:reviews.map(r=>str(r.state)),conflict:detail.mergeable===null?null:detail.mergeable===false,behind:Number(row(comparison).ahead_by??0),issues:[...str(detail.body).matchAll(/(?:close[sd]?|fix(?:e[sd])?|resolve[sd]?|refs?)\s+#(\d+)/gi)].map(m=>Number(m[1]))});
   }
-  const tree=row(await api.get(base+'/git/trees/'+encodeURIComponent(process.env.BRIDGE_CODE_REF??'feature/avalon-dev-bridge')+'?recursive=1'));
+  const tree=row(await api.get(base+'/git/trees/'+encodeURIComponent(process.env.BRIDGE_CODE_REF??'main')+'?recursive=1'));
   if(tree.truncated)throw Error('Repository tree truncated');
   return {issues:[...issueMap.values()].sort((a,b)=>a.number-b.number),pulls,branches:branchRows.map(b=>({name:str(b.name),sha:str(row(b.commit).sha)})),commits:[...new Map([...(previous?.commits??[]).map(c=>[c.sha,c] as const),...commitRows.map(c=>({sha:str(c.sha),date:str(row(row(c.commit).author).date),author:redact(str(row(row(c.commit).author).name)),url:str(c.html_url)})).map(c=>[c.sha,c] as const)]).values()].sort((a,b)=>b.date.localeCompare(a.date)).slice(0,2000),migrations:((tree.tree??[]) as Row[]).map(t=>str(t.path)).filter(p=>/^supabase\/migrations\/\d+.*\.sql$/.test(p)).map(p=>p.split('/').pop()!.split('_')[0])};
 }

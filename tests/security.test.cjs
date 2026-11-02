@@ -246,7 +246,10 @@ test('every migration table has RLS enabled and anon revoked (default privileges
     assert.ok(looped.rls.has(t) || new RegExp(`alter table public\\.${t} enable row level security`, 'i').test(sql), `RLS missing on ${t}`);
     assert.ok(looped.anon.has(t) || new RegExp(`revoke [^;]*public\\.${t}[^;]*from anon|revoke all on public\\.${t} from anon`, 'i').test(sql), `anon not revoked on ${t}`);
   }
-  assert.doesNotMatch(sql, /grant [^;]* to anon/i, 'no grants to anon');
+  // Single reviewed exception: the public quote form RPC (validated, honeypot, SQL-level throttling,
+  // creates only pending prospects). Any other anon grant fails this test.
+  const anonGrants = [...sql.matchAll(/grant [^;]* to anon[^;]*;/gi)].map(m => m[0]);
+  assert.deepEqual(anonGrants, ['grant execute on function public.crm_public_inquiry(jsonb) to anon, authenticated;'], 'no grants to anon except the reviewed public inquiry RPC');
   for (const m of sql.matchAll(/security definer([\s\S]*?)\$\$/gi)) assert.match(m[1], /set search_path\s*=\s*''/i, 'SECURITY DEFINER needs empty search_path');
 });
 
