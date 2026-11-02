@@ -36,3 +36,13 @@ One task -> one primary coding agent -> one branch -> one PR. ChatGPT plans and 
 4. Seven named modules are navigable, initially with safe placeholder content.
 5. Logout works; no secret leaks; typecheck/build/test evidence recorded.
 6. Preview/release requires human approval; production unchanged.
+
+## Graphify-first, token-efficient workflow (all coding agents)
+Applies to Codex, ChatGPT and other repo-aware agents. Detailed playbook: `docs/graphify/AGENT_WORKFLOW.md`.
+- Start with the current task, working branch and git HEAD. Compare Graphify's indexed commit with the branch HEAD; a graph from another branch or older commit is **navigation only**, never proof of current implementation.
+- When Graphify is available, use `recall(profile="agent", render="compact", token_budget=800-1500, k<=8, include_turns=false)` for relevant decisions, then `graphify_rank_files(limit<=8)` or `query_graph(skeleton=true, budget=800-1500, k<=5)` to locate code. Scope to `avaloncoreagency/Avalon-code`. Expand only relevant symbols/files; inspect live source before editing.
+- For behavior changes, consult `impact_and_risk` and `graphify_tests_for` when useful, then **run** appropriate tests. Static graph results never replace runtime verification, security review or CI.
+- Avoid repository-wide dumps, redundant queries, overlapping agent implementations and repeated broad searches. Reuse file paths, SHAs and findings within the task. Check freshness once per task and again only if code changes materially.
+- If Graphify is unavailable, stale, misses the needed code or costs more context than direct inspection, switch immediately to targeted git/GitHub lookups; do not loop or block progress.
+- Limit exploration to a small number of targeted calls before choosing files. Report succinctly: files changed, tests actually run/results, open risks, next checkpoint; no invented token-savings percentages.
+- Never send credentials, private customer data or secrets to graph queries, memory or agent logs. Graphify memory notes can require separate human review before other agents can recall them.
