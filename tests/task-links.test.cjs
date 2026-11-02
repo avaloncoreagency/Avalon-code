@@ -12,7 +12,7 @@ const compiled = ts.transpileModule(fs.readFileSync(filename, 'utf8'), {
 const mod = new Module(filename, module);
 mod.filename = filename;
 mod._compile(compiled, filename);
-const { taskLink } = mod.exports;
+const { taskLink, resolveTaskView } = mod.exports;
 const client = '11111111-1111-4111-8111-111111111111';
 const workOrder = '22222222-2222-4222-8222-222222222222';
 const task = '33333333-3333-4333-8333-333333333333';
@@ -297,4 +297,19 @@ test('work-order details are fetched under owner RLS and used in the task form',
   assert.match(page, /disabled=\{Boolean\(workOrder && !activeOrder\) \|\| mismatchedClient\}/);
   assert.match(page, /activeOrder\.project_id && <>/, 'project link appears only when an order has a project');
   assert.match(page, /workOrder: activeOrder\?\.id/, 'conflicting client filter can be cleared without losing the order');
+});
+
+
+test('work-order task pages default to every owner’s open tasks, not just mine', () => {
+  assert.equal(resolveTaskView(null, true), 'all');
+  assert.equal(resolveTaskView(undefined, true), 'all');
+  assert.equal(resolveTaskView('not-a-view', true), 'all');
+  assert.equal(resolveTaskView(null, false), 'mine');
+  assert.equal(resolveTaskView('done', true), 'done');
+  assert.equal(resolveTaskView('assigned', true), 'assigned');
+});
+
+test('TasksPage applies the work-order-aware default only to valid order IDs', () => {
+  const page = fs.readFileSync('src/app/admin/workspace/crm/tasks/page.tsx', 'utf8');
+  assert.match(page, /resolveTaskView\(q\(p, "view"\), Boolean\(workOrder && UUID_RE\.test\(workOrder\)\)\)/);
 });
