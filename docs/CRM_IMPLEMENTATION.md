@@ -1,3 +1,5 @@
+> **Checkpoint 2026-11-02:** La migración `20261102085430_crm_core.sql` ya figura aplicada en Supabase producción y staging (comprobado por lectura). Esta página conserva parte del plan histórico anterior a la aplicación: **NO** ejecutar la migración nuevamente. Ninguna configuración, cuenta o dato remoto se modificó por este checkpoint. La ampliación a 13 etapas del PR #20 sigue pendiente de revisión y aprobación.
+
 # Avalon CRM — implementation and verification
 
 Date: 2026-11-01, America/New_York. Work branch: `feature/avalon-crm-foundation`. Review: PR #6, base `feature/sprint-01-miguel-google-auth`.
@@ -69,7 +71,7 @@ Documentation consulted on 2026-11-01:
 
 ## Approval and release gates
 
-1. Review `20261102081000_crm_core.sql` and obtain **explicit permission** before applying it to `thdgrczotqapnvcjefoi`. Read-only inspection confirmed this is the non-default testing branch; no remote migration was applied.
+1. Review `20261102085430_crm_core.sql` and obtain **explicit permission** before applying it to `thdgrczotqapnvcjefoi`. Read-only inspection confirmed this is the non-default testing branch; no remote migration was applied.
 2. Verify Preview environment really targets that branch, APP_ORIGIN matches Preview, and no production credentials are present. Vercel's successful prior status alone does not verify those values. No deployment was requested or performed here.
 3. Coordinate Miguel's stale auth integration assertion, directory selector and existing dependency advisories (npm ci reported 14 moderate advisories). Package versions and lockfile for the application are unchanged; no blanket audit fix.
 4. Run a full Supabase staging smoke test and native PostgreSQL concurrency/load checks after approval. Real founder login, live Google OAuth, external calendar sync and external usage APIs are not claimed tested.
