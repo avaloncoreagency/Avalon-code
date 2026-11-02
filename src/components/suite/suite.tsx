@@ -15,6 +15,7 @@ const sectionNames: Record<string, { es: string; en: string }> = {
   dashboard: { es: "Dashboard", en: "Dashboard" },
   settings: { es: "Configuración", en: "Settings" },
   profile: { es: "Perfil", en: "Profile" },
+  search: { es: "Búsqueda", en: "Search" },
 };
 
 /**
@@ -49,6 +50,9 @@ export async function Suite({ children, active = "dashboard" }: { children: Reac
     <nav aria-label={pick(lang, "Navegación principal", "Main navigation")} className={s.nav}>
       <Link className={s.navItem} aria-current={active === "dashboard" ? "page" : undefined} href="/admin/dashboard" title="Dashboard">
         <Icon name="dashboard" /><span className={s.navLabel}>Dashboard</span>
+      </Link>
+      <Link className={s.navItem} aria-current={active === "search" ? "page" : undefined} href="/admin/search" title={pick(lang, "Buscar", "Search")}>
+        <Icon name="search" /><span className={s.navLabel}>{pick(lang, "Buscar", "Search")}</span>
       </Link>
       <p className={s.navGroup}>{pick(lang, "Módulos", "Modules")}</p>
       {modules.map(m => (

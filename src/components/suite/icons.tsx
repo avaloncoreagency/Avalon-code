@@ -1,7 +1,7 @@
 import type { ReactNode } from "react";
 import type { IconName } from "./modules";
 
-type ExtraIcon = "menu" | "close" | "bell" | "chevron" | "plus" | "spark" | "globe" | "check" | "alert" | "clock" | "external" | "dots";
+type ExtraIcon = "menu" | "close" | "bell" | "chevron" | "plus" | "spark" | "globe" | "check" | "alert" | "clock" | "external" | "dots" | "search";
 const paths: Record<IconName | ExtraIcon, ReactNode> = {
   dashboard: <><rect x="3" y="3" width="7" height="9" rx="1.5" /><rect x="14" y="3" width="7" height="5" rx="1.5" /><rect x="14" y="12" width="7" height="9" rx="1.5" /><rect x="3" y="16" width="7" height="5" rx="1.5" /></>,
   crm: <><circle cx="9" cy="8" r="3.2" /><path d="M3 20c0-3.5 2.7-6 6-6s6 2.5 6 6" /><path d="M16 4.5a3 3 0 0 1 0 6M18 14c2 .8 3 2.8 3 5" /></>,
@@ -17,6 +17,7 @@ const paths: Record<IconName | ExtraIcon, ReactNode> = {
   close: <path d="M6 6l12 12M18 6 6 18" />,
   bell: <><path d="M6 9a6 6 0 0 1 12 0c0 5 2 6.5 2 6.5H4S6 14 6 9Z" /><path d="M10 19a2 2 0 0 0 4 0" /></>,
   chevron: <path d="m9 6 6 6-6 6" />,
+  search: <><circle cx="11" cy="11" r="6.5" /><path d="m16 16 4.5 4.5" /></>,
   plus: <path d="M12 5v14M5 12h14" />,
   spark: <path d="M12 3v4M12 17v4M3 12h4M17 12h4M6 6l2.5 2.5M15.5 15.5 18 18M6 18l2.5-2.5M15.5 8.5 18 6" />,
   globe: <><circle cx="12" cy="12" r="9" /><path d="M3 12h18M12 3c2.5 2.6 3.7 5.6 3.7 9s-1.2 6.4-3.7 9c-2.5-2.6-3.7-5.6-3.7-9S9.5 5.6 12 3Z" /></>,

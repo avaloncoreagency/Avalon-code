@@ -33,6 +33,7 @@ export function SuiteChrome({ lang, collapsed: initialCollapsed, section, user, 
   const [menu, setMenu] = useState<"profile" | "alerts" | null>(null);
   const pathname = usePathname();
   const menuId = useId();
+  const searchRef = useRef<HTMLInputElement>(null);
   const alertsId = useId();
   const closeMenu = () => setMenu(null);
   const profileRef = useDismiss(menu === "profile", closeMenu);
@@ -45,6 +46,19 @@ export function SuiteChrome({ lang, collapsed: initialCollapsed, section, user, 
     document.addEventListener("keydown", onKey);
     return () => document.removeEventListener("keydown", onKey);
   }, [drawer]);
+
+  // "/" focuses global search unless the user is typing in a field.
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      const target = e.target as HTMLElement | null;
+      if (e.key !== "/" || e.metaKey || e.ctrlKey || e.altKey) return;
+      if (target && (target.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(target.tagName))) return;
+      e.preventDefault();
+      searchRef.current?.focus();
+    };
+    document.addEventListener("keydown", onKey);
+    return () => document.removeEventListener("keydown", onKey);
+  }, []);
 
   const toggleCollapsed = () => {
     const next = !collapsed;
@@ -87,6 +101,11 @@ export function SuiteChrome({ lang, collapsed: initialCollapsed, section, user, 
             <span className={s.eyebrow}>Avalon Operations Center</span>
             <span className={s.section} aria-live="polite">{section}</span>
           </div>
+          <form className={s.search} action="/admin/search" role="search">
+            <label className="sr-only" htmlFor="os-search">{es ? "Buscar en Avalon OS" : "Search Avalon OS"}</label>
+            <input id="os-search" ref={searchRef} name="q" type="search" maxLength={80} autoComplete="off"
+              placeholder={es ? "Buscar…  ( / )" : "Search…  ( / )"} />
+          </form>
           <div className={s.topActions}>
             <span className={s.status} data-ok={schemaReady ? "true" : "false"} title={schemaReady ? (es ? "Base de datos de módulos activa" : "Module database active") : (es ? "Migración de módulos pendiente" : "Module migration pending")}>
               <span className={s.dot} aria-hidden="true" />

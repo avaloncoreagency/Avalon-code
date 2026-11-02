@@ -47,7 +47,10 @@ export default async function StorePage({ params, searchParams }: { params: Prom
     <Suite active="ecommerce-designer">
       <PageHeader eyebrow="E-commerce Designer" title={project.data?.name ?? "—"} description={project.data?.description || undefined}
         crumbs={[{ href: BASE, label: "E-commerce Designer" }]}
-        actions={project.data && <Link className={s.btn} href={`${BASE}/${id}/preview`}>{pick(lang, "Vista previa del catálogo", "Catalog preview")}</Link>} />
+        actions={project.data && <>
+          <Link className={s.btn} href={`${BASE}/${id}/preview`}>{pick(lang, "Vista previa del catálogo", "Catalog preview")}</Link>
+          <a className={s.btn} href={`${BASE}/${id}/export`} download>{pick(lang, "Exportar CSV", "Export CSV")}</a>
+        </>} />
       <Flash lang={lang} ok={param(query, "ok")} error={param(query, "error")} />
       {project.error ? <DbNotice lang={lang} error={project.error} /> : project.data && (
         <div className={s.split}>
