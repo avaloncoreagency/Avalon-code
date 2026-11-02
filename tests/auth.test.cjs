@@ -119,18 +119,32 @@ test('password login validates input without requiring a feature flag', async ()
   });
   await assert.rejects(actions.signIn(new FormData()), /error=invalid/);
 });
-test('Google action uses the configured callback and server-side OAuth redirect', async () => {
-  process.env.APP_ORIGIN = 'http://localhost:3000';
+test('password sign-in trims and normalizes email without touching password', async () => {
+  const calls = [];
   const actions = load('src/app/login/actions.ts', {
-    '@/lib/supabase/server': { createClient: async () => ({ auth: { signInWithOAuth: async args => {
-      assert.equal(args.provider, 'google');
-      assert.equal(args.options.redirectTo, 'http://localhost:3000/admin/auth/callback');
-      return { data: { url: 'https://example.supabase.co/auth/v1/authorize?provider=google' }, error: null };
-    } } }) },
-    '@/lib/auth/access': {}, '@/lib/auth/policy': policy,
+    '@/lib/supabase/server': { createClient: async () => ({ auth: {
+      signInWithPassword: async input => { calls.push(input); return { error: null }; },
+    } }) },
+    '@/lib/auth/access': { getAuthorizedMember: async () => ({ userId: 'verified-uuid', role: 'owner' }) },
     'next/navigation': { redirect: location => { throw Error(location); } },
   });
-  await assert.rejects(actions.signInWithGoogle(), /https:\/\/example.supabase.co\/auth\/v1\/authorize/);
+  const form = new FormData();
+  form.set('email', '  OWNER@EXAMPLE.TEST  ');
+  form.set('password', 'Synthetic-Pass-WORD');
+  await assert.rejects(actions.signIn(form), /dashboard/);
+  assert.deepEqual(calls, [{ email: 'owner@example.test', password: 'Synthetic-Pass-WORD' }]);
+});
+test('Google OAuth is not offered as a direct server login action', () => {
+  const actions = load('src/app/login/actions.ts', {
+    '@/lib/supabase/server': {}, '@/lib/auth/access': {},
+    'next/navigation': { redirect: location => { throw Error(location); } },
+  });
+  assert.equal(actions.signInWithGoogle, undefined);
+});
+test('verified legacy Google identities still require owner membership', async () => {
+  const google = client({ user: { id: 'google-owner', app_metadata: { provider: 'google' } } });
+  assert.deepEqual(await access.getAuthorizedMember(google.db), { userId: 'google-owner', role: 'owner' });
+  assert.equal(await access.getAuthorizedMember(client({ role: null, user: { id: 'google-other', app_metadata: { provider: 'google' } } }).db), null);
 });
 
  test('callback returns a clear uncached 503 when application origin is missing', async () => {

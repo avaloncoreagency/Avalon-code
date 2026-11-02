@@ -16,5 +16,5 @@ export function getAppOrigin() {
 }
 
 export function hasAllowedProvider(provider: unknown) {
-  return provider === "email";
+  return provider === "email" || provider === "google";
 }

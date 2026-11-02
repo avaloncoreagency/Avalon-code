@@ -22,7 +22,7 @@ vm.runInNewContext(
     Error,
   },
 );
-const { validate, parseCsv, scoreProspect, metrics } = moduleObject.exports;
+const { validate, parseCsv, scoreProspect, metrics, crmNavigation } = moduleObject.exports;
 const owner = "00000000-0000-4000-8000-000000000001";
 const lead = {
   company: "Synthetic Company",
@@ -135,4 +135,23 @@ test("metrics exclude archived and closed pipeline and handle zero denominator",
   assert.equal(m.created, 3);
   assert.equal(m.overdue, 1);
   assert.equal(metrics([], [], stages, Date.now()).conversion, 0);
+});
+
+test("CRM primary navigation matches the approved five-tab workflow", () => {
+  assert.deepEqual(
+    Array.from(crmNavigation, (tab) => tab.label),
+    ["Lead Hunter", "Leads Pipeline", "Ventas", "Calendario", "Tareas"],
+  );
+  assert.equal(new Set(crmNavigation.map((tab) => tab.href)).size, 5);
+  assert.ok(crmNavigation.every((tab) => tab.href.startsWith("/admin/workspace/crm/")));
+});
+
+test("CRM home uses the overview instead of disguising Leads as the landing page", () => {
+  const homepage = fs.readFileSync("src/app/admin/workspace/crm/page.tsx", "utf8");
+  const overview = fs.readFileSync("src/components/crm/overview.tsx", "utf8");
+  assert.match(homepage, /<CrmOverview\s*\/>/);
+  assert.match(overview, /Uso de tokens y costos/);
+  assert.match(overview, /Urgentes/);
+  assert.match(overview, /Normales/);
+  assert.match(overview, /no están conectadas/);
 });
