@@ -2,7 +2,7 @@
 
 import { useState, type DragEvent } from "react";
 import type { Row, Stage } from "@/lib/crm/domain";
-import { followUpState, groupPipeline } from "@/lib/crm/kanban";
+import { filterPipelineByFocus, followUpState, groupPipeline, pipelineFocusCounts, type PipelineFocus } from "@/lib/crm/kanban";
 import s from "./lead-board.module.css";
 
 type Props = {
@@ -27,11 +27,22 @@ const dateText = (value: unknown) => {
     : "";
 };
 const priorityText: Record<string, string> = { high: "Alta", normal: "Normal", low: "Baja" };
+const focusOptions: { id: PipelineFocus; label: string; description: string }[] = [
+  { id: "all", label: "Todos", description: "Todos los leads cargados en esta página" },
+  { id: "attention", label: "Para revisar", description: "Vencidos, hoy o sin fecha; solo etapas abiertas" },
+  { id: "overdue", label: "Vencidos", description: "Seguimientos antes de hoy" },
+  { id: "today", label: "Hoy", description: "Seguimientos programados para hoy" },
+  { id: "missing", label: "Sin fecha", description: "Leads abiertos sin seguimiento programado" },
+];
 
 export function LeadBoard({ stages, leads, total, page, busy, currentOwnerId, onEdit, onDetail, onMove }: Props) {
   const [draggedId, setDraggedId] = useState<string | null>(null);
   const [targetId, setTargetId] = useState<string | null>(null);
-  const columns = groupPipeline(stages, leads);
+  const [focus, setFocus] = useState<PipelineFocus>("all");
+  const now = new Date();
+  const counts = pipelineFocusCounts(stages, leads, now);
+  const visibleLeads = filterPipelineByFocus(stages, leads, focus, now);
+  const columns = groupPipeline(stages, visibleLeads);
 
   function drop(event: DragEvent<HTMLElement>, stageId: string) {
     event.preventDefault();
@@ -52,6 +63,26 @@ export function LeadBoard({ stages, leads, total, page, busy, currentOwnerId, on
         </div>
         <p>Arrastra una tarjeta o usa <strong>Cambiar etapa</strong>. Abre <strong>Ficha</strong> para las notas y el historial.</p>
       </div>
+      <div className={s.focusBar} role="group" aria-label="Priorizar seguimientos de esta página">
+        {focusOptions.map((option) => (
+          <button
+            type="button"
+            key={option.id}
+            className={s.focusButton}
+            title={option.description}
+            aria-pressed={focus === option.id}
+            onClick={() => setFocus(option.id)}
+          >
+            {option.label} <span className={s.focusCount}>{counts[option.id]}</span>
+          </button>
+        ))}
+      </div>
+      <p className={s.focusSummary} role="status">
+        {focus === "all"
+          ? "Mostrando todos los registros de esta página."
+          : `Mostrando ${visibleLeads.length} de ${leads.length} registros de esta página. Los filtros de atención excluyen etapas cerradas y leads archivados.`}
+        {" "}Para revisar = vencidos + hoy + sin fecha. No incluye otras páginas.
+      </p>
       <div className={s.scroll} role="region" tabIndex={0} aria-label="Columnas del pipeline; desplázate horizontalmente para ver todas las etapas">
         <div className={s.board}>
           {columns.map(({ stage, leads: cards, estimatedValue }) => (
@@ -123,7 +154,7 @@ export function LeadBoard({ stages, leads, total, page, busy, currentOwnerId, on
                     </article>
                   );
                 })}
-                {cards.length === 0 && <p className={s.empty}>Sin oportunidades en esta etapa de la página actual.</p>}
+                {cards.length === 0 && <p className={s.empty}>{focus === "all" ? "Sin oportunidades en esta etapa de la página actual." : "Sin oportunidades que coincidan con este filtro en esta etapa."}</p>}
               </div>
             </section>
           ))}

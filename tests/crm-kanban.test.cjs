@@ -6,8 +6,8 @@ const ts = require("typescript");
 const mod = { exports: {} };
 vm.runInNewContext(ts.transpileModule(fs.readFileSync("src/lib/crm/kanban.ts", "utf8"), {
   compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 },
-}).outputText, { module: mod, exports: mod.exports, require, Map, Date, Number });
-const { groupPipeline, followUpState } = mod.exports;
+}).outputText, { module: mod, exports: mod.exports, require, Map, Set, Date, Number });
+const { groupPipeline, followUpState, pipelineFocusCounts, filterPipelineByFocus } = mod.exports;
 const stages = [
   { id: "new", label: "Nuevo", kind: "open" },
   { id: "qualified", label: "Calificado", kind: "open" },
@@ -51,4 +51,50 @@ test("UI reuses existing owner-protected CRM mutations and manual loss reason", 
   assert.match(board, /application\/x-avalon-lead/);
   assert.match(board, /onMove\(lead, event.target.value\)/);
   assert.match(board, /hasta 50 registros por página/);
+});
+
+test("attention counts only the loaded page's non-archived open deals", () => {
+  const now = new Date("2026-11-03T12:00:00Z");
+  const configured = [...stages, { id: "won", label: "Ganado", kind: "won" }];
+  const rows = [
+    { id: "overdue", stage_id: "new", follow_up_at: "2026-11-01T12:00:00Z" },
+    { id: "today", stage_id: "qualified", follow_up_at: "2026-11-03T12:00:00Z" },
+    { id: "missing", stage_id: "new", follow_up_at: null },
+    { id: "invalid", stage_id: "qualified", follow_up_at: "invalid-date" },
+    { id: "future", stage_id: "new", follow_up_at: "2026-11-05T12:00:00Z" },
+    { id: "won", stage_id: "won", follow_up_at: null },
+    { id: "lost", stage_id: "lost", follow_up_at: "2026-11-01T12:00:00Z" },
+    { id: "archived", stage_id: "new", archived: true, follow_up_at: null },
+    { id: "unknown-stage", stage_id: "unknown", follow_up_at: null },
+  ];
+  const counts = JSON.parse(JSON.stringify(pipelineFocusCounts(configured, rows, now)));
+  assert.deepEqual(counts, { all: 9, attention: 4, overdue: 1, today: 1, missing: 2 });
+  assert.deepEqual(Array.from(filterPipelineByFocus(configured, rows, "attention", now), row => row.id), ["overdue", "today", "missing", "invalid"]);
+  assert.deepEqual(Array.from(filterPipelineByFocus(configured, rows, "overdue", now), row => row.id), ["overdue"]);
+  assert.deepEqual(Array.from(filterPipelineByFocus(configured, rows, "today", now), row => row.id), ["today"]);
+  assert.deepEqual(Array.from(filterPipelineByFocus(configured, rows, "missing", now), row => row.id), ["missing", "invalid"]);
+  const all = filterPipelineByFocus(configured, rows, "all", now);
+  assert.equal(all.length, rows.length);
+  assert.notStrictEqual(all, rows, "read-only filtering must not mutate CRM page records");
+});
+
+test("no false overdue alerts for closed, archived or future-dated deals", () => {
+  const now = new Date("2026-11-03T12:00:00Z");
+  const synthetic = [
+    { id: "closed", stage_id: "lost", follow_up_at: null },
+    { id: "archived", stage_id: "new", archived: true, follow_up_at: "2026-11-01T12:00:00Z" },
+    { id: "future", stage_id: "new", follow_up_at: "2026-11-10T12:00:00Z" },
+  ];
+  assert.equal(pipelineFocusCounts(stages, synthetic, now).attention, 0);
+  assert.equal(filterPipelineByFocus(stages, synthetic, "attention", now).length, 0);
+  assert.equal(filterPipelineByFocus(stages, synthetic, "all", now).length, 3);
+});
+
+test("attention filter UI exposes pressed state and explicit page scope", () => {
+  const ui = fs.readFileSync("src/components/crm/lead-board.tsx", "utf8");
+  assert.match(ui, /aria-pressed=\{focus === option.id\}/);
+  assert.match(ui, /pipelineFocusCounts\(stages, leads, now\)/);
+  assert.match(ui, /filterPipelineByFocus\(stages, leads, focus, now\)/);
+  assert.match(ui, /No incluye otras páginas/);
+  assert.match(ui, /Para revisar = vencidos \+ hoy \+ sin fecha/);
 });

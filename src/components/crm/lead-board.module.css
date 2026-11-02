@@ -37,3 +37,13 @@
 .footnote { font-size: 11.5px; opacity: .72; margin: 0; line-height: 1.55; }
 @media (max-width: 700px) { .board { grid-auto-columns: minmax(238px, 78vw); gap: 9px; } .column { padding: 10px; } .actions button { min-height: 44px; } .change select { min-height: 44px; font-size: 16px; } }
 @media (prefers-reduced-motion: reduce) { .scroll { scroll-behavior: auto; } }
+
+/* Read-only attention filters act only on rows in the current CRM page. */
+.focusBar { display: flex; flex-wrap: wrap; align-items: center; gap: 7px; min-width: 0; }
+.focusButton { display: inline-flex; gap: 7px; align-items: center; justify-content: center; border: 1px solid rgba(140,140,140,.38); border-radius: 999px; background: transparent; color: inherit; padding: 7px 11px; min-height: 40px; font: inherit; font-size: 12px; cursor: pointer; }
+.focusButton:hover { background: rgba(140,140,140,.12); }
+.focusButton[aria-pressed="true"] { border-color: currentColor; font-weight: 700; background: rgba(140,140,140,.14); }
+.focusButton:focus-visible { outline: 2px solid currentColor; outline-offset: 2px; }
+.focusCount { font-size: 11px; border: 1px solid rgba(140,140,140,.28); border-radius: 999px; padding: 1px 6px; font-variant-numeric: tabular-nums; }
+.focusSummary { margin: 0; font-size: 11.5px; line-height: 1.5; opacity: .78; }
+@media (max-width: 700px) { .focusBar { flex-wrap: nowrap; overflow-x: auto; padding-bottom: 5px; overscroll-behavior-x: contain; } .focusButton { min-height: 44px; white-space: nowrap; flex: none; } }
