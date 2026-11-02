@@ -34,6 +34,7 @@ test(
         "utf8",
       ),
     );
+    await db.exec(fs.readFileSync("supabase/migrations/20261102220000_shared_calendar.sql", "utf8"));
     // Titan Radar is a real CRM screen. The isolated browser fixture must
     // include its additive schema so it tests the same owner-only routes.
     await db.exec(
@@ -84,6 +85,7 @@ test(
       "crm_prospect_needs",
       "crm_radar_campaigns",
       "crm_radar_runs",
+      "crm_calendar_banners",
     ];
     const identifier = (x) => {
       assert.match(x, /^[a-z_]+$/);
@@ -109,7 +111,7 @@ test(
               : json(401, { message: "Invalid synthetic user" });
           if (!identity) return json(401, { message: "No identity" });
           const table = url.pathname.split("/").pop();
-          if (!tables.includes(table) && table !== "crm_convert_prospect")
+          if (!tables.includes(table) && table !== "crm_convert_prospect" && table !== "crm_owner_directory")
             return json(404, { message: "Unknown fixture route" });
           if (unavailable && table === "crm_stages")
             return json(404, {
@@ -150,7 +152,7 @@ test(
                 conditions.push(`${identifier(key)} is not null`);
                 continue;
               }
-              const operator = { eq: "=", gte: ">=", lt: "<", ilike: "ilike" }[
+              const operator = { eq: "=", neq: "<>", gte: ">=", gt: ">", lt: "<", ilike: "ilike" }[
                 op
               ];
               if (!operator)
@@ -176,6 +178,10 @@ test(
             const where = conditions.length
               ? " where " + conditions.join(" and ")
               : "";
+            if (table === "crm_owner_directory") {
+              const permitted = (await db.query("select user_id from agency_memberships where user_id=$1 and role=\'owner\'", [identity.id])).rows.length > 0;
+              return json(200, permitted ? [{ user_id: owner, email: "synthetic@example.invalid" }] : []);
+            }
             if (table === "crm_convert_prospect") {
               data = (
                 await db.query("select crm_convert_prospect($1) id", [
