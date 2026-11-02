@@ -18,6 +18,7 @@ type InvoiceRow = {
   crm_sales: { sale_number: string } | null;
   crm_clients: { legal_name: string } | null;
 };
+type StripeReviewEvent = { stripe_event_id: string; event_type: string; invoice_id: string | null; handled: string; created_at: string };
 const STATUS = ["creating","draft","open","paid","void","uncollectible","review"];
 const PAGE = 25;
 
@@ -31,7 +32,12 @@ export default async function InvoicesPage({ searchParams }: { searchParams: Pro
   let query = supabase.from("crm_stripe_invoices")
     .select("id,stripe_invoice_id,status,currency,amount_minor,created_at,needs_review,review_reason,hosted_invoice_url,sale_id,client_id,crm_sales(sale_number),crm_clients(legal_name)", { count:"exact" });
   if (selected !== "all") query = query.eq("status",selected);
-  const invoices = await run<InvoiceRow[]>(query.order("created_at", { ascending:false }).range(PAGE*page,PAGE*page+PAGE-1));
+  const [invoices, reviewEvents] = await Promise.all([
+    run<InvoiceRow[]>(query.order("created_at", { ascending:false }).range(PAGE*page,PAGE*page+PAGE-1)),
+    run<StripeReviewEvent[]>(supabase.from("crm_stripe_events")
+      .select("stripe_event_id,event_type,invoice_id,handled,created_at")
+      .eq("handled","review").order("created_at",{ascending:false}).limit(25)),
+  ]);
   const base = "/admin/workspace/crm/invoices";
   return <Suite active="crm"><div className={s.hud}>
     <OpsHeader lang={lang} active="invoices" crm="sales" eyebrow="Avalon OS / CRM / Invoices"
@@ -66,6 +72,19 @@ export default async function InvoicesPage({ searchParams }: { searchParams: Pro
         {page>0 && <Link className={s.button} href={`${base}?status=${selected}&page=${page-1}`}>{pick(lang,"Anterior","Previous")}</Link>}
         {(page+1)*PAGE<(invoices.count??0) && <Link className={s.button} href={`${base}?status=${selected}&page=${page+1}`}>{pick(lang,"Siguiente","Next")}</Link>}
       </div>}
+    </section>
+    <section className={s.panel} aria-labelledby="stripe-review">
+      <header><h2 id="stripe-review">{pick(lang,"Eventos Stripe que necesitan revisión","Stripe events requiring review")}</h2></header>
+      <p className={s.muted}>{pick(lang,
+        "Estos eventos no se registraron automáticamente como dinero cobrado. Revisa el evento en Stripe Sandbox y su factura asociada antes de hacer un ajuste.",
+        "These events were not automatically recorded as collected cash. Inspect the event in Stripe Sandbox and its related invoice before adjusting records.")}</p>
+      {reviewEvents.error ? <Unavailable lang={lang} code={reviewEvents.error} /> :
+        reviewEvents.data.length===0 ? <p className={s.muted}>{pick(lang,"Sin eventos pendientes de revisión.","No events awaiting review.")}</p> :
+        <ul className={s.list}>{reviewEvents.data.map(e=><li key={e.stripe_event_id}>
+          <strong>{e.event_type}</strong>
+          <span className={s.muted}>{formatDate(lang,e.created_at,true)} · {e.stripe_event_id}</span>
+          {!e.invoice_id && <span role="alert" className={s.muted}>{pick(lang,"Sin factura vinculada: localizar manualmente en Stripe Sandbox.","No linked invoice: locate the event in Stripe Sandbox.")}</span>}
+        </li>)}</ul>}
     </section>
     <p className={s.muted}>{pick(lang,
       "Stripe Tax está desactivado hasta verificar obligaciones fiscales y registros activos. Los reembolsos y disputas requieren revisión; nunca se contabilizan automáticamente sin conciliación.",
