@@ -118,9 +118,9 @@ export default async function TasksPage({ searchParams }: { searchParams: Promis
         {workOrder && (orderContext?.error
           ? <Unavailable lang={lang} code={orderContext.error} />
           : activeOrder
-            ? <p className={s.muted}>{pick(lang, "Esta tarea quedará vinculada a la orden, su cliente y proyecto. Ver", "This task will be linked to the work order, its client and project. View")} <Link href={`/admin/workspace/crm/sales/${activeOrder.sale_id}`}>{pick(lang, "venta", "sale")}</Link> · <Link href={`/admin/workspace/crm/clients/${activeOrder.client_id}`}>{pick(lang, "cliente", "client")}</Link>.</p>
+            ? <p className={s.muted}>{pick(lang, "La tarea quedará vinculada a la orden, venta y cliente. Ver", "The task will be linked to the work order, sale and client. View")} <Link href={`/admin/workspace/crm/sales/${activeOrder.sale_id}`}>{pick(lang, "venta", "sale")}</Link> · <Link href={`/admin/workspace/crm/clients/${activeOrder.client_id}`}>{pick(lang, "cliente", "client")}</Link>{activeOrder.project_id && <> · <Link href={`/admin/workspace/products/${activeOrder.project_id}`}>{pick(lang, "proyecto", "project")}</Link></>}.</p>
             : <p className={s.muted}>{pick(lang, "La orden de trabajo no está disponible. Quita el filtro para crear una tarea sin orden.", "Work order unavailable. Clear the filter to create a task without an order.")}</p>)}
-        {mismatchedClient && <p className={s.muted}>{pick(lang, "El filtro de cliente no corresponde a esta orden. Quita el filtro para continuar.", "The client filter does not match this order. Clear the filter to continue.")}</p>}
+        {mismatchedClient && <p className={s.muted}>{pick(lang, "El filtro de cliente no corresponde a esta orden.", "The client filter does not match this order.")} <Link href={taskLink({ view, page: 0, workOrder: activeOrder?.id })}>{pick(lang, "Quitar solo filtro de cliente", "Clear client filter only")}</Link></p>}
         <form action={createTask} className={s.form}>{taskContextFields}<TzOffset />
           <label className={s.field}>{pick(lang, "Título *", "Title *")}<input name="title" required maxLength={200} /></label>
           <label className={s.field}>{pick(lang, "Descripción", "Description")}<textarea name="description" maxLength={4000} rows={3} /></label>
