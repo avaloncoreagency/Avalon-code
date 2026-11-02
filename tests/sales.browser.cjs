@@ -172,6 +172,8 @@ test('Nova Restaurant through the real app: one form, three departments, no dupl
   const mobileRoutes = [
     ['/admin/dashboard', 'dashboard-mobile'],
     ['/admin/workspace/crm', 'crm-mobile'],
+    ['/admin/workspace/crm/hunter', 'radar-mobile'],
+    ['/admin/workspace/crm/leads', 'pipeline-mobile'],
     ['/admin/workspace/crm/sales', 'sales-mobile'],
     ['/admin/workspace/crm/sales/new', 'sale-form-mobile'],
     ['/admin/workspace/crm/clients', 'clients-mobile'],
@@ -197,8 +199,10 @@ test('Nova Restaurant through the real app: one form, three departments, no dupl
   await sam.setViewportSize({ width: 390, height: 844 });
   await sam.goto(origin + '/admin/dashboard');
   const mobileDock = sam.getByRole('navigation', { name: 'Accesos rápidos de Avalon' });
-  await mobileDock.getByRole('link', { name: 'CRM' }).click();
-  await sam.waitForURL(origin + '/admin/workspace/crm');
+  await mobileDock.getByRole('link', { name: 'Radar' }).click();
+  await sam.waitForURL(origin + '/admin/workspace/crm/hunter');
+  await mobileDock.getByRole('link', { name: 'Pipeline' }).click();
+  await sam.waitForURL(origin + '/admin/workspace/crm/leads');
   await mobileDock.getByRole('link', { name: 'Ventas' }).click();
   await sam.waitForURL(origin + '/admin/workspace/crm/sales');
   await mobileDock.getByRole('button', { name: 'Abrir todos los módulos' }).click();
