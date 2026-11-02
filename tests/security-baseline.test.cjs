@@ -62,7 +62,17 @@ test('no service-role or secret key can reach client bundles', () => {
   const walk = d => fs.readdirSync(d, { withFileTypes: true }).flatMap(e => e.isDirectory() ? walk(`${d}/${e.name}`) : [`${d}/${e.name}`]);
   for (const f of walk('src')) {
     const s = fs.readFileSync(f, 'utf8');
-    assert.doesNotMatch(s, /service_role|SERVICE_ROLE|NEXT_PUBLIC_[A-Z_]*(SECRET|SERVICE)/, f);
+    // Only the HMAC-verifying public Stripe webhook may use the server role.
+    // A Next.js route.ts is server-only; never allow this exception in a client component.
+    if (f === 'src/app/api/stripe/webhook/route.ts') {
+      assert.match(s, /verifyStripeSignature\(payload, request\.headers\.get\("stripe-signature"\), secret\)/);
+      assert.match(s, /event\.livemode !== false/);
+      assert.match(s, /process\.env\.SUPABASE_SERVICE_ROLE_KEY/);
+      assert.match(s, /crm_stripe_process_event/);
+      assert.doesNotMatch(s, /NEXT_PUBLIC_[A-Z_]*(SECRET|SERVICE)/, f);
+    } else {
+      assert.doesNotMatch(s, /service_role|SERVICE_ROLE|NEXT_PUBLIC_[A-Z_]*(SECRET|SERVICE)/, f);
+    }
   }
   assert.doesNotMatch(fs.readFileSync('.env.example', 'utf8'), /service_role|sb_secret_/i);
 });
