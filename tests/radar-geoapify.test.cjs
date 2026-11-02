@@ -123,9 +123,10 @@ test("live endpoint path sends a key ONLY server-side, limits results, persists 
   "./radar":radar, "./radar-geoapify":geo,
   mockFetch:deps.mockFetch,
  });
- // compile() uses an isolated empty env; the endpoint cannot be used until a key
- // is configured. This is a deliberate no-credentials/no-provider safety gate.
- assert.equal(output.radarEndpoint().error!==undefined,true);
+ // The explicitly non-production default still supports bounded community
+ // Overpass for development; production without a key is blocked in the prior test.
+ assert.equal(output.radarEndpoint().provider,"overpass");
+ assert.equal(output.radarEndpoint().licensed,false);
  const env={VERCEL_ENV:"production",AVALON_GEOAPIFY_PLACES_KEY:"c3da27885e3573e09e550d044bc55e22"};
  const exports={};
  new Function("require","exports","process","fetch","AbortSignal","URLSearchParams",js)(
