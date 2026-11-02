@@ -25,6 +25,7 @@ export function LeadRadar({ ownerId, onSaved }: { ownerId: string; onSaved: () =
   const [notice, setNotice] = useState("");
   const [sourceZone, setSourceZone] = useState("");
   const [cached, setCached] = useState(false);
+  const [focusedPlace, setFocusedPlace] = useState("");
 
   async function search(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
@@ -112,8 +113,36 @@ export function LeadRadar({ ownerId, onSaved }: { ownerId: string; onSaved: () =
             <span>{sourceZone} · {cached ? "Resultados recientes en caché" : "Consulta de mapa"}</span>
           </div>
           {!places.length && <p className={s.empty}>No hay negocios con datos suficientes para estos filtros. Prueba otra zona, radio o servicio. La cobertura del mapa varía.</p>}
+          <div className={s.radarPlotSection}>
+            <div className={s.radarPlotText}>
+              <strong>Radar visual de proximidad</strong>
+              <small>Esquema de distancias, no mapa de calles. Toca un punto para encontrar su ficha.</small>
+            </div>
+            <div className={s.radarPlot} role="group" aria-label="Negocios encontrados alrededor de la zona">
+              <span className={s.radarPlotCenter} aria-hidden="true">Centro</span>
+              {places.slice(0, 24).map(place => {
+                const base = RADAR_ZONES.find(z => z.id === zone) ?? RADAR_ZONES[0];
+                const radial = Number(radius);
+                const north = (place.lat - base.lat) * 111_000 / radial;
+                const east = (place.lon - base.lon) * 111_000 * Math.cos(base.lat * Math.PI / 180) / radial;
+                const left = Math.max(7, Math.min(93, 50 + 43 * east));
+                const top = Math.max(7, Math.min(93, 50 - 43 * north));
+                return <button key={place.key} type="button"
+                  className={s.radarPlotPin} aria-label={"Localizar " + place.name}
+                  title={place.name} aria-pressed={focusedPlace === place.key}
+                  style={{ left: left + "%", top: top + "%" }}
+                  onClick={() => {
+                    setFocusedPlace(place.key);
+                    document.getElementById("radar-place-" + place.key.replace("/", "-"))
+                      ?.scrollIntoView({ behavior: "smooth", block: "center" });
+                  }} />;
+              })}
+            </div>
+            <small className={s.radarPlotCaption}>Hasta 24 negocios ubicados · el listado inferior conserva todos los resultados.</small>
+          </div>
           <div className={s.radarGrid}>
-            {places.map(place => <article key={place.key} className={s.radarCard}>
+            {places.map(place => <article id={"radar-place-" + place.key.replace("/", "-")} key={place.key}
+              className={s.radarCard} data-focused={focusedPlace === place.key ? "true" : undefined}>
               <div className={s.radarCardTop}>
                 <div><h3>{place.name}</h3><small>{place.industry} · {place.location}</small></div>
                 <span className={s.radarScore} title="Prioridad calculada a partir de datos de contacto y web registrada, no calidad del negocio">{place.score}/100</span>
