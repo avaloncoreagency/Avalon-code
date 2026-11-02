@@ -47,13 +47,19 @@ export default async function TasksPage({ searchParams }: { searchParams: Promis
   const ownerList = owners.data ?? [];
   const tabs: [string, string, string][] = [["mine", "Mis tareas", "My tasks"], ["assigned", "Asignadas por mí", "Assigned by me"], ["overdue", "Vencidas", "Overdue"], ["all", "Todas abiertas", "All open"], ["done", "Cerradas", "Closed"]];
   const isOverdue = (t: Task) => OPEN.includes(t.status) && t.due_at !== null && t.due_at < now;
-  const taskHref = (task?: string, pageNumber = page) => taskLink({
-    view, page: pageNumber,
+  const taskHref = (task?: string, pageNumber = page, viewName = view) => taskLink({
+    view: viewName, page: pageNumber,
     client: client && UUID_RE.test(client) ? client : null,
     workOrder: workOrder && UUID_RE.test(workOrder) ? workOrder : null,
     task,
   });
-  const statusForm = (t: Task, ret?: string) => <form action={updateTask} className={s.inline}>
+  const taskContextFields = <>
+    <input type="hidden" name="view" value={view} />
+    <input type="hidden" name="page" value={page} />
+    <input type="hidden" name="client" value={client && UUID_RE.test(client) ? client : ""} />
+    <input type="hidden" name="work_order" value={workOrder && UUID_RE.test(workOrder) ? workOrder : ""} />
+  </>;
+  const statusForm = (t: Task, ret?: string) => <form action={updateTask} className={s.inline}>{taskContextFields}
     <input type="hidden" name="task_id" value={t.id} /><input type="hidden" name="version" value={t.version} />{ret && <input type="hidden" name="return" value={ret} />}
     <label className={s.srOnly} htmlFor={`ts-${t.id}${ret ?? ""}`}>{pick(lang, "Estado", "Status")}</label>
     <select id={`ts-${t.id}${ret ?? ""}`} name="status" defaultValue={t.status}>{TASK_STATUSES.map(x => <option key={x} value={x}>{label(lang, x)}</option>)}</select>
@@ -80,7 +86,7 @@ export default async function TasksPage({ searchParams }: { searchParams: Promis
         <div style={{ marginTop: 12 }}>{statusForm(detail.data, "detail")}</div>
         <h3>{pick(lang, "Comentarios", "Comments")}</h3>
         {comments?.error ? <Unavailable lang={lang} code={comments.error} /> : <ul className={s.list}>{(comments?.data ?? []).map(c => <li key={c.id}><span style={{ whiteSpace: "pre-wrap" }}>{c.body}</span><small className={s.muted}>{ownerName(ownerList, c.created_by)} · {formatDate(lang, c.created_at, true)}</small></li>)}</ul>}
-        <form action={commentTask} className={s.form} style={{ marginTop: 10 }}><input type="hidden" name="task_id" value={detail.data.id} />
+        <form action={commentTask} className={s.form} style={{ marginTop: 10 }}>{taskContextFields}<input type="hidden" name="task_id" value={detail.data.id} />
           <label className={s.field}>{pick(lang, "Añadir comentario", "Add comment")}<textarea name="body" required maxLength={4000} rows={3} /></label>
           <button className={s.button}>{pick(lang, "Comentar", "Comment")}</button></form>
       </div><div>
@@ -92,7 +98,7 @@ export default async function TasksPage({ searchParams }: { searchParams: Promis
 
     <div className={s.columns}>
       <section className={s.panel} aria-labelledby="task-list"><header><h2 id="task-list">{pick(lang, "Trabajo", "Work")}</h2>
-        <nav className={s.subnav} aria-label={pick(lang, "Vistas de tareas", "Task views")}>{tabs.map(([k, es, en]) => <Link key={k} href={`?view=${k}`} aria-current={view === k ? "page" : undefined}>{pick(lang, es, en)}</Link>)}</nav></header>
+        <nav className={s.subnav} aria-label={pick(lang, "Vistas de tareas", "Task views")}>{tabs.map(([k, es, en]) => <Link key={k} href={taskHref(undefined, 0, k)} aria-current={view === k ? "page" : undefined}>{pick(lang, es, en)}</Link>)}</nav></header>
         {(client || workOrder) && <p className={s.muted}>{pick(lang, "Filtro activo.", "Filter active.")} <Link href={`?view=${view}`}>{pick(lang, "Quitar filtro", "Clear filter")}</Link></p>}
         {tasks.error ? <Unavailable lang={lang} code={tasks.error} /> : tasks.data.length === 0 ? <p className={s.empty}>{pick(lang, "No hay tareas en esta vista.", "No tasks in this view.")}</p> :
         <ul className={s.list}>{tasks.data.map(t => <li key={t.id} className={s.notice} data-severity={isOverdue(t) || t.status === "blocked" ? "urgent" : "normal"}>
@@ -103,7 +109,7 @@ export default async function TasksPage({ searchParams }: { searchParams: Promis
         <div className={s.actions} style={{ marginTop: 12 }}>{page > 0 && <Link className={s.button} href={taskHref(undefined, page - 1)}>{pick(lang, "Anterior", "Previous")}</Link>}{(page + 1) * PAGE < (tasks.count ?? 0) && <Link className={s.button} href={taskHref(undefined, page + 1)}>{pick(lang, "Siguiente", "Next")}</Link>}</div>
       </section>
       <section className={s.panel} aria-labelledby="new-task"><h2 id="new-task">{pick(lang, "Nueva tarea", "New task")}</h2>
-        <form action={createTask} className={s.form}><TzOffset />
+        <form action={createTask} className={s.form}>{taskContextFields}<TzOffset />
           <label className={s.field}>{pick(lang, "Título *", "Title *")}<input name="title" required maxLength={200} /></label>
           <label className={s.field}>{pick(lang, "Descripción", "Description")}<textarea name="description" maxLength={4000} rows={3} /></label>
           <div className={s.row}>
