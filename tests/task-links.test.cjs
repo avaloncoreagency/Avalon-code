@@ -198,3 +198,18 @@ test('server action normalizes a leading-zero page and rejects oversized pages',
   const { updateTask } = syntheticActions();
   await assert.rejects(updateTask(form), error => assertContext(error, { ok: 'saved' }));
 });
+
+
+test('invalid comment body keeps the selected task and filtered page visible', async () => {
+  const form = formWithContext();
+  form.set('body', '   ');
+  const { commentTask } = syntheticActions();
+  await assert.rejects(commentTask(form), e => assertContext(e, { task, error: 'sale_invalid' }));
+});
+
+test('invalid update values keep selected task and filtered page visible', async () => {
+  const form = formWithContext();
+  form.set('status', 'not-a-task-status');
+  const { updateTask } = syntheticActions();
+  await assert.rejects(updateTask(form), e => assertContext(e, { task, error: 'sale_invalid' }));
+});
