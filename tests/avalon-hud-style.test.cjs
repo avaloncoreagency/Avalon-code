@@ -25,7 +25,7 @@ test("semantic states and user-assigned event colors remain distinct", () => {
   assert.match(ops, /data-tone="danger"/);
   assert.match(ops, /data-tone="warn"/);
   assert.match(kanban, /data-overdue="true"/);
-  assert.match(crm, /var\\(--gradient\\)/);
+  assert.ok(crm.includes("var(--gradient)"));
 });
 test("CRM and operations navigation retain keyboard and mobile affordances", () => {
   assert.match(crm, /:focus-visible/);
