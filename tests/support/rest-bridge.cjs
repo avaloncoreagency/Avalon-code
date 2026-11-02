@@ -214,7 +214,7 @@ async function startBridge(db, { users, log = () => {} }) {
       } finally {
         await db.exec('reset role;');
       }
-    }).catch(e => { res.writeHead(500); res.end(JSON.stringify({ message: e.message })); });
+    }).catch(e => { res.writeHead(500, { 'Content-Type': 'application/json', 'X-Content-Type-Options': 'nosniff' }); res.end(JSON.stringify({ message: String(e.message) })); });
   });
   await new Promise(r => server.listen(0, '127.0.0.1', r));
   return { url: `http://127.0.0.1:${server.address().port}`, close: () => new Promise(r => server.close(r)) };

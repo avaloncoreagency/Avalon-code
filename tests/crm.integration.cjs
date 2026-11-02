@@ -239,8 +239,11 @@ test(
           }
         })
         .catch((e) => {
-          res.writeHead(500);
-          res.end(JSON.stringify({ message: e.message }));
+          res.writeHead(500, {
+            "Content-Type": "application/json",
+            "X-Content-Type-Options": "nosniff",
+          });
+          res.end(JSON.stringify({ message: String(e.message) }));
         });
     });
     await new Promise((r) => remote.listen(0, "127.0.0.1", r));
