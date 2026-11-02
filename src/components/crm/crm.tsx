@@ -399,10 +399,10 @@ export function Crm({ section = "leads" }: { section?: CrmSection }) {
                 Buscar empresa, contacto o correo
                 <input name="q" defaultValue={filters.q} />
               </label>
-              <label>
-                Responsable UUID
+              {section !== "hunter" && <label>
+                Responsable (UUID)
                 <input name="owner" defaultValue={filters.owner} />
-              </label>
+              </label>}
               <label>
                 Origen exacto
                 <input name="source" defaultValue={filters.source} />
@@ -723,7 +723,38 @@ export function Crm({ section = "leads" }: { section?: CrmSection }) {
                     />
                   </label>
                 </section>
-                {table()}
+                <section className={s.panel} aria-labelledby="saved-prospects">
+                  <h2 id="saved-prospects">Prospectos guardados · revisar y llamar</h2>
+                  <p className={s.muted}>Completa el contacto y la necesidad real, cambia la revisión a Aprobado y pasa el prospecto al pipeline cuando esté calificado.</p>
+                  <div className={s.radarSavedGrid}>
+                    {rows.map(row => (
+                      <article key={String(row.id)} className={s.radarCard}>
+                        <div className={s.radarCardTop}>
+                          <div>
+                            <h3>{String(row.company ?? "Sin nombre")}</h3>
+                            <small>{String(row.industry ?? "")} · {String(row.location ?? "")}</small>
+                          </div>
+                          <span className={s.radarScore}>{row.status === "approved" ? "Aprobado" : row.status === "converted" ? "En pipeline" : row.status === "rejected" ? "Descartado" : "Pendiente"}</span>
+                        </div>
+                        <p className={s.radarOpportunity}>{String(row.opportunity ?? "Oportunidad por verificar")}</p>
+                        <div className={s.radarContacts}>
+                          {row.phone ? <a href={"tel:" + String(row.phone)}>{String(row.phone)}</a> : <span>Teléfono pendiente</span>}
+                          {row.email ? <a href={"mailto:" + String(row.email)}>{String(row.email)}</a> : <span>Correo pendiente</span>}
+                          {row.contact ? <span>Contacto: {String(row.contact)}</span> : <span>Decisor: sin verificar</span>}
+                        </div>
+                        <div className={s.actions}>
+                          {row.status !== "converted" && <>
+                            <button disabled={busy} onClick={() => edit(row)}>{row.status === "pending" ? "Revisar y calificar" : "Editar ficha"}</button>
+                            {row.status === "approved" && <button disabled={busy} onClick={() => action({ action: "convert", id: row.id })}>Pasar al pipeline</button>}
+                          </>}
+                          {row.status === "converted" && row.lead_id &&
+                            <Link href={"/admin/workspace/crm/leads?lead=" + String(row.lead_id)} className={s.link}>Abrir lead</Link>}
+                        </div>
+                        <small className={s.muted}>Fuente: {String(row.source ?? "manual")} · {stamp(row.acquired_at)}</small>
+                      </article>
+                    ))}
+                  </div>
+                </section>
               </>
             )}
             {section === "ai-usage" && (
