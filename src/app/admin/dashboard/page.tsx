@@ -53,7 +53,7 @@ export default async function DashboardPage() {
   const overdue = upcoming.data?.filter(i => i.planned_for < today && OPEN_CONTENT(i.status)) ?? [];
   const activeProjects = projects.data?.filter(p => p.status === "active").length ?? null;
   const n = (value: number | null | undefined) => (value === null || value === undefined ? "—" : String(value));
-  const passwordEnabled = process.env.AUTH_PASSWORD_LOGIN_ENABLED === "true";
+  const passwordEnabled = true;
   const oauthConfigured = Boolean(process.env.APP_ORIGIN);
   const connected = INTEGRATIONS.filter(i => i.status === "connected").length;
 

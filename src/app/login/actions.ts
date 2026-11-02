@@ -23,9 +23,8 @@ export async function signInWithGoogle() {
   redirect(destination);
 }
 
-// Retain the existing password method, gated until its activation is approved.
+// Password is the primary administrative sign-in method.
 export async function signIn(formData: FormData) {
-  if (process.env.AUTH_PASSWORD_LOGIN_ENABLED !== "true") redirect("/admin/login?error=disabled");
   const email = formData.get("email");
   const password = formData.get("password");
   if (typeof email !== "string" || typeof password !== "string" || !email || !password ||
