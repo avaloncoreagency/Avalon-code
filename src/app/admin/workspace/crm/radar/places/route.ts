@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getOwnerSession } from "@/lib/auth/session";
+import { isValidRadarEmail } from "@/lib/crm/radar";
 
 export const dynamic = "force-dynamic";
 const reply = (data: unknown, status = 200) => NextResponse.json(data, { status, headers: { "Cache-Control": "private, no-store" } });
@@ -71,7 +72,7 @@ export async function POST(request: NextRequest) {
     }
     case "contact": {
       const email = String(body.email ?? "").trim().toLowerCase();
-      if (email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return reply({ error: "Correo inválido" }, 400);
+      if (email && !isValidRadarEmail(email)) return reply({ error: "Correo inválido" }, 400);
       const { error } = await db.from("crm_prospects").update({ contact: String(body.contact ?? "").slice(0, 160), phone: String(body.phone ?? "").slice(0, 40), email: email || null }).eq("id", id);
       return error ? fail(error) : reply({ ok: true });
     }
