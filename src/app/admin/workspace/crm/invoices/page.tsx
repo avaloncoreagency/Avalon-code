@@ -83,6 +83,8 @@ export default async function InvoicesPage({ searchParams }: { searchParams: Pro
         <ul className={s.list}>{reviewEvents.data.map(e=><li key={e.stripe_event_id}>
           <strong>{e.event_type}</strong>
           <span className={s.muted}>{formatDate(lang,e.created_at,true)} · {e.stripe_event_id}</span>
+          <a href={`https://dashboard.stripe.com/test/events/${e.stripe_event_id}`}
+            target="_blank" rel="noopener noreferrer">{pick(lang,"Investigar evento en Stripe Sandbox","Investigate event in Stripe Sandbox")}</a>
           {!e.invoice_id && <span role="alert" className={s.muted}>{pick(lang,"Sin factura vinculada: localizar manualmente en Stripe Sandbox.","No linked invoice: locate the event in Stripe Sandbox.")}</span>}
         </li>)}</ul>}
     </section>
