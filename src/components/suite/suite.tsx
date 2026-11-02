@@ -1,25 +1,85 @@
-import Link from 'next/link';
-import { redirect } from 'next/navigation';
-import type { ReactNode } from 'react';
-import { getAuthorizedMember } from '@/lib/auth/access';
-import { createClient } from '@/lib/supabase/server';
-import { signOut } from '@/app/dashboard/actions';
-import { modules } from './modules';
-import s from './suite.module.css';
-export async function Suite({ children, active = 'dashboard' }: { children: ReactNode; active?: string }) {
-  const member = await getAuthorizedMember();
-  if (!member) redirect('/admin/login');
-  const client = await createClient();
-  const { data: { user }, error } = await client.auth.getUser();
-  if (error || !user || user.id !== member.userId) redirect('/admin/login');
-  return <div className={s.shell}>
-    <aside className={s.sidebar}><Link className={s.brand} href="/admin/dashboard">AVALON<span>CORE AGENCY / OS</span></Link>
-      <nav aria-label="Navegación principal"><Link aria-current={active === 'dashboard' ? 'page' : undefined} href="/admin/dashboard">◈ Dashboard</Link>{modules.map(m => <Link key={m.slug} aria-current={active === m.slug ? 'page' : undefined} href={`/admin/workspace/${m.slug}`}><span>{m.icon}</span> {m.name}</Link>)}</nav>
-      <div className={s.account}><span>SESIÓN ACTIVA · {member.role}</span><p><strong aria-hidden="true">{user.email?.slice(0, 1).toUpperCase()} · </strong>{user.email}</p><form action={signOut}><button>Cerrar sesión ↗</button></form></div>
-    </aside>
-    <main className={s.main}><header className={s.top}><span>ESPACIO PRIVADO</span><span>Avalon Core Agency</span></header>{children}<footer className={s.footer}>AVALON OS · AI. PEOPLE. SYSTEMS.</footer></main>
-  </div>;
+import Link from "next/link";
+import { cookies } from "next/headers";
+import type { ReactNode } from "react";
+import { requireOwner, displayName } from "@/lib/auth/session";
+import { getLang } from "@/lib/i18n-server";
+import { pick } from "@/lib/i18n";
+import { countRows } from "@/lib/os/data";
+import { signOut } from "@/app/dashboard/actions";
+import { modules } from "./modules";
+import { Icon } from "./icons";
+import { SuiteChrome, type ChromeNotification } from "./chrome";
+import s from "./suite.module.css";
+
+const sectionNames: Record<string, { es: string; en: string }> = {
+  dashboard: { es: "Dashboard", en: "Dashboard" },
+  settings: { es: "Configuración", en: "Settings" },
+  profile: { es: "Perfil", en: "Profile" },
+};
+
+/**
+ * Private shell for every Avalon OS page. Public API is stable:
+ * <Suite active="crm">…</Suite> is used by the CRM module branch.
+ */
+export async function Suite({ children, active = "dashboard" }: { children: ReactNode; active?: string }) {
+  const session = await requireOwner();
+  const lang = await getLang();
+  const collapsed = (await cookies()).get("avalon-sidebar")?.value === "collapsed";
+  const today = new Date().toISOString().slice(0, 10);
+  const overdue = await countRows(session.supabase, "os_marketing_items", [["lt", "planned_for", today], ["not_in", "status", ["published", "cancelled"]]]);
+
+  const notifications: ChromeNotification[] = [];
+  if (overdue.error === "schema_pending") {
+    notifications.push({ tone: "warning", text: pick(lang, "La migración de módulos está pendiente de aprobación. Los módulos no pueden guardar datos todavía.", "Module migration is pending approval. Modules cannot save data yet."), href: "/admin/settings" });
+  } else if (overdue.count) {
+    notifications.push({ tone: "danger", text: pick(lang, `${overdue.count} contenido(s) de marketing con fecha vencida.`, `${overdue.count} marketing item(s) past their planned date.`), href: "/admin/workspace/marketing-hub" });
+  }
+
+  const name = displayName(session.user);
+  const current = modules.find(m => m.slug === active);
+  const section = current ? current.name : pick(lang, sectionNames[active]?.es ?? "Dashboard", sectionNames[active]?.en ?? "Dashboard");
+  const logout = (
+    <form action={signOut} className={s.logoutForm}>
+      <button type="submit" className={s.navItem}>
+        <Icon name="logout" /><span className={s.navLabel}>{pick(lang, "Cerrar sesión", "Sign out")}</span>
+      </button>
+    </form>
+  );
+  const nav = (
+    <nav aria-label={pick(lang, "Navegación principal", "Main navigation")} className={s.nav}>
+      <Link className={s.navItem} aria-current={active === "dashboard" ? "page" : undefined} href="/admin/dashboard" title="Dashboard">
+        <Icon name="dashboard" /><span className={s.navLabel}>Dashboard</span>
+      </Link>
+      <p className={s.navGroup}>{pick(lang, "Módulos", "Modules")}</p>
+      {modules.map(m => (
+        <Link key={m.slug} className={s.navItem} data-accent={m.accent} aria-current={active === m.slug ? "page" : undefined} href={m.href} title={m.name}>
+          <Icon name={m.icon} /><span className={s.navLabel}>{m.name}</span>
+        </Link>
+      ))}
+      <p className={s.navGroup}>{pick(lang, "Cuenta", "Account")}</p>
+      <Link className={s.navItem} aria-current={active === "settings" ? "page" : undefined} href="/admin/settings" title={pick(lang, "Configuración", "Settings")}>
+        <Icon name="settings" /><span className={s.navLabel}>{pick(lang, "Configuración", "Settings")}</span>
+      </Link>
+      <Link className={s.navItem} aria-current={active === "profile" ? "page" : undefined} href="/admin/profile" title={pick(lang, "Perfil", "Profile")}>
+        <Icon name="profile" /><span className={s.navLabel}>{pick(lang, "Perfil", "Profile")}</span>
+      </Link>
+    </nav>
+  );
+
+  return (
+    <SuiteChrome
+      lang={lang}
+      collapsed={collapsed}
+      section={section}
+      user={{ name, email: session.user.email ?? "", role: session.role, initial: name.slice(0, 1).toUpperCase() }}
+      notifications={notifications}
+      schemaReady={overdue.error !== "schema_pending"}
+      nav={nav}
+      logout={logout}
+    >
+      {children}
+    </SuiteChrome>
+  );
 }
-export function ModuleCards() {
-  return <div className={s.grid}>{modules.map(m => <Link className={s.card} href={`/admin/workspace/${m.slug}`} key={m.slug}><span className={s.number}>{m.icon}</span><span className={s.badge}>{m.slug === 'crm' ? 'PRIMER MÓDULO' : 'VISTA INICIAL'}</span><h2>{m.name}</h2><p>{m.description}</p><span className={s.open}>Abrir espacio <span aria-hidden="true">↗</span></span></Link>)}</div>;
-}
+
+export { ModuleCards } from "./module-cards";

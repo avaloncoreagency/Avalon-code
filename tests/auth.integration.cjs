@@ -137,12 +137,21 @@ test('OAuth PKCE, SSR cookies, owner gate, refresh and logout over HTTP', { time
     const dashboard = await request('/admin/dashboard');
     assert.equal(dashboard.status, 200);
     assert.match(await dashboard.text(), /owner/);
-    for (const slug of ['crm', 'website-designer', 'ecommerce-designer', 'crm-creator', 'ai-receptionist', 'marketing-hub']) {
+    // Module database is not installed in the synthetic backend: every module must
+    // render an honest "migration pending" state (never invented data) and stay private.
+    const crm = await request('/admin/workspace/crm');
+    assert.equal(crm.status, 200);
+    assert.match(await crm.text(), /CRM en desarrollo por Samuel/);
+    for (const slug of ['website-designer', 'ecommerce-designer', 'crm-creator', 'ai-receptionist', 'marketing-hub']) {
       const moduleResponse = await request('/admin/workspace/' + slug);
-      assert.equal(moduleResponse.status, 200);
-      assert.match(await moduleResponse.text(), /Espacio preparado/);
+      assert.equal(moduleResponse.status, 200, slug);
+      assert.match(await moduleResponse.text(), /base de datos pendiente/, slug);
     }
+    for (const path of ['/admin/settings', '/admin/profile']) assert.equal((await request(path)).status, 200, path);
+    assert.match(await (await request('/admin/settings')).text(), /Migración pendiente/);
     assert.equal((await request('/admin/workspace/unknown')).status, 404);
+    assert.equal((await request('/admin/workspace/website-designer/not-a-uuid')).status, 404);
+    assert.equal((await request('/admin/workspace/crm-creator/00000000-0000-4000-8000-0000000000aa/export')).status, 503);
     assert.match(dashboard.headers.get('cache-control'), /no-store/);
     assert.equal(new URL((await request('/admin/login')).headers.get('location'), origin).pathname, '/admin/dashboard');
   });
@@ -163,6 +172,9 @@ test('OAuth PKCE, SSR cookies, owner gate, refresh and logout over HTTP', { time
     assert.ok(![...jar.keys()].some(key => key.endsWith('auth-token')));
     assert.equal((await request('/admin/dashboard')).status, 307);
     assert.equal((await request('/api/private')).status, 401);
+    for (const path of ['/admin/workspace/marketing-hub', '/admin/settings', '/admin/workspace/crm-creator/00000000-0000-4000-8000-0000000000aa/export']) {
+      assert.equal(new URL((await request(path)).headers.get('location'), origin).pathname, '/admin/login', path);
+    }
     assert.ok(logoutCalls.includes('global'));
   });
   await check('second synthetic owner receives identical permissions', async () => {

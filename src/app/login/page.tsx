@@ -1,6 +1,7 @@
 import { redirect } from "next/navigation";
 import { getAuthorizedMember } from "@/lib/auth/access";
 import { LoginPanel } from "@/components/auth/login-panel";
+import { getLang } from "@/lib/i18n-server";
 
 export const dynamic = "force-dynamic";
 
@@ -8,5 +9,5 @@ export default async function LoginPage({ searchParams }: { searchParams: Promis
   const params = await searchParams;
   const member = await getAuthorizedMember();
   if (member) redirect("/admin/dashboard");
-  return <LoginPanel updated={params.updated === "1"} error={params.error} passwordEnabled={process.env.AUTH_PASSWORD_LOGIN_ENABLED === "true"} />;
+  return <LoginPanel initialLanguage={await getLang()} updated={params.updated === "1"} error={params.error} passwordEnabled={process.env.AUTH_PASSWORD_LOGIN_ENABLED === "true"} />;
 }
