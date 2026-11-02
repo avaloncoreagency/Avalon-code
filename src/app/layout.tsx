@@ -10,7 +10,7 @@ export const metadata: Metadata = {
   description: "Panel privado de operaciones de Avalon Core Agency",
   robots: { index: false, follow: false },
 };
-export const viewport: Viewport = { themeColor: "#050816", colorScheme: "dark" };
+export const viewport: Viewport = { themeColor: "#050816", colorScheme: "dark", viewportFit: "cover" };
 
 export default async function RootLayout({ children }: Readonly<{ children: ReactNode }>) {
   const lang = await getLang();

@@ -241,3 +241,88 @@
 a.kpi { display:block; text-decoration:none; color:inherit; transition:border-color .15s; }
 a.kpi:hover { border-color:var(--accent, #6fe3ff); }
 @media (prefers-reduced-motion: reduce) { a.kpi, a.kpi:hover { transition:none; } }
+
+/* Mobile-first operational chrome: no separate app and no hidden workflows. */
+.mobileDock { display: none; }
+@media (max-width: 900px) {
+  .shell, .main { min-width: 0; width: 100%; }
+  .sidebar { height: 100dvh; padding-bottom: max(16px, env(safe-area-inset-bottom)); }
+  .content { min-width: 0; }
+  .navItem, .drawerClose, .menuButton { min-height: 44px; }
+}
+@media (max-width: 640px) {
+  .shell { min-height: 100dvh; }
+  .main { min-height: 100dvh; }
+  .topbar {
+    min-height: 56px; gap: 8px; padding: 7px 12px;
+    padding-top: max(7px, env(safe-area-inset-top));
+  }
+  .titleBlock { flex: 1 1 auto; min-width: 0; }
+  .section { font-size: 15px; max-width: 100%; }
+  .topActions { flex: none; gap: 5px; }
+  .menuButton, .iconButton { width: 44px; height: 44px; }
+  .lang { padding: 1px; }
+  .lang button { min-height: 38px; padding: 6px 8px; }
+  .profileButton { min-height: 44px; min-width: 44px; justify-content: center; padding: 4px; }
+  .avatar { width: 32px; height: 32px; }
+  .content { padding: 14px 12px 22px; }
+  .hero { padding: 18px 16px; border-radius: 16px; }
+  .hero h1 { font-size: clamp(24px, 7vw, 32px); line-height: 1.18; }
+  .hero p { font-size: 13px; line-height: 1.55; }
+  .heroActions { gap: 8px; }
+  .heroActions > * { min-height: 44px; flex: 1 1 130px; justify-content: center; text-align: center; }
+  .kpis { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 9px; margin: 13px 0; }
+  .kpi { padding: 13px 12px; min-width: 0; }
+  .kpi span { font-size: 11px; overflow-wrap: anywhere; }
+  .kpi strong { font-size: clamp(20px, 6vw, 26px); overflow-wrap: anywhere; }
+  .kpi small { font-size: 11px; }
+  .sectionTitle { margin: 19px 0 10px; align-items: flex-start; flex-wrap: wrap; }
+  .sectionTitle h2 { font-size: 17px; }
+  .moduleGrid { grid-template-columns: minmax(0, 1fr); gap: 9px; }
+  .moduleCard { min-height: 0; padding: 14px 15px; gap: 6px; }
+  .moduleIcon { width: 38px; height: 38px; border-radius: 10px; }
+  .moduleCard h3 { font-size: 16px; }
+  .moduleCard p { font-size: 12px; line-height: 1.45; max-width: 45ch; }
+  .moduleBadge { top: 13px; right: 13px; max-width: calc(100% - 66px); font-size: 10px; }
+  .moduleFoot { padding-top: 8px; font-size: 12px; }
+  .columns { grid-template-columns: minmax(0, 1fr); gap: 10px; }
+  .card { padding: 14px; }
+  .list li { flex-wrap: wrap; padding: 10px; }
+  .list li small { white-space: normal; }
+  .quick > * { min-height: 40px; display: inline-flex; align-items: center; }
+  .footer { padding: 12px 14px calc(86px + env(safe-area-inset-bottom)); letter-spacing: .08em; text-align: center; }
+  .mobileDock {
+    position: fixed; inset: auto 0 0; z-index: 34;
+    display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 3px;
+    padding: 6px 8px calc(7px + env(safe-area-inset-bottom));
+    border-top: 1px solid rgba(138, 108, 255, .38);
+    background: rgba(7, 12, 30, .96);
+    backdrop-filter: blur(18px); -webkit-backdrop-filter: blur(18px);
+    box-shadow: 0 -12px 32px rgba(0, 0, 0, .38);
+  }
+  .mobileDock a, .mobileDock button {
+    display: flex; flex-direction: column; justify-content: center; align-items: center; gap: 3px;
+    min-width: 0; min-height: 54px; padding: 5px 2px; text-align: center;
+    color: var(--text-muted); background: transparent; border: 1px solid transparent;
+    border-radius: 12px; text-decoration: none; font: inherit; cursor: pointer;
+    touch-action: manipulation; -webkit-tap-highlight-color: transparent;
+  }
+  .mobileDock a span, .mobileDock button span {
+    max-width: 100%; font-size: 10.5px; font-weight: 600; line-height: 1.15;
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  }
+  .mobileDock a[aria-current="page"], .mobileDock button[aria-expanded="true"] {
+    color: var(--cyan); border-color: rgba(34, 227, 255, .3);
+    background: linear-gradient(180deg, rgba(34, 227, 255, .1), rgba(138, 108, 255, .12));
+  }
+  .mobileDock a:focus-visible, .mobileDock button:focus-visible {
+    outline: 2px solid var(--cyan); outline-offset: -2px;
+  }
+}
+@media (max-width: 360px) {
+  .topbar { padding-inline: 8px; gap: 4px; }
+  .section { font-size: 13px; }
+  .lang button { padding-inline: 5px; }
+  .content { padding-inline: 9px; }
+  .mobileDock { padding-inline: 4px; gap: 1px; }
+}

@@ -44,13 +44,13 @@ export default async function SalesPage({ searchParams }: { searchParams: Promis
     </section>}
     <section className={s.panel} aria-labelledby="sales-list"><header><h2 id="sales-list">{pick(lang, "Ventas registradas", "Recorded sales")}</h2></header>
       {sales.error ? <Unavailable lang={lang} code={sales.error} /> : sales.data.length === 0 ? <p className={s.empty}>{pick(lang, "Todavía no hay ventas. Registra la primera para generar proyectos y tareas.", "No sales yet. Record the first one to generate projects and tasks.")}</p> :
-      <div className={s.tableWrap}><table className={s.table}><thead><tr>
+      <div className={s.tableWrap}><table className={s.table} data-mobile-cards><thead><tr>
         <th>{pick(lang, "Venta", "Sale")}</th><th>{pick(lang, "Cliente", "Client")}</th><th>{pick(lang, "Fecha", "Date")}</th><th className={s.num}>Total</th><th>{pick(lang, "Servicios", "Services")}</th><th>{pick(lang, "Contrato", "Contract")}</th><th>{pick(lang, "Entrega", "Delivery")}</th><th>{pick(lang, "Vendedor", "Seller")}</th>
       </tr></thead><tbody>{sales.data.map(r => <tr key={r.id}>
-        <td><Link href={`/admin/workspace/crm/sales/${r.id}`}>{r.sale_number}</Link></td>
-        <td>{r.crm_clients ? <Link href={`/admin/workspace/crm/clients/${r.crm_clients.id}`}>{r.crm_clients.legal_name}</Link> : "—"}</td>
-        <td>{formatDate(lang, r.sold_on)}</td><td className={s.num}>{money(lang, r.total, r.currency)}</td><td>{r.crm_sale_lines.length}</td>
-        <td><Tag lang={lang} value={r.contract_status} /></td><td><Tag lang={lang} value={r.delivery_status} /></td><td>{ownerName(ownerList, r.seller_id)}</td>
+        <td data-label={pick(lang, "Venta", "Sale")}><Link href={`/admin/workspace/crm/sales/${r.id}`}>{r.sale_number}</Link></td>
+        <td data-label={pick(lang, "Cliente", "Client")}>{r.crm_clients ? <Link href={`/admin/workspace/crm/clients/${r.crm_clients.id}`}>{r.crm_clients.legal_name}</Link> : "—"}</td>
+        <td data-label={pick(lang, "Fecha", "Date")}>{formatDate(lang, r.sold_on)}</td><td data-label="Total" className={s.num}>{money(lang, r.total, r.currency)}</td><td data-label={pick(lang, "Servicios", "Services")}>{r.crm_sale_lines.length}</td>
+        <td data-label={pick(lang, "Contrato", "Contract")}><Tag lang={lang} value={r.contract_status} /></td><td data-label={pick(lang, "Entrega", "Delivery")}><Tag lang={lang} value={r.delivery_status} /></td><td data-label={pick(lang, "Vendedor", "Seller")}>{ownerName(ownerList, r.seller_id)}</td>
       </tr>)}</tbody></table></div>}
       <div className={s.actions} style={{ marginTop: 12 }}>{page > 0 && <Link className={s.button} href={`?page=${page - 1}`}>{pick(lang, "Anterior", "Previous")}</Link>}{(page + 1) * PAGE < (sales.count ?? 0) && <Link className={s.button} href={`?page=${page + 1}`}>{pick(lang, "Siguiente", "Next")}</Link>}</div>
     </section>
