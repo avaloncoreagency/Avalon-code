@@ -57,10 +57,19 @@ test("Stripe invoice reserves the unpaid balance, rejects strangers and reconcil
   await assert.rejects(db.query("select crm_stripe_process_event('{}'::jsonb)"),/permission denied|crm_forbidden/);
   await service();
   const event={
-    id:"evt_TEST001", type:"invoice.paid", livemode:false, created:1793650000,
+    id:"evt_TEST001", type:"invoice.payment_succeeded", livemode:false, created:1793650000,
     data:{object:{id:"in_TEST001",status:"paid",currency:"usd",customer:"cus_TEST001",amount_paid:20000,livemode:false}}
   };
-  let result=(await first("select crm_stripe_process_event($1::jsonb) r",[JSON.stringify(event)])).r;
+  // invoice.paid can also be a staff-recorded payment outside Stripe.
+  // It must NOT add a cash receipt; it only raises a review flag.
+  let result=(await first("select crm_stripe_process_event($1::jsonb) r",[
+    JSON.stringify({...event,id:"evt_NOTICE001",type:"invoice.paid"})
+  ])).r;
+  assert.equal(result.status,"review");
+  await owner(MIGUEL);
+  assert.equal(await count("select count(*) n from crm_payments where sale_id=$1",[saleId]),1);
+  await service();
+  result=(await first("select crm_stripe_process_event($1::jsonb) r",[JSON.stringify(event)])).r;
   assert.equal(result.status,"processed");
   result=(await first("select crm_stripe_process_event($1::jsonb) r",[JSON.stringify(event)])).r;
   assert.equal(result.status,"duplicate");
@@ -97,4 +106,51 @@ test("Mismatched invoice amount is flagged, never silently recorded as revenue",
   await owner(MIGUEL);
   assert.equal(await count("select count(*) n from crm_payments where sale_id=$1",[s.sale_id]),0);
   assert.equal((await first("select status from crm_stripe_invoices where id=$1",[inv.id])).status,"review");
+});
+
+test("Stripe invoice.paid alone NEVER records cash when paid out of band", {timeout:120000}, async t => {
+  const {db,owner,service,first,count}=await setup();
+  t.after(()=>db.close());
+  await owner(MIGUEL);
+  const sale=(await first("select crm_confirm_sale($1::jsonb) r",[JSON.stringify(saleInput)])).r;
+  const inv=(await db.query("select * from crm_stripe_reserve_invoice($1)",[sale.sale_id])).rows[0];
+  await db.query("select crm_stripe_attach_invoice($1,'in_MANUAL001','cus_MANUAL001')",[inv.id]);
+  await service();
+  const notice={id:"evt_MANUAL001",type:"invoice.paid",livemode:false,
+    data:{object:{id:"in_MANUAL001",status:"paid",currency:"usd",customer:"cus_MANUAL001",amount_paid:25000,livemode:false}}};
+  const result=(await first("select crm_stripe_process_event($1::jsonb) r",[JSON.stringify(notice)])).r;
+  assert.equal(result.status,"review");
+  await owner(MIGUEL);
+  assert.equal(await count("select count(*) n from crm_payments where sale_id=$1",[sale.sale_id]),0);
+  const row=await first("select status,needs_review,review_reason from crm_stripe_invoices where id=$1",[inv.id]);
+  assert.equal(row.status,"review");
+  assert.equal(row.needs_review,true);
+  assert.equal(row.review_reason,"payment_source_unverified");
+});
+
+test("Out-of-order signed payment event is retried until its invoice reservation is linked", {timeout:120000}, async t => {
+  const {db,owner,service,first,count}=await setup();
+  t.after(()=>db.close());
+  await owner(MIGUEL);
+  const sale=(await first("select crm_confirm_sale($1::jsonb) r",[JSON.stringify(saleInput)])).r;
+  const inv=(await db.query("select * from crm_stripe_reserve_invoice($1)",[sale.sale_id])).rows[0];
+  const event={id:"evt_EARLY001",type:"invoice.payment_succeeded",livemode:false,
+    data:{object:{id:"in_EARLY001",status:"paid",currency:"usd",customer:"cus_EARLY001",
+      amount_paid:25000,livemode:false,metadata:{
+        avalon_invoice_id:inv.id,avalon_sale_id:sale.sale_id,avalon_client_id:inv.client_id
+      }}}};
+  await service();
+  await assert.rejects(
+    db.query("select crm_stripe_process_event($1::jsonb)",[JSON.stringify(event)]),
+    /stripe_invoice_pending_link/
+  );
+  // The transaction rolled back its preliminary event insert.
+  assert.equal(await count("select count(*) n from crm_stripe_events"),0);
+  await owner(MIGUEL);
+  await db.query("select crm_stripe_attach_invoice($1,'in_EARLY001','cus_EARLY001')",[inv.id]);
+  await service();
+  const processed=(await first("select crm_stripe_process_event($1::jsonb) r",[JSON.stringify(event)])).r;
+  assert.equal(processed.status,"processed");
+  await owner(MIGUEL);
+  assert.equal(await count("select count(*) n from crm_payments where sale_id=$1",[sale.sale_id]),1);
 });
