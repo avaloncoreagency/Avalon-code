@@ -514,7 +514,12 @@ test(
       });
       for (const suffix of routes.slice(1)) {
         await page.goto(origin + "/admin/workspace/crm" + suffix);
-        await page.getByRole("button", { name: "Aplicar filtros" }).waitFor();
+        if (suffix === "/calendar") {
+          await page.getByRole("heading", { name: "Nuestro calendario" }).waitFor();
+          await page.getByRole("button", { name: "+ Crear evento" }).waitFor();
+        } else {
+          await page.getByRole("button", { name: "Aplicar filtros" }).waitFor();
+        }
         await page.waitForFunction(
           () => !document.body.innerText.includes("Cargando CRM…"),
         );
