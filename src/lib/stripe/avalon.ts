@@ -10,7 +10,7 @@ const VERSION = "2026-09-30.endive";
 
 export function stripeSandboxReady(): boolean {
   const key = process.env.STRIPE_SECRET_KEY ?? "";
-  return /^(rk_test_|sk_test_)/.test(key) && process.env.STRIPE_SANDBOX_ONLY === "true";
+  return /^(rk_test_|sk_test_)/.test(key) && process.env.STRIPE_SANDBOX_ONLY === "true" && process.env.VERCEL_ENV !== "production";
 }
 
 export class StripeSetupError extends Error {
@@ -40,7 +40,7 @@ export async function stripeRequest<T>(path: string, method: "GET" | "POST" = "G
 
 export type StripeInvoice = {
   id: string; status: string; customer: string; currency: string;
-  amount_due: number; hosted_invoice_url: string | null;
+  amount_due: number; total: number; livemode: boolean; hosted_invoice_url: string | null;
   invoice_pdf: string | null; metadata: Record<string,string>;
 };
 
