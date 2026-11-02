@@ -515,3 +515,15 @@ export function shiftMonth({ year, month }: { year: number; month: number }, del
   const index = year * 12 + (month - 1) + delta;
   return `${Math.floor(index / 12)}-${String((index % 12) + 1).padStart(2, "0")}`;
 }
+
+// ─── Search ─────────────────────────────────────────────────────────────────
+/**
+ * Normalize a user search term for PostgREST ilike/or filters. Characters that
+ * carry meaning in filter syntax or LIKE patterns are replaced by spaces, so a
+ * term can never add conditions or wildcards. Returns "" when too short.
+ */
+export function searchTerm(value: unknown, max = 80): string {
+  if (typeof value !== "string") return "";
+  const term = value.replace(/[\u0000-\u001f\u007f%_,().*\\"':]/g, " ").replace(/\s+/g, " ").trim().slice(0, max);
+  return term.length >= 2 ? term : "";
+}

@@ -61,6 +61,7 @@ export default async function PageEditor({ params, searchParams }: { params: Pro
         crumbs={[{ href: BASE, label: "Website Designer" }, { href: `${BASE}/${id}`, label: project.data?.name ?? "…" }]}
         actions={row && <>
           <Link className={s.btn} href={`${BASE}/${id}/pages/${pageId}/preview`}>{pick(lang, "Vista previa", "Preview")}</Link>
+          <a className={s.btn} href={`${BASE}/${id}/pages/${pageId}/export`} download>{pick(lang, "Descargar HTML", "Download HTML")}</a>
           <form action={setPageStatus} className={s.inline}>
             <Hidden projectId={id} pageId={pageId} version={row.version} />
             <input type="hidden" name="status" value={row.status === "published" ? "draft" : "published"} />

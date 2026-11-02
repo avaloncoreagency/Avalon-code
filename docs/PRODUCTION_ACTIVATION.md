@@ -1,16 +1,24 @@
 # Avalon production activation — release gates
 
-Status: production domain is connected; login/dashboard release is NOT complete.
+Status (2026-11-02): **released to production.** `main` 86605d8 (PRs #7 → #4 → #1, merged with owner approval) is live at `https://avaloncoreagency.com` as Vercel deployment `dpl_282K8JhRBk7xL94pQc2kqvjRSvVf`.
 
-## Confirmed
-- Vercel project: `avalon-core-agency` (`prj_tN1ZYrsx5fqoEePYjThsra3MvocP`).
-- `avaloncoreagency.com` is verified and attached to this project.
-- Current production deployment is main commit `4c55c5054db1d91d10ff338dbd345ba62745f2ff`, a public placeholder.
-- Login/HUD is in PR #4, not main; profile dropdown is in draft PR #5.
-- Production Supabase project `ltbwzcrxeuczdhhtbqgm` read-only audit found zero Auth users and no `public.agency_memberships` table.
-- Vercel production `APP_ORIGIN=https://avaloncoreagency.com` and `AUTH_PASSWORD_LOGIN_ENABLED=false` have been configured. This does not deploy or enable login.
-- Existing production publishable Supabase URL/key entries need their project reference verified before use. Never copy Preview branch keys into production.
+## Verified after release
+- `/` still serves the original public placeholder (unchanged).
+- `/admin/login` renders the private login (Google; password sign-in disabled in production).
+- `/admin/dashboard` without a session redirects to `/admin/login`.
+- Production Supabase `ltbwzcrxeuczdhhtbqgm`: migrations `20261102053022`, `20261102053452`, `20261102070500` match the repo; RLS on every `os_*` table, no `anon` grants, no project hard delete; two owner memberships (Miguel, Samuel), infra account has no membership.
 
+## Still requires a human (Supabase / Google dashboards)
+1. Supabase Auth → URL Configuration: Site URL `https://avaloncoreagency.com`; redirect allowlist exactly `https://avaloncoreagency.com/admin/auth/callback` and `https://avaloncoreagency.com/admin/reset-password`.
+2. Supabase Auth → Providers → Google enabled with the Google Cloud client; Google authorized redirect URI `https://ltbwzcrxeuczdhhtbqgm.supabase.co/auth/v1/callback`. Public signups disabled.
+3. Enable leaked-password protection (security advisor WARN).
+4. First real sign-in by each owner, then sign-out, then a non-member attempt (must be rejected).
+5. CRM (Samuel, PR #6) is not merged; `/admin/workspace/crm` shows a placeholder until he approves its merge and its migration.
+
+## Rollback
+Promote the previous production deployment in Vercel (or revert the merge commit on `main`). Database changes are additive; see `docs/AVALON_OS_MODULES.md`.
+
+## Original gates (historical)
 ## Required before release
 1. Review/apply the existing owner membership migration to the production Supabase project; enforce RLS (self-read only; no client writes), with tests. Do not use manual SQL writes into `auth.users`.
 2. Configure Supabase Auth site URL, exact redirect allowlist for `https://avaloncoreagency.com/admin/auth/callback`, email confirmation, provider, private signup settings and rate limits.
