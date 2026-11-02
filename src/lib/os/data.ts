@@ -57,7 +57,9 @@ export function getProject(supabase: SupabaseClient, module: ModuleKey, id: stri
 
 type Filter = ["eq" | "neq" | "lt" | "lte" | "gte", string, string | number] | ["not_in", string, string[]];
 export async function countRows(supabase: SupabaseClient, table: string, filters: Filter[] = []) {
-  let query = supabase.from(table).select("id", { count: "exact", head: true });
+  // Not head:true — supabase-js reports a HEAD 404 (missing table, empty body) as
+  // success, which would hide a pending migration. A 1-row GET returns PGRST205.
+  let query = supabase.from(table).select("id", { count: "exact" }).range(0, 0);
   for (const filter of filters) {
     switch (filter[0]) {
       case "not_in": query = query.not(filter[1], "in", `(${filter[2].join(",")})`); break;
