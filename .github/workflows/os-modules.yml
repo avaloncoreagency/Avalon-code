@@ -42,3 +42,10 @@ jobs:
             -f supabase/migrations/20261102053452_harden_membership_table_grants.sql \
             -f supabase/migrations/20261102070500_avalon_os_modules.sql \
             -f tests/sql/os_modules_rls.test.sql
+      - name: Apply every migration on a fresh database and run the CRM pipeline assertions
+        run: |
+          createdb pipeline_check
+          # roles are cluster-wide and already exist from the previous step
+          grep -v '^create role' tests/sql/00_supabase_stub.sql | psql -d pipeline_check -v ON_ERROR_STOP=1 -q
+          for f in supabase/migrations/*.sql; do psql -d pipeline_check -v ON_ERROR_STOP=1 -q -f "$f"; done
+          psql -d pipeline_check -v ON_ERROR_STOP=1 -q -f tests/sql/crm_pipeline.test.sql
