@@ -38,6 +38,7 @@ jobs:
         run: |
           psql -v ON_ERROR_STOP=1 -q \
             -f tests/sql/00_supabase_stub.sql \
-            -f supabase/migrations/20261102_owner_memberships_proposed.sql \
-            -f supabase/migrations/20261102120000_avalon_os_modules.sql \
+            -f supabase/migrations/20261102053022_avalon_owner_memberships_rls.sql \
+            -f supabase/migrations/20261102053452_harden_membership_table_grants.sql \
+            -f supabase/migrations/20261102070500_avalon_os_modules.sql \
             -f tests/sql/os_modules_rls.test.sql

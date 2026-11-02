@@ -1,4 +1,4 @@
--- RLS, grants, triggers and audit tests for 20261102120000_avalon_os_modules.sql.
+-- RLS, grants, triggers and audit tests for 20261102070500_avalon_os_modules.sql.
 -- Runs in an isolated CI PostgreSQL only. Synthetic identities, no real data.
 \set ON_ERROR_STOP on
 

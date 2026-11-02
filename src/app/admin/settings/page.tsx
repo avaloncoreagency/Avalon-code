@@ -10,7 +10,7 @@ import { countRows } from "@/lib/os/data";
 import { INTEGRATIONS } from "@/lib/os/integrations";
 
 export const dynamic = "force-dynamic";
-const MIGRATION = "20261102120000_avalon_os_modules.sql";
+const MIGRATION = "20261102070500_avalon_os_modules.sql";
 
 export default async function SettingsPage() {
   const { supabase } = await requireOwner();

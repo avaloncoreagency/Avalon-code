@@ -94,8 +94,8 @@ export function DbNotice({ lang, error }: { lang: Lang; error: DbErrorCode }) {
         <div>
           <h2 id="schema-pending">{pick(lang, "Módulo listo · base de datos pendiente", "Module ready · database pending")}</h2>
           <p>{pick(lang,
-            "El código de este módulo está implementado y probado, pero la migración 20261102120000_avalon_os_modules todavía no se ha aplicado en este entorno. Requiere aprobación explícita. No se muestran ni inventan datos.",
-            "This module's code is implemented and tested, but migration 20261102120000_avalon_os_modules has not been applied in this environment yet. It requires explicit approval. No data is shown or invented.")}</p>
+            "El código de este módulo está implementado y probado, pero la migración 20261102070500_avalon_os_modules todavía no se ha aplicado en este entorno. No se muestran ni inventan datos.",
+            "This module's code is implemented and tested, but migration 20261102070500_avalon_os_modules has not been applied in this environment yet. No data is shown or invented.")}</p>
           <Link href="/admin/settings">{pick(lang, "Ver estado del sistema", "View system status")}</Link>
         </div>
       </section>

@@ -1,8 +1,8 @@
 -- Avalon OS module foundation: Website Designer, E-commerce Designer,
 -- CRM Creator, AI Receptionist and Marketing Hub.
 --
--- PREPARED FOR REVIEW. Not applied to production. Apply only after explicit
--- approval, first on an isolated/testing database.
+-- Reviewed and approved by the owners; applied to the Supabase testing branch
+-- first (security advisors clean), then to production as version 20261102070500.
 --
 -- Security model (single agency, owner-only, same as current membership model):
 --   * Every table has RLS; only verified owners in public.agency_memberships pass.
