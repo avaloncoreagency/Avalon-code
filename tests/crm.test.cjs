@@ -153,5 +153,5 @@ test("CRM home uses the overview instead of disguising Leads as the landing page
   assert.match(overview, /Uso de tokens y costos/);
   assert.match(overview, /Urgentes/);
   assert.match(overview, /Normales/);
-  assert.match(overview, /no conectadas/);
+  assert.match(overview, /no están conectadas/);
 });
