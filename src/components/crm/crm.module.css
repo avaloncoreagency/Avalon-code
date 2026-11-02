@@ -375,3 +375,7 @@
   .radarSave { min-height:48px; }
   .radarBottom { display:grid; gap:8px; }
 }
+.radarSavedGrid { display:grid; grid-template-columns:repeat(auto-fill,minmax(min(100%,320px),1fr)); gap:12px; }
+.radarSavedGrid .radarCard { background:#0b172e; }
+.radarSavedGrid .actions > button, .radarSavedGrid .actions > a { flex:1 1 140px; min-height:44px; }
+@media(max-width:640px){ .radarSavedGrid { grid-template-columns:minmax(0,1fr); gap:9px; } }
