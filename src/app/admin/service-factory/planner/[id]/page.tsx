@@ -24,7 +24,7 @@ type PlanLine = {
   direct_cost:string|null; estimated_hours:string|null;
   readiness_snapshot:string; billing_type:BillingCycle; scope_snapshot:string;
 };
-const UUID=/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+const UUID=/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const ERROR: Record<string,[string,string]> = {
   planner_not_ready:["No se puede aprobar todavía: todos los servicios deben estar activos y aprobados para vender, con precio, costo directo, horas y tarifa por hora conocidos.","Cannot review yet: all services must be active and approved to sell, with known price, direct cost, hours and hourly rate."],
   planner_conflict:["El plan cambió. Recarga y vuelve a intentar.","The plan changed. Reload and retry."],
