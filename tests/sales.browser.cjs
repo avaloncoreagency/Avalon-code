@@ -168,6 +168,39 @@ test('Nova Restaurant through the real app: one form, three departments, no dupl
   const overflow = await sam.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
   assert.ok(overflow <= 1, `no horizontal page scroll on mobile (overflow ${overflow}px)`);
 
+  // Lead Hunter: mocked map data, real authorized prospect storage and conversion.
+  await sam.route('**/admin/workspace/crm/radar?*', async route => {
+    await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({
+      places: [{ key: 'node/987654321', name: 'Radar Dental Sintético', industry: 'dentist',
+        location: 'Miami · datos de prueba', phone: '+1-305-555-0199',
+        email: 'contacto@radar.example.invalid', website: '',
+        mapUrl: 'https://www.openstreetmap.org/node/987654321',
+        lat: 25.776, lon: -80.194, score: 85,
+        opportunity: 'Web no registrada en mapa; verificar antes de ofrecer diseño web.',
+        websiteUnlisted: true, service: 'website' }],
+      zone: 'Miami · Downtown', source: 'OpenStreetMap', cached: false,
+    }) });
+  });
+  await sam.goto(origin + '/admin/workspace/crm/hunter');
+  await sam.getByRole('button', { name: 'Crear prospecto' }).waitFor();
+  await sam.getByRole('button', { name: 'Buscar oportunidades' }).click();
+  await sam.getByRole('heading', { name: 'Radar Dental Sintético' }).waitFor();
+  assert.equal(await sam.getByRole('button', { name: 'Localizar Radar Dental Sintético' }).count(), 1);
+  await sam.screenshot({ path: EVIDENCE + '/radar-results-mobile.png', fullPage: true });
+  await sam.getByRole('button', { name: 'Guardar prospecto' }).click();
+  await sam.getByText(/guardado para revisión/).waitFor();
+  assert.equal(await count("select count(*) n from crm_prospects where company='Radar Dental Sintético'"), 1);
+  await sam.getByRole('button', { name: 'Revisar y calificar' }).click();
+  await sam.getByLabel('Contacto', { exact: true }).fill('Decisor sintético confirmado');
+  await sam.getByLabel('Revisión').selectOption('approved');
+  await sam.getByRole('button', { name: 'Guardar', exact: true }).click();
+  await sam.getByRole('button', { name: 'Pasar al pipeline' }).waitFor();
+  await sam.getByRole('button', { name: 'Pasar al pipeline' }).click();
+  await sam.getByRole('link', { name: 'Abrir lead' }).waitFor();
+  assert.equal(await count("select count(*) n from crm_prospects where company='Radar Dental Sintético' and status='converted'"), 1);
+  assert.equal(await count("select count(*) n from crm_leads where company='Radar Dental Sintético'"), 1);
+  await sam.unroute('**/admin/workspace/crm/radar?*');
+
   // Mobile-first smoke test: every high-frequency Avalon route is usable on a phone.
   const mobileRoutes = [
     ['/admin/dashboard', 'dashboard-mobile'],
