@@ -42,15 +42,7 @@ const parse=v=>p.parseSolutionPlanForm(form({...defaultForm,...v}));
 const error=v=>{try{parse(v);return null;}catch(e){return e.code??e.message;}};
 
 test("Solution Planner parses bounded, deduplicated multi-SKU package drafts",()=>{
-  let x;
-  try { x=parse({}); } catch(e) {
-    const regs=/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-    const snippet=compiled.split("\n").slice(30,85).map((line,i)=>`${i+31}:${line}`).join(" | ");
-    const actualRegex = compiled.split("\n").find(line=>line.includes("const UUID = "));
-    const actualInput = form({...defaultForm});
-    const inputValues = ["idempotency_key","client_id","line_0_service"].map(k=>[k,actualInput.get(k)]);
-    throw new Error(`debug baseline parser: ${e.code}; UUIDs valid=${[A,B,C].map(v=>regs.test(v)).join(',')}; regexp=${actualRegex}; inputs=${JSON.stringify(inputValues)}; original=${e.stack}; compiled=${snippet}`);
-  }
+  const x=parse({});
   assert.equal(x.currency,"USD");
   assert.equal(x.idempotency_key,A);
   assert.equal(x.client_id,B);
