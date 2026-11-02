@@ -359,7 +359,7 @@ test('Nova Restaurant through the real app: one form, three departments, no dupl
   await overlap.getByRole('button', { name: 'Guardar para ambos' }).click();
   await overlap.getByRole('alert').getByText('Ya hay otra cita para uno de los participantes en ese horario.').waitFor();
   assert.equal(await count("select count(*) n from crm_events where title='Cita solapada'"), 0);
-  await overlap.getByRole('button', { name: 'Cerrar' }).click();
+  await overlap.getByRole('button', { name: 'Cerrar', exact: true }).last().click();
   await page.getByRole('button', { name: '🎉 Banner de día' }).click();
   const bannerForm = page.getByRole('dialog', { name: 'Banner de fecha especial' });
   await bannerForm.locator('input[name="day"]').fill('2026-11-20');
