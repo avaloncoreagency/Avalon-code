@@ -1,0 +1,32 @@
+name: CRM isolated verification
+on:
+  pull_request:
+    paths:
+      - 'src/**/crm/**'
+      - 'supabase/migrations/*crm*.sql'
+      - 'tests/crm*'
+      - 'tests/qa/**'
+      - '.github/workflows/crm.yml'
+permissions:
+  contents: read
+jobs:
+  crm:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22.18.0'
+          cache: npm
+      - run: npm ci
+      - run: npm ci --prefix tests/qa
+      - run: npm run lint
+      - run: npm run typecheck
+      - run: npm test
+      - run: npm run build
+      - run: node tests/qa/node_modules/playwright/cli.js install --with-deps chromium
+      - run: node --test tests/crm.database.cjs tests/unified.database.cjs tests/crm.integration.cjs
+        env:
+          NODE_PATH: ./tests/qa/node_modules
+          CRM_BROWSER: '1'

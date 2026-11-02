@@ -17,7 +17,7 @@ export default async function WebsiteDesignerPage({ searchParams }: { searchPara
   return (
     <Suite active="website-designer">
       <PageHeader eyebrow="Website Designer" title={pick(lang, "Proyectos web", "Web projects")}
-        description={pick(lang, "Crea sitios por proyecto, organiza páginas con bloques de contenido, previsualiza y controla versiones. La publicación es interna: no se despliega nada a dominios públicos.", "Create sites per project, build pages from content blocks, preview and keep versions. Publishing is internal: nothing is deployed to public domains.")} />
+        description={pick(lang, "Gestiona webs de clientes, responsables, repositorios y tareas. Las páginas locales son recursos de Avalon; editar o publicar un sitio externo requiere su conexión autorizada.", "Manage client websites, owners, repositories and tasks. Local pages are Avalon resources; editing or publishing an external site requires its authorized connection.")} />
       <Flash lang={lang} ok={param(params, "ok")} error={param(params, "error")} />
       <ProjectsIndex lang={lang} module="website" base="/admin/workspace/website-designer" projects={projects} noun={{ es: "proyectos web", en: "web projects" }} showArchived={showArchived} />
     </Suite>

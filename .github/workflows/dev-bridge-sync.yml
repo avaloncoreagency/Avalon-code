@@ -1,0 +1,65 @@
+name: Dev Bridge sync
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: '17 */6 * * *'
+  push:
+    branches: [feature/avalon-dev-bridge]
+    paths: ['src/lib/dev-bridge/**', 'scripts/dev-bridge/**', '.github/workflows/dev-bridge-sync.yml']
+permissions:
+  contents: read
+  issues: read
+  pull-requests: read
+  checks: read
+  actions: read
+  statuses: read
+concurrency:
+  group: dev-bridge-state-${{ github.ref }}
+  cancel-in-progress: false
+jobs:
+  reconcile:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    env:
+      GH_TOKEN: ${{ github.token }}
+      BRIDGE_CODE_REF: ${{ github.ref_name }}
+      BRIDGE_VERCEL_TOKEN: ${{ secrets.BRIDGE_VERCEL_TOKEN }}
+      BRIDGE_VERCEL_PROJECT: prj_tN1ZYrsx5fqoEePYjThsra3MvocP
+      BRIDGE_VERCEL_TEAM: team_lHTO3wgJm0yAyexxMDmkIFW4
+      BRIDGE_SUPABASE_TOKEN: ${{ secrets.BRIDGE_SUPABASE_TOKEN }}
+      BRIDGE_SUPABASE_REF: thdgrczotqapnvcjefoi
+      BRIDGE_STATE_KEY: ${{ secrets.BRIDGE_STATE_KEY }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci --ignore-scripts --no-audit --no-fund
+      - name: Restore authenticated checkpoint when configured
+        if: env.BRIDGE_STATE_KEY != ''
+        run: |
+          mkdir -p .dev-bridge
+          previous=$(gh run list --workflow dev-bridge-sync.yml --branch "$GITHUB_REF_NAME" --status success --limit 1 --json databaseId --jq '.[0].databaseId // empty')
+          if [ -n "$previous" ]; then
+            if gh run download "$previous" --name dev-bridge-encrypted-state --dir .dev-bridge; then
+              node scripts/dev-bridge/artifact.cjs open
+            fi
+          fi
+      - name: Reconcile without leaking operational metadata to public logs
+        run: |
+          npm run bridge:sync > .dev-bridge-run-summary.tmp
+          npm run bridge:check
+          node -e 'const s=require("./.dev-bridge/snapshot.json");require("fs").appendFileSync(process.env.GITHUB_STEP_SUMMARY,["Bridge sources (application health UNKNOWN)",...Object.entries(s).filter(([k])=>["github","vercel","supabase"].includes(k)).map(([k,v])=>`${k}: ${v.status}`)].join("\n"));if(s.github.status!=="VERIFIED")process.exitCode=1'
+      - name: Encrypt checkpoint
+        if: always() && env.BRIDGE_STATE_KEY != ''
+        run: node scripts/dev-bridge/artifact.cjs seal
+      - uses: actions/upload-artifact@v4
+        if: always() && env.BRIDGE_STATE_KEY != ''
+        with:
+          name: dev-bridge-encrypted-state
+          path: .dev-bridge/state.enc
+          retention-days: 30
+      - name: Report unavailable durable storage
+        if: env.BRIDGE_STATE_KEY == ''
+        run: echo 'Durable checkpoint UNKNOWN — BRIDGE_STATE_KEY missing. No private artifact was published.' >> "$GITHUB_STEP_SUMMARY"

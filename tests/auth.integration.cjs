@@ -45,6 +45,7 @@ test('OAuth PKCE, SSR cookies, owner gate, refresh and logout over HTTP', { time
         refreshCount++;
         return json(200, makeSession(body.refresh_token.replace('synthetic-refresh-', '')));
       }
+      if (url.searchParams.get('grant_type') === 'password') return body.password === 'synthetic-correct-password' ? json(200, makeSession('owner')) : json(400, {error:'invalid_credentials'});
       assert.equal(url.searchParams.get('grant_type'), 'pkce');
       const exchange = exchanges.get(body.auth_code);
       if (!exchange || !body.code_verifier || createHash('sha256').update(body.code_verifier).digest('base64url') !== exchange.challenge) return json(400, { error: 'invalid_grant', msg: 'Invalid PKCE verifier' });
@@ -78,7 +79,7 @@ test('OAuth PKCE, SSR cookies, owner gate, refresh and logout over HTTP', { time
   await new Promise(resolve => reservation.close(resolve));
   origin = `http://localhost:${port}`;
   const next = spawn(process.execPath, [require.resolve('next/dist/bin/next'), 'start', '-p', String(port)], {
-    env: { ...process.env, APP_ORIGIN: origin, NEXT_PUBLIC_SUPABASE_URL: remoteOrigin, NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: 'synthetic-publishable-key', AUTH_PASSWORD_LOGIN_ENABLED: 'false' },
+    env: { ...process.env, GH_TOKEN: '', GITHUB_TOKEN: '', BRIDGE_GITHUB_TOKEN: '', BRIDGE_VERCEL_TOKEN: '', BRIDGE_SUPABASE_TOKEN: '', APP_ORIGIN: origin, NEXT_PUBLIC_SUPABASE_URL: remoteOrigin, NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: 'synthetic-publishable-key', AUTH_PASSWORD_LOGIN_ENABLED: 'false' },
     stdio: ['ignore', 'pipe', 'pipe'],
   });
   let output = '';
@@ -110,14 +111,12 @@ test('OAuth PKCE, SSR cookies, owner gate, refresh and logout over HTTP', { time
   }
   async function startOAuth(kind) {
     scenario = kind;
-    const login = await request('/admin/login');
-    assert.equal(login.status, 200);
-    const action = actionId(await login.text());
-    const started = await request('/admin/login', { method: 'POST', headers: { origin }, body: actionBody(action) });
-    assert.equal(started.status, 303);
-    const authorize = started.headers.get('location');
-    assert.equal(new URL(authorize).origin, remoteOrigin);
-    assert.ok([...jar.keys()].some(key => key.endsWith('code-verifier')), 'PKCE verifier cookie must reach browser');
+    // Google is no longer offered in the UI. Verify retained legacy PKCE callback
+    // using the real SSR client to prepare the verifier, independently of the form.
+    const client = require('@supabase/ssr').createServerClient(remoteOrigin, 'synthetic-publishable-key', {cookies:{getAll:()=>[...jar].map(([name,value])=>({name,value})),setAll:values=>values.forEach(({name,value})=>jar.set(name,value))}});
+    const {data,error}=await client.auth.signInWithOAuth({provider:'google',options:{redirectTo:origin+'/admin/auth/callback',skipBrowserRedirect:true}});
+    assert.equal(error,null);
+    const authorize=data.url;
     const provider = await request(authorize);
     return provider.headers.get('location');
   }
@@ -126,6 +125,18 @@ test('OAuth PKCE, SSR cookies, owner gate, refresh and logout over HTTP', { time
     const denied = await request('/admin/dashboard');
     assert.equal(new URL(denied.headers.get('location'), origin).pathname, '/admin/login');
     assert.equal((await request('/api/private')).status, 401);
+    assert.equal((await request('/api/dev-bridge/resume?issue=8&as=samuel')).status, 401);
+    assert.equal(new URL((await request('/admin/dev-bridge')).headers.get('location'), origin).pathname, '/admin/login');
+  });
+  await check('password-only UI and actual password action work with legacy flag false', async () => {
+    const page=await request('/admin/login');const html=await page.text();
+    assert.match(html,/name="email"/);assert.match(html,/name="password"/);
+    assert.doesNotMatch(html,/>Continue with Google<|>Continuar con Google</);
+    const body=actionBody(actionId(html));body.set('email','owner@example.invalid');body.set('password','incorrect');
+    const invalid=await request('/admin/login',{method:'POST',headers:{origin},body});assert.match(invalid.headers.get('location'),/error=invalid/);
+    body.set('password','synthetic-correct-password');
+    const valid=await request('/admin/login',{method:'POST',headers:{origin},body});assert.equal(new URL(valid.headers.get('location'),origin).pathname,'/admin/dashboard');
+    jar.clear();
   });
   let consumedCallback;
   await check('owner signs in through actual PKCE exchange and SSR cookies', async () => {
@@ -137,11 +148,12 @@ test('OAuth PKCE, SSR cookies, owner gate, refresh and logout over HTTP', { time
     const dashboard = await request('/admin/dashboard');
     assert.equal(dashboard.status, 200);
     assert.match(await dashboard.text(), /owner/);
-    // Module database is not installed in the synthetic backend: every module must
-    // render an honest "migration pending" state (never invented data) and stay private.
+    const bridgePage=await request('/admin/dev-bridge');
+    assert.equal(bridgePage.status,200);
+    assert.match(await bridgePage.text(),/Dev Bridge/);
+    assert.equal((await request('/api/dev-bridge/resume?issue=invalid&as=samuel')).status,400);
     const crm = await request('/admin/workspace/crm');
     assert.equal(crm.status, 200);
-    assert.match(await crm.text(), /CRM en desarrollo por Samuel/);
     for (const slug of ['website-designer', 'ecommerce-designer', 'crm-creator', 'ai-receptionist', 'marketing-hub']) {
       const moduleResponse = await request('/admin/workspace/' + slug);
       assert.equal(moduleResponse.status, 200, slug);
@@ -175,6 +187,9 @@ test('OAuth PKCE, SSR cookies, owner gate, refresh and logout over HTTP', { time
     for (const path of ['/admin/workspace/marketing-hub', '/admin/settings', '/admin/workspace/crm-creator/00000000-0000-4000-8000-0000000000aa/export']) {
       assert.equal(new URL((await request(path)).headers.get('location'), origin).pathname, '/admin/login', path);
     }
+    assert.equal((await request('/api/dev-bridge/resume?issue=8&as=samuel')).status, 401);
+    assert.equal(new URL((await request('/admin/dev-bridge')).headers.get('location'), origin).pathname, '/admin/login');
+
     assert.ok(logoutCalls.includes('global'));
   });
   await check('second synthetic owner receives identical permissions', async () => {
@@ -192,6 +207,8 @@ test('OAuth PKCE, SSR cookies, owner gate, refresh and logout over HTTP', { time
     jar.clear();
     assert.match((await request(callback)).headers.get('location'), /error=callback$/);
     assert.equal((await request('/api/private')).status, 401);
+    assert.equal((await request('/api/dev-bridge/resume?issue=8&as=samuel')).status, 401);
+    assert.equal(new URL((await request('/admin/dev-bridge')).headers.get('location'), origin).pathname, '/admin/login');
   });
   await check('Google identity without owner membership is signed out and denied', async () => {
     const callback = await startOAuth('nonmember');
@@ -200,6 +217,8 @@ test('OAuth PKCE, SSR cookies, owner gate, refresh and logout over HTTP', { time
     assert.ok(![...jar.keys()].some(key => key.endsWith('auth-token')));
     assert.equal((await request('/admin/dashboard')).status, 307);
     assert.equal((await request('/api/private')).status, 401);
+    assert.equal((await request('/api/dev-bridge/resume?issue=8&as=samuel')).status, 401);
+    assert.equal(new URL((await request('/admin/dev-bridge')).headers.get('location'), origin).pathname, '/admin/login');
     assert.ok(logoutCalls.includes('local'));
   });
   assert.deepEqual(verifierChecks, ['owner', 'owner2', 'nonmember']);

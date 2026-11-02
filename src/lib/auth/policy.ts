@@ -4,7 +4,8 @@ export function isOwner(role: unknown): role is "owner" {
 }
 
 export function getAppOrigin() {
-  const value = process.env.APP_ORIGIN;
+  const value = process.env.VERCEL_ENV === "preview" && process.env.VERCEL_BRANCH_URL
+    ? `https://${process.env.VERCEL_BRANCH_URL}` : process.env.APP_ORIGIN;
   if (!value) throw new Error("APP_ORIGIN must be configured for OAuth");
   const url = new URL(value);
   if (url.username || url.password || url.pathname !== "/" || url.search || url.hash ||
@@ -16,5 +17,5 @@ export function getAppOrigin() {
 
 export function hasAllowedProvider(provider: unknown) {
   return provider === "google" ||
-    (provider === "email" && process.env.AUTH_PASSWORD_LOGIN_ENABLED === "true");
+    provider === "email";
 }

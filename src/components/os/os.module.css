@@ -143,3 +143,10 @@ a.item:hover { border-color: rgba(138, 108, 255, 0.55); transform: translateY(-1
   .headerActions > * { flex: 1; }
   .row { grid-template-columns: minmax(0, 1fr); }
 }
+/* Motion is decorative; controls and data remain usable without animation. */
+@media (prefers-reduced-motion: no-preference) {
+  .item { transition: transform 180ms ease, border-color 180ms ease, box-shadow 180ms ease; }
+  .item:hover { transform: translateY(-3px); box-shadow: 0 12px 28px #070b2340; }
+  .panel { animation: avalon-enter 240ms ease-out both; }
+  @keyframes avalon-enter { from { opacity: .5; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+}

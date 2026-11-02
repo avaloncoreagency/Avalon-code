@@ -36,3 +36,9 @@ One task -> one primary coding agent -> one branch -> one PR. ChatGPT plans and 
 4. Seven named modules are navigable, initially with safe placeholder content.
 5. Logout works; no secret leaks; typecheck/build/test evidence recorded.
 6. Preview/release requires human approval; production unchanged.
+
+## Dev Bridge workflow (Issue #8)
+For bridge work, use feature/avalon-dev-bridge or an isolated continuation branch based on its verified head. The current user explicitly authorizes development-side implementation and PR publication; production and merges remain prohibited.
+On session start: read docs/dev-bridge/AI_CONTEXT.md and PROJECT_STATE.md, identify the canonical Issue, fetch remote state, check owner advances, validate resume package, select a safe branch and run relevant baseline tests.
+During development: reference the Issue in small commits, update task progress and shared decisions, preserve existing work and avoid unrelated refactors.
+On session end: run checks, commit, update Issue and handoff, record blockers, generate a validated resume package and exact next action. If a provider is inaccessible, record UNKNOWN; never claim synchronization succeeded for it.

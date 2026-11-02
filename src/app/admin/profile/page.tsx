@@ -13,7 +13,7 @@ export default async function ProfilePage() {
   const { user, role } = await requireOwner();
   const lang = await getLang();
   const provider = typeof user.app_metadata?.provider === "string" ? user.app_metadata.provider : "—";
-  const passwordEnabled = process.env.AUTH_PASSWORD_LOGIN_ENABLED === "true";
+  const passwordEnabled = true;
   return (
     <Suite active="profile">
       <PageHeader eyebrow={pick(lang, "Cuenta", "Account")} title={displayName(user)} description={user.email ?? undefined} />

@@ -126,3 +126,6 @@ as a substitute for identity verification. Existing Supabase expiry/one-use rule
 No Auth Admin credentials or authenticated browser are available to this agent;
 the link has not been generated or delivered. Google and email delivery are not
 claimed as working. Public signup must remain disabled in hosted Auth settings.
+
+## Password-only login update
+Email/password is now the normal sign-in method and no longer depends on AUTH_PASSWORD_LOGIN_ENABLED. The Google button is temporarily removed; existing verified sessions and OAuth callback code are retained. Password recovery and invitation proofs remain enforced. No public signup, automatic membership, provider credential changes or production deployment are part of this change.

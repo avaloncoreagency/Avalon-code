@@ -1,0 +1,5 @@
+const sha='a'.repeat(40), base='b'.repeat(40);
+const now=()=>new Date().toISOString();
+const verified=data=>({status:'VERIFIED',checked_at:now(),verified_at:now(),data});
+function fixture(){return {schema_version:1,at:now(),github:verified({issues:[{id:'github:org/repo#8',number:8,owner:'miguel',module:'dashboard',state:'in-progress',title:'Demo',labels:[],url:'https://github.com/org/repo/issues/8',body:'Next action: Run focused tests',updated_at:now()}],pulls:[{number:11,title:'Demo',branch:'feature/demo',base_branch:'main',base_sha:base,head_sha:sha,url:'https://github.com/org/repo/pull/11',files:['src/lib/auth/access.ts'],ci:'PASSED',reviews:[],conflict:false,behind:0,issues:[8]}],branches:[],commits:[{sha,date:now(),author:'Reported author',url:''}],migrations:['123']}),vercel:verified([{id:'d1',sha,branch:'feature/demo',environment:'preview',state:'READY',url:'https://example.vercel.app',created:1}]),supabase:verified({ref:'test',status:'metadata reachable',migrations:['123'],rls:[{table:'memberships',enabled:true}],functions:[],advisors:[]}),events:[],checkpoint:{github_since:null},findings:[]};}
+module.exports={fixture,sha};
