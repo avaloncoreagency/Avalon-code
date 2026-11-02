@@ -10,7 +10,14 @@ const VERSION = "2026-09-30.endive";
 
 export function stripeSandboxReady(): boolean {
   const key = process.env.STRIPE_SECRET_KEY ?? "";
-  return /^(rk_test_|sk_test_)/.test(key) && process.env.STRIPE_SANDBOX_ONLY === "true" && process.env.VERCEL_ENV !== "production";
+  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL ?? "";
+  // Never mutate Avalon production CRM with test-mode Stripe, even during
+  // local development. Vercel also blocks the mismatched Preview at build time.
+  const usingProductionDatabase = supabaseUrl.includes("ltbwzcrxeuczdhhtbqgm");
+  return /^(rk_test_|sk_test_)/.test(key) &&
+    process.env.STRIPE_SANDBOX_ONLY === "true" &&
+    process.env.VERCEL_ENV !== "production" &&
+    !!supabaseUrl && !usingProductionDatabase;
 }
 
 export class StripeSetupError extends Error {
