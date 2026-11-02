@@ -36,6 +36,7 @@ export function TitanRadar({ onChanged }: { onChanged?: () => void }) {
   const layer = useRef<LayerGroup | null>(null);
   const ring = useRef<Circle | null>(null);
   const L = useRef<typeof import("leaflet") | null>(null);
+  const placesLoadRevision = useRef(0);
   const [center, setCenter] = useState<[number, number]>([25.7743, -80.1937]);
   const [label, setLabel] = useState("Miami, Florida");
   const [radius, setRadius] = useState("3");
@@ -63,9 +64,15 @@ export function TitanRadar({ onChanged }: { onChanged?: () => void }) {
   const [campaigns, setCampaigns] = useState<Campaign[]>([]);
   const [scheduler, setScheduler] = useState("");
   const loadCampaigns = useCallback(async () => {
-    const res = await fetch("/admin/workspace/crm/radar/campaigns", { cache: "no-store" });
-    const body = await res.json() as { campaigns?: Campaign[]; scheduler?: { reason: string } };
-    if (res.ok) { setCampaigns(body.campaigns ?? []); setScheduler(body.scheduler?.reason ?? ""); }
+    try {
+      const res = await fetch("/admin/workspace/crm/radar/campaigns", { cache: "no-store" });
+      if (!res.ok) throw new Error("campaigns unavailable");
+      const body = await res.json() as { campaigns?: Campaign[]; scheduler?: { reason: string } };
+      setCampaigns(body.campaigns ?? []);
+      setScheduler(body.scheduler?.reason ?? "");
+    } catch {
+      setScheduler("No se pudieron cargar las campañas. Revisa tu conexión e inténtalo nuevamente.");
+    }
   }, []);
   useEffect(() => { void loadCampaigns(); }, [loadCampaigns]);
   async function campaign(payload: Record<string, unknown>, ok: string) {
@@ -86,12 +93,19 @@ export function TitanRadar({ onChanged }: { onChanged?: () => void }) {
   }, []);
 
   const load = useCallback(async () => {
+    // A response for a previous view/filter must never replace a newer inbox.
+    const revision = ++placesLoadRevision.current;
     const params = new URLSearchParams({ view });
     if (minStars) params.set("stars", String(minStars));
-    const res = await fetch("/admin/workspace/crm/radar/places?" + params, { cache: "no-store" });
-    const body = await res.json() as { places?: RadarBusiness[]; error?: string };
-    if (!res.ok) { setError(body.error ?? "No se pudo cargar el radar."); return; }
-    setPlaces(body.places ?? []);
+    try {
+      const res = await fetch("/admin/workspace/crm/radar/places?" + params, { cache: "no-store" });
+      const body = await res.json() as { places?: RadarBusiness[]; error?: string };
+      if (revision !== placesLoadRevision.current) return;
+      if (!res.ok) { setError(body.error ?? "No se pudo cargar el radar."); return; }
+      setPlaces(body.places ?? []);
+    } catch {
+      if (revision === placesLoadRevision.current) setError("No se pudo conectar al servidor del radar. Revisa tu conexión e inténtalo nuevamente.");
+    }
   }, [view, minStars]);
   useEffect(() => { void load(); }, [load]);
 
@@ -189,11 +203,15 @@ export function TitanRadar({ onChanged }: { onChanged?: () => void }) {
   async function geocode(e: FormEvent) {
     e.preventDefault();
     setError(""); setGeoResults([]);
-    const res = await fetch("/admin/workspace/crm/radar/geocode?q=" + encodeURIComponent(query), { cache: "no-store" });
-    const body = await res.json() as { results?: { label: string; lat: number; lon: number }[]; error?: string };
-    if (!res.ok) { setError(body.error ?? "No se encontró el lugar."); return; }
-    if (!body.results?.length) { setError("Sin coincidencias. Prueba con otra ciudad o toca el mapa."); return; }
-    if (body.results.length === 1) pick(body.results[0]); else setGeoResults(body.results);
+    try {
+      const res = await fetch("/admin/workspace/crm/radar/geocode?q=" + encodeURIComponent(query), { cache: "no-store" });
+      const body = await res.json() as { results?: { label: string; lat: number; lon: number }[]; error?: string };
+      if (!res.ok) { setError(body.error ?? "No se encontró el lugar."); return; }
+      if (!body.results?.length) { setError("Sin coincidencias. Prueba con otra ciudad o toca el radar."); return; }
+      if (body.results.length === 1) pick(body.results[0]); else setGeoResults(body.results);
+    } catch {
+      setError("No se pudo buscar la ciudad. Revisa tu conexión e inténtalo nuevamente.");
+    }
   }
   function pick(r: { label: string; lat: number; lon: number }) { setCenter([r.lat, r.lon]); setLabel(r.label); setGeoResults([]); map.current?.setView([r.lat, r.lon], 12); }
   function locate() {
