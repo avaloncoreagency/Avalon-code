@@ -50,16 +50,22 @@ CI: see PR #34 checks (sales-core, crm, auth-review, os-modules, security).
 
 Production `ltbwzcrxeuczdhhtbqgm` and isolated branches `kmpmvwbtqaggkjjxfayh` (PR #12),
 `wupvuwmqfcvmjqycmnvg` (PR #19): `053022`, `053452`, `070500`, `085430` — identical to the repo.
-**Pending everywhere:** `20261102170000_avalon_sales_core.sql`, `20261102180000_crm_pipeline_13.sql`.
-Never applied by this work. Without them, sales/clients/tasks screens show an honest
+**Staging (`kmpmvwbtqaggkjjxfayh`, owner-approved 2026-11-02):** `20261102170000` and `20261102180000`
+applied, each in one transaction, from the files at commit `3bfd07d` (md5 verified before execution:
+`5c8dd658…`, `28a5f6c2…`) with the exact repo versions recorded in the ledger. Security advisors: only the
+expected WARN "authenticated can execute SECURITY DEFINER" for the 5 owner-checked RPCs; no RLS findings.
+Two SYNTHETIC owners (`miguel.preview@example.com`, `samuel.preview@example.com`) + owner memberships.
+**Production:** still pending — not applied (owner decision: wait for staging validation). Without them, sales/clients/tasks screens show an honest
 "migración pendiente" notice; CRM core (leads, hunter, calendar) keeps working.
 
-## 5. Preview blocker (exact)
+## 5. Preview (resolved for this branch with owner approval; guard unchanged)
 
 Vercel project `avalon-core-agency`: this branch has no branch-scoped Preview env vars, so it inherits
 `NEXT_PUBLIC_SUPABASE_URL` (targets production+preview+development = production DB). The guard in
 `next.config.ts` aborts such builds (`BUILD_UTILS_SPAWN_1`, deployment `dpl_773uAjq5zj286STGBqGtMv3DBD9P`).
-This is intended and must stay. To get a READY Preview, an owner must approve ONE of:
+This is intended and must stay. Resolution approved and applied (option 1); branch-scoped Preview vars
+`NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY`, `AUTH_FLOW_SECRET` (sensitive) now exist
+for `claude/upbeat-galileo-grbelq` only. Options that were offered:
 1. Reuse isolated Supabase branch `kmpmvwbtqaggkjjxfayh`: apply `170000` + `180000`, create two synthetic
    owner users + memberships, set branch-scoped Preview vars for `claude/upbeat-galileo-grbelq`:
    `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY`, `AUTH_FLOW_SECRET` (sensitive).
@@ -67,6 +73,6 @@ This is intended and must stay. To get a READY Preview, an owner must approve ON
 
 ## 6. Resume here
 
-1. Owner decision on §5 → configure Preview → run the journey manually on the Preview URL.
+1. Owners log into the Preview with the synthetic credentials (shared outside Git) and run the journey.
 2. Owner decision on production: backup → apply `170000` then `180000` → merge PR #34 → verify.
 3. Next phase: public website lead capture into Lead Hunter (review queue, anti-spam), then departments.
