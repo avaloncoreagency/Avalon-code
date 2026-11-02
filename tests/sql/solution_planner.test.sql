@@ -25,8 +25,9 @@ begin
   p:=public.crm_create_solution_plan(input);
   p_again:=public.crm_create_solution_plan(input);
   assert p=p_again,'idempotent draft creation';
-  assert (select count(*) from public.crm_solution_plans where idempotency_key=input->>'idempotency_key'::text)=0
-    or p is not null, 'idempotency key resolves to plan';
+  assert (select count(*) from public.crm_solution_plans
+    where idempotency_key=(input->>'idempotency_key')::uuid)=1,
+    'one idempotency key resolves to one draft';
   assert (select count(*) from public.crm_solution_plans where id=p)=1, 'one plan';
   assert (select count(*) from public.crm_solution_plan_lines where plan_id=p)=1, 'one line';
   assert (select unit_price from public.crm_solution_plan_lines where plan_id=p)=1000, 'manual price snapshot';
