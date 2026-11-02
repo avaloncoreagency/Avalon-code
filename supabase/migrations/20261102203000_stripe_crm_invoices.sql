@@ -373,6 +373,13 @@ begin
         returning id into v_payment_id;
       update public.crm_stripe_invoices set status = 'paid', payment_id = v_payment_id,
         needs_review = false, review_reason = '', updated_at = now() where id = v_record.id;
+      -- invoice.paid may arrive before the more specific payment_succeeded.
+      -- Once the latter is verified, its earlier ambiguous notice is resolved;
+      -- never leave a false financial incident in the owner's review queue.
+      update public.crm_stripe_events set handled = 'processed'
+        where invoice_id = v_record.id
+          and event_type = 'invoice.paid'
+          and handled = 'review';
     end if;
   elsif v_type = 'invoice.sent' then
     if v_record.status in ('creating','draft','open') then
