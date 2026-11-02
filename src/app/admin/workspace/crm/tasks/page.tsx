@@ -8,7 +8,7 @@ import { pick, formatDate } from "@/lib/i18n";
 import { run } from "@/lib/os/data";
 import { label, TASK_PRIORITIES, TASK_STATUSES } from "@/lib/sales/domain";
 import { commentTask, createTask, updateTask } from "./actions";
-import { taskLink } from "@/lib/crm/task-links";
+import { taskLink, resolveTaskView } from "@/lib/crm/task-links";
 import s from "@/components/sales/sales.module.css";
 export const dynamic = "force-dynamic";
 
@@ -21,8 +21,8 @@ export default async function TasksPage({ searchParams }: { searchParams: Promis
   const { supabase, userId } = await requireOwner();
   const lang = await getLang();
   const p = await searchParams;
-  const view = ["mine", "all", "overdue", "done", "assigned"].includes(q(p, "view") ?? "") ? q(p, "view")! : "mine";
   const client = q(p, "client"), workOrder = q(p, "work_order"), taskId = q(p, "task");
+  const view = resolveTaskView(q(p, "view"), Boolean(workOrder && UUID_RE.test(workOrder)));
   const page = Math.min(Number(/^\d{1,4}$/.test(q(p, "page") ?? "") ? q(p, "page") : 0), 2000);
   const now = new Date().toISOString();
 
