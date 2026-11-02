@@ -248,6 +248,9 @@ test(
               object ? data[0] : data,
             );
           } catch (e) {
+            if (table === "crm_prospects" || table.startsWith("crm_radar")) {
+              console.error("RADAR TEST BRIDGE ERROR", url.pathname, url.search, e.code, e.message);
+            }
             return json(e.code === "42501" ? 403 : 400, {
               code: e.code ?? "XX000",
               message: e.message,
