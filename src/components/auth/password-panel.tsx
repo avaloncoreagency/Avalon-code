@@ -16,7 +16,9 @@ export function PasswordPanel({ mode, valid, error, sent, initialLanguage = "es"
     <LanguageSwitch lang={es ? "es" : "en"} className={styles.languages} onChange={lang => setEs(lang === "es")} />
     <header className={styles.brand}><div className={styles.wordmark}>AVALON</div><div className={styles.agency}>CORE AGENCY</div></header>
     <section className={styles.panel}><h1>{mode === "request" ? (es ? "RECUPERAR ACCESO" : "RECOVER ACCESS") : (es ? "ESTABLECER CONTRASEÑA" : "SET PASSWORD")}</h1>
-      {error && <p className={styles.error} role="alert">{es ? "No se pudo completar. Comprueba la contraseña o solicita un enlace nuevo." : "Unable to complete. Check your password or request a fresh link."}</p>}
+      {error && <p className={styles.error} role="alert">{error === "throttled"
+        ? (es ? "Demasiados intentos. Espera unos minutos e inténtalo de nuevo." : "Too many attempts. Please wait a few minutes and try again.")
+        : (es ? "No se pudo completar. Comprueba la contraseña o solicita un enlace nuevo." : "Unable to complete. Check your password or request a fresh link.")}</p>}
       {sent ? <p role="status">{es ? "Si la cuenta permite recuperación, recibirás un email con instrucciones." : "If the account supports recovery, you will receive an email with instructions."}</p> : mode === "request" ? <form action={requestRecovery} className={styles.passwordForm}><label htmlFor="email">Email</label><input id="email" name="email" type="email" autoComplete="email" maxLength={320} required /><Submit es={es} /></form> : valid ? <form action={savePassword} className={styles.passwordForm}>
         <input type="hidden" name="flow" value={mode} />
         <p>{es ? "Usa al menos 12 caracteres. Establecer una contraseña no concede permisos de administrador." : "Use at least 12 characters. Setting a password does not grant admin permissions."}</p>

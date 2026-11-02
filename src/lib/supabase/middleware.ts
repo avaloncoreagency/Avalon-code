@@ -1,6 +1,7 @@
 import { createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
-import { getAuthorizedMember } from "@/lib/auth/access";
+import { getOwnerState, type OwnerState } from "@/lib/auth/access";
+import { hardenSessionCookie } from "./cookies";
 
 export async function updateSession(request: NextRequest) {
   let response = NextResponse.next({ request });
@@ -24,7 +25,7 @@ export async function updateSession(request: NextRequest) {
   if (path === "/admin/auth/callback" || path === "/admin/auth/confirm") return finish(response);
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const key = process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY;
-  let member = null;
+  let owner: OwnerState = { state: "none" };
   if (url && key) {
     const supabase = createServerClient(url, key, {
       cookies: {
@@ -32,17 +33,30 @@ export async function updateSession(request: NextRequest) {
         setAll(values) {
           values.forEach(({ name, value }) => request.cookies.set(name, value));
           response = NextResponse.next({ request });
-          values.forEach(({ name, value, options }) => response.cookies.set(name, value, options));
+          values.forEach(({ name, value, options }) => response.cookies.set(name, value, hardenSessionCookie(options)));
         },
       },
     });
-    try { member = await getAuthorizedMember(supabase); } catch { /* Fail closed. */ }
+    try { owner = await getOwnerState(supabase); } catch { /* Fail closed. */ }
   }
+  const go = (target: string) => finish(NextResponse.redirect(new URL(target, request.url)));
   if (isPublicAuth) {
-    if (member && (path === "/admin/login" || path === "/login")) return finish(NextResponse.redirect(new URL("/admin/dashboard", request.url)));
+    if (path === "/admin/login" || path === "/login") {
+      if (owner.state === "ok") return go("/admin/dashboard");
+      if (owner.state === "mfa") return go("/admin/mfa");
+    }
     return finish(response);
   }
-  if (!member) {
+  // Second-factor step: only for a verified owner whose session is still AAL1.
+  if (path === "/admin/mfa") {
+    if (owner.state === "mfa") return finish(response);
+    return go(owner.state === "ok" ? "/admin/dashboard" : "/admin/login");
+  }
+  if (owner.state === "mfa") {
+    if (isApi) return finish(NextResponse.json({ error: "MFA required" }, { status: 401 }));
+    return go("/admin/mfa");
+  }
+  if (owner.state !== "ok") {
     if (isApi) return finish(NextResponse.json({ error: "Unauthorized" }, { status: 401 }));
     return finish(NextResponse.redirect(new URL("/admin/login", request.url)));
   }

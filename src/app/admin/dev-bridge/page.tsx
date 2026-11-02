@@ -1,13 +1,12 @@
 import Link from 'next/link';
-import { redirect } from 'next/navigation';
 import { Suite } from '@/components/suite/suite';
-import { getAuthorizedMember } from '@/lib/auth/access';
+import { requireOwner } from '@/lib/auth/session';
 import { snapshot } from '@/lib/dev-bridge/runtime';
 import { freshness, type Owner } from '@/lib/dev-bridge/core';
 import s from './bridge.module.css';
 export const dynamic = 'force-dynamic';
 export default async function DevBridge() {
-  if (!await getAuthorizedMember()) redirect('/admin/login');
+  await requireOwner();
   const state = await snapshot();
   const github = state.github.data;
   const owners: Owner[] = ['miguel', 'samuel'];

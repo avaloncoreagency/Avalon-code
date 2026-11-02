@@ -1,6 +1,6 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { createClient } from "@/lib/supabase/server";
-import { getAuthorizedMember } from "@/lib/auth/access";
+import { getOwnerState } from "@/lib/auth/access";
 import { getAppOrigin } from "@/lib/auth/policy";
 
 export async function GET(request: NextRequest) {
@@ -23,7 +23,9 @@ export async function GET(request: NextRequest) {
     const supabase = await createClient();
     const { error } = await supabase.auth.exchangeCodeForSession(code);
     if (error) return destination("/admin/login?error=callback");
-    if (!await getAuthorizedMember(supabase)) {
+    const owner = await getOwnerState(supabase);
+    if (owner.state === "mfa") return destination("/admin/mfa");
+    if (owner.state !== "ok") {
       await supabase.auth.signOut({ scope: "local" });
       return destination("/admin/login?error=unauthorized");
     }

@@ -13,6 +13,8 @@ function load(file, mocks = {}) {
   const localRequire = id => {
     if (id in mocks) return mocks[id];
     if (id === 'server-only') return {};
+    if (id === 'next/headers') return { headers: async () => new Headers(), cookies: async () => ({ get: () => undefined, set: () => {} }) };
+    if (id === '@/lib/security/rate-limit') return load('src/lib/security/rate-limit.ts');
     if (id.startsWith('.')) return load(path.resolve(path.dirname(filename), id + '.ts'), mocks);
     return require(id);
   };
@@ -23,7 +25,7 @@ const policy = load('src/lib/auth/policy.ts');
 function client({ role = 'owner', user = { id: 'verified-uuid', app_metadata: { provider: 'email' } }, authError = null, membershipError = null } = {}) {
   const calls = [];
   const db = {
-    auth: { getUser: async () => ({ data: { user }, error: authError }) },
+    auth: { getUser: async () => ({ data: { user }, error: authError }), mfa: { getAuthenticatorAssuranceLevel: async () => ({ data: { currentLevel: 'aal1', nextLevel: 'aal1' }, error: null }) } },
     from(table) { calls.push(['from', table]); return this; },
     select(columns) { calls.push(['select', columns]); return this; },
     eq(key, value) { calls.push(['eq', key, value]); return this; },
@@ -51,7 +53,7 @@ function callback({ authorized = true, exchangeError = null } = {}) {
   const db = { auth: { exchangeCodeForSession: async code => { calls.push(['exchange', code]); return { error: exchangeError }; }, signOut: async options => { calls.push(['logout', options]); return { error: null }; } } };
   return { calls, handler: load('src/app/admin/auth/callback/route.ts', {
     '@/lib/supabase/server': { createClient: async () => db },
-    '@/lib/auth/access': { getAuthorizedMember: async () => authorized ? { role: 'owner' } : null },
+    '@/lib/auth/access': { getAuthorizedMember: async () => authorized ? { role: 'owner' } : null, getOwnerState: async () => authorized ? { state: 'ok', userId: 'verified-uuid', role: 'owner' } : { state: 'none' } },
     '@/lib/auth/policy': policy,
   }).GET };
 }
@@ -81,7 +83,7 @@ function middleware(authorized) {
   process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY = 'synthetic';
   return load('src/lib/supabase/middleware.ts', {
     '@supabase/ssr': { createServerClient: (_url, _key, options) => { options.cookies.setAll([{ name: 'refreshed', value: 'synthetic', options: { httpOnly: true } }]); return {}; } },
-    '@/lib/auth/access': { getAuthorizedMember: async () => authorized ? { role: 'owner' } : null },
+    '@/lib/auth/access': { getAuthorizedMember: async () => authorized ? { role: 'owner' } : null, getOwnerState: async () => authorized ? { state: 'ok', userId: 'verified-uuid', role: 'owner' } : { state: 'none' } },
   }).updateSession;
 }
 test('middleware blocks every private page and API, preserving refreshed cookies', async () => {
@@ -125,7 +127,7 @@ test('password sign-in trims and normalizes email without touching password', as
     '@/lib/supabase/server': { createClient: async () => ({ auth: {
       signInWithPassword: async input => { calls.push(input); return { error: null }; },
     } }) },
-    '@/lib/auth/access': { getAuthorizedMember: async () => ({ userId: 'verified-uuid', role: 'owner' }) },
+    '@/lib/auth/access': { getOwnerState: async () => ({ state: 'ok', userId: 'verified-uuid', role: 'owner' }) },
     'next/navigation': { redirect: location => { throw Error(location); } },
   });
   const form = new FormData();
@@ -155,7 +157,7 @@ test('password-only login authenticates verified owners and has no Google action
   } };
   const actions = load('src/app/login/actions.ts', {
     '@/lib/supabase/server': { createClient: async () => db },
-    '@/lib/auth/access': { getAuthorizedMember: async () => ({ userId: 'synthetic-owner', role: 'owner' }) },
+    '@/lib/auth/access': { getOwnerState: async () => ({ state: 'ok', userId: 'synthetic-owner', role: 'owner' }) },
     '@/lib/auth/policy': policy,
     'next/navigation': { redirect: location => { throw Error(location); } },
   });
@@ -175,7 +177,7 @@ test('password-only login rejects a nonmember and clears its session', async () 
   } };
   const actions = load('src/app/login/actions.ts', {
     '@/lib/supabase/server': { createClient: async () => db },
-    '@/lib/auth/access': { getAuthorizedMember: async () => null },
+    '@/lib/auth/access': { getOwnerState: async () => ({ state: 'none' }) },
     '@/lib/auth/policy': policy,
     'next/navigation': { redirect: location => { throw Error(location); } },
   });
@@ -189,7 +191,7 @@ test('password-only login rejects a nonmember and clears its session', async () 
 test('password-only login does not expose invalid-credentials details', async () => {
   const actions = load('src/app/login/actions.ts', {
     '@/lib/supabase/server': { createClient: async () => ({ auth: { signInWithPassword: async () => ({ error: Error('unknown account') }) } }) },
-    '@/lib/auth/access': { getAuthorizedMember: async () => { throw Error('Should not authorize'); } },
+    '@/lib/auth/access': { getOwnerState: async () => { throw Error('Should not authorize'); } },
     '@/lib/auth/policy': policy,
     'next/navigation': { redirect: location => { throw Error(location); } },
   });

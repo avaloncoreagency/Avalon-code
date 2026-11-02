@@ -139,7 +139,7 @@ test('every module server action re-verifies the owner before touching data', ()
 
 test('every private page renders inside the authenticated Suite or verifies the owner', () => {
   const pages = sources.filter(f => f.startsWith(path.join('src', 'app', 'admin')) && /page\.tsx$/.test(f) &&
-    !/(login|signup|forgot-password|reset-password)/.test(f));
+    !/(login|signup|forgot-password|reset-password|\/mfa\/)/.test(f));
   assert.ok(pages.length >= 15);
   for (const file of pages) {
     const text = fs.readFileSync(file, 'utf8');

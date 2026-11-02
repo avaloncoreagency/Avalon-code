@@ -30,7 +30,8 @@ test('Nova Restaurant through the real app: one form, three departments, no dupl
     const user = { id, email, aud: 'authenticated', role: 'authenticated', app_metadata: { provider: 'email' }, user_metadata: {}, identities: [], created_at: '2026-01-01T00:00:00Z' };
     const exp = Math.floor(Date.now() / 1000) + 3600;
     const enc = x => Buffer.from(JSON.stringify(x)).toString('base64url');
-    const access_token = `${enc({ alg: 'HS256', typ: 'JWT' })}.${enc({ sub: id, exp, role: 'authenticated' })}.synthetic`;
+    // Structurally valid JWT (base64url parts, aal claim) so MFA assurance checks can decode it.
+    const access_token = `${enc({ alg: 'HS256', typ: 'JWT' })}.${enc({ sub: id, exp, role: 'authenticated', aal: 'aal1' })}.${Buffer.from('synthetic-signature').toString('base64url')}`;
     users.set(access_token, user);
     return { access_token, refresh_token: 'synthetic', token_type: 'bearer', expires_in: 3600, expires_at: exp, user };
   };

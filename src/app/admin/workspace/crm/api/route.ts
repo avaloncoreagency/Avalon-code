@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
-import { getAuthorizedMember } from "@/lib/auth/access";
+import { getOwnerSession } from "@/lib/auth/session";
 import {
   tables,
   validate,
@@ -47,10 +47,11 @@ function failure(error: unknown) {
     503,
   );
 }
+// Same verified identity + owner membership (+ MFA level) check as every private page.
 async function context() {
-  const client = await createClient();
-  const member = await getAuthorizedMember(client);
-  return { client, member };
+  const session = await getOwnerSession();
+  if (!session) return { client: await createClient(), member: null };
+  return { client: session.supabase, member: { userId: session.userId, role: "owner" as const } };
 }
 export async function GET(request: NextRequest) {
   try {

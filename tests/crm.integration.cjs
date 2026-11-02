@@ -48,7 +48,8 @@ test(
       };
       const exp = Math.floor(Date.now() / 1000) + 3600;
       const enc = (x) => Buffer.from(JSON.stringify(x)).toString("base64url");
-      const access_token = `${enc({ alg: "HS256", typ: "JWT" })}.${enc({ sub: id, exp, role: "authenticated" })}.synthetic`;
+      // Structurally valid JWT (base64url parts, aal claim) so MFA assurance checks can decode it.
+      const access_token = `${enc({ alg: "HS256", typ: "JWT" })}.${enc({ sub: id, exp, role: "authenticated", aal: "aal1" })}.${Buffer.from("synthetic-signature").toString("base64url")}`;
       tokens.set(access_token, user);
       return {
         access_token,
