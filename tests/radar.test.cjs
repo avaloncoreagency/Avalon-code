@@ -122,8 +122,8 @@ test("radar email validation is linear and bounded for untrusted contact data", 
   assert.equal(isValidRadarEmail("a@b.co"), true);
   assert.equal(isValidRadarEmail("a@.com"), false);
   assert.equal(isValidRadarEmail("a@@example.com"), false);
-  assert.equal(isValidRadarEmail("hello\\n@example.com"), false);
+  assert.equal(isValidRadarEmail("hello" + String.fromCharCode(10) + "@example.com"), false);
   assert.equal(isValidRadarEmail("!.".repeat(10000) + "@example.com"), false);
   const route = fs.readFileSync("src/app/admin/workspace/crm/radar/places/route.ts", "utf8");
-  assert.match(route, /isValidRadarEmail\\(email\\)/);
+  assert.ok(route.includes("isValidRadarEmail(email)"));
 });
