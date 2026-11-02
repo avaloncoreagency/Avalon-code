@@ -5,9 +5,9 @@ import { getAppOrigin } from "@/lib/auth/policy";
 import { clearPasswordFlow, validPasswordFlow } from "@/lib/auth/email-flow";
 
 export async function requestRecovery(form: FormData) {
-  if (process.env.AUTH_PASSWORD_LOGIN_ENABLED !== "true") redirect("/admin/login?error=disabled");
-  const email = form.get("email");
-  if (typeof email === "string" && email.length <= 320 && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+  const rawEmail = form.get("email");
+  const email = typeof rawEmail === "string" ? rawEmail.trim().toLowerCase() : "";
+  if (email && email.length <= 320 && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
     try {
       const client = await createClient();
       await client.auth.resetPasswordForEmail(email, { redirectTo: `${getAppOrigin()}/admin/reset-password` });
@@ -18,7 +18,6 @@ export async function requestRecovery(form: FormData) {
 export async function savePassword(form: FormData) {
   const type = form.get("flow") === "invite" ? "invite" : "recovery";
   const path = type === "invite" ? "/admin/signup" : "/admin/reset-password";
-  if (process.env.AUTH_PASSWORD_LOGIN_ENABLED !== "true") redirect("/admin/login?error=disabled");
   const client = await createClient();
   const { data: { user }, error } = await client.auth.getUser();
   if (error || !user || !await validPasswordFlow(user.id, type)) redirect(`${path}?error=expired`);

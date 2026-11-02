@@ -45,6 +45,7 @@ test('OAuth PKCE, SSR cookies, owner gate, refresh and logout over HTTP', { time
         refreshCount++;
         return json(200, makeSession(body.refresh_token.replace('synthetic-refresh-', '')));
       }
+      if (url.searchParams.get('grant_type') === 'password') return body.password === 'synthetic-correct-password' ? json(200, makeSession('owner')) : json(400, {error:'invalid_credentials'});
       assert.equal(url.searchParams.get('grant_type'), 'pkce');
       const exchange = exchanges.get(body.auth_code);
       if (!exchange || !body.code_verifier || createHash('sha256').update(body.code_verifier).digest('base64url') !== exchange.challenge) return json(400, { error: 'invalid_grant', msg: 'Invalid PKCE verifier' });
@@ -110,14 +111,12 @@ test('OAuth PKCE, SSR cookies, owner gate, refresh and logout over HTTP', { time
   }
   async function startOAuth(kind) {
     scenario = kind;
-    const login = await request('/admin/login');
-    assert.equal(login.status, 200);
-    const action = actionId(await login.text());
-    const started = await request('/admin/login', { method: 'POST', headers: { origin }, body: actionBody(action) });
-    assert.equal(started.status, 303);
-    const authorize = started.headers.get('location');
-    assert.equal(new URL(authorize).origin, remoteOrigin);
-    assert.ok([...jar.keys()].some(key => key.endsWith('code-verifier')), 'PKCE verifier cookie must reach browser');
+    // Google is no longer offered in the UI. Verify retained legacy PKCE callback
+    // using the real SSR client to prepare the verifier, independently of the form.
+    const client = require('@supabase/ssr').createServerClient(remoteOrigin, 'synthetic-publishable-key', {cookies:{getAll:()=>[...jar].map(([name,value])=>({name,value})),setAll:values=>values.forEach(({name,value})=>jar.set(name,value))}});
+    const {data,error}=await client.auth.signInWithOAuth({provider:'google',options:{redirectTo:origin+'/admin/auth/callback',skipBrowserRedirect:true}});
+    assert.equal(error,null);
+    const authorize=data.url;
     const provider = await request(authorize);
     return provider.headers.get('location');
   }
@@ -126,6 +125,16 @@ test('OAuth PKCE, SSR cookies, owner gate, refresh and logout over HTTP', { time
     const denied = await request('/admin/dashboard');
     assert.equal(new URL(denied.headers.get('location'), origin).pathname, '/admin/login');
     assert.equal((await request('/api/private')).status, 401);
+  });
+  await check('password-only UI and actual password action work with legacy flag false', async () => {
+    const page=await request('/admin/login');const html=await page.text();
+    assert.match(html,/name="email"/);assert.match(html,/name="password"/);
+    assert.doesNotMatch(html,/>Continue with Google<|>Continuar con Google</);
+    const body=actionBody(actionId(html));body.set('email','owner@example.invalid');body.set('password','incorrect');
+    const invalid=await request('/admin/login',{method:'POST',headers:{origin},body});assert.match(invalid.headers.get('location'),/error=invalid/);
+    body.set('password','synthetic-correct-password');
+    const valid=await request('/admin/login',{method:'POST',headers:{origin},body});assert.equal(new URL(valid.headers.get('location'),origin).pathname,'/admin/dashboard');
+    jar.clear();
   });
   let consumedCallback;
   await check('owner signs in through actual PKCE exchange and SSR cookies', async () => {

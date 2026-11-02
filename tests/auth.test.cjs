@@ -20,7 +20,7 @@ function load(file, mocks = {}) {
   return loaded.exports;
 }
 const policy = load('src/lib/auth/policy.ts');
-function client({ role = 'owner', user = { id: 'verified-uuid', app_metadata: { provider: 'google' } }, authError = null, membershipError = null } = {}) {
+function client({ role = 'owner', user = { id: 'verified-uuid', app_metadata: { provider: 'email' } }, authError = null, membershipError = null } = {}) {
   const calls = [];
   const db = {
     auth: { getUser: async () => ({ data: { user }, error: authError }) },
@@ -37,7 +37,7 @@ test('authorization verifies identity, then queries membership by verified UUID'
   assert.deepEqual(await access.getAuthorizedMember(db), { userId: 'verified-uuid', role: 'owner' });
   assert.deepEqual(calls, [['from', 'agency_memberships'], ['select', 'role'], ['eq', 'user_id', 'verified-uuid']]);
 });
-for (const [name, options] of Object.entries({ 'signed out': { user: null }, 'invalid identity': { authError: Error('forged token') }, nonmember: { role: null }, admin: { role: 'admin' }, operator: { role: 'operator' }, 'RLS failure': { membershipError: Error('denied') }, 'editable metadata spoof': { user: { id: 'attacker', app_metadata: { provider: 'email' }, user_metadata: { role: 'owner', provider: 'google' } } } })) {
+for (const [name, options] of Object.entries({ 'signed out': { user: null }, 'invalid identity': { authError: Error('forged token') }, nonmember: { role: null }, admin: { role: 'admin' }, operator: { role: 'operator' }, 'RLS failure': { membershipError: Error('denied') }, 'editable metadata spoof': { role: null, user: { id: 'attacker', app_metadata: { provider: 'email' }, user_metadata: { role: 'owner', provider: 'google' } } } })) {
   test(`authorization denies ${name}`, async () => assert.equal(await access.getAuthorizedMember(client(options).db), null));
 }
 test('callback origin rejects external inputs and non-HTTPS hosts', () => {
@@ -111,29 +111,68 @@ test('existing logout calls Supabase signOut before redirecting', async () => {
   });
   await assert.rejects(action.signOut(), /\/login/);
 });
-test('password server action is disabled by default even when invoked directly', async () => {
+test('password login validates input without requiring a feature flag', async () => {
   delete process.env.AUTH_PASSWORD_LOGIN_ENABLED;
   const actions = load('src/app/login/actions.ts', {
     '@/lib/supabase/server': {}, '@/lib/auth/access': {}, '@/lib/auth/policy': policy,
     'next/navigation': { redirect: location => { throw Error(location); } },
   });
-  await assert.rejects(actions.signIn(new FormData()), /error=disabled/);
+  await assert.rejects(actions.signIn(new FormData()), /error=invalid/);
 });
-test('Google action uses the configured callback and server-side OAuth redirect', async () => {
+test('password-only login authenticates verified owners and has no Google action', async () => {
   process.env.APP_ORIGIN = 'http://localhost:3000';
+  let provided;
+  const db = { auth: {
+    signInWithPassword: async input => { provided = input; return { error: null }; },
+    signOut: async () => { throw Error('Unexpected sign out'); },
+  } };
   const actions = load('src/app/login/actions.ts', {
-    '@/lib/supabase/server': { createClient: async () => ({ auth: { signInWithOAuth: async args => {
-      assert.equal(args.provider, 'google');
-      assert.equal(args.options.redirectTo, 'http://localhost:3000/admin/auth/callback');
-      return { data: { url: 'https://example.supabase.co/auth/v1/authorize?provider=google' }, error: null };
-    } } }) },
-    '@/lib/auth/access': {}, '@/lib/auth/policy': policy,
+    '@/lib/supabase/server': { createClient: async () => db },
+    '@/lib/auth/access': { getAuthorizedMember: async () => ({ userId: 'synthetic-owner', role: 'owner' }) },
+    '@/lib/auth/policy': policy,
     'next/navigation': { redirect: location => { throw Error(location); } },
   });
-  await assert.rejects(actions.signInWithGoogle(), /https:\/\/example.supabase.co\/auth\/v1\/authorize/);
+  assert.equal(typeof actions.signInWithGoogle, 'undefined');
+  const form = new FormData();
+  form.set('email', 'owner@example.invalid');
+  form.set('password', 'synthetic-secret');
+  await assert.rejects(actions.signIn(form), /\/admin\/dashboard/);
+  assert.deepEqual(provided, { email: 'owner@example.invalid', password: 'synthetic-secret' });
 });
 
- test('callback returns a clear uncached 503 when application origin is missing', async () => {
+test('password-only login rejects a nonmember and clears its session', async () => {
+  let signedOut = false;
+  const db = { auth: {
+    signInWithPassword: async () => ({ error: null }),
+    signOut: async options => { assert.deepEqual(options, { scope: 'local' }); signedOut = true; return { error: null }; },
+  } };
+  const actions = load('src/app/login/actions.ts', {
+    '@/lib/supabase/server': { createClient: async () => db },
+    '@/lib/auth/access': { getAuthorizedMember: async () => null },
+    '@/lib/auth/policy': policy,
+    'next/navigation': { redirect: location => { throw Error(location); } },
+  });
+  const form = new FormData();
+  form.set('email', 'nonmember@example.invalid');
+  form.set('password', 'synthetic-secret');
+  await assert.rejects(actions.signIn(form), /error=unauthorized/);
+  assert.equal(signedOut, true);
+});
+
+test('password-only login does not expose invalid-credentials details', async () => {
+  const actions = load('src/app/login/actions.ts', {
+    '@/lib/supabase/server': { createClient: async () => ({ auth: { signInWithPassword: async () => ({ error: Error('unknown account') }) } }) },
+    '@/lib/auth/access': { getAuthorizedMember: async () => { throw Error('Should not authorize'); } },
+    '@/lib/auth/policy': policy,
+    'next/navigation': { redirect: location => { throw Error(location); } },
+  });
+  const form = new FormData();
+  form.set('email', 'unknown@example.invalid');
+  form.set('password', 'synthetic-secret');
+  await assert.rejects(actions.signIn(form), /error=invalid/);
+});
+
+test('callback returns a clear uncached 503 when application origin is missing', async () => {
   const saved = process.env.APP_ORIGIN;
   delete process.env.APP_ORIGIN;
   try {
@@ -207,4 +246,12 @@ test('SMTP-free magiclink verifies identity before granting password setup, with
   const response = await route.GET(new NextRequest('http://localhost:3000/admin/auth/confirm?type=magiclink&token_hash=synthetic'));
   assert.equal(response.headers.get('location'), 'http://localhost:3000/admin/signup');
   delete process.env.AUTH_PASSWORD_LOGIN_ENABLED;
+});
+
+test('email owner remains authorized even with obsolete password flag false', async () => {
+  process.env.AUTH_PASSWORD_LOGIN_ENABLED = 'false';
+  try {
+    const {db}=client({user:{id:'email-owner',app_metadata:{provider:'email'}}});
+    assert.deepEqual(await access.getAuthorizedMember(db),{userId:'email-owner',role:'owner'});
+  } finally { delete process.env.AUTH_PASSWORD_LOGIN_ENABLED; }
 });
