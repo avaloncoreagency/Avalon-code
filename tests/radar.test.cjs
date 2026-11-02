@@ -114,3 +114,16 @@ test("free area: any coordinate, configurable radius in mi/km, honest provider l
   assert.equal(r.tierStyle(5).color, "#39ff88");
   assert.equal(r.tierStyle(1).color, "#f43f5e");
 });
+
+
+test("radar email validation is linear and bounded for untrusted contact data", () => {
+  const { isValidRadarEmail } = loadRadar();
+  assert.equal(isValidRadarEmail("sales@example.com"), true);
+  assert.equal(isValidRadarEmail("a@b.co"), true);
+  assert.equal(isValidRadarEmail("a@.com"), false);
+  assert.equal(isValidRadarEmail("a@@example.com"), false);
+  assert.equal(isValidRadarEmail("hello\\n@example.com"), false);
+  assert.equal(isValidRadarEmail("!.".repeat(10000) + "@example.com"), false);
+  const route = fs.readFileSync("src/app/admin/workspace/crm/radar/places/route.ts", "utf8");
+  assert.match(route, /isValidRadarEmail\\(email\\)/);
+});
