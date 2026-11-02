@@ -38,7 +38,7 @@ test('authorization verifies identity, then queries membership by verified UUID'
   assert.deepEqual(await access.getAuthorizedMember(db), { userId: 'verified-uuid', role: 'owner' });
   assert.deepEqual(calls, [['from', 'agency_memberships'], ['select', 'role'], ['eq', 'user_id', 'verified-uuid']]);
 });
-for (const [name, options] of Object.entries({ 'signed out': { user: null }, 'invalid identity': { authError: Error('forged token') }, nonmember: { role: null }, admin: { role: 'admin' }, operator: { role: 'operator' }, 'RLS failure': { membershipError: Error('denied') }, 'editable metadata spoof': { user: { id: 'attacker', app_metadata: { provider: 'email' }, user_metadata: { role: 'owner', provider: 'google' } } } })) {
+for (const [name, options] of Object.entries({ 'signed out': { user: null }, 'invalid identity': { authError: Error('forged token') }, nonmember: { role: null }, admin: { role: 'admin' }, operator: { role: 'operator' }, 'RLS failure': { membershipError: Error('denied') }, 'editable metadata spoof': { role: null, user: { id: 'attacker', app_metadata: { provider: 'email' }, user_metadata: { role: 'owner', provider: 'google' } } } })) {
   test(`authorization denies ${name}`, async () => assert.equal(await access.getAuthorizedMember(client(options).db), null));
 }
 test('callback origin rejects external inputs and non-HTTPS hosts', () => {
