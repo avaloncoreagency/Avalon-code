@@ -9,7 +9,7 @@ import styles from "./login-panel.module.css";
 const copy = {
   en: {
     portal: "AI ADMIN PORTAL", welcome: "WELCOME BACK", intro: "Log in to your Avalon Core Agency", portalName: "AI Admin Portal",
-pending: "Connecting…", email: "Email address", password: "Password", login: "Log in", or: "OR CONTINUE WITH",
+pending: "Connecting…", email: "Email address", password: "Password", login: "Log in",
     access: "Admin-only access", identity: "Password sign-in", data: "Protected data", note: "Private workspace · Authorized owners only",
 callback: "Sign-in could not be completed. Please start again.",
     unauthorized: "This account is not authorized to access the admin portal.", invalid: "Unable to sign in. Check your credentials.", disabled: "Password sign-in is not enabled.",
@@ -17,7 +17,7 @@ callback: "Sign-in could not be completed. Please start again.",
   },
   es: {
     portal: "PORTAL ADMINISTRATIVO IA", welcome: "BIENVENIDO DE NUEVO", intro: "Accede al portal administrativo de", portalName: "Avalon Core Agency",
-pending: "Conectando…", email: "Correo electrónico", password: "Contraseña", login: "Entrar", or: "O CONTINÚA CON",
+pending: "Conectando…", email: "Correo electrónico", password: "Contraseña", login: "Entrar",
     access: "Acceso administrativo", identity: "Acceso con contraseña", data: "Datos protegidos", note: "Espacio privado · Solo propietarios autorizados",
 callback: "No se pudo completar el acceso. Inicia el proceso de nuevo.",
     unauthorized: "Esta cuenta no está autorizada para acceder al portal administrativo.", invalid: "No se pudo iniciar sesión. Comprueba tus credenciales.", disabled: "El acceso con contraseña no está habilitado.",
