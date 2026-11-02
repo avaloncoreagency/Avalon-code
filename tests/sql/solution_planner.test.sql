@@ -37,7 +37,9 @@ begin
   begin
     perform public.crm_review_solution_plan(p,1);
     ok:=false;
-  exception when others then ok:=position('planner_not_ready' in sqlerrm)>0;
+  exception when others then
+    raise notice 'Solution Plan initial review exception: [%] %', sqlstate, sqlerrm;
+    ok:=position('planner_not_ready' in sqlerrm)>0;
   end;
   assert ok, 'legacy unapproved SKU cannot pass review';
   -- Approve SKU and record the estimate inputs. This does not edit old sales.
