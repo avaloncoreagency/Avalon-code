@@ -4,6 +4,7 @@ import { createClient } from "@/lib/supabase/server";
 import { getAuthorizedMember } from "@/lib/auth/access";
 
 export async function signIn(formData: FormData) {
+  if (process.env.AUTH_PASSWORD_LOGIN_ENABLED !== "true") redirect("/admin/login?error=disabled");
   const email = formData.get("email");
   const password = formData.get("password");
   if (typeof email !== "string" || typeof password !== "string" || !email || !password ||
