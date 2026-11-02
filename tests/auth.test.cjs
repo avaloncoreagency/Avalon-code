@@ -4,6 +4,7 @@ const fs = require('node:fs');
 const path = require('node:path');
 const ts = require('typescript');
 const { NextRequest } = require('next/server');
+process.env.AUTH_PASSWORD_LOGIN_ENABLED = 'true';
 
 // Load the actual TypeScript handlers with isolated Supabase/Next adapters.
 function load(file, mocks = {}) {
@@ -20,7 +21,7 @@ function load(file, mocks = {}) {
   return loaded.exports;
 }
 const policy = load('src/lib/auth/policy.ts');
-function client({ role = 'owner', user = { id: 'verified-uuid', app_metadata: { provider: 'google' } }, authError = null, membershipError = null } = {}) {
+function client({ role = 'owner', user = { id: 'verified-uuid', app_metadata: { provider: 'email' } }, authError = null, membershipError = null } = {}) {
   const calls = [];
   const db = {
     auth: { getUser: async () => ({ data: { user }, error: authError }) },
@@ -119,21 +120,70 @@ test('password server action is disabled by default even when invoked directly',
   });
   await assert.rejects(actions.signIn(new FormData()), /error=disabled/);
 });
-test('Google action uses the configured callback and server-side OAuth redirect', async () => {
-  process.env.APP_ORIGIN = 'http://localhost:3000';
+test('password-only login authenticates verified owners and has no Google action', async () => {
+  process.env.AUTH_PASSWORD_LOGIN_ENABLED = 'true';
+  let provided;
+  const db = { auth: {
+    signInWithPassword: async input => { provided = input; return { error: null }; },
+    signOut: async () => { throw Error('Unexpected sign out'); },
+  } };
   const actions = load('src/app/login/actions.ts', {
-    '@/lib/supabase/server': { createClient: async () => ({ auth: { signInWithOAuth: async args => {
-      assert.equal(args.provider, 'google');
-      assert.equal(args.options.redirectTo, 'http://localhost:3000/admin/auth/callback');
-      return { data: { url: 'https://example.supabase.co/auth/v1/authorize?provider=google' }, error: null };
-    } } }) },
-    '@/lib/auth/access': {}, '@/lib/auth/policy': policy,
+    '@/lib/supabase/server': { createClient: async () => db },
+    '@/lib/auth/access': { getAuthorizedMember: async () => ({ userId: 'synthetic-owner', role: 'owner' }) },
+    '@/lib/auth/policy': policy,
     'next/navigation': { redirect: location => { throw Error(location); } },
   });
-  await assert.rejects(actions.signInWithGoogle(), /https:\/\/example.supabase.co\/auth\/v1\/authorize/);
+  assert.equal(typeof actions.signInWithGoogle, 'undefined');
+  const form = new FormData();
+  form.set('email', 'owner@example.invalid');
+  form.set('password', 'synthetic-secret');
+  await assert.rejects(actions.signIn(form), /dashboard/);
+  assert.deepEqual(provided, { email: 'owner@example.invalid', password: 'synthetic-secret' });
 });
 
- test('callback returns a clear uncached 503 when application origin is missing', async () => {
+test('password-only login rejects nonmembers and clears their session', async () => {
+  process.env.AUTH_PASSWORD_LOGIN_ENABLED = 'true';
+  let signedOut = false;
+  const db = { auth: {
+    signInWithPassword: async () => ({ error: null }),
+    signOut: async options => { assert.deepEqual(options, { scope: 'local' }); signedOut = true; return { error: null }; },
+  } };
+  const actions = load('src/app/login/actions.ts', {
+    '@/lib/supabase/server': { createClient: async () => db },
+    '@/lib/auth/access': { getAuthorizedMember: async () => null },
+    '@/lib/auth/policy': policy,
+    'next/navigation': { redirect: location => { throw Error(location); } },
+  });
+  const form = new FormData();
+  form.set('email', 'nonmember@example.invalid');
+  form.set('password', 'synthetic-secret');
+  await assert.rejects(actions.signIn(form), /error=unauthorized/);
+  assert.equal(signedOut, true);
+});
+
+test('password-only login returns one generic invalid-credential error', async () => {
+  process.env.AUTH_PASSWORD_LOGIN_ENABLED = 'true';
+  const actions = load('src/app/login/actions.ts', {
+    '@/lib/supabase/server': { createClient: async () => ({ auth: { signInWithPassword: async () => ({ error: Error('unknown account') }) } }) },
+    '@/lib/auth/access': { getAuthorizedMember: async () => { throw Error('Should not authorize'); } },
+    '@/lib/auth/policy': policy,
+    'next/navigation': { redirect: location => { throw Error(location); } },
+  });
+  const form = new FormData();
+  form.set('email', 'unknown@example.invalid');
+  form.set('password', 'synthetic-secret');
+  await assert.rejects(actions.signIn(form), /error=invalid/);
+});
+
+test('Google identities are denied by the owner authorization policy', async () => {
+  process.env.AUTH_PASSWORD_LOGIN_ENABLED = 'true';
+  assert.equal(policy.hasAllowedProvider('email'), true);
+  assert.equal(policy.hasAllowedProvider('google'), false);
+  const { db } = client({ role: 'owner', user: { id: 'google-user', app_metadata: { provider: 'google' } } });
+  assert.equal(await access.getAuthorizedMember(db), null);
+});
+
+test('callback returns a clear uncached 503 when application origin is missing', async () => {
   const saved = process.env.APP_ORIGIN;
   delete process.env.APP_ORIGIN;
   try {

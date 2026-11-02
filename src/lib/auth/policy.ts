@@ -15,6 +15,5 @@ export function getAppOrigin() {
 }
 
 export function hasAllowedProvider(provider: unknown) {
-  return provider === "google" ||
-    (provider === "email" && process.env.AUTH_PASSWORD_LOGIN_ENABLED === "true");
+  return provider === "email" && process.env.AUTH_PASSWORD_LOGIN_ENABLED === "true";
 }
