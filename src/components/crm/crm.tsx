@@ -10,6 +10,7 @@ import {
   type Stage,
 } from "@/lib/crm/domain";
 import { RecordForm } from "./record-form";
+import { CrmNavigation } from "./navigation";
 import s from "./crm.module.css";
 export const crmSections = sections;
 export type CrmSection = Section;
@@ -356,26 +357,16 @@ export function Crm({ section = "leads" }: { section?: CrmSection }) {
             Operaciones comerciales de Avalon Core Agency.
           </p>
         </div>
-        <Link href="/admin/dashboard" className={s.link}>
-          ← Dashboard
-        </Link>
-      </header>
-      <nav aria-label="Secciones del CRM" className={s.tabs}>
-        {sections.map((x) => (
-          <Link
-            key={x.slug}
-            href={
-              x.slug === "leads"
-                ? "/admin/workspace/crm"
-                : `/admin/workspace/crm/${x.slug}`
-            }
-            aria-current={section === x.slug ? "page" : undefined}
-            className={`${s.tab} ${section === x.slug ? s.active : ""}`}
-          >
-            {x.label}
+        <div className={s.actions}>
+          <Link href="/admin/workspace/crm" className={s.link}>
+            Inicio del CRM
           </Link>
-        ))}
-      </nav>
+          <Link href="/admin/dashboard" className={s.link}>
+            ← Dashboard
+          </Link>
+        </div>
+      </header>
+      <CrmNavigation active={section} />
       <p className={s.muted}>
         Datos persistidos de la agencia. Valores comerciales estimados en USD;
         no representan ingresos cobrados.
