@@ -116,7 +116,6 @@ test('Email/password auth, SSR cookies, owner gate, refresh and logout over HTTP
     assert.equal(new URL(denied.headers.get('location'), origin).pathname, '/admin/login');
     assert.equal((await request('/api/private')).status, 401);
   });
-  let consumedCallback;
   await check('owner signs in through the password action and SSR cookies', async () => {
     const destination = await submitPassword('owner');
     assert.equal(new URL(destination, origin).pathname, '/admin/dashboard');
