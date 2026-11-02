@@ -6,7 +6,7 @@ const migration = fs.readFileSync('supabase/migrations/20261102_owner_membership
 
 test('membership migration binds identities to Supabase Auth UUIDs', () => {
   assert.match(migration, /user_id uuid primary key references auth\.users\(id\)/i);
-  assert.match(migration, /role text not null check \(role in \('owner'\)\)/i);
+  assert.match(migration, /role text not null check \(role in \('owner', 'admin', 'operator'\)\)/i);
 });
 
 test('membership migration enforces row-level security and UUID-scoped self-read', () => {
