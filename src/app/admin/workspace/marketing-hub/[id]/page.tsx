@@ -51,7 +51,8 @@ export default async function CampaignPage({ params, searchParams }: { params: P
 
   return (
     <Suite active="marketing-hub">
-      <PageHeader eyebrow="Marketing Hub" title={project.data?.name ?? "—"} description={goal || project.data?.description || undefined} crumbs={[{ href: BASE, label: "Marketing Hub" }]} />
+      <PageHeader eyebrow="Marketing Hub" title={project.data?.name ?? "—"} description={goal || project.data?.description || undefined} crumbs={[{ href: BASE, label: "Marketing Hub" }]}
+        actions={project.data && <a className={s.btn} href={`${BASE}/${id}/export`} download>{pick(lang, "Exportar CSV", "Export CSV")}</a>} />
       <Flash lang={lang} ok={param(query, "ok")} error={param(query, "error")} />
       {project.error ? <DbNotice lang={lang} error={project.error} /> : project.data && (
         <>

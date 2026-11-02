@@ -146,3 +146,61 @@ test('every private page renders inside the authenticated Suite or verifies the 
 test('CRM module files owned by Samuel are not created or modified on this branch', () => {
   for (const p of ['src/app/admin/workspace/crm', 'src/components/crm', 'src/lib/crm']) assert.equal(fs.existsSync(p), false, p);
 });
+
+// ─── Tools: exports and global search ───────────────────────────────────────
+const x = load('src/lib/os/exporters.ts', { './domain': d });
+
+test('CSV export quotes, escapes and neutralizes spreadsheet formulas', () => {
+  assert.equal(x.csvCell('plain'), 'plain');
+  assert.equal(x.csvCell('a,b'), '"a,b"');
+  assert.equal(x.csvCell('say "hi"'), '"say ""hi"""');
+  assert.equal(x.csvCell('line1\nline2'), '"line1\nline2"');
+  for (const evil of ['=HYPERLINK("http://x")', '+1+1', '-2', '@SUM(A1)', '\tcmd']) assert.equal(x.csvCell(evil).replace(/^"/, '')[0], "'", evil);
+  assert.equal(x.csvCell(null), '');
+  const csv = x.toCsv(['name', 'price'], [['Café', '10.00']]);
+  assert.ok(csv.startsWith('﻿name,price\r\n'));
+  assert.ok(csv.includes('Café,10.00'));
+});
+
+test('HTML export escapes content and drops unsafe links', () => {
+  const html = x.pageToHtml({ title: '<b>T</b>', seo_description: 'd"x', blocks: [
+    { type: 'hero', heading: '<script>alert(1)</script>', subheading: 's', buttonLabel: 'Go', buttonHref: '/contacto' },
+    { type: 'text', heading: 'DROPPED', body: 'x', buttonLabel: 'Bad', buttonHref: 'javascript:alert(1)' },
+    { type: 'cta', heading: 'UNSAFE-CTA', body: 'x', buttonLabel: 'Bad', buttonHref: 'javascript:alert(1)' },
+    { type: 'cta', heading: 'C', body: 'b', buttonLabel: 'Ok', buttonHref: 'https://avalon.test/x' },
+    { type: 'features', heading: 'F', items: ['<i>a</i>'] },
+  ] }, 'es');
+  assert.ok(html.startsWith('<!doctype html>'));
+  assert.ok(!html.includes('<script>alert'));
+  assert.ok(html.includes('&lt;script&gt;'));
+  assert.ok(!html.toLowerCase().includes('javascript:'));
+  assert.ok(!html.includes('UNSAFE-CTA'), 'blocks with unsafe links are rejected by validation');
+  assert.ok(html.includes('<a class="btn" href="/contacto">Go</a>'));
+  assert.ok(html.includes('href="https://avalon.test/x" target="_blank" rel="noopener noreferrer"'));
+  assert.ok(html.includes('<title>&lt;b&gt;T&lt;/b&gt;</title>'));
+  assert.ok(html.includes('content="d&quot;x"'));
+  assert.ok(html.includes('<li>&lt;i&gt;a&lt;/i&gt;</li>'));
+});
+
+test('search terms cannot inject PostgREST filters or LIKE wildcards', () => {
+  assert.equal(d.searchTerm('  café  '), 'café');
+  assert.equal(d.searchTerm('a'), '');
+  assert.equal(d.searchTerm(42), '');
+  const evil = d.searchTerm('x%,status.eq.archived),(name.ilike.*');
+  assert.ok(!/[%,().*:]/.test(evil), evil);
+  assert.ok(d.searchTerm('y'.repeat(200)).length <= 80);
+});
+
+test('export routes and search require a verified owner session', () => {
+  const routes = sources.filter(f => /\/export\/route\.ts$/.test(f));
+  assert.ok(routes.length >= 4, routes.join(','));
+  for (const file of routes) {
+    const src = fs.readFileSync(file, 'utf8');
+    assert.match(src, /getOwnerSession\(\)/, file);
+    assert.match(src, /(exportError\("unauthorized"\)|status: 401)/, file);
+  }
+  const search = fs.readFileSync('src/app/admin/search/page.tsx', 'utf8');
+  assert.match(search, /requireOwner\(\)/);
+  assert.match(search, /searchTerm\(/);
+  assert.match(fs.readFileSync('src/lib/os/export-route.ts', 'utf8'), /no-store/);
+});
