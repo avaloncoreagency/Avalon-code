@@ -3,7 +3,6 @@ import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
 import {
   sections,
-  crmNavigation,
   scoreProspect,
   type Section,
   type Entity,
@@ -11,6 +10,7 @@ import {
   type Stage,
 } from "@/lib/crm/domain";
 import { RecordForm } from "./record-form";
+import { CrmNavigation } from "./navigation";
 import s from "./crm.module.css";
 export const crmSections = sections;
 export type CrmSection = Section;
@@ -366,18 +366,7 @@ export function Crm({ section = "leads" }: { section?: CrmSection }) {
           </Link>
         </div>
       </header>
-      <nav aria-label="Secciones del CRM" className={s.tabs}>
-        {crmNavigation.map((x) => (
-          <Link
-            key={x.slug}
-            href={x.href}
-            aria-current={section === x.slug ? "page" : undefined}
-            className={`${s.tab} ${section === x.slug ? s.active : ""}`}
-          >
-            {x.label}
-          </Link>
-        ))}
-      </nav>
+      <CrmNavigation active={section} />
       <p className={s.muted}>
         Datos persistidos de la agencia. Valores comerciales estimados en USD;
         no representan ingresos cobrados.
