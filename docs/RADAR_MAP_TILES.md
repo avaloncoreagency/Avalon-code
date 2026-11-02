@@ -36,3 +36,7 @@ Estado: patch revisable en rama aislada. Sin merges, cambios de Vercel, Supabase
 El botón «Usar mi ubicación» es una acción explícita del propietario y no debe recopilar coordenadas automáticamente. La cabecera global actual `Permissions-Policy: geolocation=()` la deshabilita. Esta rama ahora detecta el rechazo de políticas cuando el navegador lo expone y explica que el usuario debe buscar una ciudad o tocar el mapa. Si el permiso está disponible en el futuro, la solicitud usa timeout de 12 segundos y evita búsquedas de alta precisión. **Esto no habilita geolocalización** ni modifica cabeceras globales: cualquier habilitación en una ruta administrativa requerirá revisión de SHIN sobre privacidad/seguridad y pruebas de consentimiento.
 
 El filtro también rechaza subdominios arbitrarios y alias con punto final de `tile.openstreetmap.org` para que configuraciones erróneas no reintroduzcan la fuente bloqueada.
+
+## Estados de red del Radar
+
+Las llamadas de lectura a `radar/places`, `radar/campaigns` y la búsqueda de ciudades ahora manejan errores de red y respuestas no válidas para mostrar estados claros, sin prometer que se encontraron empresas. La bandeja de negocios ignora respuestas antiguas cuando cambia el filtro o la vista antes de que termine la solicitud anterior. Las rutas de ingestión/confirmación no cambian: aprobación humana y deduplicación por `source_ref` continúan siendo obligatorias. Esta protección de cliente no sustituye pruebas E2E ni la disponibilidad de staging.
