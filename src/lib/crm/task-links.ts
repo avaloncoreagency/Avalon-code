@@ -16,3 +16,9 @@ export function taskLink({ view, page, client, workOrder, task }: TaskLinkContex
   if (task) params.set('task', task);
   return `/admin/workspace/crm/tasks?${params.toString()}`;
 }
+
+/** A linked order is a team workflow: show everyone's open work by default. */
+export function resolveTaskView(requested: string | null | undefined, fromWorkOrder: boolean): string {
+  if (requested && ["mine", "assigned", "overdue", "all", "done"].includes(requested)) return requested;
+  return fromWorkOrder ? "all" : "mine";
+}
