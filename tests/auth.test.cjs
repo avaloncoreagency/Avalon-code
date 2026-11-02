@@ -284,3 +284,59 @@ test('email owner remains authorized even with obsolete password flag false', as
     assert.deepEqual(await access.getAuthorizedMember(db),{userId:'email-owner',role:'owner'});
   } finally { delete process.env.AUTH_PASSWORD_LOGIN_ENABLED; }
 });
+
+test('owner login distinguishes bad passwords from Supabase outages, without leaking credentials', async () => {
+  const cases = [
+    { name: 'known invalid credentials', error: { code: 'invalid_credentials', status: 400, message: 'Invalid login credentials' }, expected: 'invalid' },
+    { name: 'email not confirmed', error: { code: 'email_not_confirmed', status: 400 }, expected: 'invalid' },
+    { name: 'legacy invalid credentials', error: { status: 400, message: 'Invalid login credentials' }, expected: 'invalid' },
+    { name: 'Supabase unavailable', error: { code: 'unexpected_failure', status: 503 }, expected: 'unavailable' },
+    { name: 'network failure', error: { status: 0, message: 'fetch failed' }, expected: 'unavailable' },
+    { name: 'unknown configuration error', error: { code: 'provider_disabled', status: 400 }, expected: 'unavailable' },
+    { name: 'API rate limit', error: { code: 'over_request_rate_limit', status: 429 }, expected: 'throttled' },
+  ];
+  const rateLimit = {
+    AUTH_RULES: { loginPerIp: {limit: 20,windowMs: 10000}, loginPerAccount: {limit: 8,windowMs: 10000} },
+    authLimiter: { hit: () => ({ allowed: true }), reset: () => {} },
+    clientIp: () => 'test', hashKey: (_scope, val) => val,
+  };
+  for (const sample of cases) {
+    let called = 0;
+    const actions = load('src/app/login/actions.ts', {
+      '@/lib/security/rate-limit': rateLimit,
+      '@/lib/supabase/server': { createClient: async () => ({ auth: {
+        signInWithPassword: async () => { called++; return { error: sample.error }; },
+      } }) },
+      '@/lib/auth/access': { getOwnerState: async () => { throw Error('Must not check membership after failed auth'); } },
+      'next/navigation': { redirect: location => { throw Error(location); } },
+    });
+    const form = new FormData();
+    form.set('email', 'owner@example.invalid');
+    form.set('password', 'Synthetic-Secret-DO-NOT-LOG');
+    await assert.rejects(actions.signIn(form), new RegExp('error=' + sample.expected + '$'), sample.name);
+    assert.equal(called, 1, sample.name);
+  }
+  for (const source of ['client_error', 'server_error']) {
+    const actions = load('src/app/login/actions.ts', {
+      '@/lib/security/rate-limit': rateLimit,
+      '@/lib/supabase/server': { createClient: async () => {
+        if (source === 'client_error') throw Error('Supabase config unavailable');
+        return { auth: { signInWithPassword: async () => { throw Error('Supabase fetch failed'); } } };
+      } },
+      '@/lib/auth/access': { getOwnerState: async () => { throw Error('Should not be called'); } },
+      'next/navigation': { redirect: location => { throw Error(location); } },
+    });
+    const form = new FormData();
+    form.set('email', 'owner@example.invalid'); form.set('password', 'Synthetic-Secret');
+    await assert.rejects(actions.signIn(form), /error=unavailable$/);
+  }
+});
+
+test('login translations explain service outage separately in both languages', () => {
+  const content = fs.readFileSync('src/components/auth/login-panel.tsx', 'utf8');
+  assert.match(content, /unavailable: "Avalon could not connect to authentication/);
+  assert.match(content, /unavailable: "Avalon no pudo conectar con el servicio/);
+  assert.match(content, /unavailable: t.unavailable/);
+  const login = fs.readFileSync('src/app/login/actions.ts', 'utf8');
+  assert.doesNotMatch(login, /console\.(log|error|warn)[^\n]*\b(email|password)\b/);
+});
