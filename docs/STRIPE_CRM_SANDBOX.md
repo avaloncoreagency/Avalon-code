@@ -21,9 +21,18 @@
 - RPC de conciliación: registra `invoice.payment_succeeded` en `crm_payments` solo si identificadores, moneda, importe y saldo son compatibles; la base de datos deduplica `event.id` en la misma transacción. No toma una página de éxito como prueba de pago.
 - `invoice.paid` **no** se contabiliza como cobro: también ocurre al registrar pagos manuales fuera de Stripe. Sin `invoice.payment_succeeded` se queda pendiente de revisión.
 - Si Stripe avisa antes de que la factura quede enlazada en el CRM, el webhook devuelve error temporal y se reintenta; no se pierde silenciosamente el evento.
+- **Reintentos antiguos bloqueados:** las reservas de borradores Stripe en estado `creating` solo permiten reintentos dentro de las primeras 20 horas; Stripe puede eliminar el resultado de una clave de idempotencia después de al menos 24 horas. Pasado el plazo, se presenta un aviso en la ficha Venta y en CRM → Facturas. **No se crea automáticamente otra factura**: primero un propietario debe comprobar en Stripe Sandbox si existe un objeto remoto asociado a esa reserva. Referencia: https://docs.stripe.com/api/idempotent_requests.
+- **Timeout de red:** cada solicitud a la API Stripe queda limitada a 12 segundos. Si se pierde la respuesta de una operación de escritura, se debe reintentar únicamente con la misma clave de idempotencia y dentro del plazo seguro, nunca con una clave nueva.
+- **Cola de revisión exacta:** si un `invoice.paid` ambiguo aparece primero, queda señalado. Cuando llega el evento firmado `invoice.payment_succeeded` y se verifica el cobro, la alerta anterior se marca como procesada dentro de la misma transacción. Las alertas por reembolso, crédito o disputa no se cierran por ello.
 - Si alguien elimina un borrador en Stripe, el evento firmado `invoice.deleted` conserva su auditoría en Avalon y libera el saldo para emitir otro borrador, sin registrarlo como cobro.
 - Eventos de reembolso, crédito o disputa se marcan `needs_review` para gestión humana; **no se debe considerar completamente conciliado un reembolso hasta implementar asientos reversos**.
 - Stripe Tax automático NO está activado.
+
+## Pruebas introducidas en el último incremento (sin ejecución CI nueva confirmada)
+
+- `tests/stripe.test.cjs`: límite temporal de reintentos 20 h y reloj adelantado, timeouts, encabezados y claves idempotentes Stripe, sanitización de errores, rechazo de claves live y bloqueo de Supabase producción.
+- `tests/stripe.database.cjs`: después de un pago auténtico, `invoice.paid` deja de figurar como incidencia pendiente; reembolsos o credit notes siguen requiriendo revisión.
+- Pruebas completas todavía pendientes en el SHA actual; el Preview de Vercel sigue bloqueado porque usa la URL Supabase de producción.
 
 ## Bloqueo Vercel Preview verificado
 
