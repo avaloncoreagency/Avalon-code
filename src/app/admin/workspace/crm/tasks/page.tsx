@@ -8,6 +8,7 @@ import { pick, formatDate } from "@/lib/i18n";
 import { run } from "@/lib/os/data";
 import { label, TASK_PRIORITIES, TASK_STATUSES } from "@/lib/sales/domain";
 import { commentTask, createTask, updateTask } from "./actions";
+import { taskLink } from "@/lib/crm/task-links";
 import s from "@/components/sales/sales.module.css";
 export const dynamic = "force-dynamic";
 
@@ -46,6 +47,12 @@ export default async function TasksPage({ searchParams }: { searchParams: Promis
   const ownerList = owners.data ?? [];
   const tabs: [string, string, string][] = [["mine", "Mis tareas", "My tasks"], ["assigned", "Asignadas por mí", "Assigned by me"], ["overdue", "Vencidas", "Overdue"], ["all", "Todas abiertas", "All open"], ["done", "Cerradas", "Closed"]];
   const isOverdue = (t: Task) => OPEN.includes(t.status) && t.due_at !== null && t.due_at < now;
+  const taskHref = (task?: string, pageNumber = page) => taskLink({
+    view, page: pageNumber,
+    client: client && UUID_RE.test(client) ? client : null,
+    workOrder: workOrder && UUID_RE.test(workOrder) ? workOrder : null,
+    task,
+  });
   const statusForm = (t: Task, ret?: string) => <form action={updateTask} className={s.inline}>
     <input type="hidden" name="task_id" value={t.id} /><input type="hidden" name="version" value={t.version} />{ret && <input type="hidden" name="return" value={ret} />}
     <label className={s.srOnly} htmlFor={`ts-${t.id}${ret ?? ""}`}>{pick(lang, "Estado", "Status")}</label>
@@ -58,7 +65,7 @@ export default async function TasksPage({ searchParams }: { searchParams: Promis
     <OpsHeader lang={lang} active="tasks" crm="tasks" eyebrow="CRM / Tareas" title={pick(lang, "Tareas internas", "Internal tasks")}
       lead={pick(lang, "Asigna trabajo entre Miguel y Samuel, sigue el progreso de cada proyecto y revisa lo vencido. Todo se guarda y queda en el historial.", "Assign work between Miguel and Samuel, follow each project's progress and review what's overdue. Everything persists with history.")} />
     <OkFlash lang={lang} code={q(p, "ok")} /><ErrorFlash lang={lang} code={q(p, "error")} />
-    {detail?.data && <section className={s.panel} aria-labelledby="task-detail"><header><h2 id="task-detail">{detail.data.title}</h2><Link href="/admin/workspace/crm/tasks">{pick(lang, "Cerrar", "Close")}</Link></header>
+    {detail?.data && <section className={s.panel} aria-labelledby="task-detail"><header><h2 id="task-detail">{detail.data.title}</h2><Link href={taskHref()}>{pick(lang, "Cerrar", "Close")}</Link></header>
       <div className={s.columns}><div>
         <dl className={s.detail}>
           <dt>{pick(lang, "Estado", "Status")}</dt><dd><Tag lang={lang} value={detail.data.status} /> <Tag lang={lang} value={detail.data.priority} /></dd>
@@ -89,11 +96,11 @@ export default async function TasksPage({ searchParams }: { searchParams: Promis
         {(client || workOrder) && <p className={s.muted}>{pick(lang, "Filtro activo.", "Filter active.")} <Link href={`?view=${view}`}>{pick(lang, "Quitar filtro", "Clear filter")}</Link></p>}
         {tasks.error ? <Unavailable lang={lang} code={tasks.error} /> : tasks.data.length === 0 ? <p className={s.empty}>{pick(lang, "No hay tareas en esta vista.", "No tasks in this view.")}</p> :
         <ul className={s.list}>{tasks.data.map(t => <li key={t.id} className={s.notice} data-severity={isOverdue(t) || t.status === "blocked" ? "urgent" : "normal"}>
-          <div className={s.actions} style={{ justifyContent: "space-between" }}><Link href={`?view=${view}&task=${t.id}`}><strong>{t.title}</strong></Link><span className={s.inline}><Tag lang={lang} value={t.priority} /><Tag lang={lang} value={t.status} />{isOverdue(t) && <span className={s.tag} data-tone="danger">{pick(lang, "Vencida", "Overdue")}</span>}</span></div>
+          <div className={s.actions} style={{ justifyContent: "space-between" }}><Link href={taskHref(t.id)}><strong>{t.title}</strong></Link><span className={s.inline}><Tag lang={lang} value={t.priority} /><Tag lang={lang} value={t.status} />{isOverdue(t) && <span className={s.tag} data-tone="danger">{pick(lang, "Vencida", "Overdue")}</span>}</span></div>
           <span className={s.muted}>{[t.crm_clients?.legal_name, t.crm_departments?.label, t.due_at ? `${pick(lang, "vence", "due")} ${formatDate(lang, t.due_at, true)}` : null, `${pick(lang, "resp.", "owner")} ${ownerName(ownerList, t.assignee_id)}`].filter(Boolean).join(" · ")}</span>
           {statusForm(t)}
         </li>)}</ul>}
-        <div className={s.actions} style={{ marginTop: 12 }}>{page > 0 && <Link className={s.button} href={`?view=${view}&page=${page - 1}`}>{pick(lang, "Anterior", "Previous")}</Link>}{(page + 1) * PAGE < (tasks.count ?? 0) && <Link className={s.button} href={`?view=${view}&page=${page + 1}`}>{pick(lang, "Siguiente", "Next")}</Link>}</div>
+        <div className={s.actions} style={{ marginTop: 12 }}>{page > 0 && <Link className={s.button} href={taskHref(undefined, page - 1)}>{pick(lang, "Anterior", "Previous")}</Link>}{(page + 1) * PAGE < (tasks.count ?? 0) && <Link className={s.button} href={taskHref(undefined, page + 1)}>{pick(lang, "Siguiente", "Next")}</Link>}</div>
       </section>
       <section className={s.panel} aria-labelledby="new-task"><h2 id="new-task">{pick(lang, "Nueva tarea", "New task")}</h2>
         <form action={createTask} className={s.form}><TzOffset />
