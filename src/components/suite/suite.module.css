@@ -238,3 +238,6 @@
   .topActions { gap: 6px; }
   .search { display: none; }
 }
+a.kpi { display:block; text-decoration:none; color:inherit; transition:border-color .15s; }
+a.kpi:hover { border-color:var(--accent, #6fe3ff); }
+@media (prefers-reduced-motion: reduce) { a.kpi, a.kpi:hover { transition:none; } }

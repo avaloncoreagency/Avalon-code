@@ -1,0 +1,97 @@
+name: Sales core (isolated PostgreSQL)
+on:
+  pull_request:
+    paths:
+      - 'supabase/migrations/**'
+      - 'src/lib/sales/**'
+      - 'src/app/admin/workspace/crm/**'
+      - 'tests/sales*'
+      - 'tests/qa/**'
+      - '.github/workflows/sales-core.yml'
+  push:
+    branches:
+      - 'claude/**'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: sales-core-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  database:
+    name: Full migration chain + Nova Restaurant E2E (synthetic)
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_PASSWORD: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 12
+    env:
+      PGHOST: localhost
+      PGUSER: postgres
+      PGPASSWORD: postgres
+      PGDATABASE: postgres
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          persist-credentials: false
+      - name: Apply every migration in ledger order on PostgreSQL 16, then the 13-stage pipeline suite
+        run: |
+          args="-f tests/sql/00_supabase_stub.sql"
+          for f in $(ls supabase/migrations/*.sql | sort); do args="$args -f $f"; done
+          psql -v ON_ERROR_STOP=1 -q $args -f tests/sql/crm_pipeline.test.sql
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: tests/qa/package-lock.json
+      - run: npm ci --prefix tests/qa --no-audit --no-fund
+      - name: Sales, RLS, idempotency and timeline tests (PGlite)
+        run: NODE_PATH=tests/qa/node_modules node --test tests/sales.database.cjs tests/crm.pipeline.database.cjs tests/crm.database.cjs tests/unified.database.cjs
+      - name: Summary
+        if: always()
+        run: echo "Synthetic data only. No remote Supabase, Vercel or production resource is touched." >> "$GITHUB_STEP_SUMMARY"
+
+  app:
+    name: Nova Restaurant browser E2E (production build, synthetic REST bridge)
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      NEXT_TELEMETRY_DISABLED: "1"
+      NODE_PATH: ./tests/qa/node_modules
+      SALES_BROWSER: "1"
+      EVIDENCE_DIR: evidence
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: "22"
+          cache: npm
+      - run: npm ci --no-audit --no-fund
+      - run: npm ci --prefix tests/qa --no-audit --no-fund
+      - run: npm run lint
+      - run: npm run typecheck
+      - run: npm test
+      - run: npm run build
+      - run: node tests/qa/node_modules/playwright/cli.js install --with-deps chromium
+      - run: node --test tests/sales.browser.cjs
+      - name: Upload screenshots
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: sales-evidence
+          path: evidence/
+          if-no-files-found: ignore

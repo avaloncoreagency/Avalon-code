@@ -4,7 +4,7 @@ import { modules, type ModuleDef } from "./modules";
 import { Icon } from "./icons";
 import s from "./suite.module.css";
 
-export type ModuleStat = { value: number | null; label: string; state: "ready" | "pending" | "external" };
+export type ModuleStat = { value: number | null; label: string; state: "ready" | "pending" };
 
 export function ModuleCards({ lang = "es", stats = {} }: { lang?: Lang; stats?: Partial<Record<ModuleDef["key"], ModuleStat>> }) {
   const es = lang === "es";
@@ -12,7 +12,7 @@ export function ModuleCards({ lang = "es", stats = {} }: { lang?: Lang; stats?: 
     <div className={s.moduleGrid}>
       {modules.map(m => {
         const stat = stats[m.key];
-        const badge = stat?.state === "ready" ? (es ? "Operativo" : "Operational") : stat?.state === "external" ? (es ? "En desarrollo · Samuel" : "In development · Samuel") : (es ? "Pendiente de migración" : "Migration pending");
+        const badge = stat?.state === "ready" ? (es ? "Operativo" : "Operational") : (es ? "Pendiente de migración" : "Migration pending");
         return (
           <Link className={s.moduleCard} href={m.href} key={m.slug} data-accent={m.accent}>
             <span className={s.moduleIcon}><Icon name={m.icon} size={22} /></span>

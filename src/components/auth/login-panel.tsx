@@ -11,14 +11,14 @@ const copy = {
     portal: "PRIVATE ADMIN PORTAL", welcome: "WELCOME BACK", intro: "Sign in with your Avalon account", portalName: "Avalon Core Agency",
     pending: "Signing in…", email: "Email address", password: "Password", login: "Log in",
     access: "Admin-only access", identity: "Email and password", data: "Protected data", note: "Private workspace · Authorized owners only",
-    callback: "Sign-in could not be completed. Please start again.", unauthorized: "This account is not authorized to access the admin portal.", invalid: "Unable to sign in. Check your email and password.",
+    callback: "Sign-in could not be completed. Please start again.", unauthorized: "This account is not authorized to access the admin portal.", invalid: "Unable to sign in. Check your email and password.", throttled: "Too many attempts. Please wait a few minutes and try again.",
     tagline: "AI. PEOPLE. SYSTEMS. A BRIGHTER TOMORROW.",
   },
   es: {
     portal: "PORTAL ADMINISTRATIVO PRIVADO", welcome: "BIENVENIDO DE NUEVO", intro: "Inicia sesión con tu cuenta de Avalon", portalName: "Avalon Core Agency",
     pending: "Iniciando sesión…", email: "Correo electrónico", password: "Contraseña", login: "Iniciar sesión",
     access: "Acceso administrativo", identity: "Correo y contraseña", data: "Datos protegidos", note: "Espacio privado · Solo propietarios autorizados",
-    callback: "No se pudo completar el acceso. Inicia el proceso de nuevo.", unauthorized: "Esta cuenta no está autorizada para acceder al portal administrativo.", invalid: "No se pudo iniciar sesión. Comprueba tu correo y contraseña.",
+    callback: "No se pudo completar el acceso. Inicia el proceso de nuevo.", unauthorized: "Esta cuenta no está autorizada para acceder al portal administrativo.", invalid: "No se pudo iniciar sesión. Comprueba tu correo y contraseña.", throttled: "Demasiados intentos. Espera unos minutos e inténtalo de nuevo.",
     tagline: "IA. PERSONAS. SISTEMAS. UN MAÑANA MÁS BRILLANTE.",
   },
 };
@@ -40,7 +40,7 @@ export function LoginPanel({ error, updated, initialLanguage = "es" }: { error?:
   const [showPassword, setShowPassword] = useState(false);
   const [language, setLanguage] = useState<Lang>(initialLanguage);
   const t = copy[language];
-  const message = error ? ({ callback: t.callback, unauthorized: t.unauthorized, invalid: t.invalid }[error] ?? t.callback) : null;
+  const message = error ? ({ callback: t.callback, unauthorized: t.unauthorized, invalid: t.invalid, throttled: t.throttled }[error] ?? t.callback) : null;
   return <main className={styles.scene} lang={language}>
     <LanguageSwitch lang={language} className={styles.languages} onChange={setLanguage} />
     <div className={styles.sideNote} aria-hidden="true">INTELLIGENCE<br />AUTOMATION<br />SCALING<br />A BRIGHTER TOMORROW</div>

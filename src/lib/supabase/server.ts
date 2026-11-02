@@ -1,6 +1,7 @@
 import "server-only";
 import { createServerClient } from "@supabase/ssr";
 import { cookies } from "next/headers";
+import { hardenSessionCookie } from "./cookies";
 
 export async function createClient() {
   const cookieStore = await cookies();
@@ -12,7 +13,7 @@ export async function createClient() {
       getAll() { return cookieStore.getAll(); },
       setAll(values) {
         try {
-          values.forEach(({ name, value, options }) => cookieStore.set(name, value, options));
+          values.forEach(({ name, value, options }) => cookieStore.set(name, value, hardenSessionCookie(options)));
         } catch {
           // Server Components cannot write cookies. A request middleware/proxy
           // must handle session refresh before enabling protected routes.

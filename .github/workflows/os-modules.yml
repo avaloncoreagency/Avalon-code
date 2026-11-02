@@ -34,11 +34,13 @@ jobs:
       PGDATABASE: postgres
     steps:
       - uses: actions/checkout@v4
-      - name: Apply stub, membership and module migrations, then run assertions
+      - name: Apply stub and all migrations (incl. crm_core), then run RLS assertions
         run: |
           psql -v ON_ERROR_STOP=1 -q \
             -f tests/sql/00_supabase_stub.sql \
             -f supabase/migrations/20261102053022_avalon_owner_memberships_rls.sql \
             -f supabase/migrations/20261102053452_harden_membership_table_grants.sql \
             -f supabase/migrations/20261102070500_avalon_os_modules.sql \
-            -f tests/sql/os_modules_rls.test.sql
+            -f supabase/migrations/20261102085430_crm_core.sql \
+            -f tests/sql/os_modules_rls.test.sql \
+            -f tests/sql/crm_core_rls.test.sql

@@ -55,7 +55,7 @@ export function getProject(supabase: SupabaseClient, module: ModuleKey, id: stri
   return run<ProjectRow | null>(supabase.from("os_projects").select(PROJECT_COLUMNS).eq("id", id).eq("module", module).maybeSingle());
 }
 
-type Filter = ["eq" | "neq" | "lt" | "lte" | "gte", string, string | number] | ["not_in", string, string[]];
+type Filter = ["eq" | "neq" | "lt" | "lte" | "gte", string, string | number] | ["not_in", string, string[]] | ["is_null", string];
 export async function countRows(supabase: SupabaseClient, table: string, filters: Filter[] = []) {
   // Not head:true — supabase-js reports a HEAD 404 (missing table, empty body) as
   // success, which would hide a pending migration. A 1-row GET returns PGRST205.
@@ -63,6 +63,7 @@ export async function countRows(supabase: SupabaseClient, table: string, filters
   for (const filter of filters) {
     switch (filter[0]) {
       case "not_in": query = query.not(filter[1], "in", `(${filter[2].join(",")})`); break;
+      case "is_null": query = query.is(filter[1], null); break;
       case "eq": query = query.eq(filter[1], filter[2]); break;
       case "neq": query = query.neq(filter[1], filter[2]); break;
       case "lt": query = query.lt(filter[1], filter[2]); break;

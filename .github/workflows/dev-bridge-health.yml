@@ -1,0 +1,26 @@
+name: Dev Bridge doctor
+on:
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: dev-bridge-doctor
+  cancel-in-progress: true
+jobs:
+  doctor:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: npm ci --ignore-scripts --no-audit --no-fund
+      - run: npm run bridge:doctor
+        env:
+          GH_TOKEN: ${{ github.token }}
+          BRIDGE_VERCEL_TOKEN: ${{ secrets.BRIDGE_VERCEL_TOKEN }}
+          BRIDGE_VERCEL_PROJECT: prj_tN1ZYrsx5fqoEePYjThsra3MvocP
+          BRIDGE_VERCEL_TEAM: team_lHTO3wgJm0yAyexxMDmkIFW4
+          BRIDGE_SUPABASE_TOKEN: ${{ secrets.BRIDGE_SUPABASE_TOKEN }}
+          BRIDGE_SUPABASE_REF: thdgrczotqapnvcjefoi

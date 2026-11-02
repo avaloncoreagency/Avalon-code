@@ -1,0 +1,4 @@
+# Graphify hosted MCP for Codex CLI/IDE in a trusted Avalon checkout.
+# Contains no credentials. Sign in using Codex OAuth (or connect the Graphify plugin in Codex).
+[mcp_servers.graphify]
+url = "https://api.graphify.com/mcp"

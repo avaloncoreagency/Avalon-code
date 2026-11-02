@@ -3,6 +3,12 @@ const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const ts = require('typescript');
 
+function loadRateLimit() {
+  const out = ts.transpileModule(fs.readFileSync('src/lib/security/rate-limit.ts', 'utf8'), { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2020 } }).outputText;
+  const mod = { exports: {} };
+  new Function('require', 'module', 'exports', out)(require, mod, mod.exports);
+  return mod.exports;
+}
 function loadActions(client, authorize) {
   const source = ts.transpileModule(fs.readFileSync('src/app/login/actions.ts', 'utf8'), {
     compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2020 },
@@ -10,7 +16,10 @@ function loadActions(client, authorize) {
   const mod = { exports: {} };
   const mocks = {
     '@/lib/supabase/server': { createClient: async () => client },
-    '@/lib/auth/access': { getAuthorizedMember: authorize },
+    // Login uses the MFA-aware owner state; a verified owner without MFA is "ok".
+    '@/lib/auth/access': { getOwnerState: async c => { const m = await authorize(c); return m ? { state: 'ok', ...m } : { state: 'none' }; } },
+    'next/headers': { headers: async () => new Headers() },
+    '@/lib/security/rate-limit': loadRateLimit(),
     'next/navigation': { redirect: url => { throw Error(url); } },
   };
   new Function('require', 'module', 'exports', source)(id => {

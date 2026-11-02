@@ -15,9 +15,15 @@ const MIGRATION = "20261102070500_avalon_os_modules.sql";
 export default async function SettingsPage() {
   const { supabase } = await requireOwner();
   const lang = await getLang();
-  const [modulesDb, crmDb] = await Promise.all([countRows(supabase, "os_projects"), countRows(supabase, "crm_leads")]);
+  const [modulesDb, crmDb, salesDb, pipelineDb] = await Promise.all([countRows(supabase, "os_projects"), countRows(supabase, "crm_leads"), countRows(supabase, "crm_sales"), countRows(supabase, "crm_conversions")]);
+  // One row per CRM migration, checked against a table it creates (never inferred).
+  const crmRows: [string, typeof crmDb, string][] = [
+    ["CRM · Lead Hunter, pipeline, calendario", crmDb, "20261102085430_crm_core.sql"],
+    [pick(lang, "Ventas, Clientes 360°, tareas, avisos, actividad", "Sales, 360° clients, tasks, notices, activity"), salesDb, "20261102170000_avalon_sales_core.sql"],
+    [pick(lang, "Pipeline de 13 etapas y conversión", "13-stage pipeline and conversion"), pipelineDb, "20261102180000_crm_pipeline_13.sql"],
+  ];
   const flags = [
-    { label: pick(lang, "Acceso con contraseña", "Password sign-in"), on: process.env.AUTH_PASSWORD_LOGIN_ENABLED === "true" },
+    { label: pick(lang, "Acceso con contraseña", "Password sign-in"), on: true },
     { label: "Google OAuth (APP_ORIGIN)", on: Boolean(process.env.APP_ORIGIN) },
     { label: pick(lang, "Firma de enlaces de invitación/recuperación", "Invitation/recovery link signing"), on: (process.env.AUTH_FLOW_SECRET ?? "").length >= 32 },
   ];
@@ -32,7 +38,7 @@ export default async function SettingsPage() {
               <table className={s.table}>
                 <tbody>
                   <tr><td>{pick(lang, "Base de datos de módulos", "Module database")}</td><td><Badge tone={tone(modulesDb.error)}>{modulesDb.error === null ? pick(lang, "Activa", "Active") : modulesDb.error === "schema_pending" ? pick(lang, "Migración pendiente", "Migration pending") : modulesDb.error}</Badge></td><td className={s.meta}>{MIGRATION}</td></tr>
-                  <tr><td>CRM (Samuel)</td><td><Badge tone={crmDb.error === null ? "ok" : "warn"}>{crmDb.error === null ? pick(lang, "Activo", "Active") : pick(lang, "En desarrollo", "In development")}</Badge></td><td className={s.meta}>PR #6 · 20261102040501_crm_core.sql</td></tr>
+                  {crmRows.map(([label, state, file]) => <tr key={file}><td>{label}</td><td><Badge tone={state.error === null ? "ok" : "warn"}>{state.error === null ? pick(lang, "Activo", "Active") : state.error === "schema_pending" ? pick(lang, "Migración pendiente", "Migration pending") : pick(lang, "No disponible", "Unavailable")}</Badge></td><td className={s.meta}>{file}</td></tr>)}
                   {flags.map(f => <tr key={f.label}><td>{f.label}</td><td><Badge tone={f.on ? "ok" : "neutral"}>{f.on ? pick(lang, "Activo", "On") : pick(lang, "Inactivo", "Off")}</Badge></td><td className={s.meta}>Vercel env</td></tr>)}
                 </tbody>
               </table>
