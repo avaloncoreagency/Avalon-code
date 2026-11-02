@@ -3,6 +3,7 @@ import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
 import {
   sections,
+  crmNavigation,
   scoreProspect,
   type Section,
   type Entity,
@@ -356,19 +357,20 @@ export function Crm({ section = "leads" }: { section?: CrmSection }) {
             Operaciones comerciales de Avalon Core Agency.
           </p>
         </div>
-        <Link href="/admin/dashboard" className={s.link}>
-          ← Dashboard
-        </Link>
+        <div className={s.actions}>
+          <Link href="/admin/workspace/crm" className={s.link}>
+            Inicio del CRM
+          </Link>
+          <Link href="/admin/dashboard" className={s.link}>
+            ← Dashboard
+          </Link>
+        </div>
       </header>
       <nav aria-label="Secciones del CRM" className={s.tabs}>
-        {sections.map((x) => (
+        {crmNavigation.map((x) => (
           <Link
             key={x.slug}
-            href={
-              x.slug === "leads"
-                ? "/admin/workspace/crm"
-                : `/admin/workspace/crm/${x.slug}`
-            }
+            href={x.href}
             aria-current={section === x.slug ? "page" : undefined}
             className={`${s.tab} ${section === x.slug ? s.active : ""}`}
           >
