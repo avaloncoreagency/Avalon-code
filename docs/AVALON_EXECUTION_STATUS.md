@@ -55,7 +55,11 @@ applied, each in one transaction, from the files at commit `3bfd07d` (md5 verifi
 `5c8dd658…`, `28a5f6c2…`) with the exact repo versions recorded in the ledger. Security advisors: only the
 expected WARN "authenticated can execute SECURITY DEFINER" for the 5 owner-checked RPCs; no RLS findings.
 Two SYNTHETIC owners (`miguel.preview@example.com`, `samuel.preview@example.com`) + owner memberships.
-**Production:** still pending — not applied (owner decision: wait for staging validation). Without them, sales/clients/tasks screens show an honest
+**Production (owner-approved after testing the Preview, 2026-11-02):** backup of the touched rows in schema
+`backup_20261102` (crm_stages, agency_memberships, migration ledger); `20261102170000` then `20261102180000`
+applied, md5-verified from commit `3bfd07d`, ledger versions identical to the repo; `pg_net` enabled only for
+the fetch and dropped afterwards. Verified: 13 stages, 6 departments, 6 services (no prices), 5 rules on,
+0 business rows created, all 21 `crm_*` tables with RLS. PR #34 merged to `main` as `bb2fe16`. Without them, sales/clients/tasks screens show an honest
 "migración pendiente" notice; CRM core (leads, hunter, calendar) keeps working.
 
 ## 5. Preview (resolved for this branch with owner approval; guard unchanged)
@@ -73,6 +77,7 @@ for `claude/upbeat-galileo-grbelq` only. Options that were offered:
 
 ## 6. Resume here
 
-1. Owners log into the Preview with the synthetic credentials (shared outside Git) and run the journey.
-2. Owner decision on production: backup → apply `170000` then `180000` → merge PR #34 → verify.
+1. Done: Preview validated by the owner, production migrated, PR #34 merged (`bb2fe16`).
+2. Owner settings still open: enable "Dependency graph" (Dependency review check) and Supabase Auth
+   "Leaked password protection" (pre-existing advisor WARN); set catalog prices/default assignees in CRM → Configuración.
 3. Next phase: public website lead capture into Lead Hunter (review queue, anti-spam), then departments.
