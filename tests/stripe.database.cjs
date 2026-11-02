@@ -167,3 +167,27 @@ test("Out-of-order signed payment event is retried until its invoice reservation
   await owner(MIGUEL);
   assert.equal(await count("select count(*) n from crm_payments where sale_id=$1",[sale.sale_id]),1);
 });
+
+test("Deleting a Stripe draft frees the outstanding balance without deleting its audit trail", {timeout:120000}, async t => {
+  const {db,owner,service,first,count} = await setup();
+  t.after(()=>db.close());
+  await owner(MIGUEL);
+  const sale=(await first("select crm_confirm_sale($1::jsonb) r",[JSON.stringify(saleInput)])).r;
+  const original=(await db.query("select * from crm_stripe_reserve_invoice($1)",[sale.sale_id])).rows[0];
+  await db.query("select crm_stripe_attach_invoice($1,'in_DELETE001','cus_DELETE001')",[original.id]);
+  await service();
+  const event={
+    id:"evt_DELETE001",type:"invoice.deleted",livemode:false,
+    data:{object:{id:"in_DELETE001",status:"draft",livemode:false}}
+  };
+  const result=(await first("select crm_stripe_process_event($1::jsonb) r",[JSON.stringify(event)])).r;
+  assert.equal(result.status,"processed");
+  await owner(MIGUEL);
+  assert.equal((await first("select status from crm_stripe_invoices where id=$1",[original.id])).status,"void");
+  assert.equal(await count("select count(*) n from crm_stripe_invoices"),1);
+  const replacement=(await db.query("select * from crm_stripe_reserve_invoice($1)",[sale.sale_id])).rows[0];
+  assert.notEqual(replacement.id,original.id);
+  assert.equal(Number(replacement.amount_minor),25000);
+  assert.equal(await count("select count(*) n from crm_stripe_invoices"),2);
+  assert.equal(await count("select count(*) n from crm_payments where sale_id=$1",[sale.sale_id]),0);
+});
