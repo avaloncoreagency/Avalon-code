@@ -9,17 +9,17 @@ import styles from "./login-panel.module.css";
 const copy = {
   en: {
     portal: "AI ADMIN PORTAL", welcome: "WELCOME BACK", intro: "Log in to your Avalon Core Agency", portalName: "AI Admin Portal",
-    google: "Continue with Google", pending: "Connecting…", email: "Email address", password: "Password", login: "Log in", or: "OR CONTINUE WITH",
+pending: "Connecting…", email: "Email address", password: "Password", login: "Log in", or: "OR CONTINUE WITH",
     access: "Admin-only access", identity: "Password sign-in", data: "Protected data", note: "Private workspace · Authorized owners only",
-    oauth: "Unable to connect to Google. Please try again or contact your administrator.", callback: "Sign-in could not be completed. Please start again.",
+callback: "Sign-in could not be completed. Please start again.",
     unauthorized: "This account is not authorized to access the admin portal.", invalid: "Unable to sign in. Check your credentials.", disabled: "Password sign-in is not enabled.",
     tagline: "AI. PEOPLE. SYSTEMS. A BRIGHTER TOMORROW.", language: "Language",
   },
   es: {
     portal: "PORTAL ADMINISTRATIVO IA", welcome: "BIENVENIDO DE NUEVO", intro: "Accede al portal administrativo de", portalName: "Avalon Core Agency",
-    google: "Continuar con Google", pending: "Conectando…", email: "Correo electrónico", password: "Contraseña", login: "Entrar", or: "O CONTINÚA CON",
+pending: "Conectando…", email: "Correo electrónico", password: "Contraseña", login: "Entrar", or: "O CONTINÚA CON",
     access: "Acceso administrativo", identity: "Acceso con contraseña", data: "Datos protegidos", note: "Espacio privado · Solo propietarios autorizados",
-    oauth: "No se pudo conectar con Google. Inténtalo de nuevo o contacta al administrador.", callback: "No se pudo completar el acceso. Inicia el proceso de nuevo.",
+callback: "No se pudo completar el acceso. Inicia el proceso de nuevo.",
     unauthorized: "Esta cuenta no está autorizada para acceder al portal administrativo.", invalid: "No se pudo iniciar sesión. Comprueba tus credenciales.", disabled: "El acceso con contraseña no está habilitado.",
     tagline: "IA. PERSONAS. SISTEMAS. UN MAÑANA MÁS BRILLANTE.", language: "Idioma",
   },
@@ -42,7 +42,7 @@ export function LoginPanel({ error, passwordEnabled, updated, initialLanguage = 
   const [showPassword, setShowPassword] = useState(false);
   const [language, setLanguage] = useState<Lang>(initialLanguage);
   const t = copy[language];
-  const message = error ? ({ oauth: t.oauth, callback: t.callback, unauthorized: t.unauthorized, invalid: t.invalid, disabled: t.disabled }[error] ?? t.callback) : null;
+  const message = error ? ({ callback: t.callback, unauthorized: t.unauthorized, invalid: t.invalid, disabled: t.disabled }[error] ?? t.callback) : null;
   return <main className={styles.scene} lang={language}>
     <LanguageSwitch lang={language} className={styles.languages} onChange={setLanguage} />
     <div className={styles.sideNote} aria-hidden="true">INTELLIGENCE<br />AUTOMATION<br />SCALING<br />A BRIGHTER TOMORROW</div>
