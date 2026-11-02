@@ -207,6 +207,9 @@ const LABELS: Record<string, [string, string]> = {
   todo: ["Pendiente", "To do"], in_progress: ["En curso", "In progress"], blocked: ["Bloqueada", "Blocked"], done: ["Hecha", "Done"], cancelled: ["Cancelada", "Cancelled"],
   low: ["Baja", "Low"], normal: ["Normal", "Normal"], high: ["Alta", "High"], urgent: ["Urgente", "Urgent"],
   open: ["Abierta", "Open"], delivered: ["Entregada", "Delivered"],
+  creating: ["Preparando", "Preparing"], draft: ["Borrador", "Draft"],
+  paid: ["Pagada", "Paid"], void: ["Anulada", "Voided"],
+  uncollectible: ["Incobrable", "Uncollectible"], review: ["Revisión requerida", "Needs review"],
   one_time: ["Pago único", "One-time"], monthly: ["Mensual", "Monthly"], annual: ["Anual", "Annual"], installments: ["Plazos", "Installments"], mixed: ["Mixta", "Mixed"],
   pending_signature: ["Pendiente de firma", "Pending signature"], signed: ["Firmado", "Signed"],
   not_started: ["Sin iniciar", "Not started"], confirmed: ["Confirmada", "Confirmed"],
@@ -215,8 +218,10 @@ const LABELS: Record<string, [string, string]> = {
 };
 export const label = (lang: Lang, key: string) => LABELS[key]?.[lang === "es" ? 0 : 1] ?? key;
 export const tone = (key: string) =>
-  ["done", "delivered", "signed", "active"].includes(key) ? "ok" : ["blocked", "urgent"].includes(key) ? "danger"
-    : ["in_progress", "high"].includes(key) ? "info" : ["cancelled", "archived", "low"].includes(key) ? "neutral" : "warn";
+  ["done", "delivered", "signed", "active", "paid"].includes(key) ? "ok" :
+    ["blocked", "urgent", "uncollectible", "review"].includes(key) ? "danger" :
+    ["in_progress", "high", "creating"].includes(key) ? "info" :
+    ["cancelled", "archived", "low", "void"].includes(key) ? "neutral" : "warn";
 
 export function money(lang: Lang, value: number | string | null | undefined, currency = "USD") {
   const n = Number(value ?? 0);
