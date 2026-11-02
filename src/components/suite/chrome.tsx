@@ -35,6 +35,12 @@ export function SuiteChrome({ lang, collapsed: initialCollapsed, section, user, 
   const menuId = useId();
   const searchRef = useRef<HTMLInputElement>(null);
   const alertsId = useId();
+  // A dedicated thumb-friendly dock keeps the highest-frequency workflows visible.
+  // Drawer navigation remains the complete, accessible route list.
+  const salesActive = pathname.startsWith("/admin/workspace/crm/sales");
+  const tasksActive = pathname.startsWith("/admin/workspace/crm/tasks");
+  const crmActive = pathname.startsWith("/admin/workspace/crm") && !salesActive && !tasksActive;
+  const dashboardActive = pathname.startsWith("/admin/dashboard");
   const closeMenu = () => setMenu(null);
   const profileRef = useDismiss(menu === "profile", closeMenu);
   const alertsRef = useDismiss(menu === "alerts", closeMenu);
@@ -149,6 +155,24 @@ export function SuiteChrome({ lang, collapsed: initialCollapsed, section, user, 
           </div>
         </header>
         <main id="main" className={s.content} tabIndex={-1}>{children}</main>
+        <nav className={s.mobileDock} aria-label={es ? "Accesos rápidos de Avalon" : "Avalon quick navigation"}>
+          <Link href="/admin/dashboard" aria-current={dashboardActive ? "page" : undefined}>
+            <Icon name="dashboard" size={21} /><span>{es ? "Inicio" : "Home"}</span>
+          </Link>
+          <Link href="/admin/workspace/crm" aria-current={crmActive ? "page" : undefined}>
+            <Icon name="crm" size={21} /><span>CRM</span>
+          </Link>
+          <Link href="/admin/workspace/crm/sales" aria-current={salesActive ? "page" : undefined}>
+            <Icon name="store" size={21} /><span>{es ? "Ventas" : "Sales"}</span>
+          </Link>
+          <Link href="/admin/workspace/crm/tasks" aria-current={tasksActive ? "page" : undefined}>
+            <Icon name="check" size={21} /><span>{es ? "Tareas" : "Tasks"}</span>
+          </Link>
+          <button type="button" onClick={() => setDrawer(true)} aria-controls="os-sidebar" aria-expanded={drawer}
+            aria-label={es ? "Abrir todos los módulos" : "Open all modules"}>
+            <Icon name="menu" size={21} /><span>{es ? "Menú" : "Menu"}</span>
+          </button>
+        </nav>
         <footer className={s.footer}>AVALON OS · AI. PEOPLE. SYSTEMS.</footer>
       </div>
     </div>
