@@ -30,6 +30,7 @@ test("Stripe integration safety invariants are preserved", () => {
   const action = source("src/app/admin/workspace/crm/sales/stripe-actions.ts");
   const salePage = source("src/app/admin/workspace/crm/sales/[id]/page.tsx");
   const saleErrors = source("src/lib/sales/domain.ts");
+  const invoicesPage = source("src/app/admin/workspace/crm/invoices/page.tsx");
   assert.match(stripe, /rk_test_\|sk_test_/);
   assert.match(stripe, /STRIPE_SANDBOX_ONLY/);
   assert.match(stripe, /VERCEL_ENV !== "production"/);
@@ -45,6 +46,11 @@ test("Stripe integration safety invariants are preserved", () => {
   assert.match(sql, /elsif v_type = 'invoice.payment_succeeded' then/);
   assert.match(sql, /stripe_invoice_pending_link/);
   assert.match(sql, /payment_source_unverified/);
+  assert.match(sql, /event_type = 'invoice.paid'/);
+  assert.match(sql, /update public.crm_stripe_events set handled = 'processed'/);
+  assert.match(action, /stripeReservationRetryable\(reservation.created_at\)/);
+  assert.match(salePage, /stripeReservationRetryable\(inv.created_at\)/);
+  assert.match(invoicesPage, /stripeReservationRetryable\(i.created_at\)/);
   // A malformed migration or a duplicated CREATE can break every Preview DB.
   assert.equal((sql.match(/create function public\.crm_stripe_process_event/g) || []).length, 1);
   assert.equal((sql.match(/^commit;$/gm) || []).length, 1);
