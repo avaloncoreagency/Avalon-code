@@ -27,7 +27,7 @@ test(
     );
     await db.exec(
       fs.readFileSync(
-        "supabase/migrations/20261102081000_crm_core.sql",
+        "supabase/migrations/20261102085430_crm_core.sql",
         "utf8",
       ),
     );
