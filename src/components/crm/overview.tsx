@@ -48,7 +48,9 @@ export function CrmOverview() {
         }
         const usage = (await usageResponse.json()) as UsagePayload;
         const kpi = (await kpiResponse.json()) as KpiPayload;
-        if (!isNumber(kpi.metrics?.overdue) || !isNumber(kpi.metrics?.pending)) {
+        const overdue = kpi.metrics?.overdue;
+        const pending = kpi.metrics?.pending;
+        if (!isNumber(overdue) || !isNumber(pending)) {
           throw new Error("Las métricas del CRM no están disponibles.");
         }
         if (!Array.isArray(usage.rows)) {
@@ -57,8 +59,8 @@ export function CrmOverview() {
         if (!controller.signal.aborted) {
           setData({
             usage: usage.rows,
-            overdue: kpi.metrics.overdue,
-            pending: kpi.metrics.pending,
+            overdue,
+            pending,
           });
           setError("");
         }
@@ -101,7 +103,9 @@ export function CrmOverview() {
               <div className={s.card} key={provider}>
                 <strong>{provider}</strong>
                 <p className={s.muted}>Automático: no conectado</p>
-                {latest && isNumber(latest.amount) ? (
+                {!data && !error ? (
+                  <p>Consultando registros…</p>
+                ) : latest && isNumber(latest.amount) ? (
                   <p>Último registro manual: <strong>{latest.amount.toLocaleString("es")} {latest.unit || "unidades"}</strong></p>
                 ) : <p>Sin registro manual disponible</p>}
               </div>
