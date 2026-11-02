@@ -1,0 +1,25 @@
+name: Avalon work item
+description: Canonical development work and handoff
+labels: ['status:backlog']
+body:
+  - type: textarea
+    id: registry
+    attributes:
+      label: Work registry
+      description: Add exactly one owner label and one module label after creation. GitHub supplies the durable Issue ID.
+      value: |
+        Owner: Miguel or Samuel
+        Module:
+        Type: feature / bug / blocker / incident / integration / handoff
+        Priority: P1
+        Current state: backlog
+        Acceptance criteria:
+        Branch:
+        Latest commit:
+        Related PR:
+        Dependencies:
+        Blockers:
+        Last verified update:
+        Next action:
+    validations:
+      required: true
