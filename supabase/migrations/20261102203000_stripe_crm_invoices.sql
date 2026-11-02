@@ -238,7 +238,7 @@ begin
     raise exception 'stripe_invalid_event' using errcode = '22023';
   end if;
   if v_type not in (
-    'invoice.paid','invoice.payment_failed','invoice.finalized','invoice.sent',
+    'invoice.paid','invoice.payment_succeeded','invoice.payment_failed','invoice.finalized','invoice.sent',
     'invoice.voided','invoice.marked_uncollectible','credit_note.created',
     'charge.refunded','charge.dispute.created'
   ) then
@@ -263,11 +263,38 @@ begin
   select * into v_record from public.crm_stripe_invoices i
     where i.stripe_invoice_id = v_stripe_invoice_id for update;
   if not found then
+    -- Stripe can deliver the webhook while the API response is being linked
+    -- to a freshly reserved CRM invoice. Never acknowledge that payment as
+    -- unrelated: returning 503 from the route makes Stripe retry later.
+    if left(v_type, 8) = 'invoice.'
+      and exists (
+        select 1 from public.crm_stripe_invoices i
+        where i.id = crm_private.uuid_or_null(v_object #>> '{metadata,avalon_invoice_id}')
+          and i.sale_id = crm_private.uuid_or_null(v_object #>> '{metadata,avalon_sale_id}')
+          and i.client_id = crm_private.uuid_or_null(v_object #>> '{metadata,avalon_client_id}')
+          and i.status = 'creating' and i.stripe_invoice_id is null
+      ) then
+      raise exception 'stripe_invoice_pending_link' using errcode = '40001';
+    end if;
     update public.crm_stripe_events set handled = 'ignored' where stripe_event_id = v_event_id;
     return jsonb_build_object('status','unrelated');
   end if;
   update public.crm_stripe_events set invoice_id = v_record.id where stripe_event_id = v_event_id;
   if v_type = 'invoice.paid' then
+    -- Stripe explicitly documents that invoice.paid also fires when staff
+    -- mark an invoice as paid out of band. Never record this notification
+    -- as money received. A genuine Stripe payment follows with its own
+    -- invoice.payment_succeeded event, which can clear this review flag.
+    if v_record.payment_id is not null then
+      return jsonb_build_object('status','already_recorded');
+    end if;
+    update public.crm_stripe_invoices
+      set status = 'review', needs_review = true,
+        review_reason = 'payment_source_unverified', updated_at = now()
+      where id = v_record.id;
+    update public.crm_stripe_events set handled = 'review' where stripe_event_id = v_event_id;
+    return jsonb_build_object('status','review','reason','payment_source_unverified');
+  elsif v_type = 'invoice.payment_succeeded' then
     if v_record.payment_id is not null then
       return jsonb_build_object('status','already_recorded');
     end if;
