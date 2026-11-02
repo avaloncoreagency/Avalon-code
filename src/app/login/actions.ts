@@ -4,26 +4,7 @@ import { createClient } from "@/lib/supabase/server";
 import { getAuthorizedMember } from "@/lib/auth/access";
 import { getAppOrigin } from "@/lib/auth/policy";
 
-export async function signInWithGoogle() {
-  let destination: string | null = null;
-  try {
-    const supabase = await createClient();
-    const { data, error } = await supabase.auth.signInWithOAuth({
-      provider: "google",
-      options: {
-        redirectTo: `${getAppOrigin()}/admin/auth/callback`,
-        skipBrowserRedirect: true,
-        queryParams: { prompt: "select_account" },
-      },
-    });
-    // Supabase controls the provider URL. Do not accept destinations from form input.
-    if (!error && data.url && new URL(data.url).origin === new URL(process.env.NEXT_PUBLIC_SUPABASE_URL!).origin) destination = data.url;
-  } catch { /* Show a generic error without disclosing provider details. */ }
-  if (!destination) redirect("/admin/login?error=oauth");
-  redirect(destination);
-}
-
-// Password is the primary administrative sign-in method.
+// Password is the only administrative sign-in method.
 export async function signIn(formData: FormData) {
   const email = formData.get("email");
   const password = formData.get("password");
