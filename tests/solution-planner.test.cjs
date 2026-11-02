@@ -45,7 +45,8 @@ test("Solution Planner parses bounded, deduplicated multi-SKU package drafts",()
   let x;
   try { x=parse({}); } catch(e) {
     const regs=/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-    throw new Error(`debug baseline parser: ${e.code}; UUIDs valid=${[A,B,C].map(v=>regs.test(v)).join(',')}; parser=${p.parseSolutionPlanForm.toString().slice(0,700)}`);
+    const snippet=compiled.split("\n").slice(30,85).map((line,i)=>`${i+31}:${line}`).join(" | ");
+    throw new Error(`debug baseline parser: ${e.code}; UUIDs valid=${[A,B,C].map(v=>regs.test(v)).join(',')}; original=${e.stack}; compiled=${snippet}`);
   }
   assert.equal(x.currency,"USD");
   assert.equal(x.idempotency_key,A);
