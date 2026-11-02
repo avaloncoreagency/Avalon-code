@@ -20,7 +20,7 @@ function load(file, mocks = {}) {
   return loaded.exports;
 }
 const policy = load('src/lib/auth/policy.ts');
-function client({ role = 'owner', user = { id: 'verified-uuid', app_metadata: { provider: 'google' } }, authError = null, membershipError = null } = {}) {
+function client({ role = 'owner', user = { id: 'verified-uuid', app_metadata: { provider: 'email' } }, authError = null, membershipError = null } = {}) {
   const calls = [];
   const db = {
     auth: { getUser: async () => ({ data: { user }, error: authError }) },
@@ -146,8 +146,60 @@ test('verified legacy Google identities still require owner membership', async (
   assert.deepEqual(await access.getAuthorizedMember(google.db), { userId: 'google-owner', role: 'owner' });
   assert.equal(await access.getAuthorizedMember(client({ role: null, user: { id: 'google-other', app_metadata: { provider: 'google' } } }).db), null);
 });
+test('password-only login authenticates verified owners and has no Google action', async () => {
+  process.env.APP_ORIGIN = 'http://localhost:3000';
+  let provided;
+  const db = { auth: {
+    signInWithPassword: async input => { provided = input; return { error: null }; },
+    signOut: async () => { throw Error('Unexpected sign out'); },
+  } };
+  const actions = load('src/app/login/actions.ts', {
+    '@/lib/supabase/server': { createClient: async () => db },
+    '@/lib/auth/access': { getAuthorizedMember: async () => ({ userId: 'synthetic-owner', role: 'owner' }) },
+    '@/lib/auth/policy': policy,
+    'next/navigation': { redirect: location => { throw Error(location); } },
+  });
+  assert.equal(typeof actions.signInWithGoogle, 'undefined');
+  const form = new FormData();
+  form.set('email', 'owner@example.invalid');
+  form.set('password', 'synthetic-secret');
+  await assert.rejects(actions.signIn(form), /\/admin\/dashboard/);
+  assert.deepEqual(provided, { email: 'owner@example.invalid', password: 'synthetic-secret' });
+});
 
- test('callback returns a clear uncached 503 when application origin is missing', async () => {
+test('password-only login rejects a nonmember and clears its session', async () => {
+  let signedOut = false;
+  const db = { auth: {
+    signInWithPassword: async () => ({ error: null }),
+    signOut: async options => { assert.deepEqual(options, { scope: 'local' }); signedOut = true; return { error: null }; },
+  } };
+  const actions = load('src/app/login/actions.ts', {
+    '@/lib/supabase/server': { createClient: async () => db },
+    '@/lib/auth/access': { getAuthorizedMember: async () => null },
+    '@/lib/auth/policy': policy,
+    'next/navigation': { redirect: location => { throw Error(location); } },
+  });
+  const form = new FormData();
+  form.set('email', 'nonmember@example.invalid');
+  form.set('password', 'synthetic-secret');
+  await assert.rejects(actions.signIn(form), /error=unauthorized/);
+  assert.equal(signedOut, true);
+});
+
+test('password-only login does not expose invalid-credentials details', async () => {
+  const actions = load('src/app/login/actions.ts', {
+    '@/lib/supabase/server': { createClient: async () => ({ auth: { signInWithPassword: async () => ({ error: Error('unknown account') }) } }) },
+    '@/lib/auth/access': { getAuthorizedMember: async () => { throw Error('Should not authorize'); } },
+    '@/lib/auth/policy': policy,
+    'next/navigation': { redirect: location => { throw Error(location); } },
+  });
+  const form = new FormData();
+  form.set('email', 'unknown@example.invalid');
+  form.set('password', 'synthetic-secret');
+  await assert.rejects(actions.signIn(form), /error=invalid/);
+});
+
+test('callback returns a clear uncached 503 when application origin is missing', async () => {
   const saved = process.env.APP_ORIGIN;
   delete process.env.APP_ORIGIN;
   try {

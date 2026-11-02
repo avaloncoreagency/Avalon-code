@@ -138,6 +138,16 @@ test('OAuth PKCE, SSR cookies, owner gate, refresh and logout over HTTP', { time
     const valid=await request('/admin/login',{method:'POST',headers:{origin},body});assert.equal(new URL(valid.headers.get('location'),origin).pathname,'/admin/dashboard');
     jar.clear();
   });
+  await check('password-only UI and actual password action work with legacy flag false', async () => {
+    const page=await request('/admin/login');const html=await page.text();
+    assert.match(html,/name="email"/);assert.match(html,/name="password"/);
+    assert.doesNotMatch(html,/>Continue with Google<|>Continuar con Google</);
+    const body=actionBody(actionId(html));body.set('email','owner@example.invalid');body.set('password','incorrect');
+    const invalid=await request('/admin/login',{method:'POST',headers:{origin},body});assert.match(invalid.headers.get('location'),/error=invalid/);
+    body.set('password','synthetic-correct-password');
+    const valid=await request('/admin/login',{method:'POST',headers:{origin},body});assert.equal(new URL(valid.headers.get('location'),origin).pathname,'/admin/dashboard');
+    jar.clear();
+  });
   let consumedCallback;
   await check('owner signs in through actual PKCE exchange and SSR cookies', async () => {
     consumedCallback = await startOAuth('owner');

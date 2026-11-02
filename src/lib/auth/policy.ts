@@ -16,5 +16,7 @@ export function getAppOrigin() {
 }
 
 export function hasAllowedProvider(provider: unknown) {
+  // Preserve existing verified owner identities; an account's original provider
+  // is not the method used for this login. All login initiation is email/password.
   return provider === "email" || provider === "google";
 }

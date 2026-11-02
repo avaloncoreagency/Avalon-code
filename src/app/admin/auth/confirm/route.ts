@@ -12,8 +12,7 @@ export async function GET(request: NextRequest) {
       const client = await createClient();
       const { data, error } = await client.auth.verifyOtp({ token_hash, type });
       if (!error && data.user) {
-        // An admin-generated magic link can verify an existing account without SMTP.
-        // It grants password setup only; dashboard access still requires membership.
+        // Password setup proves identity only; access still requires owner membership.
         const purpose = type === "recovery" ? "recovery" : "invite";
         await grantPasswordFlow(data.user.id, purpose);
         path = purpose === "invite" ? "/admin/signup" : "/admin/reset-password";

@@ -5,8 +5,9 @@ import { getAppOrigin } from "@/lib/auth/policy";
 import { clearPasswordFlow, validPasswordFlow } from "@/lib/auth/email-flow";
 
 export async function requestRecovery(form: FormData) {
-  const email = form.get("email");
-  if (typeof email === "string" && email.length <= 320 && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+  const rawEmail = form.get("email");
+  const email = typeof rawEmail === "string" ? rawEmail.trim().toLowerCase() : "";
+  if (email && email.length <= 320 && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
     try {
       const client = await createClient();
       await client.auth.resetPasswordForEmail(email, { redirectTo: `${getAppOrigin()}/admin/reset-password` });

@@ -5,7 +5,7 @@ import { getLang } from "@/lib/i18n-server";
 export async function PasswordPage({ mode, searchParams }: { mode: "invite" | "recovery" | "request"; searchParams: Promise<{ error?: string; sent?: string }> }) {
   const params = await searchParams;
   let valid = false;
-  if (mode !== "request" && true) {
+  if (mode !== "request") {
     try {
       const client = await createClient();
       const { data: { user } } = await client.auth.getUser();
