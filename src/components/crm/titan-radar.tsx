@@ -5,7 +5,7 @@ import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent } fro
 import type { Map as LeafletMap, LayerGroup, Circle } from "leaflet";
 import { INDUSTRIES, PUBLIC_MAX_RADIUS_M, RADIUS_PRESETS_MI, tierStyle, type IndustryId } from "@/lib/crm/radar";
 import s from "./titan.module.css";
-import { resolveRadarMapTiles } from "@/lib/crm/radar-map-tiles";
+import { resolveRadarMapTiles, geoapifyFreeTileUrl, GEOAPIFY_FREE_TILE_ATTRIBUTION } from "@/lib/crm/radar-map-tiles";
 
 type Need = { service: string; state: string; evidence_url: string; method: string; note: string; confidence: string; verified_at: string | null };
 export type RadarBusiness = {
@@ -19,7 +19,10 @@ const STATES: [string, string][] = [["unverified", "Sin verificar"], ["verified_
 const METHODS: [string, string][] = [["call", "Llamada"], ["website_review", "Revisión de su web"], ["public_listing", "Ficha pública"], ["owner_statement", "Lo dijo el negocio"], ["visit", "Visita"], ["other", "Otro"]];
 const VIEWS: [string, string][] = [["all", "Encontrados"], ["new", "Nuevos"], ["unrated", "Sin calificar"], ["qualified", "Calificados"], ["approved", "Aprobados"], ["pipeline", "En pipeline"], ["discarded", "Descartados"], ["dnc", "No contactar"]];
 const CONFIDENCE: Record<string, string> = { none: "Sin evidencia", low: "Baja", medium: "Media", high: "Alta" };
-const MAP_TILE_URL = resolveRadarMapTiles(process.env.NEXT_PUBLIC_AVALON_MAP_TILES);
+const CUSTOM_MAP_TILE_URL = resolveRadarMapTiles(process.env.NEXT_PUBLIC_AVALON_MAP_TILES);
+const GEOAPIFY_MAP_TILE_URL = geoapifyFreeTileUrl(process.env.NEXT_PUBLIC_AVALON_GEOAPIFY_MAP_KEY);
+const MAP_TILE_URL = CUSTOM_MAP_TILE_URL ?? GEOAPIFY_MAP_TILE_URL;
+const USE_GEOAPIFY_MAP = !CUSTOM_MAP_TILE_URL && !!GEOAPIFY_MAP_TILE_URL;
 const effective = (b: RadarBusiness) => b.stars_override ?? b.stars;
 const shape = (b: RadarBusiness) => b.do_not_contact ? "dnc" : b.status === "converted" ? "pipeline" : b.status === "approved" ? "approved" : "found";
 const SHAPE_LABEL: Record<string, string> = { found: "Encontrado", approved: "Aprobado", pipeline: "En pipeline", dnc: "No contactar" };
@@ -62,13 +65,18 @@ export function TitanRadar({ onChanged }: { onChanged?: () => void }) {
   const radiusM = Math.round(Number(radius) * (unit === "km" ? 1000 : 1609.344)) || 0;
   type Campaign = { id: string; name: string; radius_m: number; place_label: string; categories: string[]; frequency: string; status: string; last_run_at: string | null; crm_radar_runs: { status: string; found: number; inserted: number; started_at: string }[] };
   const [campaigns, setCampaigns] = useState<Campaign[]>([]);
+  const [placesProvider, setPlacesProvider] = useState<"geoapify" | "overpass" | "missing" | "unknown">("unknown");
   const [scheduler, setScheduler] = useState("");
   const loadCampaigns = useCallback(async () => {
     try {
       const res = await fetch("/admin/workspace/crm/radar/campaigns", { cache: "no-store" });
       if (!res.ok) throw new Error("campaigns unavailable");
-      const body = await res.json() as { campaigns?: Campaign[]; scheduler?: { reason: string } };
+      const body = await res.json() as {
+        campaigns?: Campaign[]; scheduler?: { reason: string };
+        provider?: { kind: "geoapify" | "overpass" | "missing"; ready: boolean };
+      };
       setCampaigns(body.campaigns ?? []);
+      setPlacesProvider(body.provider?.kind ?? "unknown");
       setScheduler(body.scheduler?.reason ?? "");
     } catch {
       setScheduler("No se pudieron cargar las campañas. Revisa tu conexión e inténtalo nuevamente.");
@@ -125,7 +133,9 @@ export function TitanRadar({ onChanged }: { onChanged?: () => void }) {
           // Narrow per-image override of the application's no-referrer security header.
           // Only the site origin, not the private CRM path, goes to the approved provider.
           referrerPolicy: "strict-origin-when-cross-origin",
-          attribution: '© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
+          attribution: USE_GEOAPIFY_MAP
+            ? GEOAPIFY_FREE_TILE_ATTRIBUTION
+            : '© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
         });
         let loaded = false;
         tiles.on("load", () => {
@@ -305,7 +315,7 @@ export function TitanRadar({ onChanged }: { onChanged?: () => void }) {
         <button type="button" className={s.ghost} aria-expanded={showFilters} onClick={() => setShowFilters(v => !v)}>Filtros{industries.length ? ` (${industries.length})` : ""}</button>
         <button type="button" className={s.search} onClick={search} disabled={searching || radiusM < 100} aria-busy={searching}>{searching ? "Buscando…" : "Buscar negocios"}</button>
       </div>
-      {radiusM > PUBLIC_MAX_RADIUS_M && <p className={s.hint}>Radios mayores de 5 km requieren un proveedor de mapas propio o con licencia. Si no está configurado, el servidor lo indicará en lugar de inventar resultados.</p>}
+      {radiusM > PUBLIC_MAX_RADIUS_M && <p className={s.hint}>Geoapify Free permite búsquedas de hasta 5 km en Avalon para controlar créditos. Para radios mayores se necesita otro proveedor autorizado. Selecciona 1 o 3 millas, o indica hasta 5 km.</p>}
       {showFilters && <fieldset className={s.filters}><legend>Industrias (opcional · sin filtros busca todas)</legend>
         {(Object.keys(INDUSTRIES) as IndustryId[]).map(id => <label key={id} className={s.chip}><input type="checkbox" checked={industries.includes(id)} onChange={e => setIndustries(cur => e.target.checked ? [...cur, id] : cur.filter(x => x !== id))} />{INDUSTRIES[id].name}</label>)}
       </fieldset>}
@@ -313,15 +323,22 @@ export function TitanRadar({ onChanged }: { onChanged?: () => void }) {
       <div className={s.status} aria-live="polite">
         <span>Exploración visual: {sweep ? "activa" : "pausada"} <button type="button" className={s.link} onClick={() => setSweep(v => !v)}>{sweep ? "Pausar animación" : "Animar"}</button></span>
         <span>Búsqueda: {searching ? "en ejecución…" : lastSearch ? `completada ${new Date(lastSearch.at).toLocaleTimeString()} · ${lastSearch.found} encontrados · ${lastSearch.inserted} nuevos · ${lastSearch.updated} ya conocidos` : "sin ejecutar en esta sesión"}</span>
-        <span>Fuente de negocios: OpenStreetMap (ODbL)</span>
+        <span>Fuente de negocios: {placesProvider === "geoapify"
+          ? "Geoapify Free · OpenStreetMap (ODbL)"
+          : placesProvider === "overpass"
+            ? "OpenStreetMap (Overpass autorizado)"
+            : placesProvider === "missing" ? "NO CONFIGURADA" : "verificando…"}</span>
         <span>Mapa base: {tileStatus === "ready" ? "conectado" : tileStatus === "loading" ? "cargando" : "modo radar sin cartografía"}</span>
       </div>
+      {placesProvider === "missing" && <p className={s.hint} role="status">
+        Para descubrir nuevos negocios hace falta conectar Geoapify Free en Vercel (AVALON_GEOAPIFY_PLACES_KEY). La bandeja y los leads existentes siguen disponibles.
+      </p>}
       {error && <p className={s.error} role="alert">{error}</p>}
       {notice && <p className={s.ok} role="status">{notice}</p>}
 
       <div className={s.stage}>
         <div className={s.mapWrap}>
-          <div ref={mapEl} className={s.map} role="application" aria-label="Radar de negocios. Toca para elegir el centro de búsqueda." />
+          <div ref={mapEl} className={s.map} data-basemap={USE_GEOAPIFY_MAP ? "geoapify" : undefined} role="application" aria-label="Radar de negocios. Toca para elegir el centro de búsqueda." />
           {(tileStatus === "unconfigured" || tileStatus === "failed") && <div className={s.mapNotice} role="status">
             <strong>{tileStatus === "failed" ? "Cartografía temporalmente no disponible" : "Radar en modo de respaldo"}</strong>
             <p>{tileStatus === "failed" ? "El proveedor de mapas no respondió. " : "No hay proveedor de mapas autorizado configurado. "}Los marcadores, el radio y la búsqueda siguen disponibles.</p>

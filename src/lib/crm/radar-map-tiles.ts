@@ -19,3 +19,17 @@ export function resolveRadarMapTiles(configured?: string): string | null {
     return null;
   }
 }
+
+/** Geoapify Free: commercial use with attribution; the tile key is intentionally
+ * PUBLIC and must be restricted to Avalon domains inside Geoapify MyProjects.
+ * Never use a server-side secret in NEXT_PUBLIC_ variables.
+ */
+export function geoapifyFreeTileUrl(publicKey?: string): string | null {
+  if (!publicKey || !/^[A-Za-z0-9_-]{8,160}$/.test(publicKey)) return null;
+  return "https://maps.geoapify.com/v1/tile/dark-matter/{z}/{x}/{y}.png?apiKey="
+    + encodeURIComponent(publicKey);
+}
+export const GEOAPIFY_FREE_TILE_ATTRIBUTION =
+  'Powered by <a href="https://www.geoapify.com/" target="_blank" rel="noopener noreferrer">Geoapify</a>'
+  + ' · <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener noreferrer">© OpenStreetMap contributors</a>'
+  + ' · <a href="https://openmaptiles.org/" target="_blank" rel="noopener noreferrer">© OpenMapTiles</a>';
