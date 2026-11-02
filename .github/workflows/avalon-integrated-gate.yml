@@ -1,0 +1,73 @@
+name: Avalon integrated staging gate
+on:
+  push:
+    branches:
+      - integration/avalon-preview-ready-20261102
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: avalon-integrated-gate-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  application:
+    name: Auth, CRM, lint, build and synthetic HTTP
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      NEXT_TELEMETRY_DISABLED: "1"
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: "22"
+          cache: npm
+      - run: npm ci --no-audit --no-fund
+      - run: npm run lint
+      - run: npm run typecheck
+      - run: npm test
+      - run: npm run build
+      - run: npm run test:integration
+      - name: Summary
+        if: always()
+        run: |
+          echo "Synthetic checks only. Owner credentials, live Supabase staging, Vercel Preview, and production release remain separate gates." >> "$GITHUB_STEP_SUMMARY"
+
+  database:
+    name: Owner RLS and module migrations (local PostgreSQL 16)
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_PASSWORD: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 12
+    env:
+      PGHOST: localhost
+      PGUSER: postgres
+      PGPASSWORD: postgres
+      PGDATABASE: postgres
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          persist-credentials: false
+      - name: Verify migration and owner RLS with synthetic database
+        run: |
+          psql -v ON_ERROR_STOP=1 -q \
+            -f tests/sql/00_supabase_stub.sql \
+            -f supabase/migrations/20261102053022_avalon_owner_memberships_rls.sql \
+            -f supabase/migrations/20261102053452_harden_membership_table_grants.sql \
+            -f supabase/migrations/20261102070500_avalon_os_modules.sql \
+            -f tests/sql/os_modules_rls.test.sql
