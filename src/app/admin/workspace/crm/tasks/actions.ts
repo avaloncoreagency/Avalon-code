@@ -58,11 +58,11 @@ export async function updateTask(form: FormData) {
   const status = field(form, "status");
   const assignee_id = uuidField(form, "assignee_id");
   const detail: Record<string, string> = field(form, "return") === "detail" && id ? { task: id } : {};
-  if (!id || !Number.isSafeInteger(version) || !(TASK_STATUSES as readonly string[]).includes(status) || !assignee_id) back(PATH, { ...returnContext, error: "sale_invalid" });
+  if (!id || !Number.isSafeInteger(version) || !(TASK_STATUSES as readonly string[]).includes(status) || !assignee_id) back(PATH, { ...returnContext, ...detail, error: "sale_invalid" });
   const patch: Record<string, string> = { status, assignee_id };
   const priority = field(form, "priority");
   if (priority) {
-    if (!(TASK_PRIORITIES as readonly string[]).includes(priority)) back(PATH, { ...returnContext, error: "sale_invalid" });
+    if (!(TASK_PRIORITIES as readonly string[]).includes(priority)) back(PATH, { ...returnContext, ...detail, error: "sale_invalid" });
     patch.priority = priority;
   }
   // Optimistic concurrency: only update the version the user saw.
@@ -78,7 +78,7 @@ export async function commentTask(form: FormData) {
   const returnContext = listContext(form);
   const id = uuidField(form, "task_id");
   const body = field(form, "body").trim();
-  if (!id || !body || body.length > 4000) back(PATH, { ...returnContext, error: "sale_invalid" });
+  if (!id || !body || body.length > 4000) back(PATH, { ...returnContext, ...(id ? { task: id } : {}), error: "sale_invalid" });
   const { error } = await supabase.from("crm_task_comments").insert({ task_id: id, body });
   if (error) back(PATH, { ...returnContext, task: id, error: saleErrorCode(error) });
   revalidatePath(PATH);
