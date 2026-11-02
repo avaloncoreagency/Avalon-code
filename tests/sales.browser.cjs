@@ -325,6 +325,46 @@ test('Nova Restaurant through the real app: one form, three departments, no dupl
    await page.getByRole('heading', { name: 'Vencimientos, entregas y seguimientos' }).waitFor();
   assert.match(await page.locator('#main').innerText(), /Descubrimiento de procesos comerciales/, 'template task appears on the calendar');
   await page.screenshot({ path: `${EVIDENCE}/calendar.png`, fullPage: true });
+
+  // Synthetic Shared Calendar E2E: two owners, no double-booking, shared banners.
+  await page.getByRole('button', { name: '+ Crear evento' }).click();
+  const meetingForm = page.getByRole('dialog', { name: 'Crear evento' });
+  await meetingForm.locator('input[name="title"]').fill('Kickoff compartido Avalon');
+  await meetingForm.locator('input[name="start_local"]').fill('2026-11-20T14:00');
+  await meetingForm.locator('input[name="end_local"]').fill('2026-11-20T15:00');
+  await meetingForm.locator('select[name="owner_id"]').selectOption(MIGUEL);
+  await meetingForm.locator('input[name="meeting_url"]').fill('https://meet.google.com/synthetic-test');
+  await meetingForm.getByRole('button', { name: 'Guardar para ambos' }).click();
+  await page.getByText('Evento creado en el calendario compartido.').waitFor();
+  const scheduled = await one("select owner_id,attendee_ids,meeting_url from crm_events where title='Kickoff compartido Avalon'");
+  assert.equal(scheduled.owner_id, MIGUEL);
+  assert.ok(scheduled.attendee_ids.includes(SAMUEL));
+  assert.equal(scheduled.meeting_url, 'https://meet.google.com/synthetic-test');
+  const samuelPage = await context(samuel);
+  await samuelPage.goto(origin + '/admin/workspace/crm/calendar?date=2026-11-20&view=month');
+  await samuelPage.getByRole('button', { name: 'Kickoff compartido Avalon' }).first().waitFor();
+  await samuelPage.screenshot({ path: EVIDENCE + '/calendar-shared-samuel.png', fullPage: true });
+  await samuelPage.getByRole('button', { name: '+ Crear evento' }).click();
+  const overlap = samuelPage.getByRole('dialog', { name: 'Crear evento' });
+  await overlap.locator('input[name="title"]').fill('Cita solapada');
+  await overlap.locator('input[name="start_local"]').fill('2026-11-20T14:30');
+  await overlap.locator('input[name="end_local"]').fill('2026-11-20T15:30');
+  await overlap.locator('select[name="owner_id"]').selectOption(SAMUEL);
+  await overlap.getByRole('button', { name: 'Guardar para ambos' }).click();
+  await overlap.getByRole('alert').getByText('Ya hay otra cita para uno de los participantes en ese horario.').waitFor();
+  assert.equal(await count("select count(*) n from crm_events where title='Cita solapada'"), 0);
+  await overlap.getByRole('button', { name: 'Cerrar' }).click();
+  await page.getByRole('button', { name: '🎉 Banner de día' }).click();
+  const bannerForm = page.getByRole('dialog', { name: 'Banner de fecha especial' });
+  await bannerForm.locator('input[name="day"]').fill('2026-11-20');
+  await bannerForm.locator('input[name="title"]').fill('Hito de Avalon');
+  await bannerForm.locator('select[name="theme"]').selectOption('rose');
+  await bannerForm.getByRole('button', { name: 'Guardar banner' }).click();
+  await page.getByText('Banner guardado y visible para Miguel y Samuel.').waitFor();
+  await samuelPage.reload();
+  await samuelPage.getByRole('button', { name: /Hito de Avalon/ }).first().waitFor();
+  assert.equal(await count("select count(*) n from crm_calendar_banners where title='Hito de Avalon'"), 1);
+
   // History of the whole journey on the client timeline.
   await page.goto(`${origin}/admin/workspace/crm/activity?client=${orbit.id}`);
   await page.getByText('lead.won', { exact: true }).first().waitFor();
