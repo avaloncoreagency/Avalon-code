@@ -1,25 +1,37 @@
 name: Avalon Auth Review CI
 on:
+  pull_request:
+    branches:
+      - main
+      - feature/avalon-auth-rls
+      - feature/sprint-01-miguel-google-auth
   workflow_dispatch:
   push:
     branches:
       - feature/avalon-auth-rls
+      - feature/sprint-01-miguel-google-auth
+      - feature/avalon-profile-menu-preview
 permissions:
   contents: read
 jobs:
   checks:
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
+          cache: npm
       - name: Install dependencies
-        run: npm install --no-package-lock
+        run: npm ci
+      - name: Lint
+        run: npm run lint
       - name: Typecheck
         run: npm run typecheck
+      - name: Auth and migration security tests
+        run: npm test
       - name: Production build (not deployed)
         run: npm run build
-        env:
-          NEXT_PUBLIC_SUPABASE_URL: https://example.supabase.co
-          NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: sb_publishable_placeholder_for_build_only
+      - name: SSR authentication integration
+        run: npm run test:integration

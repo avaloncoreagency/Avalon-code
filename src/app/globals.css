@@ -1,1 +1,76 @@
-:root{color-scheme:dark;font-family:Arial,Helvetica,sans-serif;background:#0b1020;color:#f3f6fc}*{box-sizing:border-box}body{margin:0}.shell{min-height:100vh;padding:clamp(24px,5vw,80px);display:flex;flex-direction:column;gap:10vh}.mark{font-size:12px;letter-spacing:.22em;color:#aebad5}.panel{max-width:740px;border:1px solid #34405b;border-radius:22px;padding:clamp(28px,5vw,64px);background:#141d30}.eyebrow{font-size:12px;letter-spacing:.15em;color:#91a9d3}h1{font-size:clamp(36px,6vw,64px);line-height:1.08;margin:18px 0}p{line-height:1.7;color:#c4cde0}.notice{border-top:1px solid #34405b;padding-top:20px;color:#efc894}
+/* Avalon OS design tokens. Every component reads colors and radii from here. */
+:root {
+  color-scheme: dark;
+  --sans: var(--font-sans, system-ui), system-ui, -apple-system, "Segoe UI", Roboto, Arial, sans-serif;
+  --display: var(--font-display, var(--font-sans, system-ui)), system-ui, sans-serif;
+
+  --bg: #050816;
+  --bg-elevated: #0a1024;
+  --panel: rgba(13, 20, 44, 0.78);
+  --panel-solid: #0d142c;
+  --panel-hover: rgba(22, 32, 66, 0.9);
+  --line: rgba(130, 150, 220, 0.16);
+  --line-strong: rgba(140, 160, 240, 0.32);
+
+  --text: #edf1ff;
+  --text-muted: #a7b2d4;
+  --text-faint: #75809f;
+
+  --cyan: #22e3ff;
+  --blue: #3d7bff;
+  --violet: #8a6cff;
+  --magenta: #f45cff;
+  --teal: #2ee6b8;
+  --amber: #ffc25c;
+  --danger: #ff6b9a;
+  --success: #3ef0b0;
+  --warning: #ffcf6b;
+
+  --gradient: linear-gradient(115deg, #22e3ff 0%, #6d5bff 48%, #f45cff 100%);
+  --glow-cyan: 0 0 22px rgba(34, 227, 255, 0.28);
+  --glow-violet: 0 0 26px rgba(138, 108, 255, 0.3);
+
+  --radius-sm: 8px;
+  --radius: 14px;
+  --radius-lg: 20px;
+  --shadow: 0 18px 50px rgba(0, 0, 0, 0.35);
+  --focus: 0 0 0 2px var(--bg), 0 0 0 4px var(--cyan);
+  --sidebar: 264px;
+  --sidebar-collapsed: 76px;
+  --topbar: 64px;
+
+  font-family: var(--sans);
+  background: var(--bg);
+  color: var(--text);
+}
+
+* { box-sizing: border-box; }
+html { -webkit-text-size-adjust: 100%; }
+body { margin: 0; min-height: 100vh; background: var(--bg); color: var(--text); font-family: var(--sans); line-height: 1.5; }
+a { color: inherit; }
+button, input, select, textarea { font: inherit; color: inherit; }
+:focus-visible { outline: none; box-shadow: var(--focus); border-radius: 6px; }
+::selection { background: rgba(138, 108, 255, 0.45); }
+
+.sr-only {
+  position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden;
+  clip: rect(0, 0, 0, 0); white-space: nowrap; border: 0;
+}
+.skip-link {
+  position: absolute; left: 12px; top: -48px; z-index: 100; padding: 10px 14px; border-radius: var(--radius-sm);
+  background: var(--panel-solid); border: 1px solid var(--cyan); text-decoration: none; transition: top 0.15s;
+}
+.skip-link:focus { top: 12px; }
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation-duration: 0.01ms !important; animation-iteration-count: 1 !important; transition-duration: 0.01ms !important; }
+}
+
+/* Legacy placeholder pages (/ and /dashboard) */
+.shell { min-height: 100vh; padding: clamp(24px, 5vw, 80px); display: flex; flex-direction: column; gap: 10vh; }
+.mark { font-size: 12px; letter-spacing: 0.22em; color: var(--text-muted); }
+.panel { max-width: 740px; border: 1px solid var(--line-strong); border-radius: 22px; padding: clamp(28px, 5vw, 64px); background: var(--panel-solid); }
+.eyebrow { font-size: 12px; letter-spacing: 0.15em; color: #91a9d3; }
+.shell h1 { font-family: var(--display); font-size: clamp(36px, 6vw, 64px); line-height: 1.08; margin: 18px 0; }
+.shell p { line-height: 1.7; color: #c4cde0; }
+.notice { border-top: 1px solid var(--line-strong); padding-top: 20px; color: #efc894; }

@@ -6,5 +6,7 @@ export async function middleware(request: NextRequest) {
 }
 
 export const config = {
-  matcher: ["/((?!_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)"],
+  runtime: "nodejs",
+  // Every API is private in Sprint 01. Public storefront APIs need an explicit policy later.
+  matcher: ["/admin/:path*", "/api/:path*", "/dashboard/:path*", "/login"],
 };
