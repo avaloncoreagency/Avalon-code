@@ -137,7 +137,7 @@ export default async function ServiceFactoryPage({searchParams}:{searchParams:Pr
   const feedback = q(params, "ok"), failure = q(params,"error");
   const readinessCount = items.filter(x=>x.readiness === "sellable").length;
   const legacy = items.filter(x=>x.active && x.readiness !== "sellable").length;
-  return <Suite active="crm"><div className={s.hud}>
+  return <Suite active="service-factory"><div className={s.hud}>
     <OpsHeader lang={lang} active="factory" crm="sales" eyebrow="AVALON / SERVICE FACTORY"
       title={pick(lang,"Fábrica de servicios","Service Factory")}
       lead={pick(lang,"Prepara productos vendibles con alcance, costos, tareas y controles verificables. Esta pantalla es interna: no crea una página pública ni activa integraciones de IA.", "Prepare sellable offers with scope, cost estimates, tasks and verifiable checks. This is internal: it does not publish a website or activate AI providers.")}
