@@ -72,9 +72,16 @@ test("radar is owner-gated, never rewards missing data and keeps human approval 
   const crm = read("src/components/crm/crm.tsx");
   for (const route of [area, places, geo]) { assert.match(route, /getOwnerSession\(\)/); assert.match(route, /if \(!session\) return reply/); }
   assert.match(area, /30_000/, "per-owner brake for the community server");
-  assert.match(area, /VERCEL_ENV === "production" && !configured/, "no community Overpass for production prospecting");
-  assert.match(area, /crm_radar_ingest/);
-  assert.doesNotMatch(area, /status: "approved"|crm_convert_prospect/, "search never approves or converts");
+  const search = read("src/lib/crm/radar-search.ts");
+  const campaigns = read("src/app/admin/workspace/crm/radar/campaigns/route.ts");
+  assert.match(search, /VERCEL_ENV === "production"/, "no community Overpass for production prospecting");
+  assert.match(search, /crm_radar_ingest/);
+  assert.match(area, /radarEndpoint\(\)/);
+  assert.match(campaigns, /getOwnerSession\(\)/);
+  assert.match(campaigns, /status: "paused"/, "campaigns are created paused");
+  assert.match(campaigns, /toISOString\(\)\.slice\(0, 13\)/, "one campaign run per hour (idempotent)");
+  assert.doesNotMatch(search + campaigns, /service_role|SERVICE_ROLE/, "no privileged key for the scheduler");
+  assert.doesNotMatch(area + read("src/lib/crm/radar-search.ts"), /status: "approved"|crm_convert_prospect/, "search never approves or converts");
   assert.match(places, /crm_convert_prospect/, "pipeline transfer reuses the audited conversion");
   assert.match(places, /origin !== request\.nextUrl\.origin/, "cross-origin POST rejected");
   assert.match(geo, /1100/, "geocoder spaced per Nominatim policy");

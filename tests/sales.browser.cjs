@@ -187,7 +187,7 @@ test('Nova Restaurant through the real app: one form, three departments, no dupl
   await sam.getByRole('button', { name: 'Abrir Radar Dental Sintético' }).click();
   await sam.getByRole('dialog').getByRole('heading', { name: 'Radar Dental Sintético' }).waitFor();
   assert.match(await sam.getByRole('dialog').innerText(), /Sin calificar/, 'no evidence → unrated, not 5 stars');
-  for (const [svc, name] of [['website', 'Sitio web'], ['crm', 'CRM / seguimiento'], ['receptionist', 'Recepcionista IA'], ['marketing', 'Marketing']]) {
+  for (const [, name] of [['website', 'Sitio web'], ['crm', 'CRM / seguimiento'], ['receptionist', 'Recepcionista IA'], ['marketing', 'Marketing']]) {
     await sam.getByLabel(`Estado de ${name}`).selectOption('verified_missing');
     await sam.getByLabel(`Método de ${name}`).selectOption('call');
     await sam.getByLabel(`Confianza de ${name}`).selectOption('high');
@@ -335,6 +335,42 @@ test('Nova Restaurant through the real app: one form, three departments, no dupl
   await page.getByText('Cambios guardados.').waitFor();
   assert.equal(Number((await one("select suggested_price p from crm_service_catalog where code='desarrollo-web'")).p), 2000);
   await page.screenshot({ path: `${EVIDENCE}/crm-settings.png`, fullPage: true });
+
+  // ── Radar campaigns: created paused, toggled, persisted (no provider call in tests) ──
+  await page.route('**/tile.openstreetmap.org/**', r => r.abort());
+  await page.goto(origin + '/admin/workspace/crm/hunter');
+  await page.getByRole('heading', { name: 'Campañas de radar' }).waitFor();
+  await page.getByLabel('Nombre de la campaña').fill('Dentistas sintéticos Miami');
+  await page.getByRole('button', { name: 'Guardar búsqueda actual como campaña' }).click();
+  await page.getByText('Campaña creada (pausada).').waitFor();
+  assert.equal((await one("select status from crm_radar_campaigns where name='Dentistas sintéticos Miami'")).status, 'paused');
+  await page.locator('li', { hasText: 'Dentistas sintéticos Miami' }).getByRole('button', { name: 'Activar' }).click();
+  await page.getByText('Campaña activada.').waitFor();
+  assert.equal((await one("select status from crm_radar_campaigns where name='Dentistas sintéticos Miami'")).status, 'active');
+  assert.match(await page.locator('#main').innerText(), /Programación automática pendiente/, 'scheduler limitation stated, not faked');
+
+  // ── Public website: quote request → pending Lead Hunter prospect only ──
+  const visitor = await browser.newContext({ viewport: { width: 320, height: 720 } });
+  const pub = await visitor.newPage();
+  pub.on('pageerror', e => errors.push(`pageerror: ${e.message}`));
+  await pub.goto(origin + '/');
+  await pub.getByRole('heading', { name: 'Tecnología que hace crecer tu negocio.' }).waitFor();
+  await pub.getByLabel('Empresa').fill('Visitante Sintético LLC');
+  await pub.getByLabel('Tu nombre').fill('Luis Prueba');
+  await pub.getByLabel('Correo').fill('luis@visitante.example.invalid');
+  await pub.getByLabel('Recepcionista IA').check();
+  await pub.getByLabel('Cuéntanos tu proyecto').fill('Queremos una recepcionista IA para reservas.');
+  await pub.getByRole('button', { name: 'Solicitar cotización' }).click();
+  await pub.getByText(/Recibimos tu solicitud/).waitFor();
+  const overflowPub = await pub.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
+  assert.ok(overflowPub <= 1, `public site has no horizontal scroll at 320 px (${overflowPub}px)`);
+  await pub.screenshot({ path: `${EVIDENCE}/public-quote-320.png`, fullPage: true });
+  const web = await one("select status, source_kind from crm_prospects where company='Visitante Sintético LLC'");
+  assert.deepEqual({ ...web }, { status: 'pending', source_kind: 'web_form' }, 'web request waits for human review');
+  assert.equal(Number((await one("select count(*) n from crm_leads where company='Visitante Sintético LLC'")).n), 0);
+  await pub.goto(origin + '/?lang=en');
+  await pub.getByRole('heading', { name: 'Technology that grows your business.' }).waitFor();
+  await visitor.close();
 
   assert.deepEqual(errors.filter(e => e.startsWith('pageerror')), [], 'no client-side errors');
 });

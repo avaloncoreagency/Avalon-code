@@ -54,6 +54,27 @@ export function TitanRadar({ onChanged }: { onChanged?: () => void }) {
   const [sweep, setSweep] = useState(true);
   const [busy, setBusy] = useState(false);
   const radiusM = Math.round(Number(radius) * (unit === "km" ? 1000 : 1609.344)) || 0;
+  type Campaign = { id: string; name: string; radius_m: number; place_label: string; categories: string[]; frequency: string; status: string; last_run_at: string | null; crm_radar_runs: { status: string; found: number; inserted: number; started_at: string }[] };
+  const [campaigns, setCampaigns] = useState<Campaign[]>([]);
+  const [scheduler, setScheduler] = useState("");
+  const loadCampaigns = useCallback(async () => {
+    const res = await fetch("/admin/workspace/crm/radar/campaigns", { cache: "no-store" });
+    const body = await res.json() as { campaigns?: Campaign[]; scheduler?: { reason: string } };
+    if (res.ok) { setCampaigns(body.campaigns ?? []); setScheduler(body.scheduler?.reason ?? ""); }
+  }, []);
+  useEffect(() => { void loadCampaigns(); }, [loadCampaigns]);
+  async function campaign(payload: Record<string, unknown>, ok: string) {
+    if (busy) return;
+    setBusy(true); setError(""); setNotice("");
+    try {
+      const res = await fetch("/admin/workspace/crm/radar/campaigns", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) });
+      const body = await res.json() as { error?: string; run?: { found: number; inserted: number; replayed: boolean } };
+      if (!res.ok) throw new Error(body.error ?? "No se pudo completar");
+      setNotice(body.run ? `${ok} ${body.run.found} encontrados · ${body.run.inserted} nuevos${body.run.replayed ? " (ya ejecutada esta hora)" : ""}.` : ok);
+      await Promise.all([loadCampaigns(), load()]);
+    } catch (cause) { setError(cause instanceof Error ? cause.message : "No se pudo completar"); }
+    finally { setBusy(false); }
+  }
 
   useEffect(() => {
     if (typeof window !== "undefined" && window.matchMedia?.("(prefers-reduced-motion: reduce)").matches) setSweep(false);
@@ -241,6 +262,30 @@ export function TitanRadar({ onChanged }: { onChanged?: () => void }) {
           {visible.length === 0 && <p className={s.muted}>Sin negocios en esta bandeja. Elige una zona y pulsa <strong>Buscar negocios</strong>. Si la fuente no devuelve datos, lo verás indicado; nunca se muestran negocios inventados.</p>}
         </div>
       </div>
+
+      <section className={s.campaigns} aria-labelledby="campaigns-title">
+        <header><h3 id="campaigns-title">Campañas de radar</h3>
+          <form className={s.inline} onSubmit={e => { e.preventDefault(); const f = new FormData(e.currentTarget);
+            void campaign({ op: "create", name: f.get("name"), lat: center[0], lon: center[1], radius_m: radiusM, place_label: label, categories: industries, frequency: f.get("frequency") }, "Campaña creada (pausada).");
+            e.currentTarget.reset(); }}>
+            <input name="name" aria-label="Nombre de la campaña" placeholder="Ej.: Dentistas en Orlando" required maxLength={120} />
+            <select name="frequency" aria-label="Frecuencia"><option value="weekly">Semanal</option><option value="daily">Diaria</option><option value="monthly">Mensual</option></select>
+            <button type="submit" disabled={busy || radiusM < 100}>Guardar búsqueda actual como campaña</button>
+          </form></header>
+        {scheduler && <p className={s.hint}>{scheduler}</p>}
+        {campaigns.length === 0 ? <p className={s.muted}>Sin campañas todavía.</p> : <ul className={s.cards}>{campaigns.map(c => {
+          const last = [...(c.crm_radar_runs ?? [])].sort((a, b) => b.started_at.localeCompare(a.started_at))[0];
+          return <li key={c.id} className={s.campaign}>
+            <strong>{c.name}</strong>
+            <small>{c.place_label || "Zona guardada"} · {(c.radius_m / 1609.344).toFixed(1)} mi · {c.categories.length ? c.categories.map(x => INDUSTRIES[x as IndustryId]?.name ?? x).join(", ") : "todas las industrias"} · {c.frequency}</small>
+            <small>Estado: {c.status === "active" ? "Activa" : "Pausada"} · Última ejecución: {last ? `${new Date(last.started_at).toLocaleString()} · ${last.found} encontrados / ${last.inserted} nuevos` : "nunca"}</small>
+            <div className={s.actions}>
+              <button type="button" className={s.search} disabled={busy} onClick={() => campaign({ op: "run", id: c.id }, "Campaña ejecutada:")}>Ejecutar ahora</button>
+              <button type="button" disabled={busy} onClick={() => campaign({ op: "status", id: c.id, status: c.status === "active" ? "paused" : "active" }, c.status === "active" ? "Campaña pausada." : "Campaña activada.")}>{c.status === "active" ? "Pausar" : "Activar"}</button>
+            </div>
+          </li>;
+        })}</ul>}
+      </section>
 
       {current && <aside className={s.sheet} role="dialog" aria-modal="false" aria-labelledby="sheet-title">
         <header><div><h3 id="sheet-title">{current.company}</h3><p className={s.muted}>{[current.industry, current.location].filter(Boolean).join(" · ")}</p></div>
