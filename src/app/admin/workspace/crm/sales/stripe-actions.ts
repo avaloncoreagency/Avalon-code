@@ -70,7 +70,7 @@ export async function sendStripeInvoice(form: FormData) {
   const invoiceId = field(form, "invoice_id");
   if (!saleId) back(BASE, { error: "sale_invalid" });
   const path = `${BASE}/${saleId}`;
-  if (!stripeSandboxReady() || !/^in_[A-Za-z0-9]{8,80}$/.test(invoiceId)) back(path, { stripe_error: "not_configured" });
+  if (!stripeSandboxReady() || process.env.STRIPE_ALLOW_TEST_SEND !== "true" || !/^in_[A-Za-z0-9]{8,80}$/.test(invoiceId)) back(path, { stripe_error: "not_configured" });
   try {
     const invoice = await stripeRequest<StripeInvoice>(`/invoices/${invoiceId}`);
     if (invoice.metadata?.avalon_sale_id !== saleId || invoice.status !== "draft") back(path, { stripe_error: "not_eligible" });
