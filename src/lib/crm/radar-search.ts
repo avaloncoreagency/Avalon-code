@@ -46,7 +46,7 @@ export async function searchAndIngest(db: SupabaseClient, area: RadarArea, runKe
     };
     // Geoapify reads a fixed vendor host. The server-only API key is never
     // embedded in a client URL, emitted in an error, or stored in the CRM.
-    const request = geoapify
+    const request: RequestInit = geoapify
       ? {
           method: "POST",
           headers: {
