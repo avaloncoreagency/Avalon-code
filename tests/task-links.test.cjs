@@ -295,4 +295,6 @@ test('work-order details are fetched under owner RLS and used in the task form',
   assert.match(page, /defaultValue=\{activeOrder\?\.client_id/);
   assert.match(page, /defaultValue=\{activeOrder\?\.department_id/);
   assert.match(page, /disabled=\{Boolean\(workOrder && !activeOrder\) \|\| mismatchedClient\}/);
+  assert.match(page, /activeOrder\.project_id && <>/, 'project link appears only when an order has a project');
+  assert.match(page, /workOrder: activeOrder\?\.id/, 'conflicting client filter can be cleared without losing the order');
 });
