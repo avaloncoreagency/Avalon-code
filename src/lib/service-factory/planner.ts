@@ -52,7 +52,8 @@ export function parseSolutionPlanForm(form: FormLike): PlanInput {
     const quantity = field(form, `line_${i}_quantity`, 2);
     const unit_price = field(form, `line_${i}_price`, 20);
     if (!service_id) {
-      if (quantity || unit_price) throw new InvalidPlan('lines');
+      // Empty slots may still carry their default quantity of 1.
+      if (unit_price || (quantity && quantity !== '1')) throw new InvalidPlan('lines');
       continue;
     }
     if (!UUID.test(service_id)) throw new InvalidPlan('invalid');
