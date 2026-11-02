@@ -305,3 +305,73 @@
   .cards { grid-template-columns: minmax(0, 1fr); }
   .tabs { margin-right: 0; }
 }
+
+/* Map-based Lead Hunter: a compact commercial radar, not an unverified lead database. */
+.radar {
+  border: 1px solid rgba(34,227,255,.3);
+  border-radius: 20px; padding: clamp(14px,2.6vw,24px);
+  background: radial-gradient(500px 260px at 95% -15%,rgba(34,227,255,.13),transparent 70%),#0a1429;
+  display: grid; gap: 15px; min-width: 0;
+}
+.radarHead { display:flex; justify-content:space-between; gap:14px; align-items:flex-start; }
+.radarHead h2 { font-size: clamp(22px,3vw,29px); line-height:1.1; margin:5px 0 9px; color:#f0f7ff; }
+.radarHead p { margin:0; max-width:720px; line-height:1.55; }
+.radarLive { flex:none; align-self:flex-start; border:1px solid #267b85; padding:6px 10px; border-radius:999px; font-size:11px; color:#8cf1f1; white-space:nowrap; }
+.radarForm { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)) auto; gap:10px; align-items:end; }
+.radarForm label { display:grid; gap:6px; min-width:0; color:#b7c8e8; font-size:12px; }
+.radarForm select {
+  width:100%; min-height:46px; font:inherit; font-size:15px;
+  color:#f0f7ff; border:1px solid #365681; border-radius:12px; padding:10px;
+  background:#111e39; min-width:0;
+}
+.radarSearch, .radarSave {
+  min-height:46px; padding:10px 15px; font:inherit; font-size:14px; font-weight:700;
+  border:1px solid #38ccff; border-radius:12px; color:#f4fbff;
+  background:linear-gradient(135deg,#0e4564,#372267); cursor:pointer;
+}
+.radarSearch:disabled,.radarSave:disabled { cursor:wait; opacity:.55; }
+.radarDisclosure { margin:0; font-size:12px; line-height:1.6; color:#b0bed7; }
+.radarSummary { display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:8px; margin-bottom:12px; font-size:13px; }
+.radarSummary span { color:#adc4d8; font-size:12px; }
+.radarGrid { display:grid; grid-template-columns:repeat(auto-fill,minmax(min(100%,315px),1fr)); gap:12px; }
+.radarCard {
+  display:flex; flex-direction:column; gap:12px; padding:16px; min-width:0;
+  border:1px solid #2e466e; border-radius:16px; background:rgba(12,25,48,.92);
+}
+.radarCardTop { display:flex; align-items:flex-start; justify-content:space-between; gap:12px; }
+.radarCard h3 { margin:0 0 6px; font-size:17px; line-height:1.25; color:#f0f8ff; overflow-wrap:anywhere; }
+.radarCard small { display:block; font-size:12px; color:#9eafd0; line-height:1.5; overflow-wrap:anywhere; }
+.radarScore { flex:none; padding:7px 8px; font-size:13px; font-weight:750; color:#92f2ff; background:#10334d; border-radius:9px; }
+.radarSignals { display:flex; flex-wrap:wrap; gap:6px; }
+.radarSignals span { font-size:11px; border:1px solid #3e567a; border-radius:999px; padding:5px 8px; color:#d0deec; }
+.radarSignals span[data-tone="warn"] { color:#ffd899; border-color:#8f6b3d; }
+.radarSignals span[data-tone="ok"] { color:#9cf8dc; border-color:#397c67; }
+.radarOpportunity { padding:12px; margin:0; border-left:3px solid #22e3ff; border-radius:8px; background:#142640; font-size:12.5px; line-height:1.6; color:#d8e7ff; overflow-wrap:anywhere; }
+.radarOpportunity strong { color:#fff; }
+.radarContacts { display:flex; flex-wrap:wrap; gap:7px 10px; font-size:12.5px; }
+.radarContacts a { color:#92eaff; overflow-wrap:anywhere; text-decoration:underline; }
+.radarContacts span { color:#a4b6d3; }
+.radarCard .muted { font-size:11.5px; line-height:1.5; margin:0; }
+.radarSave { margin-top:auto; width:100%; }
+.radarNotice { margin:0; padding:12px; border-radius:11px; border:1px solid #3b9c7d; background:#113b33; color:#c9ffe9; font-size:13px; }
+.radarBottom { display:flex; flex-wrap:wrap; justify-content:space-between; gap:8px; align-items:center; font-size:12px; color:#c2d5ed; }
+.radarBottom a { color:#8deaff; }
+.radarAttribution { margin:0; padding-top:11px; border-top:1px solid #273956; color:#9fb2d0; font-size:11px; }
+.radarAttribution a { color:#9acdef; }
+@media(max-width:900px) {
+  .radarForm { grid-template-columns:repeat(2,minmax(0,1fr)); }
+  .radarSearch { width:100%; }
+}
+@media(max-width:640px) {
+  .radar { padding:13px; border-radius:16px; gap:13px; }
+  .radarHead { display:grid; gap:8px; }
+  .radarLive { font-size:10px; }
+  .radarHead h2 { font-size:23px; }
+  .radarForm { grid-template-columns:minmax(0,1fr); gap:9px; }
+  .radarForm select { font-size:16px; }
+  .radarSearch { min-height:50px; }
+  .radarGrid { grid-template-columns:minmax(0,1fr); gap:10px; }
+  .radarCard { padding:13px; border-radius:12px; }
+  .radarSave { min-height:48px; }
+  .radarBottom { display:grid; gap:8px; }
+}
