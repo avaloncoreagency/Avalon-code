@@ -66,13 +66,16 @@ test("Stripe invoice reserves the unpaid balance, rejects strangers and reconcil
   assert.equal(result.status,"duplicate");
   result=(await first("select crm_stripe_process_event($1::jsonb) r",[JSON.stringify({...event,id:"evt_TEST002"})])).r;
   assert.equal(result.status,"already_recorded");
+  await owner(MIGUEL);
   assert.equal(await count("select count(*) n from crm_payments where sale_id=$1",[saleId]),2);
   assert.equal(Number((await first("select sum(amount) total from crm_payments where sale_id=$1",[saleId])).total),250);
   assert.equal((await first("select status,needs_review from crm_stripe_invoices where id=$1",[reserved.id])).status,"paid");
 
+  await service();
   const refund={id:"evt_TEST003",type:"credit_note.created",livemode:false,data:{object:{id:"cn_TEST",invoice:"in_TEST001"}}};
   result=(await first("select crm_stripe_process_event($1::jsonb) r",[JSON.stringify(refund)])).r;
   assert.equal(result.status,"review");
+  await owner(MIGUEL);
   assert.equal((await first("select needs_review from crm_stripe_invoices where id=$1",[reserved.id])).needs_review,true);
 });
 
@@ -90,6 +93,7 @@ test("Mismatched invoice amount is flagged, never silently recorded as revenue",
   };
   const r=(await first("select crm_stripe_process_event($1::jsonb) r",[JSON.stringify(evt)])).r;
   assert.equal(r.status,"review");
+  await owner(MIGUEL);
   assert.equal(await count("select count(*) n from crm_payments where sale_id=$1",[s.sale_id]),0);
   assert.equal((await first("select status from crm_stripe_invoices where id=$1",[inv.id])).status,"review");
 });
