@@ -1,7 +1,9 @@
 "use client";
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { useFormStatus } from "react-dom";
 import { signIn, signInWithGoogle } from "@/app/login/actions";
+import { LanguageSwitch } from "@/components/suite/language-switch";
+import type { Lang } from "@/lib/i18n";
 import styles from "./login-panel.module.css";
 
 const copy = {
@@ -37,33 +39,30 @@ function SecurityIcon({ kind }: { kind: "shield" | "lock" | "data" }) {
   </svg>;
 }
 
-export function LoginPanel({ error, passwordEnabled, updated }: { error?: string; passwordEnabled: boolean; updated?: boolean }) {
+export function LoginPanel({ error, passwordEnabled, updated, initialLanguage = "es" }: { error?: string; passwordEnabled: boolean; updated?: boolean; initialLanguage?: Lang }) {
   const [showPassword, setShowPassword] = useState(false);
-  const [language, setLanguage] = useState<"en" | "es">("en");
-  useEffect(() => {
-    try { const saved = localStorage.getItem("avalon-language"); if (saved === "es" || saved === "en") setLanguage(saved); } catch { /* Storage is optional. */ }
-  }, []);
-  useEffect(() => { document.documentElement.lang = language; }, [language]);
+  const [language, setLanguage] = useState<Lang>(initialLanguage);
   const t = copy[language];
   const message = error ? ({ oauth: t.oauth, callback: t.callback, unauthorized: t.unauthorized, invalid: t.invalid, disabled: t.disabled }[error] ?? t.callback) : null;
   return <main className={styles.scene} lang={language}>
-    <nav className={styles.languages} aria-label={t.language}>
-      {(["en", "es"] as const).map(lang => <button key={lang} type="button" aria-pressed={language === lang} onClick={() => {
-        setLanguage(lang); try { localStorage.setItem("avalon-language", lang); } catch { /* Storage is optional. */ }
-      }}>{lang.toUpperCase()}</button>)}
-    </nav>
+    <LanguageSwitch lang={language} className={styles.languages} onChange={setLanguage} />
     <div className={styles.sideNote} aria-hidden="true">INTELLIGENCE<br />AUTOMATION<br />SCALING<br />A BRIGHTER TOMORROW</div>
     <header className={styles.brand}><div className={styles.wordmark}>AVALON</div><div className={styles.agency}>CORE AGENCY</div><p>{t.portal}</p></header>
     <section className={styles.panel} aria-labelledby="welcome">
       <svg className={styles.emblem} viewBox="0 0 140 130" aria-hidden="true"><defs><linearGradient id="avalon-mark" x1="0" y1="1" x2="1" y2="0"><stop stopColor="#00eaff"/><stop offset=".48" stopColor="#6750ff"/><stop offset="1" stopColor="#fa59ff"/></linearGradient></defs><circle cx="70" cy="64" r="57" fill="none" stroke="#7334d0" opacity=".5"/><path d="M70 12 131 112H99L70 62 40 112H9ZM70 79 91 115H49Z" fill="url(#avalon-mark)"/></svg>
       <h1 id="welcome">{t.welcome}</h1><p className={styles.intro}>{t.intro}<br />{t.portalName}</p>
       {updated && <p role="status">{language === "es" ? "Contraseña guardada. Inicia sesión; el acceso requiere autorización." : "Password saved. Sign in; access requires authorization."}</p>}
-      {message && <p className={styles.error} role="alert">{message}</p>}
+      {message && <p className={styles.error} role="alert" id="login-error">{message}</p>}
       {passwordEnabled && <><form action={signIn} className={styles.passwordForm}>
-        <label htmlFor="email">{t.email}</label><input id="email" name="email" type="email" autoComplete="email" maxLength={320} required />
-        <label htmlFor="password">{t.password}</label><input id="password" name="password" type={showPassword ? "text" : "password"} autoComplete="current-password" maxLength={1024} required />
-        <button type="button" onClick={() => setShowPassword(!showPassword)}>{language === "es" ? (showPassword ? "Ocultar contraseña" : "Mostrar contraseña") : (showPassword ? "Hide password" : "Show password")}</button>
-        <a href="/admin/forgot-password">{language === "es" ? "Olvidé mi contraseña" : "Forgot password"}</a>
+        <label htmlFor="email">{t.email}</label><input id="email" name="email" type="email" autoComplete="email" inputMode="email" maxLength={320} required aria-invalid={error === "invalid" || undefined} aria-describedby={message ? "login-error" : undefined} />
+        <label htmlFor="password">{t.password}</label>
+        <div className={styles.passwordWrap}>
+          <input id="password" name="password" type={showPassword ? "text" : "password"} autoComplete="current-password" maxLength={1024} required aria-invalid={error === "invalid" || undefined} aria-describedby={message ? "login-error" : undefined} />
+          <button type="button" className={styles.reveal} aria-controls="password" aria-pressed={showPassword} onClick={() => setShowPassword(!showPassword)}>
+            {language === "es" ? (showPassword ? "Ocultar" : "Mostrar") : (showPassword ? "Hide" : "Show")}<span className="sr-only">{language === "es" ? " contraseña" : " password"}</span>
+          </button>
+        </div>
+        <a className={styles.forgot} href="/admin/forgot-password">{language === "es" ? "Olvidé mi contraseña" : "Forgot password"}</a>
         <Submit label={t.login} pendingLabel={t.pending} />
       </form><div className={styles.divider}>{t.or}</div></>}
       <form action={signInWithGoogle}><Submit label={t.google} pendingLabel={t.pending} google /></form>
