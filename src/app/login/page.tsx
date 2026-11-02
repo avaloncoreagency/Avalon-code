@@ -9,5 +9,5 @@ export default async function LoginPage({ searchParams }: { searchParams: Promis
   const params = await searchParams;
   const member = await getAuthorizedMember();
   if (member) redirect("/admin/dashboard");
-  return <LoginPanel initialLanguage={await getLang()} updated={params.updated === "1"} error={params.error} passwordEnabled={process.env.AUTH_PASSWORD_LOGIN_ENABLED === "true"} />;
+  return <LoginPanel initialLanguage={await getLang()} updated={params.updated === "1"} error={params.error} passwordEnabled={true} />;
 }
