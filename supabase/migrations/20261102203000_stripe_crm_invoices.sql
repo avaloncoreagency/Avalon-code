@@ -137,14 +137,18 @@ create or replace function crm_private.stamp() returns trigger language plpgsql 
 declare stripe_insert boolean := false;
 begin
   -- Only a service-role webhook may insert a Stripe cash receipt without an owner JWT.
-  stripe_insert := tg_table_name = 'crm_payments' and tg_op = 'INSERT'
-    and current_setting('request.jwt.claim.role', true) = 'service_role'
-    and current_setting('avalon.stripe.webhook', true) = 'verified'
-    and coalesce(new.reference, '') ~ '^stripe:in_[A-Za-z0-9]+$'
-    and exists (select 1 from public.crm_stripe_invoices i
-      where i.stripe_invoice_id = substring(new.reference from 8)
-        and i.sale_id = new.sale_id and i.created_by = new.created_by
-        and i.currency = new.currency);
+  if tg_table_name = 'crm_payments' and tg_op = 'INSERT' then
+    stripe_insert := current_setting('request.jwt.claim.role', true) = 'service_role'
+      and current_setting('avalon.stripe.webhook', true) = 'verified'
+      and coalesce(new.reference, '') ~ '^stripe:in_[A-Za-z0-9]+$'
+      and exists (
+        select 1 from public.crm_stripe_invoices i
+        where i.stripe_invoice_id = substring(new.reference from 8)
+          and i.sale_id = new.sale_id
+          and i.created_by = new.created_by
+          and i.currency = new.currency
+      );
+  end if;
   if not crm_private.is_owner() and not stripe_insert then
     raise exception 'CRM forbidden' using errcode='42501';
   end if;
