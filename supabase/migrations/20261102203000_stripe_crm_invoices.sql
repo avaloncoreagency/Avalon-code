@@ -239,7 +239,7 @@ begin
   end if;
   if v_type not in (
     'invoice.paid','invoice.payment_succeeded','invoice.payment_failed','invoice.finalized','invoice.sent',
-    'invoice.voided','invoice.marked_uncollectible','credit_note.created',
+    'invoice.voided','invoice.deleted','invoice.marked_uncollectible','credit_note.created',
     'charge.refunded','charge.dispute.created'
   ) then
     return jsonb_build_object('status','ignored_type');
@@ -348,9 +348,13 @@ begin
         needs_review = true, review_reason = 'payment_failed', updated_at = now()
         where id = v_record.id;
     end if;
-  elsif v_type = 'invoice.voided' then
+  elsif v_type in ('invoice.voided', 'invoice.deleted') then
+    -- A Stripe draft can be deleted before it is ever sent. Treat this as
+    -- void in Avalon (rather than erasing the audit trail), so owners may
+    -- create another invoice for the remaining balance.
     if v_record.payment_id is not null then v_note := 'void_after_payment'; else
-      update public.crm_stripe_invoices set status = 'void', updated_at = now()
+      update public.crm_stripe_invoices set status = 'void',
+        hosted_invoice_url = null, updated_at = now()
         where id = v_record.id;
     end if;
   elsif v_type = 'invoice.marked_uncollectible' then
