@@ -63,7 +63,8 @@ create index crm_solution_plan_lines_plan on public.crm_solution_plan_lines(plan
 -- RLS protects REST reads even if the frontend route is accidentally exposed.
 alter table public.crm_solution_plans enable row level security;
 alter table public.crm_solution_plan_lines enable row level security;
-revoke all on public.crm_solution_plans, public.crm_solution_plan_lines from public, anon, authenticated;
+revoke all on public.crm_solution_plans from anon, authenticated, public;
+revoke all on public.crm_solution_plan_lines from anon, authenticated, public;
 grant select on public.crm_solution_plans, public.crm_solution_plan_lines to authenticated;
 create policy crm_solution_plan_owner_read on public.crm_solution_plans for select to authenticated
   using ((select crm_private.is_owner()) and agency_key='avalon');
