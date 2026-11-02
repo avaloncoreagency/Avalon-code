@@ -43,6 +43,9 @@ export async function stripeRequest<T>(path: string, method: "GET" | "POST" = "G
   const key = process.env.STRIPE_SECRET_KEY!;
   const response = await fetch(API + path, {
     method, cache: "no-store",
+    // Bound every network call. A timed-out Stripe POST must be retried using
+    // the SAME idempotency key, never a fresh one.
+    signal: AbortSignal.timeout(12_000),
     headers: {
       Authorization: `Bearer ${key}`,
       "Stripe-Version": VERSION,
