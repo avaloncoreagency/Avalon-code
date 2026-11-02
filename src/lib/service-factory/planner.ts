@@ -18,7 +18,7 @@ export class InvalidPlan extends Error {
   constructor(public code: PlanInputError) { super(code); }
 }
 type FormLike = { get(key: string): unknown };
-const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const CONTROLS = /[\u0000-\u0008\u000b\u000c\u000e-\u001f]/;
 const DECIMAL = /^(0|[1-9][0-9]{0,8})(\.[0-9]{1,2})?$/;
 
