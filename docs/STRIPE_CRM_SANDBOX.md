@@ -1,37 +1,55 @@
-# Stripe → CRM: fase sandbox (NO producción)
+# Avalon Core Agency — Stripe dentro del CRM (Sandbox, NO producción)
 
-## Estado
-Esta rama introduce un **primer flujo de borrador de factura de pruebas** en la pantalla de cada venta confirmada de Avalon CRM. **No** constituye todavía una integración de pagos completa ni una sincronización de cobros.
+## Entrega preparada en la rama del PR #44
 
-- Owner verificado por Supabase Auth + membership en acciones de servidor.
-- Solo se acepta una Stripe test/restricted key (`rk_test_` preferida, `sk_test_` solo en sandbox).
-- Se requiere `STRIPE_SANDBOX_ONLY=true`. Es imposible usar live keys por este adaptador.
-- La factura se crea en **draft**, con `auto_advance=false`. Nunca se envía al crearla.
-- `STRIPE_ALLOW_TEST_SEND=true` es una segunda autorización explícita para habilitar el botón de envío de una factura de **prueba**; por defecto está oculto.
-- Cliente = contacto primario con email; importe = total de venta confirmada, en USD; metadatos en Stripe vinculan los IDs de venta/cliente.
-- Idempotency keys deterministas evitan volver a crear cliente, factura o ítem al reintentar.
-- URL de detalle de la factura se devuelve en la redirección para ver el borrador sin inventar persistencia de facturas.
-- No se habilita Stripe Tax, ninguna suscripción ni cargo real.
+- CRM > **Facturas**: `/admin/workspace/crm/invoices` (listado filtrable).
+- CRM > Ventas > ficha de venta: facturas vinculadas, importe, estado y botón de crear borrador.
+- CRM > Clientes 360°: historial de facturas por cliente y enlaces a la venta.
+- Un borrador de factura de prueba se crea con el **saldo real no cobrado** de la venta USD; el importe se reserva en la DB con bloqueo de fila. Solo 1 factura pendiente por venta.
+- API Stripe server-only usando una clave **test**; claves live se rechazan y `VERCEL_ENV=production` también se rechaza.
+- La operación solo puede ser iniciada por propietarios reales con Auth + membresía. El email de cliente en Sandbox debe ser sintético (`example.invalid`, `example.test`, `example.com`, etc.).
+- Crear borrador `auto_advance=false` **no envía correo ni cobra**. El envío está desactivado a menos que `STRIPE_ALLOW_TEST_SEND=true` y el propietario pulse enviar.
+- Los registros `crm_stripe_invoices` y `crm_stripe_events` tienen RLS y lectura para owners; escritura únicamente desde RPCs restringidos.
+- El webhook público `POST /api/stripe/webhook` es la **única** excepción al middleware de sesiones; valida HMAC con timestamp y cuerpo RAW, rechaza eventos live y usa la cuenta/clave de pruebas.
+- RPC de conciliación: registra `invoice.paid` en `crm_payments` solo si identificadores, moneda, importe y saldo son compatibles; la base de datos deduplica `event.id` en la misma transacción. No toma una página de éxito como prueba de pago.
+- Eventos de reembolso, crédito o disputa se marcan `needs_review` para gestión humana; **no se debe considerar completamente conciliado un reembolso hasta implementar asientos reversos**.
+- Stripe Tax automático NO está activado.
 
-## Cómo probar en Preview
-1. En un proyecto Preview aislado, agregar variables **sensibles**:
-   - `STRIPE_SECRET_KEY`: restricted sandbox API key con permisos mínimos para Customers, Invoices, Invoice Items (y envío cuando se habilite). No compartir por chat.
+## Configuración pendiente, siempre en PREVIEW y DB aislada
+
+1. Preparar una base de Supabase distinta de la producción, aplicar la cadena completa de migraciones incluida `20261102203000_stripe_crm_invoices.sql`; comprobar RLS y probar usuarios sintéticos.
+2. En el proyecto Vercel **solo para Preview**, crear variables *Sensitive* sin publicarlas en Git ni en chats:
+   - `STRIPE_SECRET_KEY`: restricted API key `rk_test_...` de Sandbox (si no es posible, `sk_test_...` solo temporalmente y con acceso mínimo).
    - `STRIPE_SANDBOX_ONLY=true`.
-   - Dejar `STRIPE_ALLOW_TEST_SEND` ausente inicialmente.
-2. Publicar Preview con Supabase de pruebas y migraciones del CRM aplicadas.
-3. Abrir una venta sintética confirmada en USD con contacto primario que tenga un email de prueba, y pulsar «Crear borrador de factura Stripe».
-4. Verificar en Stripe Sandbox **un solo** customer, **una sola** factura draft y un invoice item con el importe acordado. Reintentar y comprobar idempotencia.
-5. Antes de enviar cualquier correo, aprobar y configurar `STRIPE_ALLOW_TEST_SEND=true`, usando exclusivamente una dirección de email de prueba. Verificar estado en Stripe.
-6. No activar producción hasta completar los elementos pendientes.
+   - `SUPABASE_SERVICE_ROLE_KEY`: clave privada **de la base de datos de pruebas**, nunca de producción, usada exclusivamente en el webhook de servidor.
+   - `NEXT_PUBLIC_SUPABASE_URL` y `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY`: deben apuntar a la base de pruebas para este Preview.
+   - `STRIPE_WEBHOOK_SECRET`: signing secret del endpoint webhook del **Sandbox**.
+   - `STRIPE_ACCOUNT_ID`: ID de la cuenta Sandbox vinculada, para validar Connect events cuando Stripe incluye `event.account`.
+   - `STRIPE_ALLOW_TEST_SEND`: omitida por defecto; solo marcar `true` para una prueba de envío autorizada.
+3. Usar un alias Preview estable para configurar en Stripe Sandbox el endpoint `https://<preview-host>/api/stripe/webhook`, suscribiendo:
+   `invoice.paid`, `invoice.payment_failed`, `invoice.finalized`, `invoice.sent`, `invoice.voided`,
+   `invoice.marked_uncollectible`, `credit_note.created`, `charge.refunded`, `charge.dispute.created`.
+   Nota: si el evento no incluye el ID de factura, se registra como *unlinked* para revisión, no se modifica ningún cobro.
+4. Crear venta **SINTÉTICA** en USD y cliente de prueba con email reservado (`buyer@example.invalid`). Crear el borrador y comprobar que se genera **una única** factura y una sola línea.
+5. Habilitar temporalmente el opt-in de envío en Preview, autorizar explícitamente el envío de prueba; verificar Hosted Invoice Page.
+6. Simular pago Stripe usando exclusivamente medios de prueba y comprobar `crm_stripe_invoices.status=paid`, relación `payment_id`, un solo `crm_payments`, y total cobrado no superior al total contratado.
+7. Reenviar el mismo evento firmado y comprobar que NO aparecen pagos duplicados. Simular fallo y reembolso para verificar alertas de revisión. Mantener pagos de producción desactivados.
 
-## Imprescindible antes de producción
-- **Conciliación:** guardar invoice/customer IDs en tablas protegidas con RLS y restricciones únicas, sin depender del querystring. Mantener historial de facturas visible en CRM/Cliente 360°.
-- **Webhook firmado:** validar `Stripe-Signature` con un signing secret y cuerpo RAW; procesar `invoice.paid`, `invoice.payment_failed`, `invoice.voided`, crédito/refund/disputas según canal. Reconocer duplicados con `event.id` UNIQUE y asociación verificada a invoice + sale.
-- **Transaccionalidad:** reflejar pagos efectivos exactamente una vez en `crm_payments` sin superar el importe contratado; hacer refund/credit-note reconciliation explícita; separar ingresos contratados y cobrados.
-- **Importes:** hacer `amount_due` igual al saldo no cobrado, no al total original, si hay pagos previos. Prohibir doble facturación mientras hay invoice pendiente.
-- **Líneas:** derivar line items de `crm_sale_lines`, descuentos y cargos; comparar total de Stripe con total aprobado en CRM.
-- **Validaciones:** revisar monedas sin 2 decimales, impuestos manuales existentes, datos de contacto, contratos y cancelaciones.
-- **Tax:** inspeccionar Tax Settings, registros activos, tax codes correctos según servicios y origen/destino; consultar asesor fiscal antes de activar `automatic_tax`. Nunca habilitar solo por tener Stripe instalado.
-- **Seguridad:** restricted live key solo cuando todo esté probado, webhook signing secret sensible, sin service role en navegador, QA y pruebas de RLS/CI, rollback y auditoría.
+## Resultado de lectura de Stripe Tax (Sandbox, 2026-11-02)
+- `tax.settings.status=pending`, sin `head_office` configurada.
+- `tax.registrations`: lista vacía.
+- Por seguridad **no** se cambió Tax Settings, no se añadió registro ni se activó `automatic_tax`.
+- Antes de habilitar impuestos: validar obligaciones legales con asesor fiscal, registrar jurisdicciones correctas, seleccionar tax codes para cada servicio (AI Agency, marketing, web/CRM), y probar un Tax Calculation que indique `taxability_reason` esperado. Stripe no registra automáticamente al negocio con la autoridad fiscal por solo activar Tax.
 
-Referencia: https://docs.stripe.com/invoicing/integration
+## Restricciones y tareas restantes
+- No mezclar facturas de producción en la DB de Sandbox.
+- Al pasar a producción hará falta revisión de protección de secretos, permisos restricted live, rollout, migración revisada, política de recuperación, y pruebas completas de pagos, reembolsos y disputas. **Esta rama todavía no está lista para fusionarse.**
+- Pendiente: manejo contable de **reembolsos/neto** mediante asientos reversos, conciliación de pagos fuera de Stripe, facturación recurrente/planes si procede, y PDF/plantillas finales con marca Avalon.
+- `STRIPE_SANDBOX_ONLY` es un requisito de seguridad, no un botón para activar producción.
+- El proyecto usa la integración de Stripe **Invoicing + Hosted Invoice Page** (no un checkout paralelo que pueda duplicar cargos).
+
+## Fuente técnica
+- https://docs.stripe.com/invoicing/integration
+- https://docs.stripe.com/webhooks
+- https://docs.stripe.com/tax
+- https://docs.stripe.com/keys-best-practices
