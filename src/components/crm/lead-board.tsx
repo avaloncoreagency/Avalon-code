@@ -2,7 +2,7 @@
 
 import { useEffect, useState, type DragEvent } from "react";
 import type { Row, Stage } from "@/lib/crm/domain";
-import { filterPipelineByFocus, groupPipeline, leadFollowUpStatus, pipelineFocusCounts, type PipelineFocus } from "@/lib/crm/kanban";
+import { filterPipelineByFocus, groupPipeline, leadFollowUpStatus, pipelineFocusCounts, sortPipelineStageLeads, type PipelineFocus, type PipelineSort } from "@/lib/crm/kanban";
 import s from "./lead-board.module.css";
 
 type Props = {
@@ -39,6 +39,7 @@ export function LeadBoard({ stages, leads, total, page, busy, currentOwnerId, on
   const [draggedId, setDraggedId] = useState<string | null>(null);
   const [targetId, setTargetId] = useState<string | null>(null);
   const [focus, setFocus] = useState<PipelineFocus>("all");
+  const [order, setOrder] = useState<PipelineSort>("urgency");
   // The server and first client render must agree; local-day calculations
   // become available only after hydration, and refresh after midnight.
   const [now, setNow] = useState<Date | null>(null);
@@ -54,7 +55,10 @@ export function LeadBoard({ stages, leads, total, page, busy, currentOwnerId, on
   }, []);
   const counts = now ? pipelineFocusCounts(stages, leads, now) : null;
   const visibleLeads = now ? filterPipelineByFocus(stages, leads, focus, now) : leads;
-  const columns = groupPipeline(stages, visibleLeads);
+  const columns = groupPipeline(stages, visibleLeads).map((column) => ({
+    ...column,
+    leads: now ? sortPipelineStageLeads(column.stage, column.leads, order, now) : column.leads,
+  }));
 
   function drop(event: DragEvent<HTMLElement>, stageId: string) {
     event.preventDefault();
@@ -90,6 +94,18 @@ export function LeadBoard({ stages, leads, total, page, busy, currentOwnerId, on
           </button>
         ))}
       </div>
+      <label className={s.sortControl}>
+        Orden de tarjetas
+        <select
+          aria-label="Orden de tarjetas dentro de cada etapa"
+          value={order}
+          disabled={!now}
+          onChange={(event) => setOrder(event.target.value as PipelineSort)}
+        >
+          <option value="urgency">Más urgentes primero</option>
+          <option value="received">Orden original</option>
+        </select>
+      </label>
       <p className={s.focusSummary} role="status">
         {!now
           ? "Preparando los seguimientos para tu zona horaria."
@@ -97,6 +113,9 @@ export function LeadBoard({ stages, leads, total, page, busy, currentOwnerId, on
             ? "Mostrando todos los registros de esta página."
             : `Mostrando ${visibleLeads.length} de ${leads.length} registros de esta página. Los filtros de atención excluyen etapas cerradas y leads archivados.`}
         {" "}Para revisar = vencidos + hoy + sin fecha. No incluye otras páginas.
+        {" "}{order === "urgency"
+          ? "Dentro de cada etapa abierta: vencidos, hoy, sin fecha y próximos. Los cerrados conservan su orden."
+          : "Tarjetas en el orden recibido del CRM."}
       </p>
       <div className={s.scroll} role="region" tabIndex={0} aria-label="Columnas del pipeline; desplázate horizontalmente para ver todas las etapas">
         <div className={s.board}>
@@ -179,7 +198,7 @@ export function LeadBoard({ stages, leads, total, page, busy, currentOwnerId, on
           ))}
         </div>
       </div>
-      <p className={s.footnote}>Los importes son estimaciones, no ingresos cobrados. Seguimientos calculados en la zona horaria del navegador y actualizados cada minuto. El tablero agrupa hasta 50 registros por página; usa Anterior/Siguiente para consultar el resto. Cerrar un lead no crea un cliente automáticamente.</p>
+      <p className={s.footnote}>Los importes son estimaciones, no ingresos cobrados. Seguimientos calculados en la zona horaria del navegador y actualizados cada minuto. El tablero agrupa hasta 50 registros por página; el ordenamiento es solo visual y no cambia datos ni etapas. Usa Anterior/Siguiente para consultar el resto. Cerrar un lead no crea un cliente automáticamente.</p>
     </section>
   );
 }

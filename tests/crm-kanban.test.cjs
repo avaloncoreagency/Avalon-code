@@ -7,7 +7,7 @@ const mod = { exports: {} };
 vm.runInNewContext(ts.transpileModule(fs.readFileSync("src/lib/crm/kanban.ts", "utf8"), {
   compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 },
 }).outputText, { module: mod, exports: mod.exports, require, Map, Set, Date, Number });
-const { groupPipeline, followUpState, leadFollowUpStatus, pipelineFocusCounts, filterPipelineByFocus } = mod.exports;
+const { groupPipeline, followUpState, leadFollowUpStatus, pipelineFocusCounts, filterPipelineByFocus, sortPipelineStageLeads } = mod.exports;
 const stages = [
   { id: "new", label: "Nuevo", kind: "open" },
   { id: "qualified", label: "Calificado", kind: "open" },
@@ -121,4 +121,66 @@ test("follow-up labels and focus counts wait for browser hydration clock", () =>
   assert.match(ui, /const followUp = now \? leadFollowUpStatus/);
   assert.match(ui, /disabled=\{!now\}/);
   assert.match(ui, /followUp === "inactive" \? "Sin seguimiento pendiente en esta etapa"/);
+});
+
+test("urgency ordering in an open stage shows overdue, today, undated, future, archived", () => {
+  const now = new Date("2026-11-03T12:00:00Z");
+  const rows = [
+    { id: "future-late", stage_id: "new", follow_up_at: "2026-11-12T12:00:00Z", priority: "high" },
+    { id: "undated-low", stage_id: "new", follow_up_at: null, priority: "low" },
+    { id: "today", stage_id: "new", follow_up_at: "2026-11-03T12:00:00Z", priority: "normal" },
+    { id: "overdue-old", stage_id: "new", follow_up_at: "2026-10-28T12:00:00Z", priority: "low" },
+    { id: "overdue-recent", stage_id: "new", follow_up_at: "2026-11-02T12:00:00Z", priority: "high" },
+    { id: "undated-high", stage_id: "new", follow_up_at: "invalid-date", priority: "high" },
+    { id: "archived", stage_id: "new", archived: true, follow_up_at: "2026-01-01T12:00:00Z", priority: "high" },
+    { id: "future-soon", stage_id: "new", follow_up_at: "2026-11-05T12:00:00Z", priority: "low" },
+  ];
+  const original = rows.map((r) => r.id);
+  const ordered = sortPipelineStageLeads(stages[0], rows, "urgency", now);
+  assert.deepEqual(Array.from(ordered, (row) => row.id), [
+    "overdue-old", "overdue-recent", "today", "undated-high", "undated-low",
+    "future-soon", "future-late", "archived",
+  ]);
+  assert.deepEqual(rows.map((row) => row.id), original, "sorting must not mutate CRM records");
+  assert.notStrictEqual(ordered, rows);
+});
+
+test("same-deadline priority uses high first, then normal/low with stable ties", () => {
+  const now = new Date("2026-11-03T12:00:00Z");
+  const rows = [
+    { id: "normal", follow_up_at: null, priority: "normal" },
+    { id: "high-first", follow_up_at: null, priority: "high" },
+    { id: "low", follow_up_at: null, priority: "low" },
+    { id: "high-second", follow_up_at: null, priority: "high" },
+  ];
+  assert.deepEqual(
+    Array.from(sortPipelineStageLeads(stages[0], rows, "urgency", now), (r) => r.id),
+    ["high-first", "high-second", "normal", "low"],
+  );
+});
+
+test("closed stages and original-order mode preserve incoming sequence", () => {
+  const now = new Date("2026-11-03T12:00:00Z");
+  const rows = [
+    { id: "next-week", follow_up_at: "2026-11-08T12:00:00Z" },
+    { id: "yesterday", follow_up_at: "2026-11-02T12:00:00Z" },
+  ];
+  for (const stage of [stages[2], { id: "won", label: "Ganado", kind: "won" }]) {
+    const sorted = sortPipelineStageLeads(stage, rows, "urgency", now);
+    assert.deepEqual(Array.from(sorted, (r) => r.id), ["next-week", "yesterday"]);
+    assert.notStrictEqual(sorted, rows);
+  }
+  assert.deepEqual(
+    Array.from(sortPipelineStageLeads(stages[0], rows, "received", now), (r) => r.id),
+    ["next-week", "yesterday"],
+  );
+});
+
+test("sorting UI is accessible and uses hydrated clock, without an API write", () => {
+  const ui = fs.readFileSync("src/components/crm/lead-board.tsx", "utf8");
+  assert.match(ui, /aria-label="Orden de tarjetas dentro de cada etapa"/);
+  assert.match(ui, /const \[order, setOrder\] = useState<PipelineSort>\("urgency"\)/);
+  assert.match(ui, /sortPipelineStageLeads\(column\.stage, column\.leads, order, now\)/);
+  assert.match(ui, /disabled=\{!now\}/);
+  assert.match(ui, /El tablero agrupa hasta 50 registros por página; el ordenamiento es solo visual/);
 });
