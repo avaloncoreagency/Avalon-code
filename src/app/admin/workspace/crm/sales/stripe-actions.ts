@@ -69,6 +69,20 @@ export async function createStripeInvoiceDraft(form: FormData) {
   const cents = minor(local.amount_minor);
   if (!cents || local.status !== "creating" || local.currency !== "USD") back(path, { stripe_error: "not_eligible" });
 
+  // Stripe retains idempotency keys for a limited period (at least 24h).
+  // An orphaned "creating" reservation could have produced an invoice even
+  // when our database never received its ID. Never replay that remote POST
+  // once its original idempotency key may have expired.
+  const { data: reservation, error: reservationError } = await supabase
+    .from("crm_stripe_invoices").select("created_at")
+    .eq("id", local.id).eq("sale_id", saleId).maybeSingle();
+  const createdAt = reservation?.created_at ? Date.parse(reservation.created_at) : NaN;
+  const ageMs = Date.now() - createdAt;
+  if (reservationError || !Number.isFinite(ageMs)) back(path, { stripe_error: "unavailable" });
+  if (ageMs < -5 * 60_000 || ageMs >= 20 * 60 * 60_000) {
+    back(path, { stripe_error: "stale_reservation" });
+  }
+
   try {
     const customerParams = new URLSearchParams({
       email,
