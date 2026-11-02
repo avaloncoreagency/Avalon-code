@@ -2,7 +2,6 @@ const { test } = require('node:test');
 const assert = require('node:assert/strict');
 const { createServer } = require('node:http');
 const { spawn } = require('node:child_process');
-const { createHash } = require('node:crypto');
 
 // Real Next.js + @supabase/ssr over HTTP. Only the remote Supabase Auth/Data
 // service is synthetic; no production keys, users or database are involved.
