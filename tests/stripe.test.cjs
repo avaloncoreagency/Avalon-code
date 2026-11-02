@@ -46,5 +46,10 @@ test("Stripe integration safety invariants are preserved", () => {
   assert.match(action, /crm_stripe_reserve_invoice/);
   assert.match(action, /TEST_EMAIL/);
   assert.match(action, /STRIPE_ALLOW_TEST_SEND/);
+  assert.match(action, /"automatic_tax\[enabled\]": "false"/);
+  assert.match(action, /finalize/);
+  assert.ok(action.indexOf('/finalize') < action.indexOf('/send'), "Stripe invoice must be finalized before it can be sent");
+  assert.match(sql, /v_type = 'invoice.sent'/);
+  assert.match(sql, /hosted_invoice_url = case/);
   assert.doesNotMatch(action, /automatic_tax[^\n]*true/);
 });
