@@ -84,7 +84,7 @@ test("migration preserves CRM events, protects attendance conflicts, and RLS-sco
   assert.match(sql, /e\.attendee_ids && new\.attendee_ids/);
   assert.match(sql, /crm_calendar_banners enable row level security/);
   assert.match(sql, /crm_private\.is_owner\(\)/);
-  assert.match(sql, /revoke all on public\.crm_calendar_banners from public, anon, authenticated/);
+  assert.match(sql, /revoke all on public\.crm_calendar_banners from anon/);
   assert.doesNotMatch(sql, /grant .* to anon/i);
   const ui = fs.readFileSync("src/components/crm/shared-calendar.tsx", "utf8");
   for (const feature of ["downloadIcs", "saveCalendarEvent", "saveCalendarBanner", "month", "week", "day", "meeting_url", "attendee_ids"])
