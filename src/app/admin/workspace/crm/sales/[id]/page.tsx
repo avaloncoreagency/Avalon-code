@@ -95,9 +95,11 @@ export default async function SaleDetail({ params, searchParams }: { params: Pro
           <p className={s.muted}>{pick(lang, "Facturas vinculadas a esta venta. Un borrador no es un cobro; solo los pagos confirmados se suman a «Cobrado».", "Invoices linked to this sale. A draft is not a payment; only confirmed payments count as collected.")}</p>
           {q(p,"stripe_error") && <p role="alert" className={s.muted}>{pick(lang,
             q(p,"stripe_error") === "test_email_required" ? "Utiliza un contacto principal con correo sintético (.example.test o .example.invalid) en el Sandbox." :
+            q(p,"stripe_error") === "tax_requires_review" ? "Esta venta contiene impuestos manuales. Las facturas Stripe permanecen bloqueadas hasta validar el tratamiento fiscal." :
             q(p,"stripe_error") === "not_configured" ? "El Stripe Sandbox de Preview todavía no está configurado." :
             "No se pudo completar la operación Stripe. Revisa la configuración, el saldo pendiente y el historial de la factura.",
             q(p,"stripe_error") === "test_email_required" ? "A synthetic test email is required for sandbox use." :
+            q(p,"stripe_error") === "tax_requires_review" ? "This sale has manually added tax. Stripe invoicing is blocked until its tax treatment is approved." :
             q(p,"stripe_error") === "not_configured" ? "Stripe Sandbox is not configured in Preview." :
             "Stripe could not complete the operation. Check settings, balance and invoice history.")}</p>}
           {q(p,"stripe_ok") && <p role="status">{pick(lang, "Operación de factura de prueba completada. Verifica su estado abajo.", "Sandbox invoice action completed. Verify its status below.")}</p>}
@@ -116,13 +118,16 @@ export default async function SaleDetail({ params, searchParams }: { params: Pro
                   <form action={sendStripeInvoice}><input type="hidden" name="sale_id" value={d.id}/><input type="hidden" name="invoice_id" value={inv.id}/>
                     <button className={s.button}>{pick(lang, "Autorizar envío de factura de prueba", "Approve sending test invoice")}</button></form>}
               </li>)}</ul>}
-            {stripeSandboxReady() && d.status === "confirmed" && d.contract_status !== "cancelled" && d.currency === "USD" &&
+            {stripeSandboxReady() && d.status === "confirmed" && d.contract_status !== "cancelled" && d.currency === "USD" && Number(d.tax_total) === 0 &&
               Number(d.total) > paid && !(invoiceRows.data ?? []).some(x => ["creating","draft","open","uncollectible","review"].includes(x.status)) &&
               <form action={createStripeInvoiceDraft} className={s.form} style={{ marginTop: 14 }}>
                 <input type="hidden" name="sale_id" value={d.id}/>
                 <button className={s.button}>{pick(lang, "Crear borrador de factura Stripe", "Create Stripe invoice draft")}</button>
               </form>}
-            {!stripeSandboxReady() && <p className={s.muted}>{pick(lang, "Pendiente de configurar claves de prueba en Vercel Preview. No se aceptan pagos reales.", "Waiting for test credentials in Vercel Preview. Live payments are disabled.")}</p>}
+            {Number(d.tax_total) !== 0 && <p className={s.muted} role="alert">{pick(lang,
+            "Esta venta incluye impuestos calculados manualmente. No se puede emitir su factura Stripe hasta confirmar las obligaciones fiscales y su desglose.",
+            "This sale includes manually calculated tax. Its Stripe invoice cannot be issued until tax obligations and itemization are verified.")}</p>}
+          {!stripeSandboxReady() && <p className={s.muted}>{pick(lang, "Pendiente de configurar claves de prueba en Vercel Preview. No se aceptan pagos reales.", "Waiting for test credentials in Vercel Preview. Live payments are disabled.")}</p>}
           </>}
         </section>
         <section className={s.panel} aria-labelledby="payments"><header><h2 id="payments">{pick(lang, "Cobros registrados", "Recorded payments")}</h2></header>
