@@ -58,6 +58,7 @@
   text-decoration:none; font-weight:600; pointer-events:auto; }
 .mapNotice a:hover { color:#67e8f9; }
 .map :global(.leaflet-tile-pane) { filter:brightness(.62) saturate(.55) hue-rotate(185deg) contrast(1.15); }
+.map[data-basemap="geoapify"] :global(.leaflet-tile-pane) { filter:brightness(.95) saturate(.9) contrast(1.08); }
 .map :global(.leaflet-control-attribution) { background:#020611cc; color:#9fb3cf; font-size:10px; }
 .map :global(.leaflet-control-attribution a) { color:var(--cyan); }
 .sweep { position:absolute; inset:-20%; pointer-events:none; z-index:450;
