@@ -20,7 +20,7 @@ function load(file, mocks = {}) {
   return loaded.exports;
 }
 const policy = load('src/lib/auth/policy.ts');
-function client({ role = 'owner', user = { id: 'verified-uuid', app_metadata: { provider: 'google' } }, authError = null, membershipError = null } = {}) {
+function client({ role = 'owner', user = { id: 'verified-uuid', app_metadata: { provider: 'email' } }, authError = null, membershipError = null } = {}) {
   const calls = [];
   const db = {
     auth: { getUser: async () => ({ data: { user }, error: authError }) },
