@@ -18,7 +18,6 @@ export function cleanText(value: unknown, { min = 0, max }: { min?: number; max:
   if (value === null || value === undefined) value = "";
   if (typeof value !== "string") return fail("invalid");
   const text = value.replace(/\r\n/g, "\n").trim();
-  // eslint-disable-next-line no-control-regex
   if (/[\u0000-\u0008\u000b\u000c\u000e-\u001f\u007f]/.test(text)) return fail("invalid");
   if (text.length < min) return fail("required");
   if (text.length > max) return fail("too_long");

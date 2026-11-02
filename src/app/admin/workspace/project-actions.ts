@@ -31,16 +31,16 @@ function initialSettings(module: ModuleKey, form: FormData): Record<string, unkn
 }
 
 export async function createProject(form: FormData) {
-  const module = oneOf(field(form, "module"), MODULE_KEYS);
-  if (!module.ok) back("/admin/dashboard", { error: "invalid" });
-  const base = BASE[module.value];
+  const moduleKey = oneOf(field(form, "module"), MODULE_KEYS);
+  if (!moduleKey.ok) back("/admin/dashboard", { error: "invalid" });
+  const base = BASE[moduleKey.value];
   const { supabase, userId } = await ownerForAction();
   const name = cleanText(field(form, "name"), { min: 1, max: 120 });
   const description = cleanText(field(form, "description"), { max: 2000 });
   if (!name.ok) back(base, { error: name.error });
   if (!description.ok) back(base, { error: description.error });
   const { data, error, status } = await supabase.from("os_projects")
-    .insert({ module: module.value, name: name.value, description: description.value, status: "draft", settings: initialSettings(module.value, form), created_by: userId })
+    .insert({ module: moduleKey.value, name: name.value, description: description.value, status: "draft", settings: initialSettings(moduleKey.value, form), created_by: userId })
     .select("id").single();
   if (error || !data) back(base, { error: mapDbError(error, status) });
   revalidatePath(base);
@@ -48,9 +48,9 @@ export async function createProject(form: FormData) {
 }
 
 export async function updateProject(form: FormData) {
-  const module = oneOf(field(form, "module"), MODULE_KEYS);
-  if (!module.ok) back("/admin/dashboard", { error: "invalid" });
-  const base = BASE[module.value];
+  const moduleKey = oneOf(field(form, "module"), MODULE_KEYS);
+  if (!moduleKey.ok) back("/admin/dashboard", { error: "invalid" });
+  const base = BASE[moduleKey.value];
   const id = uuidField(form, "id");
   if (!id) back(base, { error: "not_found" });
   const path = `${base}/${id}${field(form, "return") === "settings" ? "/settings" : ""}`;
@@ -64,7 +64,7 @@ export async function updateProject(form: FormData) {
   if (!status.ok || !Number.isSafeInteger(version)) back(path, { error: "invalid" });
   const { data, error, status: http } = await supabase.from("os_projects")
     .update({ name: name.value, description: description.value, status: status.value })
-    .eq("id", id).eq("module", module.value).eq("version", version).select("id");
+    .eq("id", id).eq("module", moduleKey.value).eq("version", version).select("id");
   if (error) back(path, { error: mapDbError(error, http) });
   if (!data?.length) back(path, { error: "conflict" });
   revalidatePath(base);
