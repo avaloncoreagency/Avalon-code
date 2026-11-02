@@ -1,6 +1,7 @@
 "use strict";
 // Pure HMAC verification utility; no credentials or network calls.
 // Stripe signs the exact raw request body as "<timestamp>.<payload>".
+// eslint-disable-next-line @typescript-eslint/no-require-imports
 const { createHmac, timingSafeEqual } = require("node:crypto");
 function verifyStripeSignature(payload, header, secret, nowSeconds = Math.floor(Date.now() / 1000)) {
   if (typeof payload !== "string" || typeof header !== "string" || typeof secret !== "string" || !secret.startsWith("whsec_")) return false;
