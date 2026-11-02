@@ -14,7 +14,7 @@ const MIGUEL = '00000000-0000-4000-8000-0000000000a1';
 const SAMUEL = '00000000-0000-4000-8000-0000000000b2';
 const OUTSIDER = '00000000-0000-4000-8000-0000000000c3';
 const EVIDENCE = process.env.EVIDENCE_DIR || '../evidence';
-const ROUTES = ['/admin/dashboard', '/admin/workspace/crm', '/admin/workspace/crm/calendar', '/admin/workspace/crm/settings', '/admin/workspace/crm/sales', '/admin/workspace/crm/sales/new', '/admin/workspace/crm/clients', '/admin/workspace/crm/tasks', '/admin/workspace/crm/notifications', '/admin/workspace/crm/activity', '/admin/service-factory'];
+const ROUTES = ['/admin/dashboard', '/admin/workspace/crm', '/admin/workspace/crm/calendar', '/admin/workspace/crm/settings', '/admin/workspace/crm/sales', '/admin/workspace/crm/sales/new', '/admin/workspace/crm/clients', '/admin/workspace/crm/tasks', '/admin/workspace/crm/notifications', '/admin/workspace/crm/activity', '/admin/service-factory', '/admin/service-factory/planner'];
 
 test('Nova Restaurant through the real app: one form, three departments, no duplicates', { timeout: 240000 }, async t => {
   const db = new PGlite();
@@ -374,6 +374,44 @@ test('Nova Restaurant through the real app: one form, three departments, no dupl
   await page.goto(origin + '/admin/workspace/crm/sales/new');
   assert.equal(await page.locator('select[name="line_0_service"] option[value="brand-synthetic"]').count(), 1,
     'activated SKU appears in the existing sales form, without duplicating CRM');
+
+  // ── Internal Solution Planner: persisted SKU snapshot + review, NO sale ──
+  const syntheticSku = (await one("select id from crm_service_catalog where code='brand-synthetic'")).id;
+  const salesBeforePlan = Number((await one("select count(*) n from crm_sales")).n);
+  await page.goto(origin + '/admin/service-factory/planner');
+  await page.getByRole('heading', { name: 'Planificador de soluciones' }).waitFor();
+  await page.locator('input[name="title"]').fill('Identidad de marca sintética · estimación');
+  await page.locator('input[name="industry"]').fill('Servicios locales');
+  await page.locator('textarea[name="problem"]').fill('La marca no es consistente');
+  await page.locator('textarea[name="objective"]').fill('Diseñar sistema visual reutilizable');
+  await page.locator('input[name="hourly_rate"]').fill('50');
+  await page.locator('select[name="line_0_service"]').selectOption(syntheticSku);
+  await page.locator('input[name="line_0_price"]').fill('1250');
+  await Promise.all([
+    page.waitForURL(u=>u.pathname.startsWith('/admin/service-factory/planner/') && u.searchParams.get('ok')==='created'),
+    page.getByRole('button', { name: 'Guardar presupuesto preliminar' }).click(),
+  ]);
+  const internalPlanId = new URL(page.url()).pathname.split('/').pop();
+  assert.ok(/^[0-9a-f-]{36}$/.test(internalPlanId), 'planner generated a stable UUID');
+  assert.equal((await one('select status from crm_solution_plans where id=$1', [internalPlanId])).status, 'draft');
+  assert.equal((await one('select count(*) n from crm_solution_plan_lines where plan_id=$1',[internalPlanId])).n, 1);
+  assert.equal(Number((await one('select unit_price p from crm_solution_plan_lines where plan_id=$1',[internalPlanId])).p), 1250);
+  assert.equal(Number((await one('select count(*) n from crm_sales')).n), salesBeforePlan, 'estimate did not create a sale');
+  assert.equal((await get(`/admin/service-factory/planner/${internalPlanId}`, outsider)).status, 307,
+    'nonowner cannot read a saved estimate');
+  await page.getByRole('heading', { name: 'Economía estimada por frecuencia' }).waitFor();
+  await page.getByText('Margen estimado').waitFor();
+  await Promise.all([
+    page.waitForURL(u=>u.searchParams.get('ok')==='reviewed'),
+    page.getByRole('button', { name: 'Aprobar presupuesto interno' }).click(),
+  ]);
+  assert.equal((await one('select status from crm_solution_plans where id=$1',[internalPlanId])).status, 'reviewed');
+  await page.reload();
+  await page.getByText('Revisión completada. El siguiente paso comercial se hace por separado desde Ventas.').waitFor();
+  await page.screenshot({path:`${EVIDENCE}/solution-planner.png`,fullPage:true});
+  assert.equal(Number((await one('select count(*) n from crm_sales')).n), salesBeforePlan,
+    'internal review did not send/create commercial side effects');
+
   await page.goto(origin + '/admin/service-factory');
   await Promise.all([
     page.waitForURL(/service-factory\?ok=availability/),

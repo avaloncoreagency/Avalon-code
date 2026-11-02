@@ -144,7 +144,10 @@ export default async function ServiceFactoryPage({searchParams}:{searchParams:Pr
     <OpsHeader lang={lang} active="factory" crm="sales" eyebrow="AVALON / SERVICE FACTORY"
       title={pick(lang,"Fábrica de servicios","Service Factory")}
       lead={pick(lang,"Prepara productos vendibles con alcance, costos, tareas y controles verificables. Esta pantalla es interna: no crea una página pública ni activa integraciones de IA.", "Prepare sellable offers with scope, cost estimates, tasks and verifiable checks. This is internal: it does not publish a website or activate AI providers.")}
-      actions={<Link className={s.button} href="/admin/workspace/crm/sales/new">{pick(lang,"Registrar venta","Record sale")}</Link>}/>
+      actions={<>
+        <Link className={`${s.button} ${s.primary}`} href="/admin/service-factory/planner">{pick(lang,"Planificar solución","Plan a solution")}</Link>
+        <Link className={s.button} href="/admin/workspace/crm/sales/new">{pick(lang,"Registrar venta","Record sale")}</Link>
+      </>}/>
     {feedback && MSG[feedback] && <p className={s.flash} data-tone="ok" role="status">{labelFor(lang,MSG[feedback])}</p>}
     {failure && <p className={s.flash} data-tone="error" role="alert">{labelFor(lang,MSG[failure] ?? MSG.unavailable)}</p>}
     {catalog.error ? <Unavailable lang={lang} code={catalog.error}/> : <>

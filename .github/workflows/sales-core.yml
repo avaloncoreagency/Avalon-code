@@ -11,6 +11,8 @@ on:
       - 'src/app/admin/workspace/crm/**'
       - 'tests/sales*'
       - 'tests/service-factory*'
+      - 'tests/solution-planner*'
+      - 'tests/sql/solution_planner.test.sql'
       - 'tests/sql/service_factory_catalog.test.sql'
       - 'tests/qa/**'
       - '.github/workflows/sales-core.yml'
@@ -56,7 +58,7 @@ jobs:
         run: |
           args="-f tests/sql/00_supabase_stub.sql"
           for f in $(ls supabase/migrations/*.sql | sort); do args="$args -f $f"; done
-          psql -v ON_ERROR_STOP=1 -q $args -f tests/sql/crm_pipeline.test.sql -f tests/sql/service_factory_catalog.test.sql
+          psql -v ON_ERROR_STOP=1 -q $args -f tests/sql/crm_pipeline.test.sql -f tests/sql/service_factory_catalog.test.sql -f tests/sql/solution_planner.test.sql
       - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
           node-version: "22"
