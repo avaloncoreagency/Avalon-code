@@ -9,6 +9,8 @@ import { run } from "@/lib/os/data";
 import { SERVICES, isService } from "@/lib/os/client-hud";
 import { label, money, PAYMENT_METHODS, WORK_ORDER_STATUSES } from "@/lib/sales/domain";
 import { recordPayment, updateContract, updateWorkOrder } from "../actions";
+import { createStripeInvoiceDraft, sendStripeInvoice } from "../stripe-actions";
+import { stripeSandboxReady, stripeRequest, type StripeInvoice } from "@/lib/stripe/avalon";
 import s from "@/components/sales/sales.module.css";
 export const dynamic = "force-dynamic";
 
@@ -34,6 +36,10 @@ export default async function SaleDetail({ params, searchParams }: { params: Pro
     run<{ work_order_id: string; status: string }[]>(supabase.from("crm_tasks").select("work_order_id,status").eq("sale_id", id).limit(1000)),
   ]);
   const events = sale.data ? await run<Event[]>(supabase.from("crm_timeline").select("id,event_type,module,detail,result,from_state,to_state,actor_id,created_at").or(`correlation_id.eq.${sale.data.correlation_id},sale_id.eq.${id}`).order("id").limit(200)) : null;
+  const invoiceParam = q(p, "stripe_invoice");
+  const stripeInvoice = stripeSandboxReady() && /^in_[A-Za-z0-9]{8,80}$/.test(invoiceParam)
+    ? await stripeRequest<StripeInvoice>(`/invoices/${invoiceParam}`).catch(() => null) : null;
+  const verifiedInvoice = stripeInvoice?.metadata?.avalon_sale_id === id ? stripeInvoice : null;
   const ownerList = owners.data ?? [];
   const d = sale.data;
   const paid = (payments.data ?? []).reduce((sum, x) => sum + Number(x.amount), 0);
@@ -82,6 +88,27 @@ export default async function SaleDetail({ params, searchParams }: { params: Pro
           {!events || events.error ? <Unavailable lang={lang} code={events?.error ?? "unavailable"} /> : <ol className={s.timeline}>{events.data.map(e => <li key={e.id} data-result={e.result}>
             <strong>{e.event_type}</strong> <span className={s.muted}>· {e.module} · {ownerName(ownerList, e.actor_id)} · {formatDate(lang, e.created_at, true)}</span>
             <div className={s.muted}>{[e.from_state && e.to_state ? `${e.from_state} → ${e.to_state}` : e.to_state, e.detail].filter(Boolean).join(" · ")}</div></li>)}</ol>}
+        </section>
+        <section className={s.panel} aria-labelledby="stripe-invoices">
+          <header><h2 id="stripe-invoices">{pick(lang, "Facturas Stripe · Sandbox", "Stripe Invoices · Sandbox")}</h2></header>
+          <p className={s.muted}>{pick(lang, "Solo pruebas: crear un borrador no cobra ni envía correos. Los cobros reales permanecerán desactivados hasta configurar webhooks y conciliación automática.", "Test mode only: creating a draft does not charge or send email. Live payments stay disabled until signed webhooks and automatic reconciliation are configured.")}</p>
+          {q(p, "stripe_error") && <p role="alert" className={s.muted}>{pick(lang, "Stripe: revisa cuenta sandbox, contacto principal y configuración.", "Stripe: check sandbox, primary contact and configuration.")}</p>}
+          {q(p, "stripe_ok") === "sent" && <p role="status">{pick(lang, "Factura de prueba enviada.", "Test invoice sent.")}</p>}
+          {!stripeSandboxReady() ? <p className={s.muted}>{pick(lang, "No configurado: añadir STRIPE_SECRET_KEY de pruebas y STRIPE_SANDBOX_ONLY=true solo en Preview.", "Not configured: add a test STRIPE_SECRET_KEY and STRIPE_SANDBOX_ONLY=true in Preview only.")}</p>
+            : d.status === "confirmed" && d.contract_status !== "cancelled" && d.currency === "USD" && !verifiedInvoice ?
+            <form action={createStripeInvoiceDraft} className={s.form}>
+              <input type="hidden" name="sale_id" value={d.id} />
+              <button className={s.button}>{pick(lang, "Crear borrador de factura Stripe", "Create Stripe invoice draft")}</button>
+            </form> : null}
+          {verifiedInvoice && <div>
+            <p><strong>{verifiedInvoice.id}</strong> · <Tag lang={lang} value={verifiedInvoice.status} /></p>
+            <p className={s.muted}>{money(lang, verifiedInvoice.amount_due / 100, verifiedInvoice.currency.toUpperCase())}</p>
+            {verifiedInvoice.status === "draft" && <form action={sendStripeInvoice} className={s.form}>
+              <input type="hidden" name="sale_id" value={d.id} /><input type="hidden" name="invoice_id" value={verifiedInvoice.id} />
+              <button className={s.button}>{pick(lang, "Enviar factura de prueba al cliente", "Send test invoice to customer")}</button>
+            </form>}
+            {verifiedInvoice.hosted_invoice_url && <a className={s.button} href={verifiedInvoice.hosted_invoice_url} target="_blank" rel="noopener noreferrer">{pick(lang, "Abrir página de factura", "Open hosted invoice")}</a>}
+          </div>}
         </section>
         <section className={s.panel} aria-labelledby="payments"><header><h2 id="payments">{pick(lang, "Cobros registrados", "Recorded payments")}</h2></header>
           {payments.error ? <Unavailable lang={lang} code={payments.error} /> : payments.data.length === 0 ? <p className={s.muted}>{pick(lang, "Sin cobros registrados. El pago inicial acordado no cuenta como cobrado.", "No payments recorded. The agreed upfront payment does not count as collected.")}</p> :
