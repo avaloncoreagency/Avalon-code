@@ -266,3 +266,42 @@
 .panel p {
   overflow-wrap: anywhere;
 }
+
+/* CRM leads, hunter and calendar: compact mobile controls with usable horizontal tabs. */
+@media (max-width: 700px) {
+  .wrap { gap: 15px; padding: 10px 0 20px; min-width: 0; }
+  .head { align-items: flex-start; gap: 10px; }
+  .title { font-size: clamp(24px, 6vw, 32px); line-height: 1.18; }
+  .subtitle { font-size: 13px; line-height: 1.5; }
+  .tabs {
+    width: 100%; max-width: 100%; flex-wrap: nowrap; gap: 6px;
+    overflow-x: auto; -webkit-overflow-scrolling: touch;
+    overscroll-behavior-x: contain; scroll-snap-type: x proximity;
+    scrollbar-width: none; padding-bottom: 3px;
+  }
+  .tabs::-webkit-scrollbar { display: none; }
+  .tab { flex: none; white-space: nowrap; min-height: 44px; align-items: center; scroll-snap-align: start; }
+  .cards { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 9px; }
+  .card, .panel { min-width: 0; padding: 13px; }
+  .metric { font-size: clamp(20px, 6vw, 28px); overflow-wrap: anywhere; }
+  .grid { grid-template-columns: minmax(0, 1fr); gap: 10px; }
+  .filters { align-items: stretch; gap: 10px; }
+  .filters label, .filters .field { flex: 1 1 100%; min-width: 0; }
+  .filters input { max-width: 100%; width: 100%; }
+  .actions { gap: 8px; }
+  .actions > button, .actions > a { min-height: 44px; }
+  .formGrid { grid-template-columns: minmax(0, 1fr); gap: 11px; }
+  .calendar { grid-template-columns: minmax(0, 1fr); }
+  .tableWrap {
+    max-width: 100%; overflow-x: auto; -webkit-overflow-scrolling: touch;
+    overscroll-behavior-x: contain; scrollbar-width: thin;
+  }
+  .wrap input, .wrap select, .wrap textarea { font-size: 16px; max-width: 100%; min-width: 0; }
+  .wrap button { min-height: 44px; }
+  .wrap textarea { width: 100%; }
+  .lead { min-width: 0; overflow-wrap: anywhere; }
+}
+@media (max-width: 359px) {
+  .cards { grid-template-columns: minmax(0, 1fr); }
+  .tabs { margin-right: 0; }
+}
