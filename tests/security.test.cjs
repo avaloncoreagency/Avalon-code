@@ -207,8 +207,19 @@ test('no open redirects: auth callbacks use a fixed origin and ignore next/retur
 test('no privileged keys in application code or public env vars', () => {
   for (const file of src) {
     const body = read(file);
-    assert.doesNotMatch(body, /service_role|SERVICE_ROLE|SUPABASE_SECRET/, file);
-    assert.doesNotMatch(body, /NEXT_PUBLIC_\w*(SECRET|SERVICE|PRIVATE|TOKEN|PASSWORD)/, file);
+    // Stripe's only sessionless webhook uses a server-side service key, which must
+    // remain inaccessible to all client components and all other application code.
+    if (file === 'src/app/api/stripe/webhook/route.ts') {
+      assert.match(body, /verifyStripeSignature\(payload, request\.headers\.get\("stripe-signature"\), secret\)/, file);
+      assert.match(body, /event\.livemode !== false/, file);
+      assert.match(body, /stripeSandboxReady\(\)/, file);
+      assert.match(body, /process\.env\.SUPABASE_SERVICE_ROLE_KEY/, file);
+      assert.match(body, /crm_stripe_process_event/, file);
+      assert.doesNotMatch(body, /NEXT_PUBLIC_\w*(SECRET|SERVICE|PRIVATE|TOKEN|PASSWORD)/, file);
+    } else {
+      assert.doesNotMatch(body, /service_role|SERVICE_ROLE|SUPABASE_SECRET/, file);
+      assert.doesNotMatch(body, /NEXT_PUBLIC_\w*(SECRET|SERVICE|PRIVATE|TOKEN|PASSWORD)/, file);
+    }
   }
   const tracked = execSync('git ls-files', { encoding: 'utf8' }).split('\n');
   assert.ok(!tracked.some(f => /(^|\/)\.env($|\.(?!example$))/.test(f)), '.env files must not be committed');
