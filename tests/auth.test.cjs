@@ -37,7 +37,7 @@ test('authorization verifies identity, then queries membership by verified UUID'
   assert.deepEqual(await access.getAuthorizedMember(db), { userId: 'verified-uuid', role: 'owner' });
   assert.deepEqual(calls, [['from', 'agency_memberships'], ['select', 'role'], ['eq', 'user_id', 'verified-uuid']]);
 });
-for (const [name, options] of Object.entries({ 'signed out': { user: null }, 'invalid identity': { authError: Error('forged token') }, nonmember: { role: null }, admin: { role: 'admin' }, operator: { role: 'operator' }, 'RLS failure': { membershipError: Error('denied') }, 'editable metadata spoof': { user: { id: 'attacker', app_metadata: { provider: 'email' }, user_metadata: { role: 'owner', provider: 'google' } } } })) {
+for (const [name, options] of Object.entries({ 'signed out': { user: null }, 'invalid identity': { authError: Error('forged token') }, nonmember: { role: null }, admin: { role: 'admin' }, operator: { role: 'operator' }, 'RLS failure': { membershipError: Error('denied') }, 'editable metadata spoof': { role: null, user: { id: 'attacker', app_metadata: { provider: 'email' }, user_metadata: { role: 'owner', provider: 'google' } } } })) {
   test(`authorization denies ${name}`, async () => assert.equal(await access.getAuthorizedMember(client(options).db), null));
 }
 test('callback origin rejects external inputs and non-HTTPS hosts', () => {
@@ -111,13 +111,13 @@ test('existing logout calls Supabase signOut before redirecting', async () => {
   });
   await assert.rejects(action.signOut(), /\/login/);
 });
-test('password server action is disabled by default even when invoked directly', async () => {
+test('password login validates input without requiring a feature flag', async () => {
   delete process.env.AUTH_PASSWORD_LOGIN_ENABLED;
   const actions = load('src/app/login/actions.ts', {
     '@/lib/supabase/server': {}, '@/lib/auth/access': {}, '@/lib/auth/policy': policy,
     'next/navigation': { redirect: location => { throw Error(location); } },
   });
-  await assert.rejects(actions.signIn(new FormData()), /error=disabled/);
+  await assert.rejects(actions.signIn(new FormData()), /error=invalid/);
 });
 test('Google action uses the configured callback and server-side OAuth redirect', async () => {
   process.env.APP_ORIGIN = 'http://localhost:3000';
@@ -207,4 +207,12 @@ test('SMTP-free magiclink verifies identity before granting password setup, with
   const response = await route.GET(new NextRequest('http://localhost:3000/admin/auth/confirm?type=magiclink&token_hash=synthetic'));
   assert.equal(response.headers.get('location'), 'http://localhost:3000/admin/signup');
   delete process.env.AUTH_PASSWORD_LOGIN_ENABLED;
+});
+
+test('email owner remains authorized even with obsolete password flag false', async () => {
+  process.env.AUTH_PASSWORD_LOGIN_ENABLED = 'false';
+  try {
+    const {db}=client({user:{id:'email-owner',app_metadata:{provider:'email'}}});
+    assert.deepEqual(await access.getAuthorizedMember(db),{userId:'email-owner',role:'owner'});
+  } finally { delete process.env.AUTH_PASSWORD_LOGIN_ENABLED; }
 });

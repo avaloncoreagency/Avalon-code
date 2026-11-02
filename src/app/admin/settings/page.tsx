@@ -17,7 +17,7 @@ export default async function SettingsPage() {
   const lang = await getLang();
   const [modulesDb, crmDb] = await Promise.all([countRows(supabase, "os_projects"), countRows(supabase, "crm_leads")]);
   const flags = [
-    { label: pick(lang, "Acceso con contraseña", "Password sign-in"), on: process.env.AUTH_PASSWORD_LOGIN_ENABLED === "true" },
+    { label: pick(lang, "Acceso con contraseña", "Password sign-in"), on: true },
     { label: "Google OAuth (APP_ORIGIN)", on: Boolean(process.env.APP_ORIGIN) },
     { label: pick(lang, "Firma de enlaces de invitación/recuperación", "Invitation/recovery link signing"), on: (process.env.AUTH_FLOW_SECRET ?? "").length >= 32 },
   ];
