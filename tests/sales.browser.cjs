@@ -395,7 +395,7 @@ test('Nova Restaurant through the real app: one form, three departments, no dupl
   assert.ok(/^[0-9a-f-]{36}$/.test(internalPlanId), 'planner generated a stable UUID');
   assert.equal((await one('select status from crm_solution_plans where id=$1', [internalPlanId])).status, 'draft');
   assert.equal((await one('select count(*) n from crm_solution_plan_lines where plan_id=$1',[internalPlanId])).n, 1);
-  assert.equal((await one('select unit_price p from crm_solution_plan_lines where plan_id=$1',[internalPlanId])).p, '1250');
+  assert.equal(Number((await one('select unit_price p from crm_solution_plan_lines where plan_id=$1',[internalPlanId])).p), 1250);
   assert.equal(Number((await one('select count(*) n from crm_sales')).n), salesBeforePlan, 'estimate did not create a sale');
   assert.equal((await get(`/admin/service-factory/planner/${internalPlanId}`, outsider)).status, 307,
     'nonowner cannot read a saved estimate');
