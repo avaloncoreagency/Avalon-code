@@ -21,7 +21,7 @@ const sample = [
       email: "info@cafe.example.invalid" } },
   { type: "node", id: 123, lat: 25.775, lon: -80.192,
     tags: { name: "Example Salon", shop: "hairdresser" } },
-  { type: "node", id: 125, lat: 25.774, lon: -80.19,
+  { type: "node", id: 125,
     tags: { name: "No Coordinates", shop: "hairdresser" } },
   { type: "node", id: 126, lat: 25.771, lon: -80.188,
     tags: { name: "Dangerous", shop: "kiosk", website: "javascript:alert(1)" } },
