@@ -19,6 +19,8 @@ test("radar with no approved basemap uses the grid, not the blocked OSM communit
   assert.equal(resolveRadarMapTiles(""), null);
   assert.equal(resolveRadarMapTiles("https://tile.openstreetmap.org/{z}/{x}/{y}.png"), null);
   assert.equal(resolveRadarMapTiles("https://a.tile.openstreetmap.org/{z}/{x}/{y}.png"), null);
+  assert.equal(resolveRadarMapTiles("https://anything.tile.openstreetmap.org/{z}/{x}/{y}.png"), null);
+  assert.equal(resolveRadarMapTiles("https://tile.openstreetmap.org./{z}/{x}/{y}.png"), null);
 });
 
 test("basemap requires HTTPS, coordinate placeholders, and no embedded credentials", () => {
@@ -41,4 +43,7 @@ test("Leaflet recovers from tile errors and re-renders markers after initializat
   assert.match(ui, /Ver la zona en OpenStreetMap/);
   assert.doesNotMatch(ui, /tileLayer\(process\.env\.NEXT_PUBLIC_AVALON_MAP_TILES\s*\|\|/);
   assert.match(css, /\.mapNotice/);
+  assert.match(ui, /permissionsPolicy\?\.allowsFeature\("geolocation"\)/);
+  assert.match(ui, /timeout: 12000/);
+  assert.match(ui, /No se autorizó el acceso a tu ubicación/);
 });
