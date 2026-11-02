@@ -2,6 +2,7 @@ const { test } = require("node:test");
 const assert = require("node:assert/strict");
 const { createHmac } = require("node:crypto");
 const fs = require("node:fs");
+const ts = require("typescript");
 const { verifyStripeSignature } = require("../src/lib/stripe/signature.cjs");
 
 test("Stripe signing: valid timestamp and HMAC; reject tampering/replays", () => {
@@ -52,4 +53,36 @@ test("Stripe integration safety invariants are preserved", () => {
   assert.match(sql, /v_type = 'invoice.sent'/);
   assert.match(sql, /hosted_invoice_url = case/);
   assert.doesNotMatch(action, /automatic_tax[^\n]*true/);
+});
+
+test("Sandbox Stripe refuses production DB, live keys and production runtimes", () => {
+  const input = fs.readFileSync("src/lib/stripe/avalon.ts", "utf8");
+  const js = ts.transpileModule(input, { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2020 } }).outputText;
+  const mod = { exports: {} };
+  new Function("require","module","exports",js)(id => id === "server-only" ? {} : require(id), mod, mod.exports);
+  const ready = mod.exports.stripeSandboxReady;
+  const names = ["STRIPE_SECRET_KEY","STRIPE_SANDBOX_ONLY","VERCEL_ENV","NEXT_PUBLIC_SUPABASE_URL"];
+  const original = Object.fromEntries(names.map(name => [name, process.env[name]]));
+  try {
+    process.env.STRIPE_SECRET_KEY = "rk_test_synthetic_only";
+    process.env.STRIPE_SANDBOX_ONLY = "true";
+    process.env.VERCEL_ENV = "preview";
+    process.env.NEXT_PUBLIC_SUPABASE_URL = "https://ltbwzcrxeuczdhhtbqgm.supabase.co";
+    assert.equal(ready(), false, "Preview must never write sandbox records into production CRM");
+    process.env.NEXT_PUBLIC_SUPABASE_URL = "https://synthetic-preview.supabase.co";
+    assert.equal(ready(), true);
+    process.env.STRIPE_SECRET_KEY = "rk_live_synthetic_only";
+    assert.equal(ready(), false, "Live keys must never be accepted");
+    process.env.STRIPE_SECRET_KEY = "rk_test_synthetic_only";
+    process.env.VERCEL_ENV = "production";
+    assert.equal(ready(), false, "No Stripe sandbox calls from production runtime");
+    process.env.VERCEL_ENV = "preview";
+    delete process.env.NEXT_PUBLIC_SUPABASE_URL;
+    assert.equal(ready(), false, "Sandbox cannot be enabled without a database target");
+  } finally {
+    for (const name of names) {
+      if (original[name] === undefined) delete process.env[name];
+      else process.env[name] = original[name];
+    }
+  }
 });
