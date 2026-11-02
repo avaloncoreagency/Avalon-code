@@ -30,6 +30,11 @@ export async function GET(request: NextRequest) {
   if (active || now - (lastSearch.get(session.userId) ?? 0) < WAIT) {
     return reply({ error: "El radar limita consultas para proteger los datos abiertos. Prueba de nuevo en 30 segundos." }, 429);
   }
+  // A production agency workflow must use an owned or commercially licensed provider.
+  // The public Overpass server is reserved for low-volume, human-initiated Preview tests.
+  if (process.env.VERCEL_ENV === "production" && !process.env.AVALON_RADAR_OVERPASS_URL) {
+    return reply({ error: "Configura un proveedor de mapas propio o con licencia comercial antes de activar el radar en producción." }, 503);
+  }
   // Small interactive pilot only: never run automated sweeps or bulk harvesting.
   // Use AVALON_RADAR_OVERPASS_URL with a licensed/owned endpoint to scale.
   let endpoint = "https://overpass-api.de/api/interpreter";
