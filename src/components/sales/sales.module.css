@@ -91,3 +91,6 @@
 .srOnly { position:absolute; width:1px; height:1px; overflow:hidden; clip:rect(0 0 0 0); white-space:nowrap; }
 @media (max-width: 860px) { .columns { grid-template-columns:1fr; } .summary { position:static; } }
 @media (prefers-reduced-motion: reduce) { .card, .button { transition:none; } .card:hover { transform:none; } }
+a.stat { text-decoration:none; color:var(--text)!important; transition:border-color .15s; }
+a.stat:hover { border-color:var(--accent); }
+a.stat span, a.stat small { color:var(--muted); }

@@ -15,7 +15,15 @@ const LINKS = [
   ["clients", "/admin/workspace/crm/clients", "Clientes 360°", "Clients 360°"],
   ["activity", "/admin/workspace/crm/activity", "Centro de actividad", "Activity center"],
   ["notifications", "/admin/workspace/crm/notifications", "Avisos", "Notices"],
+  ["settings", "/admin/workspace/crm/settings", "Configuración", "Settings"],
 ] as const;
+
+/** Secondary CRM access row (Clientes | Avisos | Actividad | Configuración, plus sales). */
+export function OpsLinks({ lang, active }: { lang: Lang; active?: string }) {
+  return <nav className={s.subnav} aria-label={pick(lang, "Operaciones comerciales", "Commercial operations")}>
+    {LINKS.map(([key, href, es, en]) => <Link key={key} href={href} aria-current={active === key ? "page" : undefined}>{pick(lang, es, en)}</Link>)}
+  </nav>;
+}
 
 /** Main five-tab CRM order is preserved; operations views sit in a secondary row. */
 export function OpsHeader({ lang, active, crm, title, eyebrow, lead, actions }: {
@@ -23,9 +31,7 @@ export function OpsHeader({ lang, active, crm, title, eyebrow, lead, actions }: 
 }) {
   return <>
     <CrmNavigation active={crm} />
-    <nav className={s.subnav} aria-label={pick(lang, "Operaciones comerciales", "Commercial operations")}>
-      {LINKS.map(([key, href, es, en]) => <Link key={key} href={href} aria-current={active === key ? "page" : undefined}>{pick(lang, es, en)}</Link>)}
-    </nav>
+    <OpsLinks lang={lang} active={active} />
     <header className={s.header}>
       <div><p className={s.eyebrow}>{eyebrow}</p><h1>{title}</h1>{lead && <p className={s.lead}>{lead}</p>}</div>
       {actions && <div className={s.actions}>{actions}</div>}

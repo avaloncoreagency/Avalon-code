@@ -60,3 +60,50 @@ export async function updateClientNotes(form: FormData) {
   revalidatePath(path);
   back(path, { ok: "saved" });
 }
+
+const STATUSES = ["active", "inactive", "archived"];
+export async function updateClient(form: FormData) {
+  const { supabase } = await ownerForAction();
+  const clientId = uuidField(form, "client_id");
+  if (!clientId) back(LIST, { error: "sale_invalid" });
+  const path = `${LIST}/${clientId}`;
+  const version = Number(field(form, "version"));
+  let row: Record<string, string>;
+  try {
+    row = { legal_name: text(form, "legal_name", 200), trade_name: text(form, "trade_name", 200), website: text(form, "website", 500),
+      industry: text(form, "industry", 120), country: text(form, "country", 80), location: text(form, "location", 200),
+      source: text(form, "source", 200), status: field(form, "status") };
+  } catch { back(path, { error: "sale_too_long" }); }
+  if (!row.legal_name || !row.source || !STATUSES.includes(row.status) || !Number.isSafeInteger(version)) back(path, { error: "sale_invalid" });
+  if (row.website && !/^https:\/\/[^\s<>"]+$/.test(row.website)) back(path, { error: "sale_invalid_website" });
+  // Optimistic concurrency: the crm_private.stamp trigger bumps version on every update.
+  const { data, error } = await supabase.from("crm_clients").update(row).eq("id", clientId).eq("version", version).select("id").maybeSingle();
+  if (error) back(path, { error: error.code === "23505" ? "sale_client_exists" : saleErrorCode(error) });
+  if (!data) back(path, { error: "conflict" });
+  revalidatePath(path);
+  revalidatePath(LIST);
+  back(path, { ok: "saved" });
+}
+
+const KINDS = ["note", "call", "email", "whatsapp", "meeting", "task"];
+/** Activity or follow-up on the client (and its origin lead, when there is one). */
+export async function addClientActivity(form: FormData) {
+  const { supabase } = await ownerForAction();
+  const clientId = uuidField(form, "client_id");
+  if (!clientId) back(LIST, { error: "sale_invalid" });
+  const path = `${LIST}/${clientId}`;
+  const body = field(form, "body").trim();
+  const kind = field(form, "kind") || "note";
+  const due = field(form, "due_on").trim();
+  if (!body || body.length > 4000 || !KINDS.includes(kind)) back(path, { error: "sale_invalid" });
+  if (due && (!/^\d{4}-\d{2}-\d{2}$/.test(due) || Number.isNaN(Date.parse(`${due}T00:00:00Z`)))) back(path, { error: "sale_invalid_date" });
+  const client = await supabase.from("crm_clients").select("id,origin_lead_id").eq("id", clientId).maybeSingle();
+  if (client.error || !client.data) back(path, { error: client.error ? saleErrorCode(client.error) : "sale_client_missing" });
+  const { error } = await supabase.from("crm_activities").insert({
+    client_id: clientId, lead_id: client.data.origin_lead_id, body, kind,
+    status: due ? "pending" : "completed", due_at: due ? `${due}T17:00:00Z` : null,
+  });
+  if (error) back(path, { error: saleErrorCode(error) });
+  revalidatePath(path);
+  back(path, { ok: "saved" });
+}

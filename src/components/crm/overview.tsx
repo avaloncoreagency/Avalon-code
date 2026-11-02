@@ -111,7 +111,7 @@ export function CrmOverview() {
 
       <section className={s.panel} aria-labelledby="notifications-heading">
         <h2 id="notifications-heading">Notificaciones del CRM</h2>
-        <p className={s.muted}>Indicadores derivados de los registros actuales. Aún no existe un buzón de notificaciones persistidas con confirmación de lectura o resolución.</p>
+        <p className={s.muted}>Indicadores de seguimiento de leads derivados de los registros actuales. Los avisos de ventas, entregas y tareas se guardan por propietario en el <Link className={s.link} href="/admin/workspace/crm/notifications">buzón de avisos</Link>, con confirmación de lectura.</p>
         {error ? (
           <p role="alert">{error} <button type="button" onClick={() => setRevision((n) => n + 1)}>Reintentar</button></p>
         ) : !data ? (
@@ -134,7 +134,7 @@ export function CrmOverview() {
 
       <section className={s.panel}>
         <h2>Herramientas adicionales</h2>
-        <p>Consulta <Link className={s.link} href="/admin/workspace/crm/kpis">Estadísticas del CRM</Link>. La sección de <Link className={s.link} href="/admin/workspace/crm/tasks">Tareas internas</Link> todavía requiere persistencia y asignaciones verificables; no se muestran tareas de ejemplo como si fueran reales.</p>
+        <p>Consulta <Link className={s.link} href="/admin/workspace/crm/kpis">Estadísticas del CRM</Link>, las <Link className={s.link} href="/admin/workspace/crm/tasks">Tareas internas</Link> persistentes y asignables, y el <Link className={s.link} href="/admin/workspace/crm/activity">Centro de actividad</Link> con el historial auditado.</p>
       </section>
     </div>
   );

@@ -9,13 +9,12 @@ export type ModuleDef = {
   accent: "cyan" | "violet" | "magenta" | "blue" | "teal" | "amber";
   key: "crm" | "website" | "ecommerce" | "crm_creator" | "receptionist" | "marketing";
   description: Record<Lang, string>;
-  owner?: string;
 };
 export type IconName = "dashboard" | "crm" | "website" | "store" | "blueprint" | "receptionist" | "marketing" | "settings" | "profile" | "logout";
 
 export const modules: ModuleDef[] = [
-  { slug: "crm", key: "crm", href: "/admin/workspace/crm", name: "CRM", icon: "crm", accent: "cyan", owner: "Samuel",
-    description: { es: "Leads, pipeline, actividades y seguimiento comercial.", en: "Leads, pipeline, activities and sales follow-up." } },
+  { slug: "crm", key: "crm", href: "/admin/workspace/crm", name: "CRM", icon: "crm", accent: "cyan",
+    description: { es: "Lead Hunter, pipeline, ventas, clientes 360°, calendario y tareas.", en: "Lead Hunter, pipeline, sales, 360° clients, calendar and tasks." } },
   { slug: "website-designer", key: "website", href: "/admin/workspace/website-designer", name: "Website Hunter", icon: "website", accent: "violet",
     description: { es: "Gestiona webs de clientes, conexiones, recursos, cambios y mantenimiento.", en: "Manage client websites, connections, resources, changes and maintenance." } },
   { slug: "ecommerce-designer", key: "ecommerce", href: "/admin/workspace/ecommerce-designer", name: "E-commerce Designer", icon: "store", accent: "magenta",

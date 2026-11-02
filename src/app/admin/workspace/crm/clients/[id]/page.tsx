@@ -7,8 +7,8 @@ import { getLang } from "@/lib/i18n-server";
 import { pick, formatDate } from "@/lib/i18n";
 import { run, type ProjectRow, PROJECT_COLUMNS } from "@/lib/os/data";
 import { SERVICES, isService } from "@/lib/os/client-hud";
-import { money } from "@/lib/sales/domain";
-import { addContact, updateClientNotes } from "../actions";
+import { label, money } from "@/lib/sales/domain";
+import { addClientActivity, addContact, updateClient, updateClientNotes } from "../actions";
 import s from "@/components/sales/sales.module.css";
 export const dynamic = "force-dynamic";
 
@@ -41,7 +41,8 @@ export default async function Client360({ params, searchParams }: { params: Prom
     run<Event[]>(supabase.from("crm_timeline").select("id,event_type,module,detail,result,from_state,to_state,actor_id,created_at").eq("client_id", id).order("id", { ascending: false }).limit(40)),
     run<{ user_id: string; email: string }[]>(supabase.rpc("crm_owner_directory")),
     leadId ? run<{ id: string; company: string; stage_id: string; value: string; source: string; created_at: string } | null>(supabase.from("crm_leads").select("id,company,stage_id,value,source,created_at").eq("id", leadId).maybeSingle()) : Promise.resolve(null),
-    leadId ? run<{ id: string; body: string; status: string; created_at: string }[]>(supabase.from("crm_activities").select("id,body,status,created_at").eq("lead_id", leadId).order("created_at", { ascending: false }).limit(10)) : Promise.resolve(null),
+    // Activities on the client (FK) and, for history, on its origin lead.
+    run<{ id: string; body: string; status: string; kind?: string; due_at: string | null; created_by: string; created_at: string }[]>(supabase.from("crm_activities").select("id,body,status,kind,due_at,created_by,created_at").or(leadId ? `client_id.eq.${id},lead_id.eq.${leadId}` : `client_id.eq.${id}`).order("created_at", { ascending: false }).limit(25)),
     leadId ? run<{ id: string; title: string; starts_at: string; kind: string; status: string }[]>(supabase.from("crm_events").select("id,title,starts_at,kind,status").eq("lead_id", leadId).order("starts_at", { ascending: false }).limit(10)) : Promise.resolve(null),
   ]);
   const ownerList = owners.data ?? [];
@@ -110,13 +111,37 @@ export default async function Client360({ params, searchParams }: { params: Prom
               <button className={s.button}>{pick(lang, "Guardar contacto", "Save contact")}</button></form></details>
           <h3>{pick(lang, "Notas", "Notes")}</h3>
           <form action={updateClientNotes} className={s.form}><input type="hidden" name="client_id" value={c.id} /><label className={s.field}><span className={s.srOnly}>{pick(lang, "Notas", "Notes")}</span><textarea name="notes" maxLength={4000} rows={4} defaultValue={c.notes} /></label><button className={s.button}>{pick(lang, "Guardar notas", "Save notes")}</button></form>
+          <details style={{ marginTop: 12 }}><summary>{pick(lang, "Editar datos del cliente", "Edit client details")}</summary>
+            <form action={updateClient} className={s.form} style={{ marginTop: 10 }}><input type="hidden" name="client_id" value={c.id} /><input type="hidden" name="version" value={c.version} />
+              <div className={s.row}><label className={s.field}>{pick(lang, "Nombre de empresa *", "Company name *")}<input name="legal_name" required maxLength={200} defaultValue={c.legal_name} /></label><label className={s.field}>{pick(lang, "Nombre comercial", "Trade name")}<input name="trade_name" maxLength={200} defaultValue={c.trade_name} /></label></div>
+              <div className={s.row}><label className={s.field}>Web<input name="website" type="url" maxLength={500} placeholder="https://" defaultValue={c.website} /></label><label className={s.field}>{pick(lang, "Industria", "Industry")}<input name="industry" maxLength={120} defaultValue={c.industry} /></label></div>
+              <div className={s.row}><label className={s.field}>{pick(lang, "País", "Country")}<input name="country" maxLength={80} defaultValue={c.country} /></label><label className={s.field}>{pick(lang, "Ubicación", "Location")}<input name="location" maxLength={200} defaultValue={c.location} /></label></div>
+              <div className={s.row}><label className={s.field}>{pick(lang, "Fuente *", "Source *")}<input name="source" required maxLength={200} defaultValue={c.source} /></label><label className={s.field}>{pick(lang, "Estado", "Status")}<select name="status" defaultValue={c.status}>{["active", "inactive", "archived"].map(x => <option key={x} value={x}>{label(lang, x)}</option>)}</select></label></div>
+              <button className={s.button}>{pick(lang, "Guardar cambios", "Save changes")}</button></form></details>
           {lead?.data && <><h3>{pick(lang, "Lead y oportunidad de origen", "Origin lead and opportunity")}</h3>
             <p className={s.muted}><Link href={`/admin/workspace/crm/leads?lead=${lead.data.id}`}>{lead.data.company}</Link> · {lead.data.stage_id} · {lead.data.source} · {formatDate(lang, lead.data.created_at)}</p>
-            {(activities?.data ?? []).length > 0 && <ul className={s.list}>{activities!.data!.map(a => <li key={a.id}><span style={{ whiteSpace: "pre-wrap" }}>{a.body}</span><small className={s.muted}>{formatDate(lang, a.created_at, true)}</small></li>)}</ul>}
             {(meetings?.data ?? []).length > 0 && <><h3>{pick(lang, "Reuniones y seguimientos", "Meetings and follow-ups")}</h3><ul className={s.list}>{meetings!.data!.map(m => <li key={m.id}><strong>{m.title}</strong><small className={s.muted}>{formatDate(lang, m.starts_at, true)} · {m.kind} · {m.status}</small></li>)}</ul></>}
           </>}
         </section>
       </div>
+
+      <section className={s.panel} aria-labelledby="activities"><header><h2 id="activities">{pick(lang, "Actividad comercial y seguimientos", "Commercial activity and follow-ups")}</h2></header>
+        <div className={s.columns}>
+          <div>{activities.error ? <Unavailable lang={lang} code={activities.error} /> : activities.data.length === 0 ? <p className={s.muted}>{pick(lang, "Sin actividades registradas.", "No activities recorded.")}</p> :
+            <ul className={s.list}>{activities.data.map(a => <li key={a.id} className={s.notice} data-severity={a.status === "pending" && a.due_at && a.due_at < now ? "urgent" : "normal"}>
+              <span className={s.inline}>{a.kind && <span className={s.tag}>{a.kind}</span>}<span className={s.tag} data-tone={a.status === "pending" ? "warn" : "ok"}>{a.status === "pending" ? pick(lang, "Seguimiento pendiente", "Follow-up pending") : pick(lang, "Registrada", "Logged")}</span></span>
+              <span style={{ whiteSpace: "pre-wrap" }}>{a.body}</span>
+              <small className={s.muted}>{ownerName(ownerList, a.created_by)} · {formatDate(lang, a.created_at, true)}{a.due_at ? ` · ${pick(lang, "vence", "due")} ${formatDate(lang, a.due_at)}` : ""}</small></li>)}</ul>}</div>
+          <form action={addClientActivity} className={s.form}><input type="hidden" name="client_id" value={c.id} />
+            <div className={s.row}>
+              <label className={s.field}>{pick(lang, "Tipo", "Type")}<select name="kind" defaultValue="note">{[["note", "Nota", "Note"], ["call", "Llamada", "Call"], ["email", "Email", "Email"], ["whatsapp", "WhatsApp", "WhatsApp"], ["meeting", "Reunión", "Meeting"], ["task", "Seguimiento", "Follow-up"]].map(([k, es, en]) => <option key={k} value={k}>{pick(lang, es, en)}</option>)}</select></label>
+              <label className={s.field}>{pick(lang, "Fecha de seguimiento (opcional)", "Follow-up date (optional)")}<input name="due_on" type="date" /></label>
+            </div>
+            <label className={s.field}>{pick(lang, "Detalle *", "Details *")}<textarea name="body" required maxLength={4000} rows={3} /></label>
+            <button className={s.button}>{pick(lang, "Registrar actividad", "Log activity")}</button>
+          </form>
+        </div>
+      </section>
 
       <section className={s.panel} aria-labelledby="history"><header><h2 id="history">{pick(lang, "Historial de actividad", "Activity history")}</h2><Link href={`/admin/workspace/crm/activity?client=${c.id}`}>{pick(lang, "Investigar en el centro de actividad", "Investigate in the activity center")}</Link></header>
         {timeline.error ? <Unavailable lang={lang} code={timeline.error} /> : timeline.data.length === 0 ? <p className={s.muted}>{pick(lang, "Sin eventos registrados.", "No recorded events.")}</p> :

@@ -14,7 +14,7 @@ const MIGUEL = '00000000-0000-4000-8000-0000000000a1';
 const SAMUEL = '00000000-0000-4000-8000-0000000000b2';
 const OUTSIDER = '00000000-0000-4000-8000-0000000000c3';
 const EVIDENCE = process.env.EVIDENCE_DIR || '../evidence';
-const ROUTES = ['/admin/workspace/crm/sales', '/admin/workspace/crm/sales/new', '/admin/workspace/crm/clients', '/admin/workspace/crm/tasks', '/admin/workspace/crm/notifications', '/admin/workspace/crm/activity'];
+const ROUTES = ['/admin/dashboard', '/admin/workspace/crm', '/admin/workspace/crm/calendar', '/admin/workspace/crm/settings', '/admin/workspace/crm/sales', '/admin/workspace/crm/sales/new', '/admin/workspace/crm/clients', '/admin/workspace/crm/tasks', '/admin/workspace/crm/notifications', '/admin/workspace/crm/activity'];
 
 test('Nova Restaurant through the real app: one form, three departments, no duplicates', { timeout: 240000 }, async t => {
   const db = new PGlite();
@@ -115,6 +115,7 @@ test('Nova Restaurant through the real app: one form, three departments, no dupl
   // Re-submitting the same form (browser back + resubmit) must replay, not duplicate.
   await page.goBack();
   await page.getByRole('button', { name: 'Confirmar venta e iniciar trabajo' }).waitFor();
+  const one = async (sql, params) => { await db.exec('reset role;'); return (await db.query(sql, params)).rows[0]; };
   const count = async sql => { await db.exec('reset role;'); return Number((await db.query(sql)).rows[0].n); };
   assert.equal(await count('select count(*) n from crm_sales'), 1, 'double click created exactly one sale');
   assert.equal(await count('select count(*) n from crm_clients'), 1);
@@ -172,6 +173,88 @@ test('Nova Restaurant through the real app: one form, three departments, no dupl
   const activity = await page.locator('#main').innerText();
   for (const e of ['sale.confirmed', 'client.created', 'project.created', 'payment.recorded', 'task.status_changed']) assert.ok(activity.includes(e), `activity center lists ${e}`);
   await page.screenshot({ path: `${EVIDENCE}/activity-center.png`, fullPage: true });
+
+
+  // ── Dashboard → CRM: the HUD card opens the real CRM, never a placeholder ──
+  await page.goto(origin + '/admin/dashboard');
+  await page.getByRole('heading', { name: 'Pulso comercial' }).waitFor();
+  assert.match(await page.locator('#main').innerText(), /Ingresos contratados[\s\S]*4[.,]200/, 'dashboard KPIs come from recorded sales');
+  await page.screenshot({ path: `${EVIDENCE}/dashboard.png`, fullPage: true });
+  await page.locator('a[href="/admin/workspace/crm"]', { hasText: 'Lead Hunter, pipeline' }).click();
+  await page.waitForURL(origin + '/admin/workspace/crm');
+  await page.getByRole('heading', { name: 'Centro comercial de Avalon' }).waitFor();
+  await page.getByRole('heading', { name: 'Ventas, clientes, proyectos y tareas' }).waitFor();
+  const crmHome = await page.locator('#main').innerText();
+  assert.doesNotMatch(crmHome, /desarrollo por Samuel|en desarrollo/i);
+  await page.screenshot({ path: `${EVIDENCE}/crm-home.png`, fullPage: true });
+  // Every primary tab and secondary page is reachable from the CRM and renders its own screen.
+  const tabs = [['Lead Hunter', /\/crm\/hunter$/], ['Leads Pipeline', /\/crm\/leads$/], ['Ventas', /\/crm\/sales$/], ['Calendario', /\/crm\/calendar$/], ['Tareas', /\/crm\/tasks$/]];
+  for (const [name, url] of tabs) {
+    await page.goto(origin + '/admin/workspace/crm');
+    await page.getByRole('navigation', { name: 'Flujo principal del CRM' }).first().getByRole('link', { name, exact: true }).click();
+    await page.waitForURL(url);
+    assert.doesNotMatch(await page.locator('#main').innerText(), /desarrollo por Samuel/i, name);
+  }
+  for (const [name, heading] of [['Clientes 360°', 'Clientes 360°'], ['Centro de actividad', 'Centro de actividad'], ['Avisos', 'Avisos comerciales y operativos'], ['Configuración', 'Configuración del CRM']]) {
+    await page.goto(origin + '/admin/workspace/crm');
+    await page.getByRole('navigation', { name: 'Operaciones comerciales' }).first().getByRole('link', { name, exact: true }).click();
+    await page.getByRole('heading', { name: heading, exact: true }).waitFor();
+  }
+  assert.equal((await get('/admin/workspace/unknown-module', miguel)).status, 404, 'unknown module is 404, not a placeholder');
+
+  // ── Lead → pipeline → sale → departments → tasks → client 360 → history ──
+  await page.goto(origin + '/admin/workspace/crm/leads');
+  await page.getByRole('button', { name: 'Crear lead', exact: true }).click();
+  await page.getByLabel('Empresa *', { exact: true }).fill('Orbit Dental Sintético');
+  await page.getByLabel('Origen / fuente *', { exact: true }).fill('web');
+  await page.getByRole('button', { name: 'Guardar', exact: true }).click();
+  await page.getByText('Guardado correctamente.', { exact: true }).waitFor();
+  await page.getByLabel('Etapa de Orbit Dental Sintético').selectOption('proposal');
+  await page.waitForTimeout(300);
+  await page.reload();
+  assert.equal(await page.getByLabel('Etapa de Orbit Dental Sintético').inputValue(), 'proposal', 'stage move persisted');
+  const leadId = (await one("select id from crm_leads where company='Orbit Dental Sintético'")).id;
+  await page.goto(`${origin}/admin/workspace/crm/sales/new?lead=${leadId}`);
+  await page.getByLabel('Cliente nuevo').check();
+  await page.getByLabel('Nombre de empresa *').fill('Orbit Dental Sintético');
+  await page.locator('select[name="line_0_service"]').selectOption('crm-personalizado');
+  await page.locator('input[name="line_0_price"]').fill('3000');
+  await Promise.all([page.waitForURL(/\/crm\/sales\/[0-9a-f-]{36}\?ok=confirmed/), page.getByRole('button', { name: 'Confirmar venta e iniciar trabajo' }).click()]);
+  assert.equal((await one('select s.kind from crm_leads l join crm_stages s on s.id=l.stage_id where l.id=$1', [leadId])).kind, 'won', 'sale moves the lead to won');
+  const orbit = await one("select id, origin_lead_id from crm_clients where legal_name='Orbit Dental Sintético'");
+  assert.equal(orbit.origin_lead_id, leadId, 'client keeps its origin lead');
+  assert.equal(Number((await one("select count(*) n from os_projects where client_id=$1 and module='crm_creator'", [orbit.id])).n), 1, 'CRM Creator received its project');
+  // Edit the client, log a follow-up, both persist after reload.
+  await page.goto(`${origin}/admin/workspace/crm/clients/${orbit.id}`);
+  await page.getByText('Editar datos del cliente').click();
+  await page.getByLabel('Industria').fill('Salud dental');
+  await page.getByRole('button', { name: 'Guardar cambios' }).click();
+  await page.getByText('Cambios guardados.').waitFor();
+  await page.locator('textarea[name="body"]').fill('Llamada de kickoff sintética');
+  await page.locator('input[name="due_on"]').fill('2026-12-01');
+  await page.getByRole('button', { name: 'Registrar actividad' }).click();
+  await page.getByText('Cambios guardados.').waitFor();
+  await page.reload();
+  const orbitHub = await page.locator('#main').innerText();
+  assert.ok(orbitHub.includes('Salud dental') && orbitHub.includes('Llamada de kickoff sintética'), 'client edit and activity persisted');
+  assert.ok(orbitHub.includes('Orbit Dental Sintético — CRM personalizado'), 'project visible from the client');
+  // Calendar shows persisted due dates (tasks/deliveries) for everyone.
+  await page.goto(origin + '/admin/workspace/crm/calendar?owner=all');
+  await page.getByRole('heading', { name: 'Vencimientos, entregas y seguimientos' }).waitFor();
+  assert.match(await page.locator('#main').innerText(), /Descubrimiento de procesos comerciales/, 'template task appears on the calendar');
+  await page.screenshot({ path: `${EVIDENCE}/calendar.png`, fullPage: true });
+  // History of the whole journey on the client timeline.
+  await page.goto(`${origin}/admin/workspace/crm/activity?client=${orbit.id}`);
+  await page.getByText('lead.won', { exact: true }).first().waitFor();
+  for (const e of ['sale.confirmed', 'client.created', 'project.created', 'tasks.generated']) assert.ok((await page.locator('#main').innerText()).includes(e), `history has ${e}`);
+  // Catalog settings persist (price + default assignee) and the automation switch is audited.
+  await page.goto(origin + '/admin/workspace/crm/settings');
+  const webForm = page.locator('form', { hasText: 'desarrollo-web' });
+  await webForm.locator('input[name="suggested_price"]').fill('2000');
+  await webForm.getByRole('button', { name: 'Guardar servicio' }).click();
+  await page.getByText('Cambios guardados.').waitFor();
+  assert.equal(Number((await one("select suggested_price p from crm_service_catalog where code='desarrollo-web'")).p), 2000);
+  await page.screenshot({ path: `${EVIDENCE}/crm-settings.png`, fullPage: true });
 
   assert.deepEqual(errors.filter(e => e.startsWith('pageerror')), [], 'no client-side errors');
 });
