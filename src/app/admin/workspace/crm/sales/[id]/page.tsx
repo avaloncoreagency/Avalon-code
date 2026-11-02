@@ -10,7 +10,7 @@ import { SERVICES, isService } from "@/lib/os/client-hud";
 import { label, money, PAYMENT_METHODS, WORK_ORDER_STATUSES } from "@/lib/sales/domain";
 import { recordPayment, updateContract, updateWorkOrder } from "../actions";
 import { createStripeInvoiceDraft, sendStripeInvoice } from "../stripe-actions";
-import { stripeSandboxReady, stripeRequest, type StripeInvoice } from "@/lib/stripe/avalon";
+import { stripeSandboxReady } from "@/lib/stripe/avalon";
 import s from "@/components/sales/sales.module.css";
 export const dynamic = "force-dynamic";
 
@@ -18,6 +18,7 @@ type Sale = { id: string; sale_number: string; correlation_id: string; client_id
 type Line = { id: string; position: number; description: string; quantity: string; unit_price: string; discount: string; line_total: string; billing_type: string; crm_service_catalog: { name: string; name_en: string } | null };
 type Order = { id: string; sale_line_id: string; department_id: string; project_id: string | null; assignee_id: string; recurrence: string; status: string; due_on: string | null; crm_departments: { label: string; os_module: string | null } | null; os_projects: { name: string; module: string } | null };
 type Payment = { id: string; amount: string; received_on: string; method: string; reference: string };
+type StripeCrmInvoice = { id: string; sale_id: string; stripe_invoice_id: string | null; status: string; amount_minor: string | number; currency: string; needs_review: boolean; review_reason: string; hosted_invoice_url: string | null; created_at: string };
 type Event = { id: number; event_type: string; module: string; detail: string; result: string; from_state: string | null; to_state: string | null; actor_id: string | null; created_at: string };
 
 export default async function SaleDetail({ params, searchParams }: { params: Promise<{ id: string }>; searchParams: Promise<Query> }) {
@@ -28,18 +29,15 @@ export default async function SaleDetail({ params, searchParams }: { params: Pro
   const p = await searchParams;
   const sale = await run<Sale | null>(supabase.from("crm_sales").select("*,crm_clients(legal_name,client_code)").eq("id", id).maybeSingle());
   if (!sale.error && !sale.data) notFound();
-  const [lines, orders, payments, owners, tasks] = await Promise.all([
+  const [lines, orders, payments, owners, tasks, invoiceRows] = await Promise.all([
     run<Line[]>(supabase.from("crm_sale_lines").select("id,position,description,quantity,unit_price,discount,line_total,billing_type,crm_service_catalog(name,name_en)").eq("sale_id", id).order("position")),
     run<Order[]>(supabase.from("crm_work_orders").select("id,sale_line_id,department_id,project_id,assignee_id,recurrence,status,due_on,crm_departments(label,os_module),os_projects(name,module)").eq("sale_id", id).order("created_at").order("id")),
     run<Payment[]>(supabase.from("crm_payments").select("id,amount,received_on,method,reference").eq("sale_id", id).order("received_on")),
     run<{ user_id: string; email: string }[]>(supabase.rpc("crm_owner_directory")),
     run<{ work_order_id: string; status: string }[]>(supabase.from("crm_tasks").select("work_order_id,status").eq("sale_id", id).limit(1000)),
+    run<StripeCrmInvoice[]>(supabase.from("crm_stripe_invoices").select("id,sale_id,stripe_invoice_id,status,amount_minor,currency,needs_review,review_reason,hosted_invoice_url,created_at").eq("sale_id", id).order("created_at", { ascending: false }).limit(50)),
   ]);
   const events = sale.data ? await run<Event[]>(supabase.from("crm_timeline").select("id,event_type,module,detail,result,from_state,to_state,actor_id,created_at").or(`correlation_id.eq.${sale.data.correlation_id},sale_id.eq.${id}`).order("id").limit(200)) : null;
-  const invoiceParam = q(p, "stripe_invoice");
-  const stripeInvoice = stripeSandboxReady() && /^in_[A-Za-z0-9]{8,80}$/.test(invoiceParam)
-    ? await stripeRequest<StripeInvoice>(`/invoices/${invoiceParam}`).catch(() => null) : null;
-  const verifiedInvoice = stripeInvoice?.metadata?.avalon_sale_id === id ? stripeInvoice : null;
   const ownerList = owners.data ?? [];
   const d = sale.data;
   const paid = (payments.data ?? []).reduce((sum, x) => sum + Number(x.amount), 0);
@@ -90,25 +88,39 @@ export default async function SaleDetail({ params, searchParams }: { params: Pro
             <div className={s.muted}>{[e.from_state && e.to_state ? `${e.from_state} → ${e.to_state}` : e.to_state, e.detail].filter(Boolean).join(" · ")}</div></li>)}</ol>}
         </section>
         <section className={s.panel} aria-labelledby="stripe-invoices">
-          <header><h2 id="stripe-invoices">{pick(lang, "Facturas Stripe · Sandbox", "Stripe Invoices · Sandbox")}</h2></header>
-          <p className={s.muted}>{pick(lang, "Solo pruebas: crear un borrador no cobra ni envía correos. Los cobros reales permanecerán desactivados hasta configurar webhooks y conciliación automática.", "Test mode only: creating a draft does not charge or send email. Live payments stay disabled until signed webhooks and automatic reconciliation are configured.")}</p>
-          {q(p, "stripe_error") && <p role="alert" className={s.muted}>{pick(lang, "Stripe: revisa cuenta sandbox, contacto principal y configuración.", "Stripe: check sandbox, primary contact and configuration.")}</p>}
-          {q(p, "stripe_ok") === "sent" && <p role="status">{pick(lang, "Factura de prueba enviada.", "Test invoice sent.")}</p>}
-          {!stripeSandboxReady() ? <p className={s.muted}>{pick(lang, "No configurado: añadir STRIPE_SECRET_KEY de pruebas y STRIPE_SANDBOX_ONLY=true solo en Preview.", "Not configured: add a test STRIPE_SECRET_KEY and STRIPE_SANDBOX_ONLY=true in Preview only.")}</p>
-            : d.status === "confirmed" && d.contract_status !== "cancelled" && d.currency === "USD" && !verifiedInvoice ?
-            <form action={createStripeInvoiceDraft} className={s.form}>
-              <input type="hidden" name="sale_id" value={d.id} />
-              <button className={s.button}>{pick(lang, "Crear borrador de factura Stripe", "Create Stripe invoice draft")}</button>
-            </form> : null}
-          {verifiedInvoice && <div>
-            <p><strong>{verifiedInvoice.id}</strong> · <Tag lang={lang} value={verifiedInvoice.status} /></p>
-            <p className={s.muted}>{money(lang, verifiedInvoice.amount_due / 100, verifiedInvoice.currency.toUpperCase())}</p>
-            {verifiedInvoice.status === "draft" && process.env.STRIPE_ALLOW_TEST_SEND === "true" && <form action={sendStripeInvoice} className={s.form}>
-              <input type="hidden" name="sale_id" value={d.id} /><input type="hidden" name="invoice_id" value={verifiedInvoice.id} />
-              <button className={s.button}>{pick(lang, "Enviar factura de prueba al cliente", "Send test invoice to customer")}</button>
-            </form>}
-            {verifiedInvoice.hosted_invoice_url && <a className={s.button} href={verifiedInvoice.hosted_invoice_url} target="_blank" rel="noopener noreferrer">{pick(lang, "Abrir página de factura", "Open hosted invoice")}</a>}
-          </div>}
+          <header><h2 id="stripe-invoices">{pick(lang, "Facturas · Stripe Sandbox", "Invoices · Stripe Sandbox")}</h2></header>
+          <p className={s.muted}>{pick(lang, "Facturas vinculadas a esta venta. Un borrador no es un cobro; solo los pagos confirmados se suman a «Cobrado».", "Invoices linked to this sale. A draft is not a payment; only confirmed payments count as collected.")}</p>
+          {q(p,"stripe_error") && <p role="alert" className={s.muted}>{pick(lang,
+            q(p,"stripe_error") === "test_email_required" ? "Utiliza un contacto principal con correo sintético (.example.test o .example.invalid) en el Sandbox." :
+            q(p,"stripe_error") === "not_configured" ? "El Stripe Sandbox de Preview todavía no está configurado." :
+            "No se pudo completar la operación Stripe. Revisa la configuración, el saldo pendiente y el historial de la factura.",
+            q(p,"stripe_error") === "test_email_required" ? "A synthetic test email is required for sandbox use." :
+            q(p,"stripe_error") === "not_configured" ? "Stripe Sandbox is not configured in Preview." :
+            "Stripe could not complete the operation. Check settings, balance and invoice history.")}</p>}
+          {q(p,"stripe_ok") && <p role="status">{pick(lang, "Operación de factura de prueba completada. Verifica su estado abajo.", "Sandbox invoice action completed. Verify its status below.")}</p>}
+          {invoiceRows.error ? <Unavailable lang={lang} code={invoiceRows.error} /> : <>
+            {(invoiceRows.data ?? []).length === 0 ? <p className={s.muted}>{pick(lang, "Esta venta todavía no tiene facturas Stripe.", "No Stripe invoices for this sale yet.")}</p> :
+              <ul className={s.list}>{(invoiceRows.data ?? []).map(inv => <li key={inv.id}>
+                <strong>{money(lang, Number(inv.amount_minor) / 100, inv.currency)} · <Tag lang={lang} value={inv.status} /></strong>
+                <span className={s.muted}>{inv.stripe_invoice_id ?? pick(lang, "Preparando borrador", "Preparing draft")} · {formatDate(lang, inv.created_at, true)}</span>
+                {inv.needs_review && <span role="alert" className={s.muted}>{pick(lang, "Requiere revisión de Miguel o Samuel", "Owner review required")}: {inv.review_reason}</span>}
+                {inv.hosted_invoice_url?.startsWith("https://invoice.stripe.com/") &&
+                  <a href={inv.hosted_invoice_url} target="_blank" rel="noopener noreferrer">{pick(lang, "Abrir factura Stripe", "Open Stripe invoice")}</a>}
+                {inv.status === "creating" && stripeSandboxReady() &&
+                  <form action={createStripeInvoiceDraft}><input type="hidden" name="sale_id" value={d.id} />
+                    <button className={s.button}>{pick(lang, "Reintentar preparación", "Retry draft preparation")}</button></form>}
+                {inv.status === "draft" && stripeSandboxReady() && process.env.STRIPE_ALLOW_TEST_SEND === "true" &&
+                  <form action={sendStripeInvoice}><input type="hidden" name="sale_id" value={d.id}/><input type="hidden" name="invoice_id" value={inv.id}/>
+                    <button className={s.button}>{pick(lang, "Autorizar envío de factura de prueba", "Approve sending test invoice")}</button></form>}
+              </li>)}</ul>}
+            {stripeSandboxReady() && d.status === "confirmed" && d.contract_status !== "cancelled" && d.currency === "USD" &&
+              Number(d.total) > paid && !(invoiceRows.data ?? []).some(x => ["creating","draft","open","uncollectible","review"].includes(x.status)) &&
+              <form action={createStripeInvoiceDraft} className={s.form} style={{ marginTop: 14 }}>
+                <input type="hidden" name="sale_id" value={d.id}/>
+                <button className={s.button}>{pick(lang, "Crear borrador de factura Stripe", "Create Stripe invoice draft")}</button>
+              </form>}
+            {!stripeSandboxReady() && <p className={s.muted}>{pick(lang, "Pendiente de configurar claves de prueba en Vercel Preview. No se aceptan pagos reales.", "Waiting for test credentials in Vercel Preview. Live payments are disabled.")}</p>}
+          </>}
         </section>
         <section className={s.panel} aria-labelledby="payments"><header><h2 id="payments">{pick(lang, "Cobros registrados", "Recorded payments")}</h2></header>
           {payments.error ? <Unavailable lang={lang} code={payments.error} /> : payments.data.length === 0 ? <p className={s.muted}>{pick(lang, "Sin cobros registrados. El pago inicial acordado no cuenta como cobrado.", "No payments recorded. The agreed upfront payment does not count as collected.")}</p> :
