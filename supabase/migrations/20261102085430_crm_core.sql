@@ -1,3 +1,9 @@
+-- Recovered verbatim from production (supabase_migrations.schema_migrations,
+-- version 20261102085430, name crm_core) on 2026-11-02 by a read-only audit.
+-- It was applied to production but missing from the repository, so the repo
+-- could not rebuild or review the live CRM schema. Do NOT re-apply: it is
+-- already recorded as applied. Kept here for review, CI and disaster recovery.
+--
 -- Prepared only. Apply remotely ONLY after explicit approval.
 -- Existing deployment is single-agency. Do not reuse this policy for multi-tenancy.
 begin;

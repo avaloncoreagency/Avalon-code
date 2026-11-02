@@ -4,6 +4,15 @@ import { getAppOrigin } from "@/lib/auth/policy";
 import { grantPasswordFlow } from "@/lib/auth/email-flow";
 
 export async function GET(request: NextRequest) {
+  // Resolve the origin first: a misconfigured APP_ORIGIN must fail closed with a
+  // controlled 503 (like the callback), not an unhandled 500 after the email token was already consumed.
+  let origin: string;
+  try { origin = getAppOrigin(); } catch {
+    return NextResponse.json({ error: "Authentication is not configured." }, {
+      status: 503,
+      headers: { "Cache-Control": "private, no-store", "Referrer-Policy": "no-referrer" },
+    });
+  }
   const type = request.nextUrl.searchParams.get("type");
   const token_hash = request.nextUrl.searchParams.get("token_hash");
   let path = "/admin/login?error=callback";
@@ -19,5 +28,5 @@ export async function GET(request: NextRequest) {
       }
     } catch { /* Fail closed without exposing tokens. */ }
   }
-  return NextResponse.redirect(new URL(path, getAppOrigin()), { headers: { "Cache-Control": "private, no-store", "Referrer-Policy": "no-referrer" } });
+  return NextResponse.redirect(new URL(path, origin), { headers: { "Cache-Control": "private, no-store", "Referrer-Policy": "no-referrer" } });
 }

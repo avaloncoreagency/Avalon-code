@@ -11,7 +11,8 @@
 
 export const SUPABASE_ORIGIN = "https://*.supabase.co";
 
-export const ENFORCED_CSP = ["frame-ancestors 'none'", "object-src 'none'", "base-uri 'self'"].join("; ");
+// form-action 'self' is safe: sign-in is a same-origin server action (no OAuth redirect).
+export const ENFORCED_CSP = ["frame-ancestors 'none'", "object-src 'none'", "base-uri 'self'", "form-action 'self'"].join("; ");
 
 export const REPORT_ONLY_CSP = [
   "default-src 'self'",
