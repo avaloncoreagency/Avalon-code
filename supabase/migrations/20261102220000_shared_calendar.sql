@@ -28,13 +28,13 @@ create index crm_events_shared_range on public.crm_events(starts_at,ends_at)
 -- membership rows to other authenticated users or anonymous callers.
 -- It still verifies that the current caller is an owner before any lookup.
 create function crm_private.calendar_owner_exists(candidate uuid) returns boolean
-language sql stable security definer set search_path = '' as $
+language sql stable security definer set search_path = '' as $$
   select crm_private.is_owner()
     and exists (
       select 1 from public.agency_memberships
       where user_id = candidate and role = 'owner'
     );
-$;
+$$;
 revoke all on function crm_private.calendar_owner_exists(uuid) from public, anon;
 grant execute on function crm_private.calendar_owner_exists(uuid) to authenticated;
 
