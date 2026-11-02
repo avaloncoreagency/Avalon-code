@@ -103,7 +103,7 @@ export default async function SaleDetail({ params, searchParams }: { params: Pro
           {verifiedInvoice && <div>
             <p><strong>{verifiedInvoice.id}</strong> · <Tag lang={lang} value={verifiedInvoice.status} /></p>
             <p className={s.muted}>{money(lang, verifiedInvoice.amount_due / 100, verifiedInvoice.currency.toUpperCase())}</p>
-            {verifiedInvoice.status === "draft" && <form action={sendStripeInvoice} className={s.form}>
+            {verifiedInvoice.status === "draft" && process.env.STRIPE_ALLOW_TEST_SEND === "true" && <form action={sendStripeInvoice} className={s.form}>
               <input type="hidden" name="sale_id" value={d.id} /><input type="hidden" name="invoice_id" value={verifiedInvoice.id} />
               <button className={s.button}>{pick(lang, "Enviar factura de prueba al cliente", "Send test invoice to customer")}</button>
             </form>}
