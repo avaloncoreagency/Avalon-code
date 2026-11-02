@@ -113,7 +113,16 @@ test('marketing calendar grid starts on Monday and covers the month', () => {
 test('no service-role or secret keys are referenced by application code', () => {
   for (const file of sources) {
     const text = fs.readFileSync(file, 'utf8');
-    assert.doesNotMatch(text, /process\.env\.[A-Z_]*(?:SERVICE_ROLE|SUPABASE_SECRET)|sb_secret_[a-zA-Z0-9]{10,}/, file);
+    if (file === path.join('src', 'app', 'api', 'stripe', 'webhook', 'route.ts')) {
+      // Authenticated by an HMAC-verified raw-body Stripe signature, not by a
+      // browser cookie. Server-only exception: no client-side import permitted.
+      assert.match(text, /verifyStripeSignature\(payload, request\.headers\.get\("stripe-signature"\), secret\)/);
+      assert.match(text, /event\.livemode !== false/);
+      assert.match(text, /crm_stripe_process_event/);
+      assert.match(text, /process\.env\.SUPABASE_SERVICE_ROLE_KEY/);
+    } else {
+      assert.doesNotMatch(text, /process\.env\.[A-Z_]*(?:SERVICE_ROLE|SUPABASE_SECRET)|sb_secret_[a-zA-Z0-9]{10,}/, file);
+    }
     assert.doesNotMatch(text, /NEXT_PUBLIC_[A-Z_]*(SECRET|SERVICE)/, file);
   }
 });
