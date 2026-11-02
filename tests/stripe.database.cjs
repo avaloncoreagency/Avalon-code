@@ -70,6 +70,7 @@ test("Stripe invoice reserves the unpaid balance, rejects strangers and reconcil
   assert.equal(await count("select count(*) n from crm_payments where sale_id=$1",[saleId]),2);
   assert.equal(Number((await first("select sum(amount) total from crm_payments where sale_id=$1",[saleId])).total),250);
   assert.equal((await first("select status,needs_review from crm_stripe_invoices where id=$1",[reserved.id])).status,"paid");
+  assert.equal(await count("select count(*) n from crm_audit where entity='crm_payments' and actor_id=$1",[MIGUEL]),2, "both manual and Stripe payments attributed to a verified owner");
 
   await service();
   const refund={id:"evt_TEST003",type:"credit_note.created",livemode:false,data:{object:{id:"cn_TEST",invoice:"in_TEST001"}}};
