@@ -203,7 +203,7 @@ begin
       or l.direct_cost is null or l.estimated_hours is null
       or p.hourly_rate is null);
   if n>0 then raise exception 'planner_not_ready' using errcode='22023'; end if;
-  if not exists(select 1 from public.crm_solution_plan_lines where plan_id=$1) then
+  if not exists(select 1 from public.crm_solution_plan_lines l where l.plan_id=$1) then
     raise exception 'planner_empty' using errcode='22023';
   end if;
   update public.crm_solution_plans
