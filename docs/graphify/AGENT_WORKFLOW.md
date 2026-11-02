@@ -39,3 +39,14 @@ Task | branch/commit | files changed | Graphify used (index commit + relevant pa
 ## Measuring improvements
 
 For each comparable task type, collect **optional** per-run stats if the coding tool exposes them: total input/output tokens or paid credits, elapsed time, number of discovery calls, repeated file reads, test failures, accepted changes. Compare matched task sizes and keep results as estimates, not guaranteed savings. Never add a telemetry service just to measure this.
+
+## Connecting Codex to Graphify (no secrets in Git)
+
+The repository's `.codex/config.toml` declares the hosted Graphify MCP server for **trusted Codex CLI/IDE checkouts**. Graphify must still be authenticated by the developer, and a project-scoped config does **not** guarantee availability in every Codex cloud/desktop session.
+
+- CLI/IDE: in a trusted Avalon checkout, use `codex mcp list` to check for `graphify`; if needed, use `codex mcp add graphify --url https://api.graphify.com/mcp` for a user-wide setup, then `codex mcp login graphify` to authorize through the browser. Never paste or commit OAuth tokens.
+- Codex desktop plugin: install/connect the **Graphify** plugin under Codex Plugins if the repo config is not used there. Grant access to the existing `avalon-graph` workspace.
+- Verify **actual tool access** by asking Codex to call `list_repositories` and find `avaloncoreagency/Avalon-code`. If unavailable, report the missing connection; use scoped GitHub reads rather than pretending Graphify was called.
+- Only use Graphify for code context, where available; use current Git source and tests to validate results. The main-branch graph may be stale compared with unmerged integration branches.
+
+Reference: https://graphify.com/blog/how-to-add-an-mcp-server-to-codex
