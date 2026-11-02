@@ -28,6 +28,8 @@ test("Stripe integration safety invariants are preserved", () => {
   const middleware = source("src/lib/supabase/middleware.ts");
   const sql = source("supabase/migrations/20261102203000_stripe_crm_invoices.sql");
   const action = source("src/app/admin/workspace/crm/sales/stripe-actions.ts");
+  const salePage = source("src/app/admin/workspace/crm/sales/[id]/page.tsx");
+  const saleErrors = source("src/lib/sales/domain.ts");
   assert.match(stripe, /rk_test_\|sk_test_/);
   assert.match(stripe, /STRIPE_SANDBOX_ONLY/);
   assert.match(stripe, /VERCEL_ENV !== "production"/);
@@ -43,6 +45,19 @@ test("Stripe integration safety invariants are preserved", () => {
   assert.match(sql, /elsif v_type = 'invoice.payment_succeeded' then/);
   assert.match(sql, /stripe_invoice_pending_link/);
   assert.match(sql, /payment_source_unverified/);
+  // A malformed migration or a duplicated CREATE can break every Preview DB.
+  assert.equal((sql.match(/create function public\.crm_stripe_process_event/g) || []).length, 1);
+  assert.equal((sql.match(/^commit;$/gm) || []).length, 1);
+  assert.match(sql, /create or replace function crm_private\.payment_guard\(\)/);
+  assert.match(sql, /payment_stripe_invoice_active/);
+  assert.match(sql, /select i\.sale_id into v_sale_id from public\.crm_stripe_invoices/);
+  assert.match(sql, /perform 1 from public\.crm_sales s where s\.id = v_sale_id for update/);
+  assert.match(salePage, /!invoiceRows\.error && !activeStripeInvoice/);
+  assert.match(saleErrors, /payment_stripe_invoice_active/);
+  assert.match(salePage, /Number\(d\.tax_total\) === 0/);
+  assert.match(action, /tax_requires_review/);
+  assert.match(action, /invoice\.automatic_tax\?\.enabled !== false/);
+
   assert.match(sql, /grant execute on function public.crm_stripe_process_event\(jsonb\) to service_role/);
   assert.match(action, /crm_stripe_reserve_invoice/);
   assert.match(action, /TEST_EMAIL/);
