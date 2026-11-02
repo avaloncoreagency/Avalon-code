@@ -17,10 +17,17 @@ test('public inquiry: anon creates a pending prospect only, validated, throttled
   const base = { company: 'Nova Sintética', name: 'Ana Prueba', email: 'ana@nova.example.invalid', phone: '+1 305 555 0100', message: 'Necesitamos web y recepcionista IA', services: ['website', 'receptionist', 'hack'] };
   assert.equal(await call({ ...base, email: 'no-es-correo' }), 'invalid');
   assert.equal(await call({ ...base, message: 'corto' }), 'invalid');
+  // The anonymous RPC is callable directly; malformed JSON types must never
+  // throw (SQLSTATE 22023) or create prospects, regardless of the UI schema.
+  for (const services of ['website', null, { website: true }, 5, true]) {
+    assert.equal(await call({ ...base, services }), 'invalid', `non-array services: ${JSON.stringify(services)}`);
+  }
   assert.equal(await call({ ...base, website_url: 'http://spam.example' }), 'ok', 'honeypot answers ok');
   assert.equal(await call(base), 'ok');
-  assert.equal(await call({ ...base, email: 'ANA@nova.example.invalid' }), 'ok');
-  assert.equal(await call(base), 'ok', 'third request of the day still accepted');
+  const withoutServices = { ...base };
+  delete withoutServices.services;
+  assert.equal(await call(withoutServices), 'ok', 'omitting optional services remains valid');
+  assert.equal(await call({ ...base, email: 'ANA@nova.example.invalid' }), 'ok', 'third request of the day still accepted');
   assert.equal(await call(base), 'throttled', 'fourth within 24 h is throttled');
   await assert.rejects(db.query('select count(*) from crm_prospects'), /permission denied/, 'anon cannot read');
   await assert.rejects(db.query("insert into crm_prospects(company,source,owner_id,opportunity,acquired_at) values('x','x',$1,'x',now())", [MIGUEL]), /permission denied/);
