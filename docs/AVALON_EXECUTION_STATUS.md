@@ -111,3 +111,17 @@ until an isolated DB is chosen (owner decision).
 
 Next exact task: owner chooses (a) isolated DB for Preview and (b) map/places provider; then campaign runner
 (`/api/radar/cron` with CRON_SECRET, advisory lock, budget) and AI usage center.
+
+## 8. Pipedrive-style pipeline board (owner request, 2026-11-02)
+
+| Item | State | Evidence |
+|---|---|---|
+| Stage columns with name, total value and lead count | done | `pipeline-board.png` |
+| Move leads by drag & drop (desktop) or «Mover a» per card (mobile/keyboard); "Perdido" still asks for a reason; version check kept | done | `tests/sales.browser.cjs` (drag → Negociación persisted) |
+| Card: company, contact, value, owner avatar, activity dot (green scheduled / red overdue / gray none) | done | `tests/pipeline-board.test.cjs`, `pipeline-card.png` |
+| Card history drawer: stage changes with time in previous stage, notes, scheduled activities, files | done | browser E2E, `pipeline-card-history.png` |
+| Stage history written by trigger (cannot be forged/edited), backfilled for existing leads | done (isolated DB) | `tests/pipeline-board.database.cjs` |
+| Files: ≤ 5 MB, PDF/PNG/JPG/WEBP/TXT/CSV/DOCX/XLSX, extension + signature check, 25 MB per lead, immutable, owner-only RLS, download always as attachment with `nosniff` + sandbox CSP | done | unit + DB + browser |
+
+Migration `20261102210000_pipeline_board.sql`: **not applied anywhere** (needs owner approval, same as `190000`/`200000`).
+Without it the board, moves and notes work; the drawer shows "migración pendiente" for stage history and files.

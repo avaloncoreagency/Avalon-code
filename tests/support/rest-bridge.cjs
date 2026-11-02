@@ -134,12 +134,16 @@ async function startBridge(db, { users, log = () => {} }) {
     if (!types.has(table)) types.set(table, new Map((await db.query("select column_name, data_type from information_schema.columns where table_schema='public' and table_name=$1", [table])).rows.map(r => [r.column_name, r.data_type])));
     return types.get(table).get(col);
   };
-  const value = async (table, col, v) => (v !== null && typeof v === 'object' && !(Array.isArray(v) && (await colType(table, col)) === 'ARRAY') ? JSON.stringify(v) : v);
+  const value = async (table, col, v) => {
+    // bytea arrives as PostgREST hex text ("\\x…"); PGlite wants bytes.
+    if (typeof v === 'string' && v.startsWith('\\x') && (await colType(table, col)) === 'bytea') return Buffer.from(v.slice(2), 'hex');
+    return v !== null && typeof v === 'object' && !(Array.isArray(v) && (await colType(table, col)) === 'ARRAY') ? JSON.stringify(v) : v;
+  };
   let queue = Promise.resolve();
   const server = createServer((req, res) => {
     queue = queue.then(async () => {
       const url = new URL(req.url, 'http://bridge');
-      const send = (code, body, headers = {}) => { res.writeHead(code, { 'Content-Type': 'application/json', ...headers }); res.end(body === undefined ? '' : JSON.stringify(body)); };
+      const send = (code, body, headers = {}) => { res.writeHead(code, { 'Content-Type': 'application/json', ...headers }); res.end(body === undefined ? '' : JSON.stringify(body, (_k, v) => v instanceof Uint8Array ? '\\x' + Buffer.from(v).toString('hex') : v)); };
       const user = users.get((req.headers.authorization || '').replace('Bearer ', ''));
       if (url.pathname === '/auth/v1/user') return user ? send(200, user) : send(401, { message: 'invalid synthetic token' });
       if (!url.pathname.startsWith('/rest/v1/')) return send(404, { message: 'not found' });
