@@ -10,7 +10,7 @@ import { SERVICES, isService } from "@/lib/os/client-hud";
 import { label, money, PAYMENT_METHODS, WORK_ORDER_STATUSES } from "@/lib/sales/domain";
 import { recordPayment, updateContract, updateWorkOrder } from "../actions";
 import { createStripeInvoiceDraft, sendStripeInvoice } from "../stripe-actions";
-import { stripeSandboxReady } from "@/lib/stripe/avalon";
+import { stripeSandboxReady, stripeReservationRetryable } from "@/lib/stripe/avalon";
 import s from "@/components/sales/sales.module.css";
 export const dynamic = "force-dynamic";
 
@@ -96,10 +96,12 @@ export default async function SaleDetail({ params, searchParams }: { params: Pro
           {q(p,"stripe_error") && <p role="alert" className={s.muted}>{pick(lang,
             q(p,"stripe_error") === "test_email_required" ? "Utiliza un contacto principal con correo sintético (.example.test o .example.invalid) en el Sandbox." :
             q(p,"stripe_error") === "tax_requires_review" ? "Esta venta contiene impuestos manuales. Las facturas Stripe permanecen bloqueadas hasta validar el tratamiento fiscal." :
+            q(p,"stripe_error") === "stale_reservation" ? "No reintentes: la reserva de la factura superó el límite seguro. Verifica primero si existe en Stripe Sandbox." :
             q(p,"stripe_error") === "not_configured" ? "El Stripe Sandbox de Preview todavía no está configurado." :
             "No se pudo completar la operación Stripe. Revisa la configuración, el saldo pendiente y el historial de la factura.",
             q(p,"stripe_error") === "test_email_required" ? "A synthetic test email is required for sandbox use." :
             q(p,"stripe_error") === "tax_requires_review" ? "This sale has manually added tax. Stripe invoicing is blocked until its tax treatment is approved." :
+            q(p,"stripe_error") === "stale_reservation" ? "Do not retry: the invoice reservation exceeded its safe retry period. Check whether it exists in Stripe Sandbox first." :
             q(p,"stripe_error") === "not_configured" ? "Stripe Sandbox is not configured in Preview." :
             "Stripe could not complete the operation. Check settings, balance and invoice history.")}</p>}
           {q(p,"stripe_ok") && <p role="status">{pick(lang, "Operación de factura de prueba completada. Verifica su estado abajo.", "Sandbox invoice action completed. Verify its status below.")}</p>}
@@ -109,9 +111,13 @@ export default async function SaleDetail({ params, searchParams }: { params: Pro
                 <strong>{money(lang, Number(inv.amount_minor) / 100, inv.currency)} · <Tag lang={lang} value={inv.status} /></strong>
                 <span className={s.muted}>{inv.stripe_invoice_id ?? pick(lang, "Preparando borrador", "Preparing draft")} · {formatDate(lang, inv.created_at, true)}</span>
                 {inv.needs_review && <span role="alert" className={s.muted}>{pick(lang, "Requiere revisión de Miguel o Samuel", "Owner review required")}: {inv.review_reason}</span>}
+                {inv.status === "creating" && !stripeReservationRetryable(inv.created_at) &&
+                  <span role="alert" className={s.muted}>{pick(lang,
+                    "Borrador interrumpido hace demasiado tiempo. No se reintenta automáticamente: verifica primero en Stripe Sandbox si la factura existe.",
+                    "This draft was interrupted too long ago. Automatic retry is disabled: verify whether it exists in Stripe Sandbox first.")}</span>}
                 {inv.hosted_invoice_url?.startsWith("https://invoice.stripe.com/") &&
                   <a href={inv.hosted_invoice_url} target="_blank" rel="noopener noreferrer">{pick(lang, "Abrir factura Stripe", "Open Stripe invoice")}</a>}
-                {inv.status === "creating" && stripeSandboxReady() &&
+                {inv.status === "creating" && stripeSandboxReady() && stripeReservationRetryable(inv.created_at) &&
                   <form action={createStripeInvoiceDraft}><input type="hidden" name="sale_id" value={d.id} />
                     <button className={s.button}>{pick(lang, "Reintentar preparación", "Retry draft preparation")}</button></form>}
                 {["draft", "open"].includes(inv.status) && !inv.hosted_invoice_url && !inv.needs_review && stripeSandboxReady() && process.env.STRIPE_ALLOW_TEST_SEND === "true" &&
