@@ -1,34 +1,31 @@
 "use client";
 import { useState } from "react";
 import { useFormStatus } from "react-dom";
-import { signIn, signInWithGoogle } from "@/app/login/actions";
+import { signIn } from "@/app/login/actions";
 import { LanguageSwitch } from "@/components/suite/language-switch";
 import type { Lang } from "@/lib/i18n";
 import styles from "./login-panel.module.css";
 
 const copy = {
   en: {
-    portal: "AI ADMIN PORTAL", welcome: "WELCOME BACK", intro: "Log in to your Avalon Core Agency", portalName: "AI Admin Portal",
-    google: "Continue with Google", pending: "Connecting…", email: "Email address", password: "Password", login: "Log in", or: "OR CONTINUE WITH",
-    access: "Admin-only access", identity: "Google sign-in", data: "Protected data", note: "Private workspace · Authorized owners only",
-    oauth: "Unable to connect to Google. Please try again or contact your administrator.", callback: "Sign-in could not be completed. Please start again.",
-    unauthorized: "This account is not authorized to access the admin portal.", invalid: "Unable to sign in. Check your credentials.", disabled: "Password sign-in is not enabled.",
-    tagline: "AI. PEOPLE. SYSTEMS. A BRIGHTER TOMORROW.", language: "Language",
+    portal: "PRIVATE ADMIN PORTAL", welcome: "WELCOME BACK", intro: "Sign in with your Avalon account", portalName: "Avalon Core Agency",
+    pending: "Signing in…", email: "Email address", password: "Password", login: "Log in",
+    access: "Admin-only access", identity: "Email and password", data: "Protected data", note: "Private workspace · Authorized owners only",
+    callback: "Sign-in could not be completed. Please start again.", unauthorized: "This account is not authorized to access the admin portal.", invalid: "Unable to sign in. Check your email and password.",
+    tagline: "AI. PEOPLE. SYSTEMS. A BRIGHTER TOMORROW.",
   },
   es: {
-    portal: "PORTAL ADMINISTRATIVO IA", welcome: "BIENVENIDO DE NUEVO", intro: "Accede al portal administrativo de", portalName: "Avalon Core Agency",
-    google: "Continuar con Google", pending: "Conectando…", email: "Correo electrónico", password: "Contraseña", login: "Entrar", or: "O CONTINÚA CON",
-    access: "Acceso administrativo", identity: "Acceso con Google", data: "Datos protegidos", note: "Espacio privado · Solo propietarios autorizados",
-    oauth: "No se pudo conectar con Google. Inténtalo de nuevo o contacta al administrador.", callback: "No se pudo completar el acceso. Inicia el proceso de nuevo.",
-    unauthorized: "Esta cuenta no está autorizada para acceder al portal administrativo.", invalid: "No se pudo iniciar sesión. Comprueba tus credenciales.", disabled: "El acceso con contraseña no está habilitado.",
-    tagline: "IA. PERSONAS. SISTEMAS. UN MAÑANA MÁS BRILLANTE.", language: "Idioma",
+    portal: "PORTAL ADMINISTRATIVO PRIVADO", welcome: "BIENVENIDO DE NUEVO", intro: "Inicia sesión con tu cuenta de Avalon", portalName: "Avalon Core Agency",
+    pending: "Iniciando sesión…", email: "Correo electrónico", password: "Contraseña", login: "Iniciar sesión",
+    access: "Acceso administrativo", identity: "Correo y contraseña", data: "Datos protegidos", note: "Espacio privado · Solo propietarios autorizados",
+    callback: "No se pudo completar el acceso. Inicia el proceso de nuevo.", unauthorized: "Esta cuenta no está autorizada para acceder al portal administrativo.", invalid: "No se pudo iniciar sesión. Comprueba tu correo y contraseña.",
+    tagline: "IA. PERSONAS. SISTEMAS. UN MAÑANA MÁS BRILLANTE.",
   },
 };
 
-function Submit({ label, pendingLabel, google = false }: { label: string; pendingLabel: string; google?: boolean }) {
+function Submit({ label, pendingLabel }: { label: string; pendingLabel: string }) {
   const { pending } = useFormStatus();
   return <button className={styles.submit} type="submit" disabled={pending} aria-busy={pending}>
-    {google && <svg aria-hidden="true" viewBox="0 0 24 24" width="22" height="22"><path fill="#4285f4" d="M22 12.2c0-.7-.1-1.4-.2-2.2H12v4.2h5.6a4.8 4.8 0 0 1-2.1 3.1v2.6h3.4c2-1.8 3.1-4.5 3.1-7.7Z"/><path fill="#34a853" d="M12 22c2.8 0 5.1-.9 6.9-2.5l-3.4-2.6c-.9.6-2 1-3.5 1-2.7 0-5-1.8-5.8-4.3H2.7v2.7A10.4 10.4 0 0 0 12 22Z"/><path fill="#fbbc05" d="M6.2 13.6a6 6 0 0 1 0-3.2V7.7H2.7a10 10 0 0 0 0 8.6Z"/><path fill="#ea4335" d="M12 6.1c1.5 0 2.8.5 3.9 1.5L19 4.5A10 10 0 0 0 2.7 7.7l3.5 2.7C7 7.9 9.3 6.1 12 6.1Z"/></svg>}
     <span>{pending ? pendingLabel : label}</span><span aria-hidden="true">→</span>
   </button>;
 }
@@ -39,11 +36,11 @@ function SecurityIcon({ kind }: { kind: "shield" | "lock" | "data" }) {
   </svg>;
 }
 
-export function LoginPanel({ error, passwordEnabled, updated, initialLanguage = "es" }: { error?: string; passwordEnabled: boolean; updated?: boolean; initialLanguage?: Lang }) {
+export function LoginPanel({ error, updated, initialLanguage = "es" }: { error?: string; updated?: boolean; initialLanguage?: Lang }) {
   const [showPassword, setShowPassword] = useState(false);
   const [language, setLanguage] = useState<Lang>(initialLanguage);
   const t = copy[language];
-  const message = error ? ({ oauth: t.oauth, callback: t.callback, unauthorized: t.unauthorized, invalid: t.invalid, disabled: t.disabled }[error] ?? t.callback) : null;
+  const message = error ? ({ callback: t.callback, unauthorized: t.unauthorized, invalid: t.invalid }[error] ?? t.callback) : null;
   return <main className={styles.scene} lang={language}>
     <LanguageSwitch lang={language} className={styles.languages} onChange={setLanguage} />
     <div className={styles.sideNote} aria-hidden="true">INTELLIGENCE<br />AUTOMATION<br />SCALING<br />A BRIGHTER TOMORROW</div>
@@ -53,8 +50,8 @@ export function LoginPanel({ error, passwordEnabled, updated, initialLanguage = 
       <h1 id="welcome">{t.welcome}</h1><p className={styles.intro}>{t.intro}<br />{t.portalName}</p>
       {updated && <p role="status">{language === "es" ? "Contraseña guardada. Inicia sesión; el acceso requiere autorización." : "Password saved. Sign in; access requires authorization."}</p>}
       {message && <p className={styles.error} role="alert" id="login-error">{message}</p>}
-      {passwordEnabled && <><form action={signIn} className={styles.passwordForm}>
-        <label htmlFor="email">{t.email}</label><input id="email" name="email" type="email" autoComplete="email" inputMode="email" maxLength={320} required aria-invalid={error === "invalid" || undefined} aria-describedby={message ? "login-error" : undefined} />
+      <form action={signIn} className={styles.passwordForm}>
+        <label htmlFor="email">{t.email}</label><input id="email" name="email" type="email" autoComplete="username" inputMode="email" autoCapitalize="none" spellCheck={false} maxLength={320} required aria-invalid={error === "invalid" || undefined} aria-describedby={message ? "login-error" : undefined} />
         <label htmlFor="password">{t.password}</label>
         <div className={styles.passwordWrap}>
           <input id="password" name="password" type={showPassword ? "text" : "password"} autoComplete="current-password" maxLength={1024} required aria-invalid={error === "invalid" || undefined} aria-describedby={message ? "login-error" : undefined} />
@@ -64,9 +61,8 @@ export function LoginPanel({ error, passwordEnabled, updated, initialLanguage = 
         </div>
         <a className={styles.forgot} href="/admin/forgot-password">{language === "es" ? "Olvidé mi contraseña" : "Forgot password"}</a>
         <Submit label={t.login} pendingLabel={t.pending} />
-      </form><div className={styles.divider}>{t.or}</div></>}
-      <form action={signInWithGoogle}><Submit label={t.google} pendingLabel={t.pending} google /></form>
-      <p className={styles.note}>{t.note}<br /><a href="/admin/signup">{language === "es" ? "Registro por invitación" : "Sign up by invitation"}</a></p>
+      </form>
+      <p className={styles.note}>{t.note}<br /><a href="/admin/signup">{language === "es" ? "Activar cuenta por invitación" : "Activate invited account"}</a></p>
       <div className={styles.security}>{([['shield', t.access], ['lock', t.identity], ['data', t.data]] as const).map(([kind, label]) => <div key={kind}><SecurityIcon kind={kind} /><span>{label}</span></div>)}</div>
     </section>
     <div className={styles.platform} aria-hidden="true" />
