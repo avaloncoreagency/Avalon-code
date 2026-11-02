@@ -156,7 +156,7 @@ test(
               if (!operator)
                 throw new Error("Fixture filter not implemented: " + op);
               conditions.push(
-                `${identifier(key)} ${operator} ${param(key === "archived" ? val === "true" : val)}`,
+                `${identifier(key)} ${operator} ${param(["archived", "do_not_contact"].includes(key) ? val === "true" : val)}`,
               );
             }
             if (url.searchParams.get("or")) {
@@ -248,9 +248,6 @@ test(
               object ? data[0] : data,
             );
           } catch (e) {
-            if (table === "crm_prospects" || table.startsWith("crm_radar")) {
-              console.error("RADAR TEST BRIDGE ERROR", url.pathname, url.search, e.code, e.message);
-            }
             return json(e.code === "42501" ? 403 : 400, {
               code: e.code ?? "XX000",
               message: e.message,
