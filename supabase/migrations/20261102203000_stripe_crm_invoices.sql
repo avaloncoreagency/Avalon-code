@@ -324,7 +324,20 @@ begin
       update public.crm_stripe_invoices set status = 'paid', payment_id = v_payment_id,
         needs_review = false, review_reason = '', updated_at = now() where id = v_record.id;
     end if;
-  elsif v_type in ('invoice.sent','invoice.finalized') then
+  elsif v_type = 'invoice.sent' then
+    if v_record.status in ('creating','draft','open') then
+      -- A completed send notification can repair a crash between Stripe
+      -- emailing the test invoice and Avalon recording its hosted URL.
+      update public.crm_stripe_invoices
+        set status = 'open',
+            hosted_invoice_url = case
+              when (v_object ->> 'hosted_invoice_url') ~ '^https://invoice[.]stripe[.]com/'
+                then v_object ->> 'hosted_invoice_url'
+              else hosted_invoice_url end,
+            updated_at = now()
+        where id = v_record.id;
+    end if;
+  elsif v_type = 'invoice.finalized' then
     if v_record.status in ('creating','draft','open') then
       update public.crm_stripe_invoices set status = 'open', updated_at = now()
         where id = v_record.id;
