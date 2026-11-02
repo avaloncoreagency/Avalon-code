@@ -67,7 +67,10 @@ const MSG: Record<string,[string,string]> = {
   invalid: ["Datos inválidos.","Invalid input."],
 };
 
-const labelFor = (lang: Lang, pair?: [string,string]) => pick(lang, ...(pair ?? ["Sin clasificar","Unclassified"]));
+const labelFor = (lang: Lang, pair?: [string,string]) => {
+  const value = pair ?? ["Sin clasificar","Unclassified"];
+  return pick(lang, value[0], value[1]);
+};
 
 function ServiceEditor({lang,row}:{lang:Lang;row?:ServiceRow}) {
   const existing = !!row;
