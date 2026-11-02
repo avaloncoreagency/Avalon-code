@@ -47,3 +47,16 @@
 - No founders' Auth accounts or invitations created.
 - No migration applied, no production deploy, no merge.
 - Remaining work requires isolated test infrastructure and real execution evidence; do not mark completed based on code review alone.
+
+## CP-07 — Avalon OS audit (2026-11-02, branch `feature/avalon-os-hud-modules`)
+- Work branch created from PR #4 head `24ad6e5` (`feature/sprint-01-miguel-google-auth`); PR #4 CI green at that commit.
+- PR stack: #1 auth-rls→main (draft), #4 Miguel auth→#1, #5 profile menu→#4 (draft, superseded by the new HUD top-right profile menu), #6 Samuel CRM→#4 (draft, untouched).
+- Supabase prod `ltbwzcrxeuczdhhtbqgm`: only `agency_memberships` (RLS, 2 owner rows, authenticated SELECT only); 2 migrations applied; 3 auth users. Advisor: `auth_leaked_password_protection` disabled (WARN).
+- Supabase branch `thdgrczotqapnvcjefoi` exists (PR #1). Not used without approval.
+- Vercel `avalon-core-agency`: no production deployment yet; previews READY. **`avaloncoreagency.com` is on Vercel DNS but not attached to this project** — `/admin/*` on the main domain needs a routing decision (attach domain, rewrites from the public-site project, or `admin.` subdomain).
+- Preview env vars for APP_ORIGIN / AUTH_PASSWORD_LOGIN_ENABLED / AUTH_FLOW_SECRET are scoped to `feature/sprint-01-miguel-google-auth` only.
+- Sandbox limitation: npm registry unreachable from the agent environment; lint/typecheck/tests/build are verified in GitHub Actions instead.
+
+## CP-08 — HUD + five modules implemented (not deployed)
+- See `docs/AVALON_OS_MODULES.md` for scope, operational vs pending, migration and rollback.
+- No production SQL, no merge, no deployment, no CRM files touched.
