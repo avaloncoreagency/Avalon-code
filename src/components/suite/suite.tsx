@@ -1,0 +1,85 @@
+import Link from "next/link";
+import { cookies } from "next/headers";
+import type { ReactNode } from "react";
+import { requireOwner, displayName } from "@/lib/auth/session";
+import { getLang } from "@/lib/i18n-server";
+import { pick } from "@/lib/i18n";
+import { countRows } from "@/lib/os/data";
+import { signOut } from "@/app/dashboard/actions";
+import { modules } from "./modules";
+import { Icon } from "./icons";
+import { SuiteChrome, type ChromeNotification } from "./chrome";
+import s from "./suite.module.css";
+
+const sectionNames: Record<string, { es: string; en: string }> = {
+  dashboard: { es: "Dashboard", en: "Dashboard" },
+  settings: { es: "Configuración", en: "Settings" },
+  profile: { es: "Perfil", en: "Profile" },
+};
+
+/**
+ * Private shell for every Avalon OS page. Public API is stable:
+ * <Suite active="crm">…</Suite> is used by the CRM module branch.
+ */
+export async function Suite({ children, active = "dashboard" }: { children: ReactNode; active?: string }) {
+  const session = await requireOwner();
+  const lang = await getLang();
+  const collapsed = (await cookies()).get("avalon-sidebar")?.value === "collapsed";
+  const today = new Date().toISOString().slice(0, 10);
+  const overdue = await countRows(session.supabase, "os_marketing_items", [["lt", "planned_for", today], ["not_in", "status", ["published", "cancelled"]]]);
+
+  const notifications: ChromeNotification[] = [];
+  if (overdue.error === "schema_pending") {
+    notifications.push({ tone: "warning", text: pick(lang, "La migración de módulos está pendiente de aprobación. Los módulos no pueden guardar datos todavía.", "Module migration is pending approval. Modules cannot save data yet."), href: "/admin/settings" });
+  } else if (overdue.count) {
+    notifications.push({ tone: "danger", text: pick(lang, `${overdue.count} contenido(s) de marketing con fecha vencida.`, `${overdue.count} marketing item(s) past their planned date.`), href: "/admin/workspace/marketing-hub" });
+  }
+
+  const name = displayName(session.user);
+  const current = modules.find(m => m.slug === active);
+  const section = current ? current.name : pick(lang, sectionNames[active]?.es ?? "Dashboard", sectionNames[active]?.en ?? "Dashboard");
+  const logout = (
+    <form action={signOut} className={s.logoutForm}>
+      <button type="submit" className={s.navItem}>
+        <Icon name="logout" /><span className={s.navLabel}>{pick(lang, "Cerrar sesión", "Sign out")}</span>
+      </button>
+    </form>
+  );
+  const nav = (
+    <nav aria-label={pick(lang, "Navegación principal", "Main navigation")} className={s.nav}>
+      <Link className={s.navItem} aria-current={active === "dashboard" ? "page" : undefined} href="/admin/dashboard" title="Dashboard">
+        <Icon name="dashboard" /><span className={s.navLabel}>Dashboard</span>
+      </Link>
+      <p className={s.navGroup}>{pick(lang, "Módulos", "Modules")}</p>
+      {modules.map(m => (
+        <Link key={m.slug} className={s.navItem} data-accent={m.accent} aria-current={active === m.slug ? "page" : undefined} href={m.href} title={m.name}>
+          <Icon name={m.icon} /><span className={s.navLabel}>{m.name}</span>
+        </Link>
+      ))}
+      <p className={s.navGroup}>{pick(lang, "Cuenta", "Account")}</p>
+      <Link className={s.navItem} aria-current={active === "settings" ? "page" : undefined} href="/admin/settings" title={pick(lang, "Configuración", "Settings")}>
+        <Icon name="settings" /><span className={s.navLabel}>{pick(lang, "Configuración", "Settings")}</span>
+      </Link>
+      <Link className={s.navItem} aria-current={active === "profile" ? "page" : undefined} href="/admin/profile" title={pick(lang, "Perfil", "Profile")}>
+        <Icon name="profile" /><span className={s.navLabel}>{pick(lang, "Perfil", "Profile")}</span>
+      </Link>
+    </nav>
+  );
+
+  return (
+    <SuiteChrome
+      lang={lang}
+      collapsed={collapsed}
+      section={section}
+      user={{ name, email: session.user.email ?? "", role: session.role, initial: name.slice(0, 1).toUpperCase() }}
+      notifications={notifications}
+      schemaReady={overdue.error !== "schema_pending"}
+      nav={nav}
+      logout={logout}
+    >
+      {children}
+    </SuiteChrome>
+  );
+}
+
+export { ModuleCards } from "./module-cards";
