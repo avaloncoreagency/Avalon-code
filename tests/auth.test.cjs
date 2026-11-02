@@ -290,6 +290,7 @@ test('owner login distinguishes bad passwords from Supabase outages, without lea
     { name: 'known invalid credentials', error: { code: 'invalid_credentials', status: 400, message: 'Invalid login credentials' }, expected: 'invalid' },
     { name: 'email not confirmed', error: { code: 'email_not_confirmed', status: 400 }, expected: 'invalid' },
     { name: 'legacy invalid credentials', error: { status: 400, message: 'Invalid login credentials' }, expected: 'invalid' },
+    { name: 'legacy SDK error field', error: { status: 400, message: 'invalid_credentials' }, expected: 'invalid' },
     { name: 'Supabase unavailable', error: { code: 'unexpected_failure', status: 503 }, expected: 'unavailable' },
     { name: 'network failure', error: { status: 0, message: 'fetch failed' }, expected: 'unavailable' },
     { name: 'unknown configuration error', error: { code: 'provider_disabled', status: 400 }, expected: 'unavailable' },
