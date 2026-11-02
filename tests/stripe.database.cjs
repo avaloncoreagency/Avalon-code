@@ -43,6 +43,12 @@ test("Stripe invoice reserves the unpaid balance, rejects strangers and reconcil
   await db.query("insert into crm_payments(sale_id, amount, currency, received_on, method) values ($1,50,'USD','2026-11-02','transfer')",[saleId]);
   const reserved=(await db.query("select * from crm_stripe_reserve_invoice($1)",[saleId])).rows[0];
   assert.equal(Number(reserved.amount_minor), 20000);
+  // Prevent a second manual charge while the Stripe invoice is pending,
+  // without impeding the signed Stripe webhook when a payment succeeds.
+  await assert.rejects(db.query(
+    "insert into crm_payments(sale_id,amount,currency,received_on,method) values ($1,1,'USD','2026-11-02','transfer')",
+    [saleId]
+  ), /payment_stripe_invoice_active/);
   const replay=(await db.query("select * from crm_stripe_reserve_invoice($1)",[saleId])).rows[0];
   assert.equal(replay.id,reserved.id);
   assert.equal(await count("select count(*) n from crm_stripe_invoices"),1);
@@ -185,9 +191,15 @@ test("Deleting a Stripe draft frees the outstanding balance without deleting its
   await owner(MIGUEL);
   assert.equal((await first("select status from crm_stripe_invoices where id=$1",[original.id])).status,"void");
   assert.equal(await count("select count(*) n from crm_stripe_invoices"),1);
+  // Once Stripe confirms deletion, a manual payment is safe again and
+  // the next invoice uses only the remaining balance.
+  await db.query(
+    "insert into crm_payments(sale_id,amount,currency,received_on,method) values ($1,10,'USD','2026-11-02','transfer')",
+    [sale.sale_id]
+  );
   const replacement=(await db.query("select * from crm_stripe_reserve_invoice($1)",[sale.sale_id])).rows[0];
   assert.notEqual(replacement.id,original.id);
-  assert.equal(Number(replacement.amount_minor),25000);
+  assert.equal(Number(replacement.amount_minor),24000);
   assert.equal(await count("select count(*) n from crm_stripe_invoices"),2);
-  assert.equal(await count("select count(*) n from crm_payments where sale_id=$1",[sale.sale_id]),0);
+  assert.equal(await count("select count(*) n from crm_payments where sale_id=$1",[sale.sale_id]),1);
 });
