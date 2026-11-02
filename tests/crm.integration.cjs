@@ -34,6 +34,14 @@ test(
         "utf8",
       ),
     );
+    // Titan Radar is a real CRM screen. The isolated browser fixture must
+    // include its additive schema so it tests the same owner-only routes.
+    await db.exec(
+      fs.readFileSync(
+        "supabase/migrations/20261102190000_radar_core.sql",
+        "utf8",
+      ),
+    );
     const tokens = new Map();
     function session(id) {
       const user = {
@@ -73,6 +81,9 @@ test(
       "crm_prospects",
       "crm_usage",
       "crm_audit",
+      "crm_prospect_needs",
+      "crm_radar_campaigns",
+      "crm_radar_runs",
     ];
     const identifier = (x) => {
       assert.match(x, /^[a-z_]+$/);
@@ -134,6 +145,11 @@ test(
               const dot = v.indexOf("."),
                 op = v.slice(0, dot),
                 val = v.slice(dot + 1);
+              // PostgREST's .not('source_ref', 'is', null) marks saved radar discoveries.
+              if (v === "not.is.null") {
+                conditions.push(`${identifier(key)} is not null`);
+                continue;
+              }
               const operator = { eq: "=", gte: ">=", lt: "<", ilike: "ilike" }[
                 op
               ];
