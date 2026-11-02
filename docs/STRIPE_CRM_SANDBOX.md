@@ -19,6 +19,16 @@
 - Eventos de reembolso, crédito o disputa se marcan `needs_review` para gestión humana; **no se debe considerar completamente conciliado un reembolso hasta implementar asientos reversos**.
 - Stripe Tax automático NO está activado.
 
+## Bloqueo Vercel Preview verificado
+
+- El build Preview del commit `011de59708e5e61396f1a8f6c9f5609a028abb21` **falló por una configuración de seguridad correcta**, no por falta de TypeScript: `Error: Preview must use an isolated Supabase database, never production.`
+- La configuración actual de Vercel aplica el Supabase de producción a esta rama Preview. **Nunca** eliminar ni eludir la validación de `next.config.ts`.
+- El adaptador Stripe ahora también desactiva su API si detecta el proyecto productivo `ltbwzcrxeuczdhhtbqgm`, incluso desde un entorno local.
+- Solución: asignar a la rama `feature/stripe-crm-invoices-sandbox-20261102` un Supabase realmente aislado, con variables Preview **limitadas a esa rama**, sin copiar claves privadas ni clientes reales.
+- Revisar costos y aislamiento antes de crear un proyecto o branch Supabase adicional. Otros branches de Supabase ya existen y podrían estar siendo usados por otras tareas: **no** reutilizarlos sin verificar quién es responsable.
+- Una vez configurado, desplegar Preview, aplicar migración Stripe exclusivamente en ese Supabase aislado y ejecutar el recorrido E2E con datos sintéticos.
+- El fallo de Vercel **no** implica que se deba fusionar el PR ni que la compilación sea errónea: los tests CI aislados pasaron previamente.
+
 ## Configuración pendiente, siempre en PREVIEW y DB aislada
 
 1. Preparar una base de Supabase distinta de la producción, aplicar la cadena completa de migraciones incluida `20261102203000_stripe_crm_invoices.sql`; comprobar RLS y probar usuarios sintéticos.
