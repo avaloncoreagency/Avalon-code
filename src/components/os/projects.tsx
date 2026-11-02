@@ -1,3 +1,4 @@
+import { operations } from "@/lib/os/project-operations";
 import Link from "next/link";
 import type { ReactNode } from "react";
 import { pick, formatDate, type Lang } from "@/lib/i18n";
@@ -37,6 +38,7 @@ export function ProjectsIndex({ lang, module, base, projects, noun, createFields
             <input type="hidden" name="module" value={module} />
             <label className={s.field}><span>{pick(lang, "Nombre", "Name")} *</span><input className={s.input} name="name" required maxLength={120} autoComplete="off" /></label>
             <label className={s.field}><span>{pick(lang, "Descripción", "Description")}</span><textarea className={s.textarea} name="description" maxLength={2000} rows={3} /></label>
+            <OperationsFields lang={lang} />
             {createFields}
             <div className={s.actions}><button className={s.btnPrimary} type="submit" disabled={Boolean(projects.error)}>{pick(lang, "Crear", "Create")}</button></div>
             {projects.error === "schema_pending" && <p className={s.meta}>{pick(lang, "Disponible cuando se aplique la migración de módulos.", "Available once the module migration is applied.")}</p>}
@@ -63,10 +65,17 @@ export function ProjectSettingsForm({ lang, project, returnTo }: { lang: Lang; p
         </label>
       </div>
       <label className={s.field}><span>{pick(lang, "Descripción", "Description")}</span><textarea className={s.textarea} name="description" defaultValue={project.description} maxLength={2000} rows={3} /></label>
+      <OperationsFields lang={lang} value={project.settings.operations} />
       <div className={s.actions}>
         <button className={s.btnPrimary} type="submit">{pick(lang, "Guardar", "Save")}</button>
         <span className={s.meta}>v{project.version} · {pick(lang, "Creado", "Created")} {formatDate(lang, project.created_at)}</span>
       </div>
     </form>
   );
+}
+
+function OperationsFields({lang,value}:{lang:Lang;value?:unknown}) {
+  let data;try { data=operations((value ?? {}) as Record<string,unknown>); }catch {data=operations({});}
+  const fields = [ ['client_lead_id','Cliente · UUID del CRM','Client · CRM UUID'], ['responsible','Responsable','Responsible'], ['url','URL del proyecto','Project URL'], ['repository','Repositorio autorizado','Authorized repository'], ['deployment','Plataforma / despliegue','Platform / deployment'], ['integrations','Integraciones autorizadas','Authorized integrations'], ['important_dates','Fechas importantes','Important dates'], ['resources','Archivos y recursos · referencias autorizadas','Files and resources · authorized references'], ['tasks','Tareas y seguimiento','Tasks and follow-up'] ] as const;
+  return <details><summary>{pick(lang,'Ficha operativa del cliente','Client operations record')}</summary><p className={s.meta}>{pick(lang,'Registrar una conexión no concede acceso ni publica cambios. Vincula un registro existente del CRM para evitar duplicar clientes.','Recording a connection does not grant access or publish changes. Link an existing CRM record to avoid duplicating clients.')}</p>{fields.map(([key,es,en])=><label key={key} className={s.field}><span>{pick(lang,es,en)}</span>{key==='tasks'||key==='resources'?<textarea className={s.textarea} name={key} defaultValue={data[key]} maxLength={2000} rows={3}/>:<input className={s.input} name={key} defaultValue={data[key]} maxLength={500} type={key==='url'||key==='repository'?'url':'text'}/>}</label>)}{data.url?<a href={data.url} target="_blank" rel="noreferrer">{pick(lang,'Abrir proyecto ↗','Open project ↗')}</a>:null}{data.repository?<p><a href={data.repository} target="_blank" rel="noreferrer">{pick(lang,'Abrir repositorio ↗','Open repository ↗')}</a></p>:null}</details>;
 }

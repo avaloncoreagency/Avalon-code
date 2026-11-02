@@ -21,7 +21,7 @@ test(
     );
     await db.exec(
       fs.readFileSync(
-        "supabase/migrations/20261031000000_initial_auth_roles_rls.sql",
+        "supabase/migrations/20261102053022_avalon_owner_memberships_rls.sql",
         "utf8",
       ),
     );
@@ -30,7 +30,7 @@ test(
     );
     await db.exec(
       fs.readFileSync(
-        "supabase/migrations/20261102040501_crm_core.sql",
+        "supabase/migrations/20261102081000_crm_core.sql",
         "utf8",
       ),
     );

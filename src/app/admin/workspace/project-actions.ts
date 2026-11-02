@@ -1,4 +1,5 @@
 "use server";
+import { operations } from "@/lib/os/project-operations";
 import { revalidatePath } from "next/cache";
 import { back, field, ownerForAction, uuidField } from "@/lib/os/actions";
 import { mapDbError } from "@/lib/os/data";
@@ -30,6 +31,16 @@ function initialSettings(module: ModuleKey, form: FormData): Record<string, unkn
   return {};
 }
 
+async function projectOperations(form: FormData, supabase: Awaited<ReturnType<typeof ownerForAction>>['supabase']) {
+  let metadata;
+  try { metadata = operations(Object.fromEntries(form)); } catch { back('/admin/dashboard', {error:'invalid'}); }
+  if(metadata.client_lead_id) {
+    const {data,error}=await supabase.from('crm_leads').select('id').eq('id',metadata.client_lead_id).maybeSingle();
+    if(error || !data)back('/admin/dashboard',{error:'invalid'});
+  }
+  return metadata;
+}
+
 export async function createProject(form: FormData) {
   const moduleKey = oneOf(field(form, "module"), MODULE_KEYS);
   if (!moduleKey.ok) back("/admin/dashboard", { error: "invalid" });
@@ -40,7 +51,7 @@ export async function createProject(form: FormData) {
   if (!name.ok) back(base, { error: name.error });
   if (!description.ok) back(base, { error: description.error });
   const { data, error, status } = await supabase.from("os_projects")
-    .insert({ module: moduleKey.value, name: name.value, description: description.value, status: "draft", settings: initialSettings(moduleKey.value, form), created_by: userId })
+    .insert({ module: moduleKey.value, name: name.value, description: description.value, status: "draft", settings: { ...initialSettings(moduleKey.value, form), operations: await projectOperations(form, supabase) }, created_by: userId })
     .select("id").single();
   if (error || !data) back(base, { error: mapDbError(error, status) });
   revalidatePath(base);
@@ -62,8 +73,11 @@ export async function updateProject(form: FormData) {
   if (!name.ok) back(path, { error: name.error });
   if (!description.ok) back(path, { error: description.error });
   if (!status.ok || !Number.isSafeInteger(version)) back(path, { error: "invalid" });
+  const current = await supabase.from('os_projects').select('settings').eq('id',id).eq('module',moduleKey.value).eq('version',version).maybeSingle();
+  if(current.error || !current.data)back(path,{error:'conflict'});
+  const metadata = await projectOperations(form, supabase);
   const { data, error, status: http } = await supabase.from("os_projects")
-    .update({ name: name.value, description: description.value, status: status.value })
+    .update({ name: name.value, description: description.value, status: status.value, settings: { ...current.data.settings, operations: metadata } })
     .eq("id", id).eq("module", moduleKey.value).eq("version", version).select("id");
   if (error) back(path, { error: mapDbError(error, http) });
   if (!data?.length) back(path, { error: "conflict" });

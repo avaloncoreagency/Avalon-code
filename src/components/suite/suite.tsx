@@ -15,6 +15,7 @@ const sectionNames: Record<string, { es: string; en: string }> = {
   dashboard: { es: "Dashboard", en: "Dashboard" },
   settings: { es: "Configuración", en: "Settings" },
   profile: { es: "Perfil", en: "Profile" },
+  "dev-bridge": { es: "Dev Bridge", en: "Dev Bridge" },
   search: { es: "Búsqueda", en: "Search" },
 };
 
@@ -60,6 +61,7 @@ export async function Suite({ children, active = "dashboard" }: { children: Reac
           <Icon name={m.icon} /><span className={s.navLabel}>{m.name}</span>
         </Link>
       ))}
+      <Link className={s.navItem} href="/admin/dev-bridge" aria-current={active === "dev-bridge" ? "page" : undefined}><Icon name="blueprint" /><span className={s.navLabel}>Dev Bridge</span></Link>
       <p className={s.navGroup}>{pick(lang, "Cuenta", "Account")}</p>
       <Link className={s.navItem} aria-current={active === "settings" ? "page" : undefined} href="/admin/settings" title={pick(lang, "Configuración", "Settings")}>
         <Icon name="settings" /><span className={s.navLabel}>{pick(lang, "Configuración", "Settings")}</span>
