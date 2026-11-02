@@ -20,6 +20,19 @@ export function stripeSandboxReady(): boolean {
     !!supabaseUrl && !usingProductionDatabase;
 }
 
+export const STRIPE_RESERVATION_RETRY_MAX_AGE_MS = 20 * 60 * 60_000;
+
+/**
+ * Refuse retries of orphaned Stripe invoice reservations as we approach
+ * Stripe's minimum 24-hour API v1 idempotency-key retention boundary.
+ * The record stays visible in CRM for owner reconciliation; it is not
+ * silently deleted or retried with a new key.
+ */
+export function stripeReservationRetryable(createdAt: string, now = Date.now()): boolean {
+  const age = now - Date.parse(createdAt);
+  return Number.isFinite(age) && age >= -5 * 60_000 && age < STRIPE_RESERVATION_RETRY_MAX_AGE_MS;
+}
+
 export class StripeSetupError extends Error {
   constructor() { super("Stripe sandbox unavailable: configure restricted test credentials on Vercel Preview."); }
 }
