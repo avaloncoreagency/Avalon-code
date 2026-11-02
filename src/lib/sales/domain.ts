@@ -167,6 +167,7 @@ export const SALE_ERRORS = {
   payment_exceeds_total: ["El cobro supera el total pendiente de la venta.", "The payment exceeds the sale's outstanding total."],
   payment_currency_mismatch: ["La moneda del cobro debe coincidir con la de la venta.", "The payment currency must match the sale."],
   payment_invalid_sale: ["La venta no admite cobros.", "This sale cannot receive payments."],
+  payment_stripe_invoice_active: ["Esta venta ya tiene una factura Stripe pendiente. Resuélvela o anúlala en Stripe antes de registrar otro cobro.", "This sale has an outstanding Stripe invoice. Resolve or void it in Stripe before recording another payment."],
   duplicate: ["Ya existe un registro con ese identificador (por ejemplo, el mismo correo).", "A record with that identifier already exists (for example, the same e-mail)."],
   conflict: ["Otra persona guardó cambios antes. Recarga y vuelve a intentarlo.", "Someone saved changes first. Reload and try again."],
   schema_pending: ["La migración de ventas (20261102170000) aún no está aplicada en este entorno.", "The sales migration (20261102170000) is not applied in this environment yet."],
