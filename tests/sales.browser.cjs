@@ -349,10 +349,10 @@ test('Nova Restaurant through the real app: one form, three departments, no dupl
   await newServiceForm.locator('input[name="estimated_hours"]').fill('12');
   await newServiceForm.locator('input[name="estimated_cost"]').fill('100');
   await newServiceForm.locator('textarea[name="deliverables"]').fill('Brandbook y elementos editables');
-  await newServiceForm.locator('textarea[name="qa_checklist"]').fill('Licencias verificadas\\nEntregables editables');
+  await newServiceForm.locator('textarea[name="qa_checklist"]').fill('Licencias verificadas\nEntregables editables');
   await newServiceForm.locator('textarea[name="task_template"]').fill('[{"title":"Brief","offset_days":1,"priority":"high"}]');
   await Promise.all([
-    page.waitForURL(/service-factory\\?ok=created/),
+    page.waitForURL(/service-factory\?ok=created/),
     newServiceForm.getByRole('button', { name: 'Crear borrador' }).click(),
   ]);
   assert.equal((await one("select active from crm_service_catalog where code='brand-synthetic'")).active, false,
@@ -361,10 +361,10 @@ test('Nova Restaurant through the real app: one form, three departments, no dupl
   await card().getByText('Editar y revisar').click();
   const edit = card().locator('form:has(input[name="code"][readonly])');
   await edit.locator('select[name="readiness"]').selectOption('sellable');
-  await Promise.all([page.waitForURL(/service-factory\\?ok=saved/), edit.getByRole('button', { name: 'Guardar ficha' }).click()]);
+  await Promise.all([page.waitForURL(/service-factory\?ok=saved/), edit.getByRole('button', { name: 'Guardar ficha' }).click()]);
   assert.equal((await one("select readiness from crm_service_catalog where code='brand-synthetic'")).readiness, 'sellable');
   await Promise.all([
-    page.waitForURL(/service-factory\\?ok=availability/),
+    page.waitForURL(/service-factory\?ok=availability/),
     card().getByRole('button', { name: 'Activar en Ventas' }).click(),
   ]);
   assert.equal((await one("select active from crm_service_catalog where code='brand-synthetic'")).active, true,
@@ -376,7 +376,7 @@ test('Nova Restaurant through the real app: one form, three departments, no dupl
     'activated SKU appears in the existing sales form, without duplicating CRM');
   await page.goto(origin + '/admin/service-factory');
   await Promise.all([
-    page.waitForURL(/service-factory\\?ok=availability/),
+    page.waitForURL(/service-factory\?ok=availability/),
     card().getByRole('button', { name: 'Pausar en Ventas' }).click(),
   ]);
   assert.equal((await one("select active from crm_service_catalog where code='brand-synthetic'")).active, false);
