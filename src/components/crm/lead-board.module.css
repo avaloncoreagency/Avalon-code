@@ -37,3 +37,49 @@
 .footnote { font-size: 11.5px; opacity: .72; margin: 0; line-height: 1.55; }
 @media (max-width: 700px) { .board { grid-auto-columns: minmax(238px, 78vw); gap: 9px; } .column { padding: 10px; } .actions button { min-height: 44px; } .change select { min-height: 44px; font-size: 16px; } }
 @media (prefers-reduced-motion: reduce) { .scroll { scroll-behavior: auto; } }
+
+/* Avalon CRM Kanban HUD parity — keep stage order and all drag/drop behavior. */
+.wrap { --kanban-line: var(--line-strong); color: var(--text); }
+.intro h2 { color: var(--text); font-family: var(--display); }
+.intro p { color: var(--text-muted); opacity: 1; }
+.scroll { scrollbar-color: rgba(138,108,255,.55) rgba(13,20,44,.6); }
+.scroll:focus-visible { outline-color: var(--cyan); }
+.column {
+  border-color: var(--line-strong); border-top: 2px solid rgba(138,108,255,.42);
+  background: linear-gradient(155deg,rgba(21,32,62,.86),rgba(11,18,36,.92));
+  box-shadow: 0 12px 30px rgba(0,0,0,.15);
+}
+.column[data-drop-target="true"] {
+  outline-color: var(--cyan); background: rgba(22,50,81,.95);
+}
+.columnHead { border-bottom-color: var(--line); }
+.columnHead small,.contact,.meta,.source { color: var(--text-muted); opacity: 1; }
+.stageTitle h3 { color: var(--text); }
+.stageTitle span {
+  color: var(--cyan); border-color: rgba(34,227,255,.26);
+  background: rgba(34,227,255,.07);
+}
+.cards .card {
+  border-color: var(--line-strong);
+  background: rgba(13,22,45,.94);
+  box-shadow: 0 4px 12px rgba(0,0,0,.15);
+}
+.cards .card:hover,.cards .card:focus-within {
+  border-color: rgba(34,227,255,.55);
+  box-shadow: 0 0 0 1px rgba(34,227,255,.2),0 6px 20px rgba(0,0,0,.18);
+}
+.cardTitle strong,.value { color: var(--text); }
+.next { border-top-color: var(--line); }
+.next[data-overdue="true"] { color: var(--warning); }
+.change select {
+  background: var(--panel-solid); border-color: var(--line-strong);
+  color: var(--text); border-radius: 9px;
+}
+.actions button {
+  background: rgba(22,32,66,.58); color: var(--text);
+  border-color: var(--line-strong);
+}
+.actions button:hover { background: rgba(138,108,255,.2); border-color: var(--cyan); }
+.actions button:focus-visible,.change select:focus-visible {
+  outline-color: var(--cyan);
+}
