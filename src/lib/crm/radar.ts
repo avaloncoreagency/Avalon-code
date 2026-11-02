@@ -15,6 +15,20 @@ export const RADAR_SERVICES = [
   { id: "crm", name: "CRM / Seguimiento" },
   { id: "ecommerce", name: "E-commerce" },
 ] as const;
+/** Bounded linear email check: avoids regex backtracking on untrusted contact data. */
+export function isValidRadarEmail(value: unknown): value is string {
+  if (typeof value !== "string" || value.length < 5 || value.length > 254) return false;
+  const at = value.indexOf("@");
+  if (at < 1 || at !== value.lastIndexOf("@")) return false;
+  const dot = value.lastIndexOf(".");
+  if (dot <= at + 1 || dot === value.length - 1 || value.includes("..")) return false;
+  for (let i = 0; i < value.length; i++) {
+    const code = value.charCodeAt(i);
+    if (code <= 32 || code >= 127 || "<>()[],;:\\\"".includes(value[i])) return false;
+  }
+  return true;
+}
+
 export type RadarService = typeof RADAR_SERVICES[number]["id"];
 export type RadarZoneId = typeof RADAR_ZONES[number]["id"];
 export type RadarOSMElement = {
@@ -100,7 +114,7 @@ export function normalizeRadarResults(
     if (service === "website" && !websiteUnlisted) continue;
     const phone = clean(first(tags, "phone", "contact:phone", "mobile"), 40);
     const emailRaw = clean(first(tags, "email", "contact:email"), 254);
-    const email = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(emailRaw) ? emailRaw : "";
+    const email = isValidRadarEmail(emailRaw) ? emailRaw : "";
     const industry = businessType(tags);
     const street = [clean(tags["addr:housenumber"], 20), clean(tags["addr:street"], 110)].filter(Boolean).join(" ");
     const address = [street, clean(tags["addr:city"], 70)].filter(Boolean).join(", ");
@@ -184,7 +198,7 @@ export function toIngest(values: unknown, label: string) {
       industry: businessType(tags), category: clean(tags.shop || tags.amenity || tags.office || tags.healthcare || tags.tourism || tags.leisure, 120),
       location: [street, clean(tags["addr:city"], 70)].filter(Boolean).join(", ") || label,
       phone: clean(first(tags, "phone", "contact:phone"), 40),
-      email: /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(emailRaw) ? emailRaw : "",
+      email: isValidRadarEmail(emailRaw) ? emailRaw : "",
       website: safeWebsite(first(tags, "website", "contact:website", "url")),
       source_label: "OpenStreetMap", license: "ODbL · © OpenStreetMap contributors",
     });
