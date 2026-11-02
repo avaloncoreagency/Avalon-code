@@ -6,8 +6,8 @@ const ts = require("typescript");
 const mod = { exports: {} };
 vm.runInNewContext(ts.transpileModule(fs.readFileSync("src/lib/crm/kanban.ts", "utf8"), {
   compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 },
-}).outputText, { module: mod, exports: mod.exports, require, Map, Date, Number });
-const { groupPipeline, followUpState } = mod.exports;
+}).outputText, { module: mod, exports: mod.exports, require, Map, Set, Date, Number });
+const { groupPipeline, followUpState, leadFollowUpStatus, pipelineFocusCounts, filterPipelineByFocus, sortPipelineStageLeads } = mod.exports;
 const stages = [
   { id: "new", label: "Nuevo", kind: "open" },
   { id: "qualified", label: "Calificado", kind: "open" },
@@ -51,4 +51,136 @@ test("UI reuses existing owner-protected CRM mutations and manual loss reason", 
   assert.match(board, /application\/x-avalon-lead/);
   assert.match(board, /onMove\(lead, event.target.value\)/);
   assert.match(board, /hasta 50 registros por página/);
+});
+
+test("attention counts only the loaded page's non-archived open deals", () => {
+  const now = new Date("2026-11-03T12:00:00Z");
+  const configured = [...stages, { id: "won", label: "Ganado", kind: "won" }];
+  const rows = [
+    { id: "overdue", stage_id: "new", follow_up_at: "2026-11-01T12:00:00Z" },
+    { id: "today", stage_id: "qualified", follow_up_at: "2026-11-03T12:00:00Z" },
+    { id: "missing", stage_id: "new", follow_up_at: null },
+    { id: "invalid", stage_id: "qualified", follow_up_at: "invalid-date" },
+    { id: "future", stage_id: "new", follow_up_at: "2026-11-05T12:00:00Z" },
+    { id: "won", stage_id: "won", follow_up_at: null },
+    { id: "lost", stage_id: "lost", follow_up_at: "2026-11-01T12:00:00Z" },
+    { id: "archived", stage_id: "new", archived: true, follow_up_at: null },
+    { id: "unknown-stage", stage_id: "unknown", follow_up_at: null },
+  ];
+  const counts = JSON.parse(JSON.stringify(pipelineFocusCounts(configured, rows, now)));
+  assert.deepEqual(counts, { all: 9, attention: 4, overdue: 1, today: 1, missing: 2 });
+  assert.deepEqual(Array.from(filterPipelineByFocus(configured, rows, "attention", now), row => row.id), ["overdue", "today", "missing", "invalid"]);
+  assert.deepEqual(Array.from(filterPipelineByFocus(configured, rows, "overdue", now), row => row.id), ["overdue"]);
+  assert.deepEqual(Array.from(filterPipelineByFocus(configured, rows, "today", now), row => row.id), ["today"]);
+  assert.deepEqual(Array.from(filterPipelineByFocus(configured, rows, "missing", now), row => row.id), ["missing", "invalid"]);
+  const all = filterPipelineByFocus(configured, rows, "all", now);
+  assert.equal(all.length, rows.length);
+  assert.notStrictEqual(all, rows, "read-only filtering must not mutate CRM page records");
+});
+
+test("no false overdue alerts for closed, archived or future-dated deals", () => {
+  const now = new Date("2026-11-03T12:00:00Z");
+  const synthetic = [
+    { id: "closed", stage_id: "lost", follow_up_at: null },
+    { id: "archived", stage_id: "new", archived: true, follow_up_at: "2026-11-01T12:00:00Z" },
+    { id: "future", stage_id: "new", follow_up_at: "2026-11-10T12:00:00Z" },
+  ];
+  assert.equal(pipelineFocusCounts(stages, synthetic, now).attention, 0);
+  assert.equal(filterPipelineByFocus(stages, synthetic, "attention", now).length, 0);
+  assert.equal(filterPipelineByFocus(stages, synthetic, "all", now).length, 3);
+});
+
+test("attention filter UI exposes pressed state and explicit page scope", () => {
+  const ui = fs.readFileSync("src/components/crm/lead-board.tsx", "utf8");
+  assert.match(ui, /aria-pressed=\{focus === option.id\}/);
+  assert.match(ui, /pipelineFocusCounts\(stages, leads, now\)/);
+  assert.match(ui, /filterPipelineByFocus\(stages, leads, focus, now\)/);
+  assert.match(ui, /No incluye otras páginas/);
+  assert.match(ui, /Para revisar = vencidos \+ hoy \+ sin fecha/);
+});
+
+test("follow-up card status never asks for attention on closed or archived deals", () => {
+  const now = new Date("2026-11-03T12:00:00Z");
+  const configured = [...stages, { id: "won", label: "Ganado", kind: "won" }];
+  const overdueDate = "2026-11-01T12:00:00Z";
+  assert.equal(leadFollowUpStatus(configured, { id: "open", stage_id: "new", follow_up_at: overdueDate }, now), "overdue");
+  assert.equal(leadFollowUpStatus(configured, { id: "lost", stage_id: "lost", follow_up_at: overdueDate }, now), "inactive");
+  assert.equal(leadFollowUpStatus(configured, { id: "won", stage_id: "won", follow_up_at: overdueDate }, now), "inactive");
+  assert.equal(leadFollowUpStatus(configured, { id: "archived", stage_id: "new", archived: true, follow_up_at: overdueDate }, now), "inactive");
+  assert.equal(leadFollowUpStatus(configured, { id: "unmapped", stage_id: "unknown", follow_up_at: overdueDate }, now), "inactive");
+  assert.equal(leadFollowUpStatus(configured, { id: "invalid", stage_id: "new", follow_up_at: "not-a-date" }, now), "missing");
+});
+
+test("follow-up labels and focus counts wait for browser hydration clock", () => {
+  const ui = fs.readFileSync("src/components/crm/lead-board.tsx", "utf8");
+  assert.match(ui, /const \[now, setNow\] = useState<Date \| null>\(null\)/);
+  assert.match(ui, /useEffect\(\(\) => \{/);
+  assert.match(ui, /setNow\(new Date\(\)\)/);
+  assert.match(ui, /window\.setInterval\(refresh, 60_000\)/);
+  assert.match(ui, /const counts = now \? pipelineFocusCounts/);
+  assert.match(ui, /const followUp = now \? leadFollowUpStatus/);
+  assert.match(ui, /disabled=\{!now\}/);
+  assert.match(ui, /followUp === "inactive" \? "Sin seguimiento pendiente en esta etapa"/);
+});
+
+test("urgency ordering in an open stage shows overdue, today, undated, future, archived", () => {
+  const now = new Date("2026-11-03T12:00:00Z");
+  const rows = [
+    { id: "future-late", stage_id: "new", follow_up_at: "2026-11-12T12:00:00Z", priority: "high" },
+    { id: "undated-low", stage_id: "new", follow_up_at: null, priority: "low" },
+    { id: "today", stage_id: "new", follow_up_at: "2026-11-03T12:00:00Z", priority: "normal" },
+    { id: "overdue-old", stage_id: "new", follow_up_at: "2026-10-28T12:00:00Z", priority: "low" },
+    { id: "overdue-recent", stage_id: "new", follow_up_at: "2026-11-02T12:00:00Z", priority: "high" },
+    { id: "undated-high", stage_id: "new", follow_up_at: "invalid-date", priority: "high" },
+    { id: "archived", stage_id: "new", archived: true, follow_up_at: "2026-01-01T12:00:00Z", priority: "high" },
+    { id: "future-soon", stage_id: "new", follow_up_at: "2026-11-05T12:00:00Z", priority: "low" },
+  ];
+  const original = rows.map((r) => r.id);
+  const ordered = sortPipelineStageLeads(stages[0], rows, "urgency", now);
+  assert.deepEqual(Array.from(ordered, (row) => row.id), [
+    "overdue-old", "overdue-recent", "today", "undated-high", "undated-low",
+    "future-soon", "future-late", "archived",
+  ]);
+  assert.deepEqual(rows.map((row) => row.id), original, "sorting must not mutate CRM records");
+  assert.notStrictEqual(ordered, rows);
+});
+
+test("same-deadline priority uses high first, then normal/low with stable ties", () => {
+  const now = new Date("2026-11-03T12:00:00Z");
+  const rows = [
+    { id: "normal", follow_up_at: null, priority: "normal" },
+    { id: "high-first", follow_up_at: null, priority: "high" },
+    { id: "low", follow_up_at: null, priority: "low" },
+    { id: "high-second", follow_up_at: null, priority: "high" },
+  ];
+  assert.deepEqual(
+    Array.from(sortPipelineStageLeads(stages[0], rows, "urgency", now), (r) => r.id),
+    ["high-first", "high-second", "normal", "low"],
+  );
+});
+
+test("closed stages and original-order mode preserve incoming sequence", () => {
+  const now = new Date("2026-11-03T12:00:00Z");
+  const rows = [
+    { id: "next-week", follow_up_at: "2026-11-08T12:00:00Z" },
+    { id: "yesterday", follow_up_at: "2026-11-02T12:00:00Z" },
+  ];
+  for (const stage of [stages[2], { id: "won", label: "Ganado", kind: "won" }]) {
+    const sorted = sortPipelineStageLeads(stage, rows, "urgency", now);
+    assert.deepEqual(Array.from(sorted, (r) => r.id), ["next-week", "yesterday"]);
+    assert.notStrictEqual(sorted, rows);
+  }
+  assert.deepEqual(
+    Array.from(sortPipelineStageLeads(stages[0], rows, "received", now), (r) => r.id),
+    ["next-week", "yesterday"],
+  );
+});
+
+test("sorting UI is accessible and uses hydrated clock, without an API write", () => {
+  const ui = fs.readFileSync("src/components/crm/lead-board.tsx", "utf8");
+  assert.match(ui, /aria-label="Orden de tarjetas dentro de cada etapa"/);
+  assert.match(ui, /const \[order, setOrder\] = useState<PipelineSort>\("urgency"\)/);
+  assert.match(ui, /sortPipelineStageLeads\(column\.stage, column\.leads, order, now\)/);
+  assert.match(ui, /disabled=\{!now\}/);
+  assert.match(ui, /El tablero agrupa hasta 50 registros por página; el ordenamiento es solo visual/);
 });

@@ -1,8 +1,8 @@
 "use client";
 
-import { useState, type DragEvent } from "react";
+import { useEffect, useState, type DragEvent } from "react";
 import type { Row, Stage } from "@/lib/crm/domain";
-import { followUpState, groupPipeline } from "@/lib/crm/kanban";
+import { filterPipelineByFocus, groupPipeline, leadFollowUpStatus, pipelineFocusCounts, sortPipelineStageLeads, type PipelineFocus, type PipelineSort } from "@/lib/crm/kanban";
 import s from "./lead-board.module.css";
 
 type Props = {
@@ -27,11 +27,38 @@ const dateText = (value: unknown) => {
     : "";
 };
 const priorityText: Record<string, string> = { high: "Alta", normal: "Normal", low: "Baja" };
+const focusOptions: { id: PipelineFocus; label: string; description: string }[] = [
+  { id: "all", label: "Todos", description: "Todos los leads cargados en esta página" },
+  { id: "attention", label: "Para revisar", description: "Vencidos, hoy o sin fecha; solo etapas abiertas" },
+  { id: "overdue", label: "Vencidos", description: "Seguimientos antes de hoy" },
+  { id: "today", label: "Hoy", description: "Seguimientos programados para hoy" },
+  { id: "missing", label: "Sin fecha", description: "Leads abiertos sin seguimiento programado" },
+];
 
 export function LeadBoard({ stages, leads, total, page, busy, currentOwnerId, onEdit, onDetail, onMove }: Props) {
   const [draggedId, setDraggedId] = useState<string | null>(null);
   const [targetId, setTargetId] = useState<string | null>(null);
-  const columns = groupPipeline(stages, leads);
+  const [focus, setFocus] = useState<PipelineFocus>("all");
+  const [order, setOrder] = useState<PipelineSort>("urgency");
+  // The server and first client render must agree; local-day calculations
+  // become available only after hydration, and refresh after midnight.
+  const [now, setNow] = useState<Date | null>(null);
+  useEffect(() => {
+    const refresh = () => setNow(new Date());
+    refresh();
+    const timer = window.setInterval(refresh, 60_000);
+    window.addEventListener("focus", refresh);
+    return () => {
+      window.clearInterval(timer);
+      window.removeEventListener("focus", refresh);
+    };
+  }, []);
+  const counts = now ? pipelineFocusCounts(stages, leads, now) : null;
+  const visibleLeads = now ? filterPipelineByFocus(stages, leads, focus, now) : leads;
+  const columns = groupPipeline(stages, visibleLeads).map((column) => ({
+    ...column,
+    leads: now ? sortPipelineStageLeads(column.stage, column.leads, order, now) : column.leads,
+  }));
 
   function drop(event: DragEvent<HTMLElement>, stageId: string) {
     event.preventDefault();
@@ -52,6 +79,44 @@ export function LeadBoard({ stages, leads, total, page, busy, currentOwnerId, on
         </div>
         <p>Arrastra una tarjeta o usa <strong>Cambiar etapa</strong>. Abre <strong>Ficha</strong> para las notas y el historial.</p>
       </div>
+      <div className={s.focusBar} role="group" aria-label="Priorizar seguimientos de esta página">
+        {focusOptions.map((option) => (
+          <button
+            type="button"
+            key={option.id}
+            className={s.focusButton}
+            title={option.description}
+            aria-pressed={focus === option.id}
+            disabled={!now}
+            onClick={() => setFocus(option.id)}
+          >
+            {option.label} <span className={s.focusCount}>{counts ? counts[option.id] : "…"}</span>
+          </button>
+        ))}
+      </div>
+      <label className={s.sortControl}>
+        Orden de tarjetas
+        <select
+          aria-label="Orden de tarjetas dentro de cada etapa"
+          value={order}
+          disabled={!now}
+          onChange={(event) => setOrder(event.target.value as PipelineSort)}
+        >
+          <option value="urgency">Más urgentes primero</option>
+          <option value="received">Orden original</option>
+        </select>
+      </label>
+      <p className={s.focusSummary} role="status">
+        {!now
+          ? "Preparando los seguimientos para tu zona horaria."
+          : focus === "all"
+            ? "Mostrando todos los registros de esta página."
+            : `Mostrando ${visibleLeads.length} de ${leads.length} registros de esta página. Los filtros de atención excluyen etapas cerradas y leads archivados.`}
+        {" "}Para revisar = vencidos + hoy + sin fecha. No incluye otras páginas.
+        {" "}{order === "urgency"
+          ? "Dentro de cada etapa abierta: vencidos, hoy, sin fecha y próximos. Los cerrados conservan su orden."
+          : "Tarjetas en el orden recibido del CRM."}
+      </p>
       <div className={s.scroll} role="region" tabIndex={0} aria-label="Columnas del pipeline; desplázate horizontalmente para ver todas las etapas">
         <div className={s.board}>
           {columns.map(({ stage, leads: cards, estimatedValue }) => (
@@ -74,7 +139,7 @@ export function LeadBoard({ stages, leads, total, page, busy, currentOwnerId, on
               </header>
               <div className={s.cards}>
                 {cards.map((lead) => {
-                  const followUp = followUpState(lead.follow_up_at);
+                  const followUp = now ? leadFollowUpStatus(stages, lead, now) : null;
                   return (
                     <article
                       className={s.card}
@@ -95,10 +160,14 @@ export function LeadBoard({ stages, leads, total, page, busy, currentOwnerId, on
                       <p className={s.contact}>{lead.contact ? String(lead.contact) : "Contacto por completar"}</p>
                       <p className={s.value}>{Number(lead.value) > 0 ? currency(Number(lead.value)) : "Valor por estimar"}</p>
                       <p className={s.next} data-overdue={followUp === "overdue" ? "true" : undefined}>
-                        {followUp === "overdue" ? "Seguimiento vencido" :
+                        {followUp === null ? "Calculando seguimiento…" :
+                          followUp === "inactive" ? "Sin seguimiento pendiente en esta etapa" :
+                          followUp === "overdue" ? "Seguimiento vencido" :
                           followUp === "today" ? "Seguimiento hoy" :
                           followUp === "scheduled" ? "Próximo seguimiento" : "Sin seguimiento programado"}
-                        {followUp !== "missing" && <small>{dateText(lead.follow_up_at)}</small>}
+                        {(followUp === "overdue" || followUp === "today" || followUp === "scheduled") && (
+                          <small>{dateText(lead.follow_up_at)}</small>
+                        )}
                       </p>
                       <p className={s.meta}>
                         {lead.owner_id === currentOwnerId ? "Responsable: tú" : "Responsable: otro propietario"}
@@ -123,13 +192,13 @@ export function LeadBoard({ stages, leads, total, page, busy, currentOwnerId, on
                     </article>
                   );
                 })}
-                {cards.length === 0 && <p className={s.empty}>Sin oportunidades en esta etapa de la página actual.</p>}
+                {cards.length === 0 && <p className={s.empty}>{focus === "all" ? "Sin oportunidades en esta etapa de la página actual." : "Sin oportunidades que coincidan con este filtro en esta etapa."}</p>}
               </div>
             </section>
           ))}
         </div>
       </div>
-      <p className={s.footnote}>Los importes son estimaciones, no ingresos cobrados. El tablero agrupa hasta 50 registros por página; usa Anterior/Siguiente para consultar el resto. Cerrar un lead no crea un cliente automáticamente.</p>
+      <p className={s.footnote}>Los importes son estimaciones, no ingresos cobrados. Seguimientos calculados en la zona horaria del navegador y actualizados cada minuto. El tablero agrupa hasta 50 registros por página; el ordenamiento es solo visual y no cambia datos ni etapas. Usa Anterior/Siguiente para consultar el resto. Cerrar un lead no crea un cliente automáticamente.</p>
     </section>
   );
 }
