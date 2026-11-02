@@ -8,7 +8,7 @@ const BASE = "/admin/workspace/crm/sales";
 
 type Sale = {
   id: string; sale_number: string; client_id: string; currency: string;
-  status: string; contract_status: string;
+  status: string; contract_status: string; tax_total: string | number;
   crm_clients: { legal_name: string } | null;
 };
 type ReservedInvoice = {
@@ -41,12 +41,17 @@ export async function createStripeInvoiceDraft(form: FormData) {
   if (!stripeSandboxReady()) back(path, { stripe_error: "not_configured" });
 
   const { data, error } = await supabase.from("crm_sales")
-    .select("id,sale_number,client_id,currency,status,contract_status,crm_clients(legal_name)")
+    .select("id,sale_number,client_id,currency,status,contract_status,tax_total,crm_clients(legal_name)")
     .eq("id", saleId).maybeSingle();
   const s = data as Sale | null;
   if (error || !s) back(path, { stripe_error: "sale_missing" });
   if (s.currency !== "USD" || s.status !== "confirmed" || s.contract_status === "cancelled") {
     back(path, { stripe_error: "not_eligible" });
+  }
+  // Tax codes and registrations have not been approved yet; do not invoice
+  // a CRM sale with manually calculated tax as though it were service revenue.
+  if (!Number.isFinite(Number(s.tax_total)) || Number(s.tax_total) !== 0) {
+    back(path, { stripe_error: "tax_requires_review" });
   }
   const { data: contacts, error: contactError } = await supabase.from("crm_contacts")
     .select("email").eq("client_id", s.client_id).eq("is_primary", true).limit(1);
@@ -91,6 +96,7 @@ export async function createStripeInvoiceDraft(form: FormData) {
     );
 
     if (invoice.livemode !== false || invoice.status !== "draft" ||
+      invoice.automatic_tax?.enabled !== false ||
       invoice.customer !== customer.id || invoice.currency !== "usd" ||
       invoice.metadata?.avalon_invoice_id !== local.id ||
       invoice.metadata?.avalon_sale_id !== s.id) {
@@ -137,6 +143,12 @@ export async function sendStripeInvoice(form: FormData) {
     !["draft", "open"].includes(local.status) || local.hosted_invoice_url) {
     back(path, { stripe_error: "not_eligible" });
   }
+  const { data: currentSale, error: saleError } = await supabase.from("crm_sales")
+    .select("tax_total").eq("id", saleId).maybeSingle();
+  if (saleError || !currentSale || !Number.isFinite(Number(currentSale.tax_total)) ||
+      Number(currentSale.tax_total) !== 0) {
+    back(path, { stripe_error: "tax_requires_review" });
+  }
   const { data: contacts } = await supabase.from("crm_contacts")
     .select("email").eq("client_id", local.client_id).eq("is_primary", true).limit(1);
   if (!isTestRecipient((contacts?.[0]?.email ?? "").trim())) {
@@ -151,6 +163,7 @@ export async function sendStripeInvoice(form: FormData) {
     }
     const invoice = await stripeRequest<StripeInvoice>(`/invoices/${local.stripe_invoice_id}`);
     if (!["draft","open"].includes(invoice.status) || invoice.livemode !== false ||
+      invoice.automatic_tax?.enabled !== false ||
       invoice.id !== local.stripe_invoice_id ||
       invoice.customer !== local.stripe_customer_id ||
       invoice.currency !== "usd" ||
@@ -168,6 +181,7 @@ export async function sendStripeInvoice(form: FormData) {
         `avalon-test-finalize-${local.id}`
       );
       if (finalized.status !== "open" || finalized.livemode !== false ||
+        finalized.automatic_tax?.enabled !== false ||
         finalized.total !== minor(local.amount_minor) ||
         finalized.customer !== local.stripe_customer_id) {
         back(path, { stripe_error: "invoice_mismatch" });
@@ -178,6 +192,7 @@ export async function sendStripeInvoice(form: FormData) {
       `avalon-test-send-${local.id}`
     );
     if (sent.status !== "open" || sent.livemode !== false ||
+      sent.automatic_tax?.enabled !== false ||
       sent.id !== local.stripe_invoice_id ||
       sent.total !== minor(local.amount_minor) ||
       !sent.hosted_invoice_url?.startsWith("https://invoice.stripe.com/")) {
