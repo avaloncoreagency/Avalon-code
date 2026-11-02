@@ -34,7 +34,8 @@ export async function signIn(formData: FormData) {
   if (authError) {
     const code = authError.code;
     if (code === "invalid_credentials" || code === "email_not_confirmed" ||
-      (authError.status === 400 && /invalid login credentials/i.test(authError.message ?? ""))) {
+      (authError.status === 400 &&
+        /^(invalid_credentials|invalid login credentials)$/i.test((authError.message ?? "").trim()))) {
       redirect("/admin/login?error=invalid");
     }
     if (authError.status === 429 || code === "over_request_rate_limit") {
