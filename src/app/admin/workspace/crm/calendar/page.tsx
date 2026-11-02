@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { Suite } from "@/components/suite/suite";
 import { SharedCalendar } from "@/components/crm/shared-calendar";
+import { CrmNavigation } from "@/components/crm/navigation";
 import { isCalendarDay, moveDay, moveMonth, type CalendarEvent, type DayBanner, type CalendarView } from "@/lib/crm/shared-calendar";
 import { OpsLinks, Tag, ownerName, q, UUID_RE, type Query } from "@/components/sales/ui";
 import { requireOwner } from "@/lib/auth/session";
@@ -60,6 +61,7 @@ export default async function CalendarPage({ searchParams }: { searchParams: Pro
   const link = (params: Record<string, string>) => `?${new URLSearchParams({ ...(who === null ? { owner: "all" } : who !== userId ? { owner: who } : {}), ...(days === 60 ? { days: "60" } : {}), ...params })}`;
   return (
     <Suite active="crm">
+      <CrmNavigation active="calendar" />
       <SharedCalendar events={calendarEvents.data ?? []} banners={dayBanners.data ?? []}
         owners={owners.data ?? []} clients={linkedClients.data ?? []} leads={linkedLeads.data ?? []}
         userId={userId} initialDate={focusDate} initialView={calendarView} lang={lang}
