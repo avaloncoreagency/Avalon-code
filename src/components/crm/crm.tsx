@@ -12,6 +12,7 @@ import {
 import { RecordForm } from "./record-form";
 import { CrmNavigation } from "./navigation";
 import { TitanRadar } from "./titan-radar";
+import { LeadBoard } from "./lead-board";
 import s from "./crm.module.css";
 export const crmSections = sections;
 export type CrmSection = Section;
@@ -555,62 +556,31 @@ export function Crm({ section = "leads" }: { section?: CrmSection }) {
               (view === "table" ? (
                 table()
               ) : (
-                <div className={s.grid}>
-                  {stages.map((stage) => (
-                    <section className={s.panel} key={stage.id}>
-                      <h2>{stage.label}</h2>
-                      {rows
-                        .filter((l) => l.stage_id === stage.id)
-                        .map((l) => (
-                          <article key={String(l.id)} className={s.lead}>
-                            <strong>{String(l.company)}</strong>
-                            <small>
-                              {String(l.contact)} · {money(l.value)}
-                            </small>
-                            <small>Seguimiento: {stamp(l.follow_up_at)}</small>
-                            <label>
-                              Mover etapa
-                              <select
-                                aria-label={`Etapa de ${l.company}`}
-                                disabled={busy}
-                                value={String(l.stage_id)}
-                                onChange={(e) => {
-                                  const target = stages.find(
-                                    (x) => x.id === e.target.value,
-                                  );
-                                  if (target?.kind === "lost") {
-                                    edit({ ...l, stage_id: target.id });
-                                    return;
-                                  }
-                                  action({
-                                    entity: "leads",
-                                    id: l.id,
-                                    version: l.version,
-                                    values: { ...l, stage_id: e.target.value },
-                                  });
-                                }}
-                              >
-                                {stages.map((x) => (
-                                  <option key={x.id} value={x.id}>
-                                    {x.label}
-                                  </option>
-                                ))}
-                              </select>
-                            </label>
-                            <div className={s.actions}>
-                              <button onClick={() => edit(l)}>Editar</button>
-                              <button onClick={() => setDetail(l)}>
-                                Detalle
-                              </button>
-                            </div>
-                          </article>
-                        ))}
-                      {!rows.some((l) => l.stage_id === stage.id) && (
-                        <p className={s.empty}>Sin leads en esta página</p>
-                      )}
-                    </section>
-                  ))}
-                </div>
+                <LeadBoard
+                  stages={stages}
+                  leads={rows}
+                  total={data.count ?? rows.length}
+                  page={page}
+                  busy={busy}
+                  currentOwnerId={data.userId}
+                  onEdit={(lead) => edit(lead)}
+                  onDetail={setDetail}
+                  onMove={(lead, targetId) => {
+                    const target = stages.find((stage) => stage.id === targetId);
+                    if (!target || lead.stage_id === targetId) return;
+                    if (target.kind === "lost") {
+                      // Preserve the existing loss-reason validation workflow.
+                      edit({ ...lead, stage_id: targetId });
+                      return;
+                    }
+                    action({
+                      entity: "leads",
+                      id: lead.id,
+                      version: lead.version,
+                      values: { ...lead, stage_id: targetId },
+                    });
+                  }}
+                />
               ))}
             {section === "calendar" && (
               <>
