@@ -6,6 +6,11 @@
 - CRM > Ventas > ficha de venta: facturas vinculadas, importe, estado y botón de crear borrador.
 - CRM > Clientes 360°: historial de facturas por cliente y enlaces a la venta.
 - Un borrador de factura de prueba se crea con el **saldo real no cobrado** de la venta USD; el importe se reserva en la DB con bloqueo de fila. Solo 1 factura pendiente por venta.
+- **Anti-doble cobro:** mientras una factura Stripe está en `creating`, `draft`, `open`, `review` o `uncollectible`, el CRM impide registrar pagos manuales para la misma venta, tanto en pantalla como en la validación transaccional PostgreSQL. El webhook Stripe firmado es la única excepción.
+- **Saldo liberado:** al confirmar `invoice.deleted` o `invoice.voided`, queda disponible nuevamente el registro manual o la emisión de una nueva factura con el saldo recalculado. Si todavía hay una factura Stripe activa, no se permite cobrar otra vez.
+- El webhook de Stripe bloquea primero la fila de la venta y luego la factura, usando el mismo orden que la reserva de facturas para evitar interbloqueos.
+- **Impuestos manuales no aprobados:** si la venta incluye `tax_total` distinto de cero, no se puede crear ni enviar una factura Stripe. El `automatic_tax` de Stripe también se verifica explícitamente como desactivado antes de autorizar el envío; la configuración fiscal debe revisarse antes de utilizarla.
+- En `CRM → Facturas` se muestran estados bilingües y enlaces de investigación a los eventos señalados para revisión en Stripe Sandbox.
 - API Stripe server-only usando una clave **test**; claves live se rechazan y `VERCEL_ENV=production` también se rechaza.
 - La operación solo puede ser iniciada por propietarios reales con Auth + membresía. El email de cliente en Sandbox debe ser sintético (`example.invalid`, `example.test`, `example.com`, etc.).
 - El alta de facturas fija explícitamente `automatic_tax[enabled]=false`, aun si cambia el valor predeterminado de Stripe. La tributación sigue pendiente de validación.
@@ -48,14 +53,17 @@
 4. Crear venta **SINTÉTICA** en USD y cliente de prueba con email reservado (`buyer@example.invalid`). Crear el borrador y comprobar que se genera **una única** factura y una sola línea.
 5. Habilitar temporalmente el opt-in de envío en Preview, autorizar explícitamente el envío de prueba; verificar Hosted Invoice Page.
 6. Simular pago Stripe usando exclusivamente medios de prueba y verificar que llegue `invoice.payment_succeeded`; comprobar `crm_stripe_invoices.status=paid`, relación `payment_id`, un solo `crm_payments`, y total cobrado no superior al total contratado.
-7. Simular un `invoice.paid` sin `invoice.payment_succeeded` y comprobar que **no** aumenta el dinero cobrado. Luego reenviar el mismo evento firmado y comprobar que NO aparecen pagos duplicados. Simular fallo y reembolso para verificar alertas de revisión. Mantener pagos de producción desactivados.
+7. Verificar que el intento de registrar un pago manual mientras la factura está pendiente se rechaza con `payment_stripe_invoice_active`; tras `invoice.deleted` o `invoice.voided` comprobado, volver a intentarlo y confirmar que se recalcula el saldo.
+8. Probar una venta sintética con `tax_total` positivo: la creación y el envío deben permanecer bloqueados hasta la revisión fiscal.
+9. Simular un `invoice.paid` sin `invoice.payment_succeeded` y comprobar que **no** aumenta el dinero cobrado. Luego reenviar el mismo evento firmado y comprobar que NO aparecen pagos duplicados. Simular fallo y reembolso para verificar alertas de revisión. Mantener pagos de producción desactivados.
 
 ## Evidencia verificada — 2026-11-02
 
 - GitHub Actions sobre commit `364d4853cf05942ed1164f5c7749459c56d6c925`: **cinco workflows completados satisfactoriamente** (Auth, Security, CRM, Sales core, OS modules). Incluyen PGlite con pago confirmado, duplicados, pago fuera de Stripe y llegada temprana del webhook.
 - Stripe Sandbox API: cliente ficticio `cus_VYZZTPbxkF281k`, factura `in_1UXSQoQrmwDmSzrj7auG3Adf`, una línea de `2500` centavos USD.
 - Lectura directa de Stripe confirmó `status=draft`, `livemode=false`, `amount_due=2500`, `total=2500`, `auto_advance=false`, `automatic_tax.enabled=false`.
-- **No se envió correo, no se cobró dinero, no se hizo una prueba del webhook externo ni de la página de Avalon Preview**. Estos registros son sintéticos, aislados de clientes reales.
+- **No se envió correo, no se cobró dinero, no se hizo una prueba del webhook externo ni de la página de Avalon Preview**.
+- La validación 5/5 verde es de un commit anterior. Los cambios de bloqueo manual, impuestos y recuperación posteriores deben pasar una nueva corrida de CI del SHA actual. No presentar CI nuevo como aprobado hasta verlo. Estos registros son sintéticos, aislados de clientes reales.
 - Bloqueo vigente: credenciales privadas y Supabase aislado de Preview aún no configurados; prohibido fusionar a producción sin prueba E2E externa.
 
 ## Resultado de lectura de Stripe Tax (Sandbox, 2026-11-02)
