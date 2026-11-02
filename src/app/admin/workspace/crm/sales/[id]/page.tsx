@@ -109,7 +109,7 @@ export default async function SaleDetail({ params, searchParams }: { params: Pro
                 {inv.status === "creating" && stripeSandboxReady() &&
                   <form action={createStripeInvoiceDraft}><input type="hidden" name="sale_id" value={d.id} />
                     <button className={s.button}>{pick(lang, "Reintentar preparación", "Retry draft preparation")}</button></form>}
-                {inv.status === "draft" && stripeSandboxReady() && process.env.STRIPE_ALLOW_TEST_SEND === "true" &&
+                {["draft", "open"].includes(inv.status) && !inv.hosted_invoice_url && !inv.needs_review && stripeSandboxReady() && process.env.STRIPE_ALLOW_TEST_SEND === "true" &&
                   <form action={sendStripeInvoice}><input type="hidden" name="sale_id" value={d.id}/><input type="hidden" name="invoice_id" value={inv.id}/>
                     <button className={s.button}>{pick(lang, "Autorizar envío de factura de prueba", "Approve sending test invoice")}</button></form>}
               </li>)}</ul>}
