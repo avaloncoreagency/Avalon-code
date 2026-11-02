@@ -1,0 +1,39 @@
+name: Dev Bridge handoff
+on:
+  workflow_dispatch:
+    inputs:
+      issue:
+        description: Canonical Issue number linked from an open PR
+        required: true
+      owner:
+        description: Declared resuming owner (does not imply acceptance)
+        type: choice
+        options: [miguel, samuel]
+        required: true
+permissions:
+  contents: read
+  issues: write
+  pull-requests: read
+  checks: read
+  statuses: read
+concurrency:
+  group: dev-bridge-handoff-${{ inputs.issue }}
+  cancel-in-progress: false
+jobs:
+  handoff:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      GH_TOKEN: ${{ github.token }}
+      BRIDGE_CODE_REF: ${{ github.ref_name }}
+      ISSUE: ${{ inputs.issue }}
+      OWNER: ${{ inputs.owner }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: npm ci --ignore-scripts --no-audit --no-fund
+      - run: npm run bridge:sync > /dev/null
+      - run: npm run bridge:handoff -- --issue "$ISSUE" --as "$OWNER" --state Draft --publish > /dev/null
+      - run: echo 'Draft handoff recorded in its Issue. No acceptance, checkout or merge performed.' >> "$GITHUB_STEP_SUMMARY"
