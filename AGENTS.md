@@ -42,3 +42,17 @@ For bridge work, use feature/avalon-dev-bridge or an isolated continuation branc
 On session start: read docs/dev-bridge/AI_CONTEXT.md and PROJECT_STATE.md, identify the canonical Issue, fetch remote state, check owner advances, validate resume package, select a safe branch and run relevant baseline tests.
 During development: reference the Issue in small commits, update task progress and shared decisions, preserve existing work and avoid unrelated refactors.
 On session end: run checks, commit, update Issue and handoff, record blockers, generate a validated resume package and exact next action. If a provider is inaccessible, record UNKNOWN; never claim synchronization succeeded for it.
+
+## Current coordination note (as of 2026-11-02; recheck before acting)
+The Sprint 01 branch and Google-first statements above describe historical workstreams, not an instruction to force old branches or require Google today. Current owner login preference is email/password with optional Google; authorization still requires trusted UUID + agency_memberships, never email alone.
+The ongoing reconciliation is draft PR #21 (integration/avalon-os-reconciliation-20261102 → main when last checked). Do not edit a human-owned integration branch directly, merge the release PR, or override ownership without coordination. Check issue #23 and current PR/branch state before selecting a new target.
+
+## Graphify-first, token-efficient workflow (all coding agents)
+Applies to Codex, ChatGPT and other repo-aware agents. Detailed playbook: `docs/graphify/AGENT_WORKFLOW.md`.
+- Start with the current task, working branch and git HEAD. Compare Graphify's indexed commit with the branch HEAD; a graph from another branch or older commit is **navigation only**, never proof of current implementation.
+- When Graphify is available, use `recall(profile="agent", render="compact", token_budget=800-1500, k<=8, include_turns=false)` for relevant decisions, then `graphify_rank_files(limit<=8)` or `query_graph(skeleton=true, budget=800-1500, k<=5)` to locate code. Scope to `avaloncoreagency/Avalon-code`. Expand only relevant symbols/files; inspect live source before editing.
+- For behavior changes, consult `impact_and_risk` and `graphify_tests_for` when useful, then **run** appropriate tests. Static graph results never replace runtime verification, security review or CI.
+- Avoid repository-wide dumps, redundant queries, overlapping agent implementations and repeated broad searches. Reuse file paths, SHAs and findings within the task. Check freshness once per task and again only if code changes materially.
+- If Graphify is unavailable, stale, misses the needed code or costs more context than direct inspection, switch immediately to targeted git/GitHub lookups; do not loop or block progress.
+- Limit exploration to a small number of targeted calls before choosing files. Report succinctly: files changed, tests actually run/results, open risks, next checkpoint; no invented token-savings percentages.
+- Never send credentials, private customer data or secrets to graph queries, memory or agent logs. Graphify memory notes can require separate human review before other agents can recall them.
