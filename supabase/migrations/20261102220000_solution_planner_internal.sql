@@ -197,13 +197,13 @@ begin
   end if;
   select count(*) into n from public.crm_solution_plan_lines l
     join public.crm_service_catalog s on s.id=l.service_id
-    where l.plan_id=plan_id and (
+    where l.plan_id=$1 and (
       not s.active or s.readiness <> 'sellable'
       or l.unit_price is null or l.unit_price<=0
       or l.direct_cost is null or l.estimated_hours is null
       or p.hourly_rate is null);
   if n>0 then raise exception 'planner_not_ready' using errcode='22023'; end if;
-  if not exists(select 1 from public.crm_solution_plan_lines where plan_id=plan_id) then
+  if not exists(select 1 from public.crm_solution_plan_lines where plan_id=$1) then
     raise exception 'planner_empty' using errcode='22023';
   end if;
   update public.crm_solution_plans
