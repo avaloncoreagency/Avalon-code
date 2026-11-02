@@ -168,38 +168,43 @@ test('Nova Restaurant through the real app: one form, three departments, no dupl
   const overflow = await sam.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
   assert.ok(overflow <= 1, `no horizontal page scroll on mobile (overflow ${overflow}px)`);
 
-  // Lead Hunter: mocked map data, real authorized prospect storage and conversion.
-  await sam.route('**/admin/workspace/crm/radar?*', async route => {
-    await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({
-      places: [{ key: 'node/987654321', name: 'Radar Dental Sintético', industry: 'dentist',
-        location: 'Miami · datos de prueba', phone: '+1-305-555-0199',
-        email: 'contacto@radar.example.invalid', website: '',
-        mapUrl: 'https://www.openstreetmap.org/node/987654321',
-        lat: 25.776, lon: -80.194, score: 85,
-        opportunity: 'Web no registrada en mapa; verificar antes de ofrecer diseño web.',
-        websiteUnlisted: true, service: 'website' }],
-      zone: 'Miami · Downtown', source: 'OpenStreetMap', cached: false,
-    }) });
-  });
+  // Titan Radar: the external map provider is mocked (no internet in tests); ingest, needs,
+  // stars, approval and pipeline transfer run through the real routes and RLS-protected DB.
+  await db.exec('reset role;');
+  await db.exec(`set request.jwt.claim.sub='${SAMUEL}'; set role authenticated;`);
+  await db.query('select crm_radar_ingest($1::jsonb, $2)', [JSON.stringify([
+    { source_ref: 'osm:node/987654321', source_kind: 'osm', name: 'Radar Dental Sintético', lat: 25.776, lon: -80.194, industry: 'dentist', phone: '+1-305-555-0199', location: 'Miami · datos de prueba', source_label: 'OpenStreetMap', license: 'ODbL' },
+    { source_ref: 'osm:node/987654322', source_kind: 'osm', name: 'Radar Café Sintético', lat: 25.778, lon: -80.190, industry: 'cafe', location: 'Miami · datos de prueba', source_label: 'OpenStreetMap', license: 'ODbL' },
+  ]), 'browser-seed-0001']);
+  await db.exec('reset role;');
+  await sam.route('**/tile.openstreetmap.org/**', r => r.abort());
+  await sam.route('**/admin/workspace/crm/radar/area?*', r => r.fulfill({ status: 200, contentType: 'application/json',
+    body: JSON.stringify({ run: { found: 2, inserted: 0, updated: 2 }, refs: [], searchedAt: new Date().toISOString(), source: 'OpenStreetMap (ODbL)' }) }));
   await sam.goto(origin + '/admin/workspace/crm/hunter');
-  await sam.getByRole('button', { name: 'Crear prospecto' }).waitFor();
-  await sam.getByRole('button', { name: 'Buscar oportunidades' }).click();
-  await sam.getByRole('heading', { name: 'Radar Dental Sintético' }).waitFor();
-  assert.equal(await sam.getByRole('button', { name: 'Localizar Radar Dental Sintético' }).count(), 1);
+  await sam.getByRole('heading', { name: 'Titan Radar' }).waitFor();
+  await sam.getByRole('button', { name: 'Buscar negocios' }).click();
+  await sam.getByText(/completada .* 2 encontrados/).waitFor();
+  await sam.getByRole('button', { name: 'Abrir Radar Dental Sintético' }).click();
+  await sam.getByRole('dialog').getByRole('heading', { name: 'Radar Dental Sintético' }).waitFor();
+  assert.match(await sam.getByRole('dialog').innerText(), /Sin calificar/, 'no evidence → unrated, not 5 stars');
+  for (const [, name] of [['website', 'Sitio web'], ['crm', 'CRM / seguimiento'], ['receptionist', 'Recepcionista IA'], ['marketing', 'Marketing']]) {
+    await sam.getByLabel(`Estado de ${name}`).selectOption('verified_missing');
+    await sam.getByLabel(`Método de ${name}`).selectOption('call');
+    await sam.getByLabel(`Confianza de ${name}`).selectOption('high');
+    await sam.locator('form', { has: sam.getByLabel(`Estado de ${name}`) }).getByRole('button', { name: 'Guardar' }).click();
+    await sam.getByText(`${name}: guardado.`).waitFor();
+  }
+  assert.equal(Number((await db.query("select stars from crm_prospects where source_ref='osm:node/987654321'")).rows[0].stars), 4, 'four verified needs → 4 stars');
+  assert.match(await sam.getByRole('dialog').innerText(), /★★★★☆ Oro/);
   await sam.screenshot({ path: EVIDENCE + '/radar-results-mobile.png', fullPage: true });
-  await sam.getByRole('button', { name: 'Guardar prospecto' }).click();
-  await sam.getByText(/guardado para revisión/).waitFor();
-  assert.equal(await count("select count(*) n from crm_prospects where company='Radar Dental Sintético'"), 1);
-  await sam.getByRole('button', { name: 'Revisar y calificar' }).click();
-  await sam.getByLabel('Contacto', { exact: true }).fill('Decisor sintético confirmado');
-  await sam.getByLabel('Revisión').selectOption('approved');
-  await sam.getByRole('button', { name: 'Guardar', exact: true }).click();
-  await sam.getByRole('button', { name: 'Pasar al pipeline' }).waitFor();
-  await sam.getByRole('button', { name: 'Pasar al pipeline' }).click();
-  await sam.getByRole('link', { name: 'Abrir lead' }).waitFor();
+  await sam.getByRole('button', { name: '✓ Aprobar' }).click();
+  await sam.getByText(/aprobado/).waitFor();
+  await sam.getByRole('button', { name: '→ Pasar al pipeline' }).click();
+  await sam.getByText(/está ahora en Leads Pipeline/).waitFor();
   assert.equal(await count("select count(*) n from crm_prospects where company='Radar Dental Sintético' and status='converted'"), 1);
   assert.equal(await count("select count(*) n from crm_leads where company='Radar Dental Sintético'"), 1);
-  await sam.unroute('**/admin/workspace/crm/radar?*');
+  assert.equal(await count("select count(*) n from crm_leads where company='Radar Café Sintético'"), 0, 'unapproved business never reaches the pipeline');
+  await sam.unroute('**/admin/workspace/crm/radar/area?*');
 
   // Mobile-first smoke test: every high-frequency Avalon route is usable on a phone.
   const mobileRoutes = [
@@ -330,6 +335,42 @@ test('Nova Restaurant through the real app: one form, three departments, no dupl
   await page.getByText('Cambios guardados.').waitFor();
   assert.equal(Number((await one("select suggested_price p from crm_service_catalog where code='desarrollo-web'")).p), 2000);
   await page.screenshot({ path: `${EVIDENCE}/crm-settings.png`, fullPage: true });
+
+  // ── Radar campaigns: created paused, toggled, persisted (no provider call in tests) ──
+  await page.route('**/tile.openstreetmap.org/**', r => r.abort());
+  await page.goto(origin + '/admin/workspace/crm/hunter');
+  await page.getByRole('heading', { name: 'Campañas de radar' }).waitFor();
+  await page.getByLabel('Nombre de la campaña').fill('Dentistas sintéticos Miami');
+  await page.getByRole('button', { name: 'Guardar búsqueda actual como campaña' }).click();
+  await page.getByText('Campaña creada (pausada).').waitFor();
+  assert.equal((await one("select status from crm_radar_campaigns where name='Dentistas sintéticos Miami'")).status, 'paused');
+  await page.locator('li', { hasText: 'Dentistas sintéticos Miami' }).getByRole('button', { name: 'Activar' }).click();
+  await page.getByText('Campaña activada.').waitFor();
+  assert.equal((await one("select status from crm_radar_campaigns where name='Dentistas sintéticos Miami'")).status, 'active');
+  assert.match(await page.locator('#main').innerText(), /Programación automática pendiente/, 'scheduler limitation stated, not faked');
+
+  // ── Public website: quote request → pending Lead Hunter prospect only ──
+  const visitor = await browser.newContext({ viewport: { width: 320, height: 720 } });
+  const pub = await visitor.newPage();
+  pub.on('pageerror', e => errors.push(`pageerror: ${e.message}`));
+  await pub.goto(origin + '/');
+  await pub.getByRole('heading', { name: 'Tecnología que hace crecer tu negocio.' }).waitFor();
+  await pub.getByLabel('Empresa').fill('Visitante Sintético LLC');
+  await pub.getByLabel('Tu nombre').fill('Luis Prueba');
+  await pub.getByLabel('Correo').fill('luis@visitante.example.invalid');
+  await pub.getByLabel('Recepcionista IA').check();
+  await pub.getByLabel('Cuéntanos tu proyecto').fill('Queremos una recepcionista IA para reservas.');
+  await pub.getByRole('button', { name: 'Solicitar cotización' }).click();
+  await pub.getByText(/Recibimos tu solicitud/).waitFor();
+  const overflowPub = await pub.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
+  assert.ok(overflowPub <= 1, `public site has no horizontal scroll at 320 px (${overflowPub}px)`);
+  await pub.screenshot({ path: `${EVIDENCE}/public-quote-320.png`, fullPage: true });
+  const web = await one("select status, source_kind from crm_prospects where company='Visitante Sintético LLC'");
+  assert.deepEqual({ ...web }, { status: 'pending', source_kind: 'web_form' }, 'web request waits for human review');
+  assert.equal(Number((await one("select count(*) n from crm_leads where company='Visitante Sintético LLC'")).n), 0);
+  await pub.goto(origin + '/?lang=en');
+  await pub.getByRole('heading', { name: 'Technology that grows your business.' }).waitFor();
+  await visitor.close();
 
   assert.deepEqual(errors.filter(e => e.startsWith('pageerror')), [], 'no client-side errors');
 });

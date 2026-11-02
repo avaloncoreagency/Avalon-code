@@ -44,8 +44,8 @@ During development: reference the Issue in small commits, update task progress a
 On session end: run checks, commit, update Issue and handoff, record blockers, generate a validated resume package and exact next action. If a provider is inaccessible, record UNKNOWN; never claim synchronization succeeded for it.
 
 ## Current coordination note (as of 2026-11-02; recheck before acting)
-The Sprint 01 branch and Google-first statements above describe historical workstreams, not an instruction to force old branches or require Google today. Current owner login preference is email/password with optional Google; authorization still requires trusted UUID + agency_memberships, never email alone.
-The ongoing reconciliation is draft PR #21 (integration/avalon-os-reconciliation-20261102 → main when last checked). Do not edit a human-owned integration branch directly, merge the release PR, or override ownership without coordination. Check issue #23 and current PR/branch state before selecting a new target.
+The Sprint 01 branch and Google-first statements above describe **historical workstreams**, not current implementation requirements. Current owner login is **email/password only in the UI**, with no new Google OAuth sign-in action. Legacy authenticated identities are a separate explicit security policy decision; all authorization still requires trusted UUID + `agency_memberships`, never email or provider alone.
+The authoritative production code is `main` (PR #34 integrated the current CRM, sales, client 360°, security and existing Codex tools when last checked). Draft PR #41 contains Titan Radar and mobile updates, pending verification, staging and explicit publication approval. Old PR #21/#31 are historical integration tracks; do not cherry-pick them blindly or overwrite Claude's current branch. Always recheck current GitHub HEAD, the corresponding Vercel deployment and issue #23 before selecting changes.
 
 ## Graphify-first, token-efficient workflow (all coding agents)
 Applies to Codex, ChatGPT and other repo-aware agents. Detailed playbook: `docs/graphify/AGENT_WORKFLOW.md`.

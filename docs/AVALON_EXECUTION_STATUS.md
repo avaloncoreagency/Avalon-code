@@ -55,7 +55,11 @@ applied, each in one transaction, from the files at commit `3bfd07d` (md5 verifi
 `5c8dd658…`, `28a5f6c2…`) with the exact repo versions recorded in the ledger. Security advisors: only the
 expected WARN "authenticated can execute SECURITY DEFINER" for the 5 owner-checked RPCs; no RLS findings.
 Two SYNTHETIC owners (`miguel.preview@example.com`, `samuel.preview@example.com`) + owner memberships.
-**Production:** still pending — not applied (owner decision: wait for staging validation). Without them, sales/clients/tasks screens show an honest
+**Production (owner-approved after testing the Preview, 2026-11-02):** backup of the touched rows in schema
+`backup_20261102` (crm_stages, agency_memberships, migration ledger); `20261102170000` then `20261102180000`
+applied, md5-verified from commit `3bfd07d`, ledger versions identical to the repo; `pg_net` enabled only for
+the fetch and dropped afterwards. Verified: 13 stages, 6 departments, 6 services (no prices), 5 rules on,
+0 business rows created, all 21 `crm_*` tables with RLS. PR #34 merged to `main` as `bb2fe16`. Without them, sales/clients/tasks screens show an honest
 "migración pendiente" notice; CRM core (leads, hunter, calendar) keeps working.
 
 ## 5. Preview (resolved for this branch with owner approval; guard unchanged)
@@ -73,6 +77,37 @@ for `claude/upbeat-galileo-grbelq` only. Options that were offered:
 
 ## 6. Resume here
 
-1. Owners log into the Preview with the synthetic credentials (shared outside Git) and run the journey.
-2. Owner decision on production: backup → apply `170000` then `180000` → merge PR #34 → verify.
+1. Done: Preview validated by the owner, production migrated, PR #34 merged (`bb2fe16`).
+2. Owner settings still open: enable "Dependency graph" (Dependency review check) and Supabase Auth
+   "Leaked password protection" (pre-existing advisor WARN); set catalog prices/default assignees in CRM → Configuración.
 3. Next phase: public website lead capture into Lead Hunter (review queue, anti-spam), then departments.
+
+## 7. Radar 2.0 — Omega 5.0 increment (issue #40, builds on PR #39)
+
+Branch `claude/upbeat-galileo-grbelq` = `main` (bb2fe16) + PR #39 (mobile dock, radar MVP) + this increment.
+
+| Item | State | Evidence |
+|---|---|---|
+| Found businesses persisted & deduped (`crm_prospects` + `source_ref`) | done (isolated DB) | `tests/radar.database.cjs` |
+| Need matrix per service with method/evidence/confidence | done | same |
+| Explainable 1–5★ from verified evidence only; separate confidence; audited override | done | same + browser (0 evidence → Sin calificar; 4 verified → 4★) |
+| Do-not-contact blocks approval; approval required before pipeline (existing `crm_convert_prospect`) | done | DB + browser |
+| Real map (Leaflet + OSM tiles), cyan sweep (reduced-motion aware), tier color + shape + text markers, synced list/sheet | done | `tests/sales.browser.cjs`, `radar-results-mobile.png` |
+| Free search: geocoder (human-initiated, cached, 1.1 s) + tap map + my location; radius presets 1–50 mi or custom mi/km | done | `tests/radar.test.cjs` |
+| Inbox views: Encontrados, Nuevos, Sin calificar, Calificados, Aprobados, En pipeline, Descartados, No contactar; Mejores oportunidades de esta zona | done | browser |
+| Campaigns/runs tables (start paused, bounded) | schema only | DB test |
+| Scheduler (cron) running campaigns | **blocked** | needs a licensed/owned places endpoint (`AVALON_RADAR_OVERPASS_URL`) + `CRON_SECRET`; community Overpass forbids automated sweeps |
+| Overture / licensed provider adapters | pending | owner decision on provider + cost |
+| AI usage center (ChatGPT/Codex, Claude, Higgsfield) | pending | existing `crm_usage` manual records; no official read APIs connected |
+| Public website, departments polish | pending | next phases |
+
+Limits (honest): community Overpass ≤ 5 km radius, 30 s between searches per owner, blocked in production
+unless `AVALON_RADAR_OVERPASS_URL` is set. Larger radius (≤ 50 mi) only with a licensed/owned endpoint.
+
+Migration `20261102190000_radar_core.sql`: **not applied anywhere**. Staging `kmpmvwbtqaggkjjxfayh` no
+longer exists (Supabase removed PR #12's branch); only PR #19's branch `wupvuwmqfcvmjqycmnvg` remains.
+The branch-scoped Preview vars of this branch still point at the removed staging DB → Preview cannot log in
+until an isolated DB is chosen (owner decision).
+
+Next exact task: owner chooses (a) isolated DB for Preview and (b) map/places provider; then campaign runner
+(`/api/radar/cron` with CRON_SECRET, advisory lock, budget) and AI usage center.

@@ -12,8 +12,11 @@ type UsageRow = {
   unit?: string;
   source?: string;
   mode?: string;
+  period_start?: string;
   period_end?: string;
   created_at?: string;
+  limit_value?: number | null;
+  threshold?: number;
 };
 type KpiPayload = {
   metrics?: { overdue?: number; pending?: number };
@@ -25,6 +28,8 @@ type OverviewData = {
   pending: number;
 };
 const providers = ["Codex", "Claude", "Higgsfield"] as const;
+// Subscriptions/plans and API billing are different sources; manual records state which one they are.
+const LABELS: Record<(typeof providers)[number], string> = { Codex: "ChatGPT / Codex", Claude: "Claude Code", Higgsfield: "Higgsfield" };
 const api = "/admin/workspace/crm/api";
 
 function isNumber(value: unknown): value is number {
@@ -87,21 +92,29 @@ export function CrmOverview() {
       <CrmNavigation />
 
       <section className={s.panel} aria-labelledby="usage-heading">
-        <h2 id="usage-heading">Uso de tokens y costos</h2>
-        <p className={s.muted}>Las API de consumo no están conectadas. Los valores registrados manualmente son históricos, no balances en tiempo real ni costos calculados.</p>
+        <h2 id="usage-heading">Centro de consumo de IA · Uso de tokens y costos</h2>
+        <p className={s.muted}>Las API de consumo no están conectadas. Los valores registrados manualmente son históricos, no balances en tiempo real ni costos calculados. Nunca se muestra 0 cuando el valor es desconocido; suscripciones y facturación API se registran por separado indicando la fuente.</p>
         <div className={s.cards}>
           {providers.map((provider) => {
             const rows = (data?.usage ?? []).filter((item) => item.provider === provider && item.mode === "manual");
             const latest = rows[0];
             return (
               <div className={s.card} key={provider}>
-                <strong>{provider}</strong>
-                <p className={s.muted}>Automático: no conectado</p>
-                {!data && !error ? (
-                  <p>Consultando registros…</p>
-                ) : latest && isNumber(latest.amount) ? (
-                  <p>Último registro manual: <strong>{latest.amount.toLocaleString("es")} {latest.unit || "unidades"}</strong></p>
-                ) : <p>Sin registro manual disponible</p>}
+                <strong>{LABELS[provider]}</strong>
+                {!data && !error ? <p>Consultando registros…</p> : (() => {
+                  if (!latest || !isNumber(latest.amount)) return <><p className={s.muted}>Estado: Sin datos</p><p>No disponible · registra un consumo manual desde el panel oficial del proveedor.</p></>;
+                  const limit = isNumber(latest.limit_value) ? latest.limit_value : null;
+                  const pct = limit ? Math.round((latest.amount / limit) * 100) : null;
+                  const stale = latest.period_end ? new Date(latest.period_end).getTime() < Date.now() : false;
+                  const alert = pct !== null && pct >= (latest.threshold ?? 80);
+                  return <>
+                    <p className={s.muted}>Estado: {stale ? "Fuente desactualizada (periodo cerrado)" : "Actualización manual"} · Automático: no conectado</p>
+                    <p>Consumido: <strong>{latest.amount.toLocaleString("es")} {latest.unit || "unidades"}</strong></p>
+                    <p>Límite: {limit !== null ? `${limit.toLocaleString("es")} ${latest.unit ?? ""}` : "desconocido"} · Restante: {limit !== null ? `${Math.max(0, limit - latest.amount).toLocaleString("es")} ${latest.unit ?? ""}` : "desconocido"}</p>
+                    {pct !== null && <p role={alert ? "alert" : undefined}>{alert ? "⚠ " : ""}{pct}% usado (umbral {latest.threshold ?? 80}%)</p>}
+                    <p className={s.muted}>Periodo: {latest.period_start ? new Date(latest.period_start).toLocaleDateString("es") : "—"} – {latest.period_end ? new Date(latest.period_end).toLocaleDateString("es") : "—"} · Fuente: {latest.source || "—"}</p>
+                  </>;
+                })()}
               </div>
             );
           })}
