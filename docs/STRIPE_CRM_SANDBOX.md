@@ -16,6 +16,7 @@
 - RPC de conciliación: registra `invoice.payment_succeeded` en `crm_payments` solo si identificadores, moneda, importe y saldo son compatibles; la base de datos deduplica `event.id` en la misma transacción. No toma una página de éxito como prueba de pago.
 - `invoice.paid` **no** se contabiliza como cobro: también ocurre al registrar pagos manuales fuera de Stripe. Sin `invoice.payment_succeeded` se queda pendiente de revisión.
 - Si Stripe avisa antes de que la factura quede enlazada en el CRM, el webhook devuelve error temporal y se reintenta; no se pierde silenciosamente el evento.
+- Si alguien elimina un borrador en Stripe, el evento firmado `invoice.deleted` conserva su auditoría en Avalon y libera el saldo para emitir otro borrador, sin registrarlo como cobro.
 - Eventos de reembolso, crédito o disputa se marcan `needs_review` para gestión humana; **no se debe considerar completamente conciliado un reembolso hasta implementar asientos reversos**.
 - Stripe Tax automático NO está activado.
 
@@ -42,7 +43,7 @@
    - `STRIPE_ALLOW_TEST_SEND`: omitida por defecto; solo marcar `true` para una prueba de envío autorizada.
 3. Usar un alias Preview estable para configurar en Stripe Sandbox el endpoint `https://<preview-host>/api/stripe/webhook`, suscribiendo:
    `invoice.paid`, `invoice.payment_succeeded`, `invoice.payment_failed`, `invoice.finalized`, `invoice.sent`, `invoice.voided`,
-   `invoice.marked_uncollectible`, `credit_note.created`, `charge.refunded`, `charge.dispute.created`.
+   `invoice.marked_uncollectible`, `invoice.deleted`, `credit_note.created`, `charge.refunded`, `charge.dispute.created`.
    Nota: si el evento no incluye el ID de factura, se registra como *unlinked* para revisión, no se modifica ningún cobro. La vista **Facturas** muestra la cola de eventos marcados para revisión.
 4. Crear venta **SINTÉTICA** en USD y cliente de prueba con email reservado (`buyer@example.invalid`). Crear el borrador y comprobar que se genera **una única** factura y una sola línea.
 5. Habilitar temporalmente el opt-in de envío en Preview, autorizar explícitamente el envío de prueba; verificar Hosted Invoice Page.
