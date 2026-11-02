@@ -101,3 +101,73 @@ test("Sandbox Stripe refuses production DB, live keys and production runtimes", 
     }
   }
 });
+
+function sandboxAdapter(fakeFetch = async () => ({ ok: true, json: async () => ({ id:"in_test" }) })) {
+  const source = fs.readFileSync("src/lib/stripe/avalon.ts", "utf8");
+  const js = ts.transpileModule(source, {
+    compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 },
+  }).outputText;
+  const mod = { exports: {} };
+  // No network access or real credentials: only in-memory dependency injection.
+  new Function("require","module","exports","fetch",js)(
+    id => id === "server-only" ? {} : require(id), mod, mod.exports, fakeFetch
+  );
+  return mod.exports;
+}
+
+test("Stripe retry window expires before API idempotency keys may be pruned", () => {
+  const { stripeReservationRetryable, STRIPE_RESERVATION_RETRY_MAX_AGE_MS } = sandboxAdapter();
+  const now = Date.UTC(2026, 10, 2, 12);
+  const created = ms => new Date(now - ms).toISOString();
+  assert.equal(STRIPE_RESERVATION_RETRY_MAX_AGE_MS,20 * 60 * 60_000);
+  assert.equal(stripeReservationRetryable(created(0),now),true);
+  assert.equal(stripeReservationRetryable(created(19 * 60 * 60_000),now),true);
+  assert.equal(stripeReservationRetryable(created(20 * 60 * 60_000),now),false);
+  assert.equal(stripeReservationRetryable(created(25 * 60 * 60_000),now),false);
+  assert.equal(stripeReservationRetryable(new Date(now + 4 * 60_000).toISOString(),now),true);
+  assert.equal(stripeReservationRetryable(new Date(now + 6 * 60_000).toISOString(),now),false);
+  assert.equal(stripeReservationRetryable("not-a-date",now),false);
+});
+
+test("Stripe API adapter preserves idempotency, timeout and sanitizes remote failures", async () => {
+  const original = Object.fromEntries(
+    ["STRIPE_SECRET_KEY","STRIPE_SANDBOX_ONLY","VERCEL_ENV","NEXT_PUBLIC_SUPABASE_URL"]
+      .map(name => [name, process.env[name]])
+  );
+  let requests = [];
+  const adapter = sandboxAdapter(async (url, options) => {
+    requests.push({url,options});
+    if (requests.length === 1) return {ok:true,json:async()=>({id:"in_fake"})};
+    return {ok:false,status:403,text:async()=> "fake private error: SECRET_VALUE"};
+  });
+  try {
+    process.env.STRIPE_SECRET_KEY = "rk_test_synthetic_unit_not_real";
+    process.env.STRIPE_SANDBOX_ONLY = "true";
+    process.env.VERCEL_ENV = "preview";
+    process.env.NEXT_PUBLIC_SUPABASE_URL = "https://isolated-test.supabase.co";
+    const payload = new URLSearchParams({customer:"cus_synthetic"});
+    const result = await adapter.stripeRequest("/invoices","POST",payload,"test-request-uuid");
+    assert.equal(result.id,"in_fake");
+    assert.equal(requests[0].url,"https://api.stripe.com/v1/invoices");
+    assert.equal(requests[0].options.method,"POST");
+    assert.equal(requests[0].options.headers["Stripe-Version"],"2026-09-30.endive");
+    assert.equal(requests[0].options.headers["Idempotency-Key"],"test-request-uuid");
+    assert.equal(requests[0].options.body,"customer=cus_synthetic");
+    assert.ok(requests[0].options.signal instanceof AbortSignal);
+    assert.equal(requests[0].options.signal.aborted,false);
+    await assert.rejects(
+      adapter.stripeRequest("/invoices","POST",payload,"test-request-uuid"),
+      err => /Stripe API request failed \(403\)/.test(err.message) && !err.message.includes("SECRET_VALUE")
+    );
+    await assert.rejects(adapter.stripeRequest("//evil-site"),/Invalid Stripe path/);
+    assert.equal(requests.length,2,"invalid URL must not trigger network access");
+    process.env.STRIPE_SECRET_KEY = "rk_live_fake";
+    await assert.rejects(adapter.stripeRequest("/invoices"),/sandbox unavailable/i);
+    assert.equal(requests.length,2,"live credentials must not trigger network access");
+  } finally {
+    for (const [name, value] of Object.entries(original)) {
+      if (value === undefined) delete process.env[name];
+      else process.env[name] = value;
+    }
+  }
+});
