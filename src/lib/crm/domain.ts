@@ -6,6 +6,15 @@ export const sections = [
   { slug: "kpis", label: "Estadísticas" },
   { slug: "ai-usage", label: "Uso de IA" },
 ] as const;
+/** Primary CRM workflow. Keep legacy analytics and usage routes accessible from the overview. */
+export const crmNavigation = [
+  { slug: "hunter", label: "Lead Hunter", href: "/admin/workspace/crm/hunter" },
+  { slug: "leads", label: "Leads Pipeline", href: "/admin/workspace/crm/leads" },
+  { slug: "sales", label: "Ventas", href: "/admin/workspace/crm/sales" },
+  { slug: "calendar", label: "Calendario", href: "/admin/workspace/crm/calendar" },
+  { slug: "tasks", label: "Tareas", href: "/admin/workspace/crm/tasks" },
+] as const;
+
 export type Section = (typeof sections)[number]["slug"];
 export type Entity = "leads" | "events" | "prospects" | "usage" | "activities";
 export type Row = Record<string, string | number | boolean | null>;
