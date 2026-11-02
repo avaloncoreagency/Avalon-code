@@ -12,6 +12,7 @@ vm.runInNewContext(
   { exports: mod.exports, module: mod, require, URL, Number, Set, Error },
 );
 const { parseRadarSearch, buildRadarQuery, normalizeRadarResults, radarOpportunity } = mod.exports;
+const loadRadar = () => mod.exports;
 const sample = [
   { type: "node", id: 123, lat: 25.775, lon: -80.192,
     tags: { name: "Example Salon", shop: "hairdresser", "contact:phone": "+1-305-555-0100",
@@ -62,16 +63,47 @@ test("other service gaps remain explicitly unverified and emails come from publi
   assert.match(radarOpportunity("crm", true, "salon"), /no permite saber si usa CRM/);
   assert.match(radarOpportunity("ecommerce", true, "shop"), /Comprobar si vende online/);
 });
-test("radar is owner-gated and reuses CRM's validated pending prospect handoff", () => {
-  const route = fs.readFileSync("src/app/admin/workspace/crm/radar/route.ts", "utf8");
-  const ui = fs.readFileSync("src/components/crm/radar.tsx", "utf8");
-  const crm = fs.readFileSync("src/components/crm/crm.tsx", "utf8");
-  assert.match(route, /getOwnerSession/);
-  assert.match(route, /if \(!session\) return reply/);
-  assert.match(route, /WAIT = 30 \* 1000/);
-  assert.match(ui, /entity: "prospects"/);
-  assert.match(ui, /status: "pending"/);
+test("radar is owner-gated, never rewards missing data and keeps human approval before the pipeline", () => {
+  const read = f => fs.readFileSync(f, "utf8");
+  const area = read("src/app/admin/workspace/crm/radar/area/route.ts");
+  const places = read("src/app/admin/workspace/crm/radar/places/route.ts");
+  const geo = read("src/app/admin/workspace/crm/radar/geocode/route.ts");
+  const ui = read("src/components/crm/titan-radar.tsx");
+  const crm = read("src/components/crm/crm.tsx");
+  for (const route of [area, places, geo]) { assert.match(route, /getOwnerSession\(\)/); assert.match(route, /if \(!session\) return reply/); }
+  assert.match(area, /30_000/, "per-owner brake for the community server");
+  assert.match(area, /VERCEL_ENV === "production" && !configured/, "no community Overpass for production prospecting");
+  assert.match(area, /crm_radar_ingest/);
+  assert.doesNotMatch(area, /status: "approved"|crm_convert_prospect/, "search never approves or converts");
+  assert.match(places, /crm_convert_prospect/, "pipeline transfer reuses the audited conversion");
+  assert.match(places, /origin !== request\.nextUrl\.origin/, "cross-origin POST rejected");
+  assert.match(geo, /1100/, "geocoder spaced per Nominatim policy");
+  assert.match(ui, /No registrada en la fuente \(no significa que no tenga\)/);
   assert.match(ui, /OpenStreetMap/);
-  assert.match(ui, /no demuestra que el negocio carezca/);
-  assert.match(crm, /<LeadRadar ownerId/);
+  assert.match(ui, /prefers-reduced-motion/);
+  assert.match(ui, /SHAPE_LABEL/, "status shown by shape and text, not color only");
+  assert.match(crm, /<TitanRadar onChanged/);
+});
+
+test("free area: any coordinate, configurable radius in mi/km, honest provider limits and safe query", () => {
+  const r = loadRadar();
+  const P = o => ({ get: k => (k in o ? o[k] : null) });
+  const ok = r.parseRadarArea(P({ lat: "28.5383", lon: "-81.3792", radius: "3", unit: "mi", industries: "dental,restaurants,bogus" }), false);
+  assert.equal(ok.radiusM, 4828);
+  assert.deepEqual([...ok.industries], ["dental", "restaurants"]);
+  assert.match(r.parseRadarArea(P({ lat: "28.5", lon: "-81.3", radius: "25", unit: "mi" }), false).error, /5 km/, "public server stays small");
+  assert.equal(r.parseRadarArea(P({ lat: "28.5", lon: "-81.3", radius: "50", unit: "mi" }), true).radiusM, 80467, "50 mi with a licensed endpoint");
+  assert.match(r.parseRadarArea(P({ lat: "28.5", lon: "-81.3", radius: "51", unit: "mi" }), true).error, /50 millas/);
+  assert.match(r.parseRadarArea(P({ lat: "95", lon: "0", radius: "1" }), false).error, /punto válido/);
+  const q = r.buildAreaQuery({ lat: 28.5, lon: -81.3, radiusM: 4828, industries: ["dental"], label: "" });
+  assert.match(q, /around:4828,28\.5,-81\.3/);
+  assert.match(q, /"amenity"="dentist"/);
+  assert.doesNotMatch(r.buildAreaQuery({ lat: 1, lon: 1, radiusM: 500, industries: [], label: '"];out;' }), /out;"\]/, "labels never reach the query");
+  const rows = r.toIngest([{ type: "node", id: 7, lat: 25.7, lon: -80.2, tags: { name: "Sintético", amenity: "dentist", phone: "+1 305 555 0101" } }, { type: "node", id: 7, lat: 1, lon: 1, tags: { name: "dup" } }, { type: "node", id: 8, tags: { name: "sin coordenadas" } }], "Miami");
+  assert.equal(rows.length, 1);
+  assert.equal(rows[0].source_ref, "osm:node/7");
+  assert.equal(rows[0].website, "", "no website tag stays empty, never asserted missing");
+  assert.equal(r.tierStyle(null).label, "Sin calificar");
+  assert.equal(r.tierStyle(5).color, "#39ff88");
+  assert.equal(r.tierStyle(1).color, "#f43f5e");
 });

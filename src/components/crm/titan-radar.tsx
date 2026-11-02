@@ -1,0 +1,303 @@
+"use client";
+import "leaflet/dist/leaflet.css";
+import Link from "next/link";
+import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent } from "react";
+import type { Map as LeafletMap, LayerGroup, Circle } from "leaflet";
+import { INDUSTRIES, PUBLIC_MAX_RADIUS_M, RADIUS_PRESETS_MI, tierStyle, type IndustryId } from "@/lib/crm/radar";
+import s from "./titan.module.css";
+
+type Need = { service: string; state: string; evidence_url: string; method: string; note: string; confidence: string; verified_at: string | null };
+export type RadarBusiness = {
+  id: string; company: string; contact: string; email: string | null; phone: string; industry: string; category: string; location: string;
+  status: string; source_ref: string; lat: number | null; lon: number | null; website: string; license: string; first_seen_at: string | null;
+  last_seen_at: string | null; do_not_contact: boolean; research_status: string; stars: number | null; stars_reasons: string[]; confidence: string;
+  stars_override: number | null; override_reason: string; lead_id: string | null; crm_prospect_needs: Need[];
+};
+const SERVICES: [string, string][] = [["website", "Sitio web"], ["ecommerce", "E-commerce"], ["crm", "CRM / seguimiento"], ["receptionist", "Recepcionista IA"], ["marketing", "Marketing"], ["automation", "Automatización"]];
+const STATES: [string, string][] = [["unverified", "Sin verificar"], ["verified_missing", "Necesidad verificada"], ["opportunity_to_improve", "Oportunidad de mejora"], ["verified_present", "Ya lo tiene (verificado)"], ["not_applicable", "No aplica"]];
+const METHODS: [string, string][] = [["call", "Llamada"], ["website_review", "Revisión de su web"], ["public_listing", "Ficha pública"], ["owner_statement", "Lo dijo el negocio"], ["visit", "Visita"], ["other", "Otro"]];
+const VIEWS: [string, string][] = [["all", "Encontrados"], ["new", "Nuevos"], ["unrated", "Sin calificar"], ["qualified", "Calificados"], ["approved", "Aprobados"], ["pipeline", "En pipeline"], ["discarded", "Descartados"], ["dnc", "No contactar"]];
+const CONFIDENCE: Record<string, string> = { none: "Sin evidencia", low: "Baja", medium: "Media", high: "Alta" };
+const effective = (b: RadarBusiness) => b.stars_override ?? b.stars;
+const shape = (b: RadarBusiness) => b.do_not_contact ? "dnc" : b.status === "converted" ? "pipeline" : b.status === "approved" ? "approved" : "found";
+const SHAPE_LABEL: Record<string, string> = { found: "Encontrado", approved: "Aprobado", pipeline: "En pipeline", dnc: "No contactar" };
+const distanceKm = (a: [number, number], b: [number, number]) => {
+  const r = Math.PI / 180, dLat = (b[0] - a[0]) * r, dLon = (b[1] - a[1]) * r;
+  const h = Math.sin(dLat / 2) ** 2 + Math.cos(a[0] * r) * Math.cos(b[0] * r) * Math.sin(dLon / 2) ** 2;
+  return 12742 * Math.asin(Math.sqrt(h));
+};
+
+/** Avalon Titan Radar: real map, honest search state, evidence-based tiers, human approval. */
+export function TitanRadar({ onChanged }: { onChanged?: () => void }) {
+  const mapEl = useRef<HTMLDivElement>(null);
+  const map = useRef<LeafletMap | null>(null);
+  const layer = useRef<LayerGroup | null>(null);
+  const ring = useRef<Circle | null>(null);
+  const L = useRef<typeof import("leaflet") | null>(null);
+  const [center, setCenter] = useState<[number, number]>([25.7743, -80.1937]);
+  const [label, setLabel] = useState("Miami, Florida");
+  const [radius, setRadius] = useState("3");
+  const [unit, setUnit] = useState<"mi" | "km">("mi");
+  const [industries, setIndustries] = useState<IndustryId[]>([]);
+  const [showFilters, setShowFilters] = useState(false);
+  const [query, setQuery] = useState("");
+  const [geoResults, setGeoResults] = useState<{ label: string; lat: number; lon: number }[]>([]);
+  const [view, setView] = useState("all");
+  const [minStars, setMinStars] = useState(0);
+  const [onlyZone, setOnlyZone] = useState(false);
+  const [places, setPlaces] = useState<RadarBusiness[]>([]);
+  const [selected, setSelected] = useState<string | null>(null);
+  const [searching, setSearching] = useState(false);
+  const [lastSearch, setLastSearch] = useState<{ at: string; found: number; inserted: number; updated: number } | null>(null);
+  const [error, setError] = useState("");
+  const [notice, setNotice] = useState("");
+  const [sweep, setSweep] = useState(true);
+  const [busy, setBusy] = useState(false);
+  const radiusM = Math.round(Number(radius) * (unit === "km" ? 1000 : 1609.344)) || 0;
+
+  useEffect(() => {
+    if (typeof window !== "undefined" && window.matchMedia?.("(prefers-reduced-motion: reduce)").matches) setSweep(false);
+  }, []);
+
+  const load = useCallback(async () => {
+    const params = new URLSearchParams({ view });
+    if (minStars) params.set("stars", String(minStars));
+    const res = await fetch("/admin/workspace/crm/radar/places?" + params, { cache: "no-store" });
+    const body = await res.json() as { places?: RadarBusiness[]; error?: string };
+    if (!res.ok) { setError(body.error ?? "No se pudo cargar el radar."); return; }
+    setPlaces(body.places ?? []);
+  }, [view, minStars]);
+  useEffect(() => { void load(); }, [load]);
+
+  // Map bootstrap (client only).
+  useEffect(() => {
+    let cancelled = false;
+    let sizeTimer = 0;
+    void import("leaflet").then(mod => {
+      if (cancelled || !mapEl.current || map.current) return;
+      L.current = mod;
+      const m = mod.map(mapEl.current, { zoomControl: true, attributionControl: true }).setView(center, 13);
+      mod.tileLayer(process.env.NEXT_PUBLIC_AVALON_MAP_TILES || "https://tile.openstreetmap.org/{z}/{x}/{y}.png", {
+        maxZoom: 19, attribution: '© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
+      }).addTo(m);
+      layer.current = mod.layerGroup().addTo(m);
+      m.on("click", e => { setCenter([e.latlng.lat, e.latlng.lng]); setLabel(`Punto ${e.latlng.lat.toFixed(4)}, ${e.latlng.lng.toFixed(4)}`); });
+      map.current = m;
+      sizeTimer = window.setTimeout(() => { if (map.current === m) m.invalidateSize(); }, 100);
+    });
+    // Stop animations and timers before destroying, otherwise a pending pan touches a removed map.
+    return () => { cancelled = true; window.clearTimeout(sizeTimer); const m = map.current; map.current = null; layer.current = null; ring.current = null; m?.stop(); m?.off(); m?.remove(); };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // Search radius ring.
+  useEffect(() => {
+    const mod = L.current, m = map.current;
+    if (!mod || !m) return;
+    ring.current?.remove();
+    ring.current = mod.circle(center, { radius: Math.max(radiusM, 100), color: "#22d3ee", weight: 1.5, fillOpacity: 0.04, dashArray: "6 6" }).addTo(m);
+  }, [center, radiusM, places]);
+
+  const visible = useMemo(() => places.filter(p => !onlyZone || (p.lat !== null && p.lon !== null && distanceKm(center, [p.lat, p.lon]) * 1000 <= radiusM)), [places, onlyZone, center, radiusM]);
+
+  // Markers synced with the list.
+  useEffect(() => {
+    const mod = L.current, group = layer.current;
+    if (!mod || !group) return;
+    group.clearLayers();
+    for (const p of visible) {
+      if (p.lat === null || p.lon === null) continue;
+      const tier = tierStyle(effective(p));
+      const kind = shape(p);
+      const icon = mod.divIcon({
+        className: "", iconSize: [30, 30], iconAnchor: [15, 15],
+        html: `<span class="${s.marker} ${s[kind]} ${p.id === selected ? s.markerSelected : ""}" style="--tier:${tier.color}" aria-hidden="true">${effective(p) ?? "?"}</span>`,
+      });
+      const marker = mod.marker([p.lat, p.lon], { icon, title: `${p.company} · ${tier.label} · ${SHAPE_LABEL[kind]}`, keyboard: true, alt: p.company });
+      marker.on("click", () => setSelected(p.id));
+      group.addLayer(marker);
+    }
+  }, [visible, selected]);
+
+  useEffect(() => {
+    const p = places.find(x => x.id === selected);
+    if (p && p.lat !== null && p.lon !== null) map.current?.panTo([p.lat, p.lon], { animate: false });
+  }, [selected, places]);
+  useEffect(() => { map.current?.panTo(center, { animate: false }); }, [center]);
+
+  async function geocode(e: FormEvent) {
+    e.preventDefault();
+    setError(""); setGeoResults([]);
+    const res = await fetch("/admin/workspace/crm/radar/geocode?q=" + encodeURIComponent(query), { cache: "no-store" });
+    const body = await res.json() as { results?: { label: string; lat: number; lon: number }[]; error?: string };
+    if (!res.ok) { setError(body.error ?? "No se encontró el lugar."); return; }
+    if (!body.results?.length) { setError("Sin coincidencias. Prueba con otra ciudad o toca el mapa."); return; }
+    if (body.results.length === 1) pick(body.results[0]); else setGeoResults(body.results);
+  }
+  function pick(r: { label: string; lat: number; lon: number }) { setCenter([r.lat, r.lon]); setLabel(r.label); setGeoResults([]); map.current?.setView([r.lat, r.lon], 12); }
+  function locate() {
+    if (!navigator.geolocation) { setError("Este navegador no permite ubicación."); return; }
+    navigator.geolocation.getCurrentPosition(pos => pick({ label: "Mi ubicación", lat: pos.coords.latitude, lon: pos.coords.longitude }), () => setError("Permiso de ubicación denegado. Busca una ciudad o toca el mapa."));
+  }
+
+  async function search() {
+    if (searching) return;
+    setSearching(true); setError(""); setNotice("");
+    try {
+      const params = new URLSearchParams({ lat: String(center[0]), lon: String(center[1]), radius, unit, label, industries: industries.join(",") });
+      const res = await fetch("/admin/workspace/crm/radar/area?" + params, { cache: "no-store" });
+      const body = await res.json() as { error?: string; run?: { found: number; inserted: number; updated: number }; searchedAt?: string };
+      if (!res.ok) throw new Error(body.error ?? "Búsqueda no disponible");
+      setLastSearch({ at: body.searchedAt ?? new Date().toISOString(), found: body.run?.found ?? 0, inserted: body.run?.inserted ?? 0, updated: body.run?.updated ?? 0 });
+      setView("all"); setOnlyZone(true);
+      await load();
+      onChanged?.();
+    } catch (cause) { setError(cause instanceof Error ? cause.message : "Búsqueda no disponible"); }
+    finally { setSearching(false); }
+  }
+
+  async function act(id: string, payload: Record<string, unknown>, ok: string) {
+    if (busy) return;
+    setBusy(true); setError(""); setNotice("");
+    try {
+      const res = await fetch("/admin/workspace/crm/radar/places", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ id, ...payload }) });
+      const body = await res.json() as { error?: string; lead_id?: string };
+      if (!res.ok) throw new Error(body.error ?? "No se pudo guardar");
+      setNotice(ok);
+      await load();
+      onChanged?.();
+    } catch (cause) { setError(cause instanceof Error ? cause.message : "No se pudo guardar"); }
+    finally { setBusy(false); }
+  }
+
+  const current = places.find(p => p.id === selected) ?? null;
+  const best = visible.filter(p => effective(p) !== null && !p.do_not_contact && p.status !== "rejected").sort((a, b) => (effective(b) ?? 0) - (effective(a) ?? 0)).slice(0, 5);
+
+  return (
+    <section className={s.titan} aria-labelledby="titan-title">
+      <header className={s.head}>
+        <div><p className={s.eyebrow}>Avalon · Lead Hunter</p><h2 id="titan-title">Titan Radar</h2>
+          <p className={s.muted}>Explorar → Descubrir → Investigar → Calificar → Aprobar → Pipeline. Datos reales de OpenStreetMap; las estrellas solo nacen de evidencia verificada.</p></div>
+        <ol className={s.steps} aria-label="Recorrido">{["Explorar", "Investigar", "Calificar", "Aprobar", "Pipeline"].map((step, i) => <li key={step} data-done={i < (current ? (current.status === "converted" ? 5 : current.status === "approved" ? 4 : effective(current) ? 3 : 1) : lastSearch ? 1 : 0)}>{step}</li>)}</ol>
+      </header>
+
+      <form className={s.searchBar} onSubmit={geocode} role="search">
+        <label className={s.srOnly} htmlFor="radar-place">Ciudad, dirección o código postal</label>
+        <input id="radar-place" value={query} onChange={e => setQuery(e.target.value)} placeholder="Ciudad, dirección o código postal" maxLength={120} />
+        <button type="submit" className={s.ghost}>Ir</button>
+        <button type="button" className={s.ghost} onClick={locate} aria-label="Usar mi ubicación">◎</button>
+      </form>
+      {geoResults.length > 0 && <ul className={s.geoList}>{geoResults.map(r => <li key={r.label}><button type="button" onClick={() => pick(r)}>{r.label}</button></li>)}</ul>}
+
+      <div className={s.controls}>
+        <span className={s.centerLabel} title={label}>📍 {label}</span>
+        <div className={s.radius} role="group" aria-label="Radio">
+          {RADIUS_PRESETS_MI.map(v => <button type="button" key={v} aria-pressed={unit === "mi" && Number(radius) === v} onClick={() => { setUnit("mi"); setRadius(String(v)); }}>{v} mi</button>)}
+          <label className={s.srOnly} htmlFor="radar-radius">Radio personalizado</label>
+          <input id="radar-radius" inputMode="decimal" value={radius} onChange={e => setRadius(e.target.value.replace(/[^0-9.]/g, ""))} />
+          <select aria-label="Unidad" value={unit} onChange={e => setUnit(e.target.value as "mi" | "km")}><option value="mi">mi</option><option value="km">km</option></select>
+        </div>
+        <button type="button" className={s.ghost} aria-expanded={showFilters} onClick={() => setShowFilters(v => !v)}>Filtros{industries.length ? ` (${industries.length})` : ""}</button>
+        <button type="button" className={s.search} onClick={search} disabled={searching || radiusM < 100} aria-busy={searching}>{searching ? "Buscando…" : "Buscar negocios"}</button>
+      </div>
+      {radiusM > PUBLIC_MAX_RADIUS_M && <p className={s.hint}>Radios mayores de 5 km requieren un proveedor de mapas propio o con licencia. Si no está configurado, el servidor lo indicará en lugar de inventar resultados.</p>}
+      {showFilters && <fieldset className={s.filters}><legend>Industrias (opcional · sin filtros busca todas)</legend>
+        {(Object.keys(INDUSTRIES) as IndustryId[]).map(id => <label key={id} className={s.chip}><input type="checkbox" checked={industries.includes(id)} onChange={e => setIndustries(cur => e.target.checked ? [...cur, id] : cur.filter(x => x !== id))} />{INDUSTRIES[id].name}</label>)}
+      </fieldset>}
+
+      <div className={s.status} aria-live="polite">
+        <span>Exploración visual: {sweep ? "activa" : "pausada"} <button type="button" className={s.link} onClick={() => setSweep(v => !v)}>{sweep ? "Pausar animación" : "Animar"}</button></span>
+        <span>Búsqueda: {searching ? "en ejecución…" : lastSearch ? `completada ${new Date(lastSearch.at).toLocaleTimeString()} · ${lastSearch.found} encontrados · ${lastSearch.inserted} nuevos · ${lastSearch.updated} ya conocidos` : "sin ejecutar en esta sesión"}</span>
+        <span>Fuente: OpenStreetMap (ODbL)</span>
+      </div>
+      {error && <p className={s.error} role="alert">{error}</p>}
+      {notice && <p className={s.ok} role="status">{notice}</p>}
+
+      <div className={s.stage}>
+        <div className={s.mapWrap}>
+          <div ref={mapEl} className={s.map} role="application" aria-label="Mapa de negocios. Toca para elegir el centro de búsqueda." />
+          {sweep && <div className={s.sweep} aria-hidden="true" />}
+          <ul className={s.legend} aria-label="Leyenda">{[5, 4, 3, 2, 1, null].map(t => <li key={String(t)}><span style={{ background: tierStyle(t).color }} />{tierStyle(t).label}</li>)}</ul>
+        </div>
+
+        <div className={s.side}>
+          <nav className={s.views} aria-label="Bandejas del radar">{VIEWS.map(([k, v]) => <button type="button" key={k} aria-pressed={view === k} onClick={() => setView(k)}>{v}</button>)}</nav>
+          <div className={s.quick}>
+            <label>Mínimo <select value={minStars} onChange={e => setMinStars(Number(e.target.value))}><option value={0}>todas</option>{[5, 4, 3, 2, 1].map(n => <option key={n} value={n}>{"★".repeat(n)}</option>)}</select></label>
+            <label><input type="checkbox" checked={onlyZone} onChange={e => setOnlyZone(e.target.checked)} /> Solo esta zona</label>
+            <span className={s.count}>{visible.length} negocios</span>
+          </div>
+          {best.length > 0 && <section className={s.best} aria-labelledby="best-title"><h3 id="best-title">✦ Mejores oportunidades de esta zona</h3>
+            <ol>{best.map(b => <li key={b.id}><button type="button" onClick={() => setSelected(b.id)}><strong>{b.company}</strong> <span style={{ color: tierStyle(effective(b)).color }}>{tierStyle(effective(b)).label}</span></button></li>)}</ol></section>}
+          <ul className={s.cards}>{visible.map(p => {
+            const tier = tierStyle(effective(p));
+            return <li key={p.id}><button type="button" className={s.card} data-selected={p.id === selected} onClick={() => setSelected(p.id)} aria-label={`Abrir ${p.company}`}>
+              <span className={s.tier} style={{ borderColor: tier.color, color: tier.color }}>{tier.label}</span>
+              <strong>{p.company}</strong>
+              <small>{[p.industry, p.location].filter(Boolean).join(" · ")}</small>
+              <small>{SHAPE_LABEL[shape(p)]} · Evidencia: {CONFIDENCE[p.confidence] ?? p.confidence}{p.phone ? " · ☎ disponible" : ""}</small>
+            </button></li>;
+          })}</ul>
+          {visible.length === 0 && <p className={s.muted}>Sin negocios en esta bandeja. Elige una zona y pulsa <strong>Buscar negocios</strong>. Si la fuente no devuelve datos, lo verás indicado; nunca se muestran negocios inventados.</p>}
+        </div>
+      </div>
+
+      {current && <aside className={s.sheet} role="dialog" aria-modal="false" aria-labelledby="sheet-title">
+        <header><div><h3 id="sheet-title">{current.company}</h3><p className={s.muted}>{[current.industry, current.location].filter(Boolean).join(" · ")}</p></div>
+          <button type="button" className={s.close} onClick={() => setSelected(null)} aria-label="Cerrar ficha">✕</button></header>
+        <p className={s.tierBig} style={{ color: tierStyle(effective(current)).color }}>{tierStyle(effective(current)).label}{current.stars_override ? " (ajuste manual)" : ""} · Evidencia {CONFIDENCE[current.confidence]}</p>
+        <details open><summary>¿Por qué tiene esta calificación?</summary><ul>{current.stars_reasons.map(r => <li key={r}>{r}</li>)}{current.stars_override && <li>Ajuste manual: {current.override_reason}</li>}</ul></details>
+        <dl className={s.facts}>
+          <dt>Teléfono</dt><dd>{current.phone ? <a href={`tel:${current.phone.replace(/[^\d+]/g, "")}`}>{current.phone}</a> : "No disponible"}</dd>
+          <dt>Correo</dt><dd>{current.email ? <a href={`mailto:${current.email}`}>{current.email}</a> : "No disponible"}</dd>
+          <dt>Web</dt><dd>{current.website ? <a href={current.website} target="_blank" rel="noopener noreferrer nofollow">{current.website}</a> : "No registrada en la fuente (no significa que no tenga)"}</dd>
+          <dt>Decisor</dt><dd>{current.contact || "Pendiente de verificar"}</dd>
+          <dt>Fuente</dt><dd>{current.source_ref} · {current.license || "—"}</dd>
+          <dt>Vista por última vez</dt><dd>{current.last_seen_at ? new Date(current.last_seen_at).toLocaleString() : "—"}</dd>
+        </dl>
+        <div className={s.actions}>
+          {current.phone && !current.do_not_contact && <a className={s.call} href={`tel:${current.phone.replace(/[^\d+]/g, "")}`}>☎ Llamar</a>}
+          {current.website && <a className={s.research} href={current.website} target="_blank" rel="noopener noreferrer nofollow">Investigar web</a>}
+          {current.status === "pending" && !current.do_not_contact && <button type="button" className={s.approve} disabled={busy} onClick={() => act(current.id, { op: "status", action: "approve" }, `${current.company} aprobado. Ya puedes pasarlo al pipeline.`)}>✓ Aprobar</button>}
+          {current.status === "approved" && <button type="button" className={s.pipeline} disabled={busy} onClick={() => act(current.id, { op: "pipeline" }, `${current.company} está ahora en Leads Pipeline.`)}>→ Pasar al pipeline</button>}
+          {current.status === "converted" && <Link className={s.pipeline} href="/admin/workspace/crm/leads">Abrir en pipeline</Link>}
+          {current.status !== "converted" && current.status !== "rejected" && <button type="button" className={s.discard} disabled={busy} onClick={() => act(current.id, { op: "status", action: "discard" }, "Descartado.")}>Descartar</button>}
+          {current.status === "rejected" && !current.do_not_contact && <button type="button" className={s.ghost} disabled={busy} onClick={() => act(current.id, { op: "status", action: "reopen" }, "Reabierto.")}>Reabrir</button>}
+          {current.status !== "converted" && !current.do_not_contact && <button type="button" className={s.discard} disabled={busy} onClick={() => act(current.id, { op: "status", action: "dnc" }, "Marcado como No contactar.")}>No contactar</button>}
+        </div>
+
+        {current.status !== "converted" && <>
+          <h4>Necesidades por servicio (evidencia)</h4>
+          <div className={s.needs}>{SERVICES.map(([key, name]) => {
+            const n = current.crm_prospect_needs.find(x => x.service === key);
+            return <form key={key} className={s.need} onSubmit={e => { e.preventDefault(); const f = new FormData(e.currentTarget);
+              void act(current.id, { op: "need", service: key, state: f.get("state"), method: f.get("method"), evidence_url: f.get("evidence_url"), note: f.get("note"), confidence: f.get("confidence") }, `${name}: guardado.`); }}>
+              <strong>{name}</strong>
+              <select name="state" aria-label={`Estado de ${name}`} defaultValue={n?.state ?? "unverified"}>{STATES.map(([v, t]) => <option key={v} value={v}>{t}</option>)}</select>
+              <select name="method" aria-label={`Método de ${name}`} defaultValue={n?.method ?? ""}><option value="">Método…</option>{METHODS.map(([v, t]) => <option key={v} value={v}>{t}</option>)}</select>
+              <select name="confidence" aria-label={`Confianza de ${name}`} defaultValue={n?.confidence ?? "medium"}><option value="low">Confianza baja</option><option value="medium">Media</option><option value="high">Alta</option></select>
+              <input name="evidence_url" aria-label={`Evidencia de ${name}`} placeholder="URL de evidencia (opcional)" defaultValue={n?.evidence_url ?? ""} />
+              <input name="note" aria-label={`Nota de ${name}`} placeholder="Nota" defaultValue={n?.note ?? ""} maxLength={2000} />
+              <button type="submit" disabled={busy}>Guardar</button>
+            </form>;
+          })}</div>
+          <form className={s.inline} onSubmit={e => { e.preventDefault(); const f = new FormData(e.currentTarget);
+            void act(current.id, { op: "contact", contact: f.get("contact"), phone: f.get("phone"), email: f.get("email") }, "Contacto actualizado."); }}>
+            <h4>Contacto verificado</h4>
+            <input name="contact" aria-label="Decisor verificado" placeholder="Nombre y cargo del decisor (solo si lo verificaste)" defaultValue={current.contact} maxLength={160} />
+            <input name="phone" aria-label="Teléfono comercial" placeholder="Teléfono comercial" defaultValue={current.phone} maxLength={40} />
+            <input name="email" aria-label="Correo comercial" placeholder="Correo comercial" defaultValue={current.email ?? ""} maxLength={254} />
+            <button type="submit" disabled={busy}>Guardar contacto</button>
+          </form>
+          <form className={s.inline} onSubmit={e => { e.preventDefault(); const f = new FormData(e.currentTarget); const v = String(f.get("stars"));
+            void act(current.id, { op: "override", stars: v ? Number(v) : null, reason: f.get("reason") }, "Calificación ajustada (auditada)."); }}>
+            <h4>Ajuste manual de estrellas</h4>
+            <select name="stars" aria-label="Estrellas manuales" defaultValue={current.stars_override ?? ""}><option value="">Usar cálculo automático</option>{[5, 4, 3, 2, 1].map(n => <option key={n} value={n}>{"★".repeat(n)}</option>)}</select>
+            <input name="reason" aria-label="Motivo del ajuste" placeholder="Motivo (mínimo 10 caracteres)" defaultValue={current.override_reason} maxLength={1000} />
+            <button type="submit" disabled={busy}>Guardar ajuste</button>
+          </form>
+        </>}
+      </aside>}
+    </section>
+  );
+}

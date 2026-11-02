@@ -81,3 +81,33 @@ for `claude/upbeat-galileo-grbelq` only. Options that were offered:
 2. Owner settings still open: enable "Dependency graph" (Dependency review check) and Supabase Auth
    "Leaked password protection" (pre-existing advisor WARN); set catalog prices/default assignees in CRM → Configuración.
 3. Next phase: public website lead capture into Lead Hunter (review queue, anti-spam), then departments.
+
+## 7. Radar 2.0 — Omega 5.0 increment (issue #40, builds on PR #39)
+
+Branch `claude/upbeat-galileo-grbelq` = `main` (bb2fe16) + PR #39 (mobile dock, radar MVP) + this increment.
+
+| Item | State | Evidence |
+|---|---|---|
+| Found businesses persisted & deduped (`crm_prospects` + `source_ref`) | done (isolated DB) | `tests/radar.database.cjs` |
+| Need matrix per service with method/evidence/confidence | done | same |
+| Explainable 1–5★ from verified evidence only; separate confidence; audited override | done | same + browser (0 evidence → Sin calificar; 4 verified → 4★) |
+| Do-not-contact blocks approval; approval required before pipeline (existing `crm_convert_prospect`) | done | DB + browser |
+| Real map (Leaflet + OSM tiles), cyan sweep (reduced-motion aware), tier color + shape + text markers, synced list/sheet | done | `tests/sales.browser.cjs`, `radar-results-mobile.png` |
+| Free search: geocoder (human-initiated, cached, 1.1 s) + tap map + my location; radius presets 1–50 mi or custom mi/km | done | `tests/radar.test.cjs` |
+| Inbox views: Encontrados, Nuevos, Sin calificar, Calificados, Aprobados, En pipeline, Descartados, No contactar; Mejores oportunidades de esta zona | done | browser |
+| Campaigns/runs tables (start paused, bounded) | schema only | DB test |
+| Scheduler (cron) running campaigns | **blocked** | needs a licensed/owned places endpoint (`AVALON_RADAR_OVERPASS_URL`) + `CRON_SECRET`; community Overpass forbids automated sweeps |
+| Overture / licensed provider adapters | pending | owner decision on provider + cost |
+| AI usage center (ChatGPT/Codex, Claude, Higgsfield) | pending | existing `crm_usage` manual records; no official read APIs connected |
+| Public website, departments polish | pending | next phases |
+
+Limits (honest): community Overpass ≤ 5 km radius, 30 s between searches per owner, blocked in production
+unless `AVALON_RADAR_OVERPASS_URL` is set. Larger radius (≤ 50 mi) only with a licensed/owned endpoint.
+
+Migration `20261102190000_radar_core.sql`: **not applied anywhere**. Staging `kmpmvwbtqaggkjjxfayh` no
+longer exists (Supabase removed PR #12's branch); only PR #19's branch `wupvuwmqfcvmjqycmnvg` remains.
+The branch-scoped Preview vars of this branch still point at the removed staging DB → Preview cannot log in
+until an isolated DB is chosen (owner decision).
+
+Next exact task: owner chooses (a) isolated DB for Preview and (b) map/places provider; then campaign runner
+(`/api/radar/cron` with CRON_SECRET, advisory lock, budget) and AI usage center.

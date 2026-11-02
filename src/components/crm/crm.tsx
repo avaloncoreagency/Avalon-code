@@ -11,7 +11,7 @@ import {
 } from "@/lib/crm/domain";
 import { RecordForm } from "./record-form";
 import { CrmNavigation } from "./navigation";
-import { LeadRadar } from "./radar";
+import { TitanRadar } from "./titan-radar";
 import s from "./crm.module.css";
 export const crmSections = sections;
 export type CrmSection = Section;
@@ -368,7 +368,7 @@ export function Crm({ section = "leads" }: { section?: CrmSection }) {
         </div>
       </header>
       <CrmNavigation active={section} />
-      {section === "hunter" && <LeadRadar ownerId={data?.userId ?? ""} onSaved={reload} />}
+      {section === "hunter" && <TitanRadar onChanged={reload} />}
       <p className={s.muted}>
         Datos persistidos de la agencia. Valores comerciales estimados en USD;
         no representan ingresos cobrados.
