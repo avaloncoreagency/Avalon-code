@@ -168,6 +168,44 @@ test('Nova Restaurant through the real app: one form, three departments, no dupl
   const overflow = await sam.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
   assert.ok(overflow <= 1, `no horizontal page scroll on mobile (overflow ${overflow}px)`);
 
+  // Mobile-first smoke test: every high-frequency Avalon route is usable on a phone.
+  const mobileRoutes = [
+    ['/admin/dashboard', 'dashboard-mobile'],
+    ['/admin/workspace/crm', 'crm-mobile'],
+    ['/admin/workspace/crm/sales', 'sales-mobile'],
+    ['/admin/workspace/crm/sales/new', 'sale-form-mobile'],
+    ['/admin/workspace/crm/clients', 'clients-mobile'],
+    ['/admin/workspace/crm/tasks?view=mine', 'tasks-mobile-reviewed'],
+    ['/admin/workspace/website-designer', 'website-mobile'],
+  ];
+  for (const width of [390, 320]) {
+    await sam.setViewportSize({ width, height: 844 });
+    for (const [route, name] of mobileRoutes) {
+      await sam.goto(origin + route);
+      await sam.locator('#main').waitFor();
+      const dock = sam.getByRole('navigation', { name: 'Accesos rápidos de Avalon' });
+      assert.ok(await dock.isVisible(), `mobile dock visible on ${route} at ${width}px`);
+      const horizontalOverflow = await sam.evaluate(() =>
+        document.documentElement.scrollWidth - document.documentElement.clientWidth);
+      assert.ok(horizontalOverflow <= 1, `${route} at ${width}px overflows document by ${horizontalOverflow}px`);
+      if (width === 390) {
+        await sam.screenshot({ path: `${EVIDENCE}/${name}.png`, fullPage: true });
+      }
+    }
+  }
+  // Dock links must actually navigate; the full sidebar remains reachable.
+  await sam.setViewportSize({ width: 390, height: 844 });
+  await sam.goto(origin + '/admin/dashboard');
+  const mobileDock = sam.getByRole('navigation', { name: 'Accesos rápidos de Avalon' });
+  await mobileDock.getByRole('link', { name: 'CRM' }).click();
+  await sam.waitForURL(origin + '/admin/workspace/crm');
+  await mobileDock.getByRole('link', { name: 'Ventas' }).click();
+  await sam.waitForURL(origin + '/admin/workspace/crm/sales');
+  await mobileDock.getByRole('button', { name: 'Abrir todos los módulos' }).click();
+  assert.ok(await sam.getByRole('button', { name: 'Cerrar menú' }).isVisible(), 'full module drawer opens from dock');
+  await sam.getByRole('button', { name: 'Cerrar menú' }).click();
+  assert.equal(await sam.locator('[data-drawer="open"]').count(), 0, 'drawer closes cleanly');
+
   await page.goto(`${origin}/admin/workspace/crm/activity?client=${clientId}`);
   await page.getByText('task.status_changed', { exact: true }).first().waitFor();
   const activity = await page.locator('#main').innerText();
