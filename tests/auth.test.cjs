@@ -190,7 +190,7 @@ test('password-only login rejects a nonmember and clears its session', async () 
 
 test('password-only login does not expose invalid-credentials details', async () => {
   const actions = load('src/app/login/actions.ts', {
-    '@/lib/supabase/server': { createClient: async () => ({ auth: { signInWithPassword: async () => ({ error: Error('unknown account') }) } }) },
+    '@/lib/supabase/server': { createClient: async () => ({ auth: { signInWithPassword: async () => ({ error: { code: 'invalid_credentials', status: 400, message: 'Invalid login credentials' } }) } }) },
     '@/lib/auth/access': { getOwnerState: async () => { throw Error('Should not authorize'); } },
     '@/lib/auth/policy': policy,
     'next/navigation': { redirect: location => { throw Error(location); } },
