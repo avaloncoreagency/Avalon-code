@@ -150,3 +150,47 @@ a.item:hover { border-color: rgba(138, 108, 255, 0.55); transform: translateY(-1
   .panel { animation: avalon-enter 240ms ease-out both; }
   @keyframes avalon-enter { from { opacity: .5; transform: translateY(6px); } to { opacity: 1; transform: none; } }
 }
+
+/* Responsive project / website / e-commerce / AI / marketing workflows. */
+@media (max-width: 700px) {
+  .header { margin-bottom: 14px; }
+  .headerRow { align-items: flex-start; gap: 10px; }
+  .header h1 { font-size: clamp(23px, 6vw, 30px); }
+  .lead { font-size: 13px; line-height: 1.55; }
+  .headerActions { width: 100%; }
+  .headerActions > * { flex: 1 1 140px; min-height: 44px; justify-content: center; }
+  .panel { padding: 13px; margin-bottom: 12px; }
+  .notice { padding: 12px; gap: 10px; }
+  .empty { padding: 24px 12px; }
+  .grid, .split, .row { grid-template-columns: minmax(0, 1fr); gap: 10px; }
+  .item { padding: 13px; }
+  .tabs {
+    width: 100%; flex-wrap: nowrap; max-width: 100%;
+    -webkit-overflow-scrolling: touch; scroll-snap-type: x proximity;
+    overscroll-behavior-x: contain; scrollbar-width: none;
+  }
+  .tabs::-webkit-scrollbar { display: none; }
+  .tabs a { display: inline-flex; align-items: center; min-height: 44px; scroll-snap-align: start; }
+  .form { gap: 11px; }
+  .input, .select, .textarea { font-size: 16px; min-height: 46px; max-width: 100%; }
+  .actions { gap: 8px; }
+  .btn, .btnPrimary, .btnGhost, .btnDanger { min-height: 44px; }
+  .tableWrap {
+    max-width: 100%; overflow-x: auto; overscroll-behavior-x: contain;
+    -webkit-overflow-scrolling: touch; scrollbar-width: thin;
+  }
+  .table { min-width: 560px; }
+  .stats { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 9px; }
+  .stat { padding: 12px; min-width: 0; }
+  .stat strong { font-size: clamp(19px, 5.5vw, 25px); overflow-wrap: anywhere; }
+  .calendar { min-width: 620px; }
+  .pvHero { padding: 28px 17px; }
+  .pvHero h2 { font-size: clamp(26px, 7vw, 36px); }
+  .pvSection { padding: 24px 17px; }
+  .pvCta { margin: 0 16px 22px; padding: 20px 14px; }
+  .catalog { grid-template-columns: repeat(auto-fill, minmax(min(100%, 160px), 1fr)); padding: 12px; gap: 10px; }
+  .pre { max-width: 100%; }
+}
+@media (max-width: 359px) {
+  .stats { grid-template-columns: minmax(0, 1fr); }
+}
