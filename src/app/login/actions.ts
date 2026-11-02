@@ -25,7 +25,8 @@ export async function signInWithGoogle() {
 
 // Password is the primary administrative sign-in method.
 export async function signIn(formData: FormData) {
-  const email = formData.get("email");
+  const rawEmail = formData.get("email");
+  const email = typeof rawEmail === "string" ? rawEmail.trim().toLowerCase() : rawEmail;
   const password = formData.get("password");
   if (typeof email !== "string" || typeof password !== "string" || !email || !password ||
       email.length > 320 || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) || password.length > 1024) redirect("/admin/login?error=invalid");
