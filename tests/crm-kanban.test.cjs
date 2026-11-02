@@ -7,7 +7,7 @@ const mod = { exports: {} };
 vm.runInNewContext(ts.transpileModule(fs.readFileSync("src/lib/crm/kanban.ts", "utf8"), {
   compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 },
 }).outputText, { module: mod, exports: mod.exports, require, Map, Set, Date, Number });
-const { groupPipeline, followUpState, pipelineFocusCounts, filterPipelineByFocus } = mod.exports;
+const { groupPipeline, followUpState, leadFollowUpStatus, pipelineFocusCounts, filterPipelineByFocus } = mod.exports;
 const stages = [
   { id: "new", label: "Nuevo", kind: "open" },
   { id: "qualified", label: "Calificado", kind: "open" },
@@ -97,4 +97,28 @@ test("attention filter UI exposes pressed state and explicit page scope", () => 
   assert.match(ui, /filterPipelineByFocus\(stages, leads, focus, now\)/);
   assert.match(ui, /No incluye otras páginas/);
   assert.match(ui, /Para revisar = vencidos \+ hoy \+ sin fecha/);
+});
+
+test("follow-up card status never asks for attention on closed or archived deals", () => {
+  const now = new Date("2026-11-03T12:00:00Z");
+  const configured = [...stages, { id: "won", label: "Ganado", kind: "won" }];
+  const overdueDate = "2026-11-01T12:00:00Z";
+  assert.equal(leadFollowUpStatus(configured, { id: "open", stage_id: "new", follow_up_at: overdueDate }, now), "overdue");
+  assert.equal(leadFollowUpStatus(configured, { id: "lost", stage_id: "lost", follow_up_at: overdueDate }, now), "inactive");
+  assert.equal(leadFollowUpStatus(configured, { id: "won", stage_id: "won", follow_up_at: overdueDate }, now), "inactive");
+  assert.equal(leadFollowUpStatus(configured, { id: "archived", stage_id: "new", archived: true, follow_up_at: overdueDate }, now), "inactive");
+  assert.equal(leadFollowUpStatus(configured, { id: "unmapped", stage_id: "unknown", follow_up_at: overdueDate }, now), "inactive");
+  assert.equal(leadFollowUpStatus(configured, { id: "invalid", stage_id: "new", follow_up_at: "not-a-date" }, now), "missing");
+});
+
+test("follow-up labels and focus counts wait for browser hydration clock", () => {
+  const ui = fs.readFileSync("src/components/crm/lead-board.tsx", "utf8");
+  assert.match(ui, /const \[now, setNow\] = useState<Date \| null>\(null\)/);
+  assert.match(ui, /useEffect\(\(\) => \{/);
+  assert.match(ui, /setNow\(new Date\(\)\)/);
+  assert.match(ui, /window\.setInterval\(refresh, 60_000\)/);
+  assert.match(ui, /const counts = now \? pipelineFocusCounts/);
+  assert.match(ui, /const followUp = now \? leadFollowUpStatus/);
+  assert.match(ui, /disabled=\{!now\}/);
+  assert.match(ui, /followUp === "inactive" \? "Sin seguimiento pendiente en esta etapa"/);
 });

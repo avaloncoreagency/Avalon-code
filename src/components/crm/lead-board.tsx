@@ -1,8 +1,8 @@
 "use client";
 
-import { useState, type DragEvent } from "react";
+import { useEffect, useState, type DragEvent } from "react";
 import type { Row, Stage } from "@/lib/crm/domain";
-import { filterPipelineByFocus, followUpState, groupPipeline, pipelineFocusCounts, type PipelineFocus } from "@/lib/crm/kanban";
+import { filterPipelineByFocus, groupPipeline, leadFollowUpStatus, pipelineFocusCounts, type PipelineFocus } from "@/lib/crm/kanban";
 import s from "./lead-board.module.css";
 
 type Props = {
@@ -39,9 +39,21 @@ export function LeadBoard({ stages, leads, total, page, busy, currentOwnerId, on
   const [draggedId, setDraggedId] = useState<string | null>(null);
   const [targetId, setTargetId] = useState<string | null>(null);
   const [focus, setFocus] = useState<PipelineFocus>("all");
-  const now = new Date();
-  const counts = pipelineFocusCounts(stages, leads, now);
-  const visibleLeads = filterPipelineByFocus(stages, leads, focus, now);
+  // The server and first client render must agree; local-day calculations
+  // become available only after hydration, and refresh after midnight.
+  const [now, setNow] = useState<Date | null>(null);
+  useEffect(() => {
+    const refresh = () => setNow(new Date());
+    refresh();
+    const timer = window.setInterval(refresh, 60_000);
+    window.addEventListener("focus", refresh);
+    return () => {
+      window.clearInterval(timer);
+      window.removeEventListener("focus", refresh);
+    };
+  }, []);
+  const counts = now ? pipelineFocusCounts(stages, leads, now) : null;
+  const visibleLeads = now ? filterPipelineByFocus(stages, leads, focus, now) : leads;
   const columns = groupPipeline(stages, visibleLeads);
 
   function drop(event: DragEvent<HTMLElement>, stageId: string) {
@@ -71,16 +83,19 @@ export function LeadBoard({ stages, leads, total, page, busy, currentOwnerId, on
             className={s.focusButton}
             title={option.description}
             aria-pressed={focus === option.id}
+            disabled={!now}
             onClick={() => setFocus(option.id)}
           >
-            {option.label} <span className={s.focusCount}>{counts[option.id]}</span>
+            {option.label} <span className={s.focusCount}>{counts ? counts[option.id] : "…"}</span>
           </button>
         ))}
       </div>
       <p className={s.focusSummary} role="status">
-        {focus === "all"
-          ? "Mostrando todos los registros de esta página."
-          : `Mostrando ${visibleLeads.length} de ${leads.length} registros de esta página. Los filtros de atención excluyen etapas cerradas y leads archivados.`}
+        {!now
+          ? "Preparando los seguimientos para tu zona horaria."
+          : focus === "all"
+            ? "Mostrando todos los registros de esta página."
+            : `Mostrando ${visibleLeads.length} de ${leads.length} registros de esta página. Los filtros de atención excluyen etapas cerradas y leads archivados.`}
         {" "}Para revisar = vencidos + hoy + sin fecha. No incluye otras páginas.
       </p>
       <div className={s.scroll} role="region" tabIndex={0} aria-label="Columnas del pipeline; desplázate horizontalmente para ver todas las etapas">
@@ -105,7 +120,7 @@ export function LeadBoard({ stages, leads, total, page, busy, currentOwnerId, on
               </header>
               <div className={s.cards}>
                 {cards.map((lead) => {
-                  const followUp = followUpState(lead.follow_up_at);
+                  const followUp = now ? leadFollowUpStatus(stages, lead, now) : null;
                   return (
                     <article
                       className={s.card}
@@ -126,10 +141,14 @@ export function LeadBoard({ stages, leads, total, page, busy, currentOwnerId, on
                       <p className={s.contact}>{lead.contact ? String(lead.contact) : "Contacto por completar"}</p>
                       <p className={s.value}>{Number(lead.value) > 0 ? currency(Number(lead.value)) : "Valor por estimar"}</p>
                       <p className={s.next} data-overdue={followUp === "overdue" ? "true" : undefined}>
-                        {followUp === "overdue" ? "Seguimiento vencido" :
+                        {followUp === null ? "Calculando seguimiento…" :
+                          followUp === "inactive" ? "Sin seguimiento pendiente en esta etapa" :
+                          followUp === "overdue" ? "Seguimiento vencido" :
                           followUp === "today" ? "Seguimiento hoy" :
                           followUp === "scheduled" ? "Próximo seguimiento" : "Sin seguimiento programado"}
-                        {followUp !== "missing" && <small>{dateText(lead.follow_up_at)}</small>}
+                        {(followUp === "overdue" || followUp === "today" || followUp === "scheduled") && (
+                          <small>{dateText(lead.follow_up_at)}</small>
+                        )}
                       </p>
                       <p className={s.meta}>
                         {lead.owner_id === currentOwnerId ? "Responsable: tú" : "Responsable: otro propietario"}
@@ -160,7 +179,7 @@ export function LeadBoard({ stages, leads, total, page, busy, currentOwnerId, on
           ))}
         </div>
       </div>
-      <p className={s.footnote}>Los importes son estimaciones, no ingresos cobrados. El tablero agrupa hasta 50 registros por página; usa Anterior/Siguiente para consultar el resto. Cerrar un lead no crea un cliente automáticamente.</p>
+      <p className={s.footnote}>Los importes son estimaciones, no ingresos cobrados. Seguimientos calculados en la zona horaria del navegador y actualizados cada minuto. El tablero agrupa hasta 50 registros por página; usa Anterior/Siguiente para consultar el resto. Cerrar un lead no crea un cliente automáticamente.</p>
     </section>
   );
 }

@@ -33,25 +33,32 @@ export function followUpState(value: unknown, now: Date = new Date()): "missing"
   return day < today ? "overdue" : day === today ? "today" : "scheduled";
 }
 
+/** A single authoritative follow-up state for both cards and filters. */
+export type LeadFollowUpStatus = ReturnType<typeof followUpState> | "inactive";
+
+export function leadFollowUpStatus(
+  stages: readonly Stage[],
+  lead: Row,
+  now: Date,
+): LeadFollowUpStatus {
+  const stage = stages.find((item) => item.id === String(lead.stage_id ?? ""));
+  if (lead.archived === true || stage?.kind !== "open") return "inactive";
+  return followUpState(lead.follow_up_at, now);
+}
+
 /** Counts and filters operate only on the loaded CRM page, never the whole database. */
 export type PipelineFocus = "all" | "attention" | "overdue" | "today" | "missing";
 export type PipelineFocusCounts = Record<PipelineFocus, number>;
-
-function actionableStageIds(stages: readonly Stage[]): Set<string> {
-  return new Set(stages.filter((stage) => stage.kind === "open").map((stage) => String(stage.id)));
-}
 
 export function pipelineFocusCounts(
   stages: readonly Stage[],
   rows: readonly Row[],
   now: Date = new Date(),
 ): PipelineFocusCounts {
-  const openStages = actionableStageIds(stages);
   const counts: PipelineFocusCounts = { all: rows.length, attention: 0, overdue: 0, today: 0, missing: 0 };
   for (const lead of rows) {
-    if (!openStages.has(String(lead.stage_id ?? "")) || lead.archived === true) continue;
-    const status = followUpState(lead.follow_up_at, now);
-    if (status === "scheduled") continue;
+    const status = leadFollowUpStatus(stages, lead, now);
+    if (status === "inactive" || status === "scheduled") continue;
     counts[status] += 1;
     counts.attention += 1;
   }
@@ -65,10 +72,9 @@ export function filterPipelineByFocus(
   now: Date = new Date(),
 ): Row[] {
   if (focus === "all") return [...rows];
-  const openStages = actionableStageIds(stages);
   return rows.filter((lead) => {
-    if (!openStages.has(String(lead.stage_id ?? "")) || lead.archived === true) return false;
-    const status = followUpState(lead.follow_up_at, now);
+    const status = leadFollowUpStatus(stages, lead, now);
+    if (status === "inactive") return false;
     return focus === "attention" ? status !== "scheduled" : status === focus;
   });
 }
