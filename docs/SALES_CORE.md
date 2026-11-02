@@ -105,7 +105,7 @@ audit, and an append-only correlated timeline. No third-party UI, brand or code 
    `get_advisors`, then decide on production with backup.
 2. Set catalog prices/default assignees per service (left empty on purpose).
 3. Dashboard KPIs from `crm_sales_metrics()` (dashboard is Samuel-owned; coordinate via PR).
-4. Calendar view of task due dates; reconcile the 13-stage pipeline (PR #20) with `won` lookup
+4. ~~Calendar of due dates; 13-stage pipeline (PR #20)~~ — done, see docs/AVALON_EXECUTION_STATUS.md
    (the RPC already picks the first `kind='won'` stage, so it is compatible).
 5. Departmental module screens still read projects from `os_projects`; they now carry
    `client_id` and can show the client link (next increment).
