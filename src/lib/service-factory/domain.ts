@@ -38,7 +38,7 @@ function str(form: FormLike, key: string, max: number, min = 0) {
   return value;
 }
 function choice<T extends readonly string[]>(value: string, allowed: T): T[number] {
-  if (!allowed.includes(value)) throw new CatalogInputError('invalid_choice');
+  if (!(allowed as readonly string[]).includes(value)) throw new CatalogInputError('invalid_choice');
   return value as T[number];
 }
 function amount(form: FormLike, key: string, max: number): string | null {
@@ -60,7 +60,7 @@ function tasks(raw: string): TaskTemplate {
       throw new CatalogInputError('invalid_template');
     const value: TaskTemplate[number] = { title: task.title.trim() };
     if (task.offset_days !== undefined) {
-      if (!Number.isInteger(task.offset_days) || Number(task.offset_days) < 0 || Number(task.offset_days) > 365)
+      if (typeof task.offset_days !== 'number' || !Number.isInteger(task.offset_days) || task.offset_days < 0 || Number(task.offset_days) > 365)
         throw new CatalogInputError('invalid_template');
       value.offset_days = task.offset_days as number;
     }
