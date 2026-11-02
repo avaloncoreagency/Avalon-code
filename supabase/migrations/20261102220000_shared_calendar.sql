@@ -23,6 +23,21 @@ alter table public.crm_events add constraint crm_events_kind_check
 create index crm_events_shared_range on public.crm_events(starts_at,ends_at)
   where status = 'scheduled';
 
+-- Membership table RLS exposes each owner only to themselves. A narrow
+-- SECURITY DEFINER function validates invited owners without exposing
+-- membership rows to other authenticated users or anonymous callers.
+-- It still verifies that the current caller is an owner before any lookup.
+create function crm_private.calendar_owner_exists(candidate uuid) returns boolean
+language sql stable security definer set search_path = '' as $
+  select crm_private.is_owner()
+    and exists (
+      select 1 from public.agency_memberships
+      where user_id = candidate and role = 'owner'
+    );
+$;
+revoke all on function crm_private.calendar_owner_exists(uuid) from public, anon;
+grant execute on function crm_private.calendar_owner_exists(uuid) to authenticated;
+
 -- Retain the original serialized anti-overlap protection and free-text guest
 -- matching, while also protecting BOTH owners when they participate in meetings.
 -- All-day informational events are intentionally non-blocking.
@@ -34,8 +49,7 @@ begin
   end if;
   if exists (
     select 1 from unnest(new.attendee_ids) as a(user_id)
-    left join public.agency_memberships m on m.user_id = a.user_id and m.role = 'owner'
-    where m.user_id is null
+    where not crm_private.calendar_owner_exists(a.user_id)
   ) then
     raise exception 'Un participante no es propietario autorizado' using errcode = '23514';
   end if;
