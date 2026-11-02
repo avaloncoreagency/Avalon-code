@@ -23,7 +23,9 @@ export async function saveCatalogService(form: FormData) {
   try { input = parseServiceCatalogForm(form); }
   catch (e) { back(PATH, { error: e instanceof CatalogInputError ? e.code : "invalid" }); }
 
+  const rawId = field(form, "id");
   const id = uuidField(form, "id");
+  if (rawId && !id) back(PATH, { error: "invalid" });
   const payload = serviceCatalogPayload(input);
   if (id) {
     const rawVersion = field(form, "version");
