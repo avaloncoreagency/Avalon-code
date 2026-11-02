@@ -8,7 +8,7 @@ const fs = require("node:fs");
 const { PGlite } = require("@electric-sql/pglite");
 const owner = "00000000-0000-4000-8000-000000000001",
   outsider = "00000000-0000-4000-8000-000000000003";
-const routes = ["", "/calendar", "/kpis", "/hunter", "/ai-usage"];
+const routes = ["", "/leads", "/calendar", "/kpis", "/hunter", "/ai-usage"];
 const api = "/admin/workspace/crm/api";
 test(
   "CRM owner CRUD and RLS over production HTTP and PostgreSQL",
@@ -459,6 +459,8 @@ test(
       const errors = [];
       page.on("pageerror", (e) => errors.push(e.message));
       await page.goto(origin + "/admin/workspace/crm");
+      await page.getByRole("heading", { name: "Centro comercial de Avalon" }).waitFor();
+      await page.goto(origin + "/admin/workspace/crm/leads");
       await page
         .getByRole("button", { name: "Crear lead", exact: true })
         .waitFor();
@@ -505,7 +507,7 @@ test(
         );
       }
       await page.setViewportSize({ width: 390, height: 844 });
-      await page.goto(origin + "/admin/workspace/crm");
+      await page.goto(origin + "/admin/workspace/crm/leads");
       await page
         .getByRole("button", { name: "Crear lead", exact: true })
         .waitFor();
