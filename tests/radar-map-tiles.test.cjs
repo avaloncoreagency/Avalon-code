@@ -47,3 +47,15 @@ test("Leaflet recovers from tile errors and re-renders markers after initializat
   assert.match(ui, /timeout: 12000/);
   assert.match(ui, /No se autorizó el acceso a tu ubicación/);
 });
+
+
+test("radar handles offline and stale requests without inventing business data", () => {
+  const ui = fs.readFileSync("src/components/crm/titan-radar.tsx", "utf8");
+  assert.match(ui, /const placesLoadRevision = useRef\(0\)/);
+  assert.match(ui, /revision !== placesLoadRevision\.current/);
+  assert.match(ui, /No se pudo conectar al servidor del radar/);
+  assert.match(ui, /No se pudieron cargar las campañas/);
+  assert.match(ui, /No se pudo buscar la ciudad/);
+  assert.match(ui, /setPlaces\(body\.places \?\? \[\]\)/);
+  assert.doesNotMatch(ui, /setPlaces\(\[\{.*example/i, "never synthesize placeholder businesses");
+});
