@@ -13,7 +13,7 @@ export type CrmSection = typeof crmSections[number]['slug'];
 const money = (value: number) => new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 }).format(value);
 
 function Leads() {
-  return <div className={s.stack}><div className={s.cards}><Metric label="Leads de prueba" value={String(demoLeads.length)}/><Metric label="Valor de pipeline ilustrativo" value={money(demoLeads.filter(l => l.stage !== 'Perdido').reduce((sum,l) => sum + l.value,0))}/><Metric label="Oportunidades ganadas" value={String(demoLeads.filter(l => l.stage === 'Ganado').length)}/></div>
+  return <div className={s.stack}><div className={s.cards}><Metric label="Leads de prueba" value={String(demoLeads.length)}/><Metric label="Valor de pipeline ilustrativo" value={money(demoLeads.filter(l => !['Ganado', 'Perdido'].includes(l.stage)).reduce((sum,l) => sum + l.value,0))}/><Metric label="Oportunidades ganadas" value={String(demoLeads.filter(l => l.stage === 'Ganado').length)}/></div>
     <div className={s.grid}>{stages.map(stage => <section key={stage} className={s.panel}><div className={s.stage}>{stage} · {demoLeads.filter(l => l.stage === stage).length}</div>{demoLeads.filter(l => l.stage === stage).map(l => <div className={s.lead} key={l.id}><strong>{l.company}</strong><small>{l.name} · {l.owner}</small><small>{money(l.value)} · {l.nextAction}</small></div>)}{!demoLeads.some(l => l.stage === stage) && <p className={s.empty}>Sin leads de ejemplo</p>}</section>)}</div>
   </div>;
 }
