@@ -48,6 +48,7 @@ export default async function SolutionPlannerPage({searchParams}:{searchParams:P
   ]);
   const error = q(params,"error");
   const invalid = catalog.error ?? clients.error ?? plans.error;
+  const savedPlans = plans.data ?? [];
   return <Suite active="service-factory"><div className={s.hud}>
     <OpsHeader lang={lang} active="factory" crm="sales"
       eyebrow="AVALON / SERVICE FACTORY / SOLUTION PLANNER"
@@ -120,8 +121,8 @@ export default async function SolutionPlannerPage({searchParams}:{searchParams:P
       </section>
       <section className={s.panel} aria-labelledby="saved-plans">
         <header><h2 id="saved-plans">{pick(lang,"Planes guardados","Saved plans")}</h2></header>
-        {plans.data.length===0 ? <p className={s.empty}>{pick(lang,"Aún no hay estimaciones.","No estimates yet.")}</p> :
-          <div className={s.grid}>{plans.data.map(p=><Link key={p.id} className={s.card}
+        {savedPlans.length===0 ? <p className={s.empty}>{pick(lang,"Aún no hay estimaciones.","No estimates yet.")}</p> :
+          <div className={s.grid}>{savedPlans.map(p=><Link key={p.id} className={s.card}
             href={`/admin/service-factory/planner/${p.id}`}>
             <h3>{p.title}</h3>
             <p className={s.muted}>{p.crm_clients?.legal_name??pick(lang,"Sin empresa vinculada","No linked company")}</p>
