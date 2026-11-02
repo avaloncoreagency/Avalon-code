@@ -6,6 +6,7 @@ import { getLang } from "@/lib/i18n-server";
 import { pick, formatDate } from "@/lib/i18n";
 import { run } from "@/lib/os/data";
 import { money } from "@/lib/sales/domain";
+import { stripeReservationRetryable } from "@/lib/stripe/avalon";
 import s from "@/components/sales/sales.module.css";
 
 export const dynamic = "force-dynamic";
@@ -65,7 +66,12 @@ export default async function InvoicesPage({ searchParams }: { searchParams: Pro
          <td data-label={pick(lang,"Venta","Sale")}><Link href={`/admin/workspace/crm/sales/${i.sale_id}`}>{i.crm_sales?.sale_number ?? "—"}</Link></td>
          <td data-label={pick(lang,"Importe","Amount")}>{money(lang,Number(i.amount_minor)/100,i.currency)}</td>
          <td data-label={pick(lang,"Estado","Status")}><Tag lang={lang} value={i.status}/>
-           {i.needs_review && <span className={s.muted} role="alert"> · {pick(lang,"Revisar","Review")}: {i.review_reason}</span>}</td>
+           {i.needs_review && <span className={s.muted} role="alert"> · {pick(lang,"Revisar","Review")}: {i.review_reason}</span>}
+           {i.status === "creating" && !stripeReservationRetryable(i.created_at) &&
+             <span className={s.muted} role="alert"> · {pick(lang,
+               "Bloqueada por antigüedad: verificar en Stripe antes de reintentar.",
+               "Expired safe retry period: verify in Stripe before retrying.")}</span>}
+         </td>
          <td data-label={pick(lang,"Fecha","Date")}>{formatDate(lang,i.created_at,true)}</td>
        </tr>)}</tbody></table></div>}
       {!invoices.error && <div className={s.actions} style={{marginTop:14}}>
