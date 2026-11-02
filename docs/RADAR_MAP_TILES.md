@@ -30,3 +30,9 @@ La busqueda de empresas OSM/Overpass y su licencia son independientes del mapa b
 4. Validar Preview con base Supabase genuinamente aislada, cuando este autorizada. CI verde no equivale a validacion de login humano o disponibilidad de servicio externo.
 
 Estado: patch revisable en rama aislada. Sin merges, cambios de Vercel, Supabase, datos reales, credenciales o servicios de pago.
+
+## Geolocalización: hallazgo y mitigación sin cambiar permisos
+
+El botón «Usar mi ubicación» es una acción explícita del propietario y no debe recopilar coordenadas automáticamente. La cabecera global actual `Permissions-Policy: geolocation=()` la deshabilita. Esta rama ahora detecta el rechazo de políticas cuando el navegador lo expone y explica que el usuario debe buscar una ciudad o tocar el mapa. Si el permiso está disponible en el futuro, la solicitud usa timeout de 12 segundos y evita búsquedas de alta precisión. **Esto no habilita geolocalización** ni modifica cabeceras globales: cualquier habilitación en una ruta administrativa requerirá revisión de SHIN sobre privacidad/seguridad y pruebas de consentimiento.
+
+El filtro también rechaza subdominios arbitrarios y alias con punto final de `tile.openstreetmap.org` para que configuraciones erróneas no reintroduzcan la fuente bloqueada.
