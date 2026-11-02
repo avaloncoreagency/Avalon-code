@@ -335,7 +335,13 @@ test('Nova Restaurant through the real app: one form, three departments, no dupl
   await meetingForm.locator('select[name="owner_id"]').selectOption(MIGUEL);
   await meetingForm.locator('input[name="meeting_url"]').fill('https://meet.google.com/synthetic-test');
   await meetingForm.getByRole('button', { name: 'Guardar para ambos' }).click();
-  await page.getByText('Evento creado en el calendario compartido.').waitFor();
+  await page.getByText('Evento creado en el calendario compartido.').waitFor({ timeout: 12000 }).catch(async () => {
+    const alerts = await page.getByRole('alert').allTextContents();
+    const statuses = await page.getByRole('status').allTextContents();
+    const stillOpen = await page.getByRole('dialog').count();
+    const stored = await count("select count(*) n from crm_events where title='Kickoff compartido Avalon'");
+    throw new Error('Calendar save unconfirmed ' + JSON.stringify({ alerts, statuses, stillOpen, stored, bridgeErrors: errors.slice(-3) }));
+  });
   const scheduled = await one("select owner_id,attendee_ids,meeting_url from crm_events where title='Kickoff compartido Avalon'");
   assert.equal(scheduled.owner_id, MIGUEL);
   assert.ok(scheduled.attendee_ids.includes(SAMUEL));
