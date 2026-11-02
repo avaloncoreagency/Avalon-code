@@ -15,9 +15,9 @@ export async function Suite({ children, active = 'dashboard' }: { children: Reac
   return <div className={s.shell}>
     <aside className={s.sidebar}><Link className={s.brand} href="/admin/dashboard">AVALON<span>CORE AGENCY / OS</span></Link>
       <nav aria-label="Navegación principal"><Link aria-current={active === 'dashboard' ? 'page' : undefined} href="/admin/dashboard">◈ Dashboard</Link>{modules.map(m => <Link key={m.slug} aria-current={active === m.slug ? 'page' : undefined} href={`/admin/workspace/${m.slug}`}><span>{m.icon}</span> {m.name}</Link>)}</nav>
-      <div className={s.account}><span>SESIÓN ACTIVA · {member.role}</span><p><strong aria-hidden="true">{user.email?.slice(0, 1).toUpperCase()} · </strong>{user.email}</p><form action={signOut}><button>Cerrar sesión ↗</button></form></div>
+
     </aside>
-    <main className={s.main}><header className={s.top}><span>ESPACIO PRIVADO</span><span>Avalon Core Agency</span></header>{children}<footer className={s.footer}>AVALON OS · AI. PEOPLE. SYSTEMS.</footer></main>
+    <main className={s.main}><header className={s.top}><span>ESPACIO PRIVADO</span><details className={s.profileMenu}><summary aria-label="Abrir mi perfil"><span className={s.avatar} aria-hidden="true">{user.email?.slice(0, 1).toUpperCase() ?? "A"}</span><span>Mi perfil</span><span aria-hidden="true">⌄</span></summary><div className={s.profilePanel}><strong>Mi cuenta</strong><span className={s.profileEmail}>{user.email}</span><span className={s.profileRole}>Propietario · {member.role}</span><div className={s.profileDivider}/><span className={s.profilePending}>Invitar empleados · Próximamente</span><span className={s.profilePending}>Administrar accesos · Próximamente</span><form action={signOut}><button type="submit">Cerrar sesión ↗</button></form></div></details></header>{children}<footer className={s.footer}>AVALON OS · AI. PEOPLE. SYSTEMS.</footer></main>
   </div>;
 }
 export function ModuleCards() {
