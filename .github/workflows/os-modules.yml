@@ -1,0 +1,43 @@
+name: Avalon OS modules verification
+on:
+  pull_request:
+    paths:
+      - 'supabase/migrations/**'
+      - 'tests/sql/**'
+      - 'tests/os*'
+      - 'src/**'
+      - '.github/workflows/os-modules.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  database:
+    name: RLS and triggers on isolated PostgreSQL
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_PASSWORD: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 12
+    env:
+      PGHOST: localhost
+      PGUSER: postgres
+      PGPASSWORD: postgres
+      PGDATABASE: postgres
+    steps:
+      - uses: actions/checkout@v4
+      - name: Apply stub, membership and module migrations, then run assertions
+        run: |
+          psql -v ON_ERROR_STOP=1 -q \
+            -f tests/sql/00_supabase_stub.sql \
+            -f supabase/migrations/20261102_owner_memberships_proposed.sql \
+            -f supabase/migrations/20261102120000_avalon_os_modules.sql \
+            -f tests/sql/os_modules_rls.test.sql
