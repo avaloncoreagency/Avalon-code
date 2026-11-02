@@ -128,6 +128,13 @@ function status(e) {
  * Requests are serialized because PGlite is a single connection.
  */
 async function startBridge(db, { users, log = () => {} }) {
+  // Array columns (text[]) take native arrays like real PostgREST; json/jsonb take JSON text.
+  const types = new Map();
+  const colType = async (table, col) => {
+    if (!types.has(table)) types.set(table, new Map((await db.query("select column_name, data_type from information_schema.columns where table_schema='public' and table_name=$1", [table])).rows.map(r => [r.column_name, r.data_type])));
+    return types.get(table).get(col);
+  };
+  const value = async (table, col, v) => (v !== null && typeof v === 'object' && !(Array.isArray(v) && (await colType(table, col)) === 'ARRAY') ? JSON.stringify(v) : v);
   let queue = Promise.resolve();
   const server = createServer((req, res) => {
     queue = queue.then(async () => {
@@ -136,13 +143,14 @@ async function startBridge(db, { users, log = () => {} }) {
       const user = users.get((req.headers.authorization || '').replace('Bearer ', ''));
       if (url.pathname === '/auth/v1/user') return user ? send(200, user) : send(401, { message: 'invalid synthetic token' });
       if (!url.pathname.startsWith('/rest/v1/')) return send(404, { message: 'not found' });
-      if (!user) return send(401, { message: 'no identity' });
+      // No bearer token = the PostgREST anon role (RLS and grants decide, exactly as in Supabase).
+      const asRole = user ? `set request.jwt.claim.sub='${user.id}'; set role authenticated;` : `set request.jwt.claim.sub=''; set role anon;`;
       let raw = ''; for await (const chunk of req) raw += chunk;
       const body = raw ? JSON.parse(raw) : null;
       const values = []; const param = v => { values.push(v); return `$${values.length}`; };
       const prefer = String(req.headers.prefer || '');
       const wantsObject = String(req.headers.accept || '').includes('vnd.pgrst.object');
-      await db.exec(`reset role; set request.jwt.claim.sub='${user.id}'; set role authenticated;`);
+      await db.exec(`reset role; ${asRole}`);
       try {
         const path = url.pathname.slice('/rest/v1/'.length);
         if (path.startsWith('rpc/')) {
@@ -151,7 +159,7 @@ async function startBridge(db, { users, log = () => {} }) {
           await db.exec('reset role;');
           const meta = (await db.query(`select p.proretset, p.pronargs, p.proargnames, array(select format_type(t, null) from unnest(p.proargtypes::oid[]) t) types
             from pg_proc p join pg_namespace n on n.oid=p.pronamespace where n.nspname='public' and p.proname=$1`, [fn])).rows[0];
-          await db.exec(`set request.jwt.claim.sub='${user.id}'; set role authenticated;`);
+          await db.exec(asRole);
           if (!meta) return send(404, { code: 'PGRST202', message: `Could not find the function public.${fn}` });
           const args = (meta.proargnames || []).slice(0, meta.pronargs).map((name, i) => `${q(name)} => ${param(body?.[name] === undefined ? null : typeof body[name] === 'object' && body[name] !== null ? JSON.stringify(body[name]) : body[name])}::${meta.types[i]}`);
           const call = `public.${q(fn)}(${args.join(', ')})`;
@@ -184,7 +192,7 @@ async function startBridge(db, { users, log = () => {} }) {
           try {
             for (const row of list) {
               const keys = Object.keys(row);
-              const r = (await db.query(`insert into public.${q(table)} (${keys.map(q).join(', ')}) values (${keys.map((_, i) => `$${i + 1}`).join(', ')}) returning id`, keys.map(k => (row[k] !== null && typeof row[k] === 'object' ? JSON.stringify(row[k]) : row[k])))).rows[0];
+              const r = (await db.query(`insert into public.${q(table)} (${keys.map(q).join(', ')}) values (${keys.map((_, i) => `$${i + 1}`).join(', ')}) returning id`, await Promise.all(keys.map(k => value(table, k, row[k]))))).rows[0];
               out.push(r.id);
             }
             await db.exec('commit');
@@ -197,7 +205,8 @@ async function startBridge(db, { users, log = () => {} }) {
         }
         if (req.method === 'PATCH') {
           const keys = Object.keys(body);
-          const sets = keys.map(k => `${q(k)} = ${param(body[k] !== null && typeof body[k] === 'object' ? JSON.stringify(body[k]) : body[k])}`);
+          const vals = await Promise.all(keys.map(k => value(table, k, body[k])));
+          const sets = keys.map((k, i) => `${q(k)} = ${param(vals[i])}`);
           const where = filters(url, 't', param);
           const ids = (await db.query(`update public.${q(table)} t set ${sets.join(', ')}${where} returning t.id`, values)).rows.map(r => r.id);
           log('update', table, ids.length);

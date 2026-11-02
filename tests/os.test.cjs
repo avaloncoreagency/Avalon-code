@@ -13,7 +13,7 @@ function load(file, mocks = {}) {
   return loaded.exports;
 }
 const d = load('src/lib/os/domain.ts');
-const walk = dir => fs.readdirSync(dir, { withFileTypes: true }).flatMap(e => e.isDirectory() ? walk(path.join(dir, e.name)) : [path.join(dir, e.name)]);
+const walk = dir => fs.readdirSync(dir, { withFileTypes: true }).flatMap(e => e.isDirectory() ? walk(path.join(dir, e.name)) : [path.join(dir, e.name).split(path.sep).join('/')]);
 const sources = walk('src').filter(f => /\.(ts|tsx)$/.test(f));
 
 test('text validation trims, bounds and rejects control characters', () => {
@@ -119,7 +119,7 @@ test('no service-role or secret keys are referenced by application code', () => 
 });
 
 test('every module server action re-verifies the owner before touching data', () => {
-  const actions = sources.filter(f => f.includes(path.join('admin', 'workspace')) && f.endsWith('actions.ts'));
+  const actions = sources.filter(f => f.includes('admin/workspace/') && f.endsWith('actions.ts'));
   assert.ok(actions.length >= 6, 'expected module action files');
   for (const file of actions) {
     const text = fs.readFileSync(file, 'utf8');
@@ -138,14 +138,14 @@ test('every module server action re-verifies the owner before touching data', ()
 });
 
 test('every private page renders inside the authenticated Suite or verifies the owner', () => {
-  const pages = sources.filter(f => f.startsWith(path.join('src', 'app', 'admin')) && /page\.tsx$/.test(f) &&
+  const pages = sources.filter(f => f.startsWith('src/app/admin/') && /page\.tsx$/.test(f) &&
     !/(login|signup|forgot-password|reset-password|\/mfa\/)/.test(f));
   assert.ok(pages.length >= 15);
   for (const file of pages) {
     const text = fs.readFileSync(file, 'utf8');
     assert.ok(/<Suite[\s>]/.test(text) || /requireOwner\(|getAuthorizedMember\(/.test(text), file);
   }
-  const routes = sources.filter(f => f.startsWith(path.join('src', 'app', 'admin', 'workspace')) && f.endsWith('route.ts'));
+  const routes = sources.filter(f => f.startsWith('src/app/admin/workspace/') && f.endsWith('route.ts'));
   for (const file of routes) assert.match(fs.readFileSync(file, 'utf8'), /getOwnerSession\(\)|getAuthorizedMember\(/, file);
 });
 
