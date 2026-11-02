@@ -141,8 +141,12 @@ test('Nova Restaurant end-to-end: one client, one sale, three departments, idemp
   await assert.rejects(db.query('delete from crm_timeline'), /permission denied/);
   await assert.rejects(db.query("insert into crm_notifications(recipient_id,severity,category,title,dedupe_key) values($1,'urgent','sales','x','x')", [SAMUEL]), /permission denied/);
 
+  const directory = (await db.query('select * from crm_owner_directory()')).rows;
+  assert.deepEqual(directory.map(r => r.user_id).sort(), [MIGUEL, SAMUEL].sort(), 'owner directory lists owners only');
+
   // Outsiders (non-owner member) see nothing and cannot call the RPC.
   await as(STRANGER);
+  assert.equal((await db.query('select * from crm_owner_directory()')).rows.length, 0);
   for (const table of ['crm_clients', 'crm_contacts', 'crm_sales', 'crm_sale_lines', 'crm_work_orders', 'crm_tasks', 'crm_payments', 'crm_timeline', 'crm_notifications', 'crm_service_catalog']) {
     assert.equal(await n(`select count(*) n from ${table}`), 0, `${table} hidden from non-owner`);
   }

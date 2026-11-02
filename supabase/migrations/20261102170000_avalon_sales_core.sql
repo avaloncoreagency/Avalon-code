@@ -811,6 +811,15 @@ $$;
 revoke all on function public.crm_sales_metrics() from public, anon;
 grant execute on function public.crm_sales_metrics() to authenticated;
 
+-- Owners can see each other (id + e-mail) to assign work. Display only; never used for authorization.
+create function public.crm_owner_directory() returns table (user_id uuid, email text)
+language sql stable security definer set search_path = '' as $$
+  select m.user_id, coalesce(u.email, '') from public.agency_memberships m join auth.users u on u.id = m.user_id
+  where m.role = 'owner' and crm_private.is_owner() order by u.email
+$$;
+revoke all on function public.crm_owner_directory() from public, anon;
+grant execute on function public.crm_owner_directory() to authenticated;
+
 -- ---------------------------------------------------------------- RLS and grants
 do $$ declare t text; begin
   foreach t in array array['crm_departments', 'crm_service_catalog', 'crm_automation_rules', 'crm_clients', 'crm_contacts',

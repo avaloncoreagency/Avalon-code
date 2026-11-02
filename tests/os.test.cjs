@@ -127,7 +127,13 @@ test('every module server action re-verifies the owner before touching data', ()
     const exported = [...text.matchAll(/export async function (\w+)/g)].map(m => m[1]);
     assert.ok(exported.length > 0, file);
     assert.ok(/ownerForAction\(\)/.test(text), `${file} must call ownerForAction`);
-    assert.doesNotMatch(text, /\.rpc\(|createClient\(|getSession\(/, file);
+    assert.doesNotMatch(text, /createClient\(|getSession\(/, file);
+    // Only reviewed SECURITY DEFINER RPCs that re-check owner membership in SQL
+    // (see 20261102170000_avalon_sales_core.sql and tests/sales.database.cjs).
+    const REVIEWED_RPCS = new Set(['crm_confirm_sale', 'crm_record_sale_failure']);
+    for (const call of text.matchAll(/\.rpc\(\s*(['"])?([\w]*)\1?/g)) {
+      assert.ok(REVIEWED_RPCS.has(call[2]), `${file} calls unreviewed RPC ${call[2] || '(dynamic)'}`);
+    }
   }
 });
 
