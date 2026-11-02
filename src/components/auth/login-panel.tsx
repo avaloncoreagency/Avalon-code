@@ -25,7 +25,7 @@ const copy = {
   },
 };
 
-function Submit({ label, pendingLabel }: { label: string; pendingLabel: string })
+function Submit({ label, pendingLabel }: { label: string; pendingLabel: string }) {
   const { pending } = useFormStatus();
   return <button className={styles.submit} type="submit" disabled={pending} aria-busy={pending}>
     <span>{pending ? pendingLabel : label}</span><span aria-hidden="true">→</span>
