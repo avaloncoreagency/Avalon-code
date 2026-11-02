@@ -56,6 +56,7 @@ export function TitanRadar({ onChanged }: { onChanged?: () => void }) {
   const [sweep, setSweep] = useState(true);
   const [tileStatus, setTileStatus] = useState<"loading" | "ready" | "unconfigured" | "failed">(MAP_TILE_URL ? "loading" : "unconfigured");
   const [mapRevision, setMapRevision] = useState(0);
+  const [locating, setLocating] = useState(false);
   const [busy, setBusy] = useState(false);
   const radiusM = Math.round(Number(radius) * (unit === "km" ? 1000 : 1609.344)) || 0;
   type Campaign = { id: string; name: string; radius_m: number; place_label: string; categories: string[]; frequency: string; status: string; last_run_at: string | null; crm_radar_runs: { status: string; found: number; inserted: number; started_at: string }[] };
@@ -196,8 +197,34 @@ export function TitanRadar({ onChanged }: { onChanged?: () => void }) {
   }
   function pick(r: { label: string; lat: number; lon: number }) { setCenter([r.lat, r.lon]); setLabel(r.label); setGeoResults([]); map.current?.setView([r.lat, r.lon], 12); }
   function locate() {
-    if (!navigator.geolocation) { setError("Este navegador no permite ubicación."); return; }
-    navigator.geolocation.getCurrentPosition(pos => pick({ label: "Mi ubicación", lat: pos.coords.latitude, lon: pos.coords.longitude }), () => setError("Permiso de ubicación denegado. Busca una ciudad o toca el mapa."));
+    if (locating) return;
+    // On the current Avalon security baseline geolocation=() is disabled.
+    // Detect that policy first; never ask for the user's location without a click.
+    const doc = document as Document & {
+      permissionsPolicy?: { allowsFeature(name: string): boolean };
+      featurePolicy?: { allowsFeature(name: string): boolean };
+    };
+    if (doc.permissionsPolicy?.allowsFeature("geolocation") === false ||
+        doc.featurePolicy?.allowsFeature("geolocation") === false) {
+      setError("La ubicación está deshabilitada por la política de seguridad de Avalon. Busca una ciudad o toca el radar.");
+      return;
+    }
+    if (!navigator.geolocation) { setError("Este navegador no permite ubicación. Busca una ciudad o toca el radar."); return; }
+    setError("");
+    setLocating(true);
+    navigator.geolocation.getCurrentPosition(
+      pos => {
+        setLocating(false);
+        pick({ label: "Mi ubicación", lat: pos.coords.latitude, lon: pos.coords.longitude });
+      },
+      err => {
+        setLocating(false);
+        setError(err.code === 1
+          ? "No se autorizó el acceso a tu ubicación. Busca una ciudad o toca el radar."
+          : "No se pudo obtener tu ubicación. Busca una ciudad o toca el radar.");
+      },
+      { enableHighAccuracy: false, timeout: 12000, maximumAge: 300000 },
+    );
   }
 
   async function search() {
@@ -245,7 +272,7 @@ export function TitanRadar({ onChanged }: { onChanged?: () => void }) {
         <label className={s.srOnly} htmlFor="radar-place">Ciudad, dirección o código postal</label>
         <input id="radar-place" value={query} onChange={e => setQuery(e.target.value)} placeholder="Ciudad, dirección o código postal" maxLength={120} />
         <button type="submit" className={s.ghost}>Ir</button>
-        <button type="button" className={s.ghost} onClick={locate} aria-label="Usar mi ubicación">◎</button>
+        <button type="button" className={s.ghost} onClick={locate} aria-label="Usar mi ubicación" disabled={locating} aria-busy={locating}>{locating ? "…" : "◎"}</button>
       </form>
       {geoResults.length > 0 && <ul className={s.geoList}>{geoResults.map(r => <li key={r.label}><button type="button" onClick={() => pick(r)}>{r.label}</button></li>)}</ul>}
 
