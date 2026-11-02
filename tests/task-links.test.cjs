@@ -93,7 +93,7 @@ function syntheticActions({ conflict = false, order = { id: workOrder, client_id
       eq() { return this; },
       maybeSingle: async () => ({ data: order, error: orderError }),
     };
-    assert.equal(table, 'crm_tasks', 'synthetic tests only access tasks and work orders');
+    assert.ok(['crm_tasks', 'crm_task_comments'].includes(table), 'synthetic tests only access tasks, comments and work orders');
     return {
       insert(payload) { inserted.push(payload); return chain; },
       update: () => chain,
