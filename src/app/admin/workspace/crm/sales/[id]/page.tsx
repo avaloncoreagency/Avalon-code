@@ -41,6 +41,9 @@ export default async function SaleDetail({ params, searchParams }: { params: Pro
   const ownerList = owners.data ?? [];
   const d = sale.data;
   const paid = (payments.data ?? []).reduce((sum, x) => sum + Number(x.amount), 0);
+  const activeStripeInvoice = !invoiceRows.error && (invoiceRows.data ?? []).some(x =>
+    ["creating","draft","open","review","uncollectible"].includes(x.status)
+  );
   const progress = (woId: string) => {
     const list = (tasks.data ?? []).filter(t => t.work_order_id === woId);
     return list.length ? `${list.filter(t => t.status === "done").length}/${list.filter(t => t.status !== "cancelled").length}` : "—";
@@ -125,7 +128,13 @@ export default async function SaleDetail({ params, searchParams }: { params: Pro
         <section className={s.panel} aria-labelledby="payments"><header><h2 id="payments">{pick(lang, "Cobros registrados", "Recorded payments")}</h2></header>
           {payments.error ? <Unavailable lang={lang} code={payments.error} /> : payments.data.length === 0 ? <p className={s.muted}>{pick(lang, "Sin cobros registrados. El pago inicial acordado no cuenta como cobrado.", "No payments recorded. The agreed upfront payment does not count as collected.")}</p> :
             <ul className={s.list}>{payments.data.map(x => <li key={x.id}><strong>{money(lang, x.amount, d.currency)}</strong><span className={s.muted}>{formatDate(lang, x.received_on)} · {label(lang, x.method)}{x.reference ? ` · ${x.reference}` : ""}</span></li>)}</ul>}
-          {d.contract_status !== "cancelled" && Number(d.total) - paid > 0 && <form action={recordPayment} className={s.form} style={{ marginTop: 14 }}><input type="hidden" name="sale_id" value={d.id} />
+          {activeStripeInvoice && <p role="status" className={s.muted}>{pick(lang,
+            "Registro manual bloqueado: esta venta tiene una factura Stripe pendiente. Revisa o anula la factura antes de registrar otra transferencia, efectivo o tarjeta.",
+            "Manual payments are blocked: this sale has an outstanding Stripe invoice. Review or void it before recording another transfer, cash or card payment.")}</p>}
+          {invoiceRows.error && <p role="alert" className={s.muted}>{pick(lang,
+            "No se pudo comprobar el estado de Stripe: se bloquea el registro manual por seguridad.",
+            "Cannot verify Stripe invoice status: manual payment entry is disabled for safety.")}</p>}
+          {!invoiceRows.error && !activeStripeInvoice && d.contract_status !== "cancelled" && Number(d.total) - paid > 0 && <form action={recordPayment} className={s.form} style={{ marginTop: 14 }}><input type="hidden" name="sale_id" value={d.id} />
             <div className={s.row}>
               <label className={s.field}>{pick(lang, "Importe", "Amount")} ({d.currency})<input name="amount" required inputMode="decimal" pattern="\d{1,13}(\.\d{1,2})?" /></label>
               <label className={s.field}>{pick(lang, "Fecha de cobro", "Received on")}<input name="received_on" type="date" required defaultValue={new Date().toISOString().slice(0, 10)} /></label>
