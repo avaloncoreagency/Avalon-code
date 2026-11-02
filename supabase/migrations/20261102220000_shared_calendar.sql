@@ -123,7 +123,9 @@ create policy calendar_banners_delete on public.crm_calendar_banners
 for delete to authenticated
 using ((select crm_private.is_owner()) and agency_key = 'avalon');
 
-revoke all on public.crm_calendar_banners from public, anon, authenticated;
+revoke all on public.crm_calendar_banners from anon;
+revoke all on public.crm_calendar_banners from authenticated;
+revoke all on public.crm_calendar_banners from public;
 grant select, insert, update, delete on public.crm_calendar_banners to authenticated;
 
 commit;
