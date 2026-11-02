@@ -130,6 +130,179 @@ end $$;
 revoke all on function public.crm_stripe_mark_sent(uuid,text) from public, anon;
 grant execute on function public.crm_stripe_mark_sent(uuid,text) to authenticated;
 
+-- The existing CRM stamp normally requires an interactive owner session.
+-- A Stripe webhook has no user JWT: permit INSERT ONLY on crm_payments, ONLY for
+-- a service-role request during the verified, account-matched webhook RPC, and
+-- ONLY if the referenced Stripe invoice matches the recorded owner/sale.
+-- Every other table/operation retains the original strict owner policy.
+create or replace function crm_private.stamp() returns trigger
+language plpgsql security invoker set search_path='' as $
+declare stripe_insert boolean := false;
+begin
+  if tg_table_name = 'crm_payments' and tg_op = 'INSERT' then
+    stripe_insert := current_setting('request.jwt.claim.role', true) = 'service_role'
+      and current_setting('avalon.stripe.webhook', true) = 'verified'
+      and coalesce(new.reference, '') ~ '^stripe:in_[A-Za-z0-9]+
+-- Service-role-only, atomic event dedupe + payment recording in the same DB transaction.
+create function public.crm_stripe_process_event(p_event jsonb)
+returns jsonb language plpgsql security definer set search_path = '' as $$
+declare
+  v_type text := p_event ->> 'type';
+  v_event_id text := p_event ->> 'id';
+  v_object jsonb := p_event #> '{data,object}';
+  v_stripe_invoice_id text;
+  v_record public.crm_stripe_invoices%rowtype;
+  v_paid_minor bigint;
+  v_current_paid numeric(15,2);
+  v_sale_total numeric(15,2);
+  v_payment_id uuid;
+  v_date date;
+  v_handled text := 'processed';
+  v_note text := '';
+begin
+  if current_setting('request.jwt.claim.role', true) is distinct from 'service_role' then
+    raise exception 'stripe_webhook_forbidden' using errcode = '42501';
+  end if;
+  if coalesce(p_event ->> 'livemode', 'true') <> 'false'
+     or v_event_id is null or v_event_id !~ '^evt_[A-Za-z0-9]+$'
+     or v_type is null or jsonb_typeof(v_object) <> 'object' then
+    raise exception 'stripe_invalid_event' using errcode = '22023';
+  end if;
+  if v_type not in (
+    'invoice.paid','invoice.payment_failed','invoice.finalized','invoice.sent',
+    'invoice.voided','invoice.marked_uncollectible','credit_note.created',
+    'charge.refunded','charge.dispute.created'
+  ) then
+    return jsonb_build_object('status','ignored_type');
+  end if;
+  insert into public.crm_stripe_events(stripe_event_id,event_type,handled)
+    values (v_event_id,v_type,'processed') on conflict do nothing;
+  if not found then return jsonb_build_object('status','duplicate'); end if;
+  v_stripe_invoice_id := case
+    when left(v_type,8) = 'invoice.' then v_object ->> 'id'
+    when v_type = 'credit_note.created' then
+      case when jsonb_typeof(v_object -> 'invoice') = 'string'
+      then v_object ->> 'invoice' else v_object #>> '{invoice,id}' end
+    else
+      case when jsonb_typeof(v_object -> 'invoice') = 'string'
+      then v_object ->> 'invoice' else v_object #>> '{invoice,id}' end
+  end;
+  if v_stripe_invoice_id is null or v_stripe_invoice_id !~ '^in_[A-Za-z0-9]+$' then
+    update public.crm_stripe_events set handled = 'review' where stripe_event_id = v_event_id;
+    return jsonb_build_object('status','unlinked');
+  end if;
+  select * into v_record from public.crm_stripe_invoices i
+    where i.stripe_invoice_id = v_stripe_invoice_id for update;
+  if not found then
+    update public.crm_stripe_events set handled = 'ignored' where stripe_event_id = v_event_id;
+    return jsonb_build_object('status','unrelated');
+  end if;
+  update public.crm_stripe_events set invoice_id = v_record.id where stripe_event_id = v_event_id;
+  if v_type = 'invoice.paid' then
+    if v_record.payment_id is not null then
+      return jsonb_build_object('status','already_recorded');
+    end if;
+    if coalesce(v_object ->> 'status','') <> 'paid'
+       or coalesce(v_object ->> 'currency','') <> lower(v_record.currency)
+       or coalesce(v_object ->> 'customer','') <> v_record.stripe_customer_id
+       or coalesce(v_object ->> 'livemode','true') <> 'false'
+       or coalesce(v_object ->> 'amount_paid','') !~ '^\d+$' then
+      v_note := 'invoice_fields_mismatch';
+    else
+      v_paid_minor := (v_object ->> 'amount_paid')::bigint;
+      if v_paid_minor <> v_record.amount_minor then v_note := 'amount_mismatch'; end if;
+    end if;
+    select s.total, coalesce(sum(p.amount),0) into v_sale_total, v_current_paid
+      from public.crm_sales s left join public.crm_payments p on p.sale_id = s.id
+      where s.id = v_record.sale_id group by s.total;
+    if v_note = '' and (v_current_paid + v_paid_minor::numeric / 100) > v_sale_total then
+      v_note := 'sale_overpayment';
+    end if;
+    if v_note = '' then
+      v_date := (to_timestamp(coalesce(nullif(p_event ->> 'created','')::bigint, extract(epoch from now())::bigint)) at time zone 'UTC')::date;
+      perform set_config('avalon.stripe.webhook', 'verified', true);
+      insert into public.crm_payments(sale_id,amount,currency,received_on,method,reference,created_by)
+        values (v_record.sale_id,v_paid_minor::numeric/100,v_record.currency,v_date,'other',
+                'stripe:' || v_record.stripe_invoice_id,v_record.created_by)
+        returning id into v_payment_id;
+      update public.crm_stripe_invoices set status = 'paid', payment_id = v_payment_id,
+        needs_review = false, review_reason = '', updated_at = now() where id = v_record.id;
+    end if;
+  elsif v_type in ('invoice.sent','invoice.finalized') then
+    if v_record.status in ('creating','draft','open') then
+      update public.crm_stripe_invoices set status = 'open', updated_at = now()
+        where id = v_record.id;
+    end if;
+  elsif v_type = 'invoice.payment_failed' then
+    if v_record.status in ('draft','open') then
+      update public.crm_stripe_invoices set status = 'open',
+        needs_review = true, review_reason = 'payment_failed', updated_at = now()
+        where id = v_record.id;
+    end if;
+  elsif v_type = 'invoice.voided' then
+    if v_record.payment_id is not null then v_note := 'void_after_payment'; else
+      update public.crm_stripe_invoices set status = 'void', updated_at = now()
+        where id = v_record.id;
+    end if;
+  elsif v_type = 'invoice.marked_uncollectible' then
+    update public.crm_stripe_invoices set status = 'uncollectible',
+      needs_review = true, review_reason = 'uncollectible', updated_at = now()
+      where id = v_record.id;
+  elsif v_type in ('credit_note.created','charge.refunded','charge.dispute.created') then
+    v_note := 'refund_or_dispute_review_required';
+  end if;
+  if v_note <> '' then
+    update public.crm_stripe_invoices set status = 'review', needs_review = true,
+      review_reason = v_note, updated_at = now() where id = v_record.id;
+    update public.crm_stripe_events set handled = 'review' where stripe_event_id = v_event_id;
+    return jsonb_build_object('status','review','reason',v_note);
+  end if;
+  return jsonb_build_object('status',v_handled,'invoice_id',v_record.id);
+end $$;
+revoke all on function public.crm_stripe_process_event(jsonb) from public, anon, authenticated;
+grant execute on function public.crm_stripe_process_event(jsonb) to service_role;
+
+commit;
+
+      and exists (
+        select 1 from public.crm_stripe_invoices i
+        where i.stripe_invoice_id = substring(new.reference from 8)
+          and i.sale_id = new.sale_id and i.created_by = new.created_by
+          and i.currency = new.currency
+      );
+  end if;
+  if not crm_private.is_owner() and not stripe_insert then
+    raise exception 'CRM forbidden' using errcode = '42501';
+  end if;
+  if tg_op = 'INSERT' then
+    if not stripe_insert then new.created_by := auth.uid(); end if;
+    new.created_at := now(); new.version := 1;
+  else
+    new.id := old.id; new.agency_key := old.agency_key;
+    new.created_by := old.created_by; new.created_at := old.created_at;
+    new.version := old.version + 1;
+  end if;
+  new.updated_at := clock_timestamp();
+  if tg_table_name = 'crm_leads' then
+    if (select kind from public.crm_stages where id = new.stage_id) = 'lost'
+       and length(trim(new.loss_reason)) = 0 then
+      raise exception 'Motivo de pérdida requerido' using errcode = '23514';
+    end if;
+  end if;
+  if tg_table_name = 'crm_prospects' then
+    if tg_op = 'UPDATE' and old.status = 'converted' then
+      raise exception 'Converted prospect is immutable' using errcode = '23514';
+    end if;
+    if new.status = 'converted' then
+      if tg_op = 'INSERT' or old.status <> 'approved' then
+        raise exception 'Approve before conversion' using errcode = '23514';
+      end if;
+    end if;
+  end if;
+  return new;
+end $;
+revoke all on function crm_private.stamp() from public;
+
 -- This function is called ONLY after a Stripe-Signature HMAC check by the Vercel webhook.
 -- Service-role-only, atomic event dedupe + payment recording in the same DB transaction.
 create function public.crm_stripe_process_event(p_event jsonb)
