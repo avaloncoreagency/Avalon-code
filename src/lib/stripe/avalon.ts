@@ -47,7 +47,7 @@ export async function stripeRequest<T>(path: string, method: "GET" | "POST" = "G
 
 export type StripeInvoice = {
   id: string; status: string; customer: string; currency: string;
-  amount_due: number; total: number; livemode: boolean; hosted_invoice_url: string | null;
+  amount_due: number; total: number; livemode: boolean; automatic_tax: { enabled: boolean } | null; hosted_invoice_url: string | null;
   invoice_pdf: string | null; metadata: Record<string,string>;
 };
 
