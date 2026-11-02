@@ -31,6 +31,10 @@ test(
         "utf8",
       ),
     );
+    // Include the new shared event columns, banner policies and owner checks.
+    await db.exec(
+      fs.readFileSync("supabase/migrations/20261102220000_shared_calendar.sql", "utf8"),
+    );
     async function as(user) {
       await db.exec(
         `reset role;set request.jwt.claim.sub='${user}';set role authenticated;`,
@@ -82,6 +86,29 @@ test(
     );
     await db.query(
       `insert into crm_events(title,owner_id,starts_at,ends_at,timezone,kind) values('Adjacent','${owner}','2026-11-01T11:00Z','2026-11-01T12:00Z','UTC','call')`,
+    );
+    // The other owner's membership is hidden by RLS; the calendar must still
+    // admit both participants while rejecting a conflicting appointment.
+    await db.query(
+      `insert into crm_events(title,owner_id,attendee_ids,starts_at,ends_at,timezone,kind)
+       values('Shared meeting','${owner}',array['${other}'::uuid],'2026-11-20T14:00Z','2026-11-20T15:00Z','UTC','meeting')`,
+    );
+    await as(other);
+    assert.equal((await db.query("select count(*)::int n from crm_events where title='Shared meeting'")).rows[0].n, 1);
+    await assert.rejects(
+      db.query(
+        `insert into crm_events(title,owner_id,starts_at,ends_at,timezone,kind)
+         values('Overlap other owner','${other}','2026-11-20T14:30Z','2026-11-20T15:30Z','UTC','call')`,
+      ),
+      /Conflicto/,
+    );
+    await as(owner);
+    await assert.rejects(
+      db.query(
+        `insert into crm_events(title,owner_id,attendee_ids,starts_at,ends_at,timezone,kind)
+         values('Unapproved guest','${owner}',array['${stranger}'::uuid],'2026-11-21T14:00Z','2026-11-21T15:00Z','UTC','meeting')`,
+      ),
+      /Un participante no es propietario autorizado/,
     );
     const p = (
       await db.query(
