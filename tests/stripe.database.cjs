@@ -51,6 +51,19 @@ test("Stripe invoice reserves the unpaid balance, rejects strangers and reconcil
   assert.equal(row.status,"draft");
   assert.equal(row.stripe_invoice_id,"in_TEST001");
 
+  // Simulate sending first and the app losing the DB response; Stripe's signed
+  // webhook must restore the hosted URL and open status for the owner UI.
+  await service();
+  const sentEvent={id:"evt_SENT001",type:"invoice.sent",livemode:false,
+    data:{object:{id:"in_TEST001",status:"open",livemode:false,
+      hosted_invoice_url:"https://invoice.stripe.com/i/qa-example"}}};
+  const sentResult=(await first("select crm_stripe_process_event($1::jsonb) r",[JSON.stringify(sentEvent)])).r;
+  assert.equal(sentResult.status,"processed");
+  await owner(MIGUEL);
+  const persisted=await first("select status,hosted_invoice_url from crm_stripe_invoices where id=$1",[reserved.id]);
+  assert.equal(persisted.status,"open");
+  assert.equal(persisted.hosted_invoice_url,"https://invoice.stripe.com/i/qa-example");
+
   await owner(STRANGER);
   await assert.rejects(db.query("select crm_stripe_reserve_invoice($1)",[saleId]),/crm_forbidden/);
   assert.equal(await count("select count(*) n from crm_stripe_invoices"),0);
