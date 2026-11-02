@@ -18,6 +18,7 @@ type ReservedInvoice = {
 type DbInvoice = {
   id: string; sale_id: string; client_id: string; amount_minor: number | string; currency: string;
   status: string; stripe_invoice_id: string | null; stripe_customer_id: string | null;
+  hosted_invoice_url: string | null;
 };
 
 const TEST_EMAIL = /^[^\s@]+@(?:[^\s@]+\.)?(?:example\.com|example\.org|example\.net|example\.test|example\.invalid)$/i;
@@ -78,6 +79,7 @@ export async function createStripeInvoiceDraft(form: FormData) {
       collection_method: "send_invoice",
       days_until_due: "30",
       auto_advance: "false",
+      "automatic_tax[enabled]": "false",
       pending_invoice_items_behavior: "exclude",
       "metadata[avalon_invoice_id]": local.id,
       "metadata[avalon_sale_id]": s.id,
@@ -87,6 +89,13 @@ export async function createStripeInvoiceDraft(form: FormData) {
     const invoice = await stripeRequest<StripeInvoice>(
       "/invoices", "POST", invoiceParams, `avalon-test-invoice-${local.id}`
     );
+
+    if (invoice.livemode !== false || invoice.status !== "draft" ||
+      invoice.customer !== customer.id || invoice.currency !== "usd" ||
+      invoice.metadata?.avalon_invoice_id !== local.id ||
+      invoice.metadata?.avalon_sale_id !== s.id) {
+      throw new Error("Sandbox draft validation failed");
+    }
 
     const item = new URLSearchParams({
       customer: customer.id,
@@ -121,10 +130,11 @@ export async function sendStripeInvoice(form: FormData) {
     back(path, { stripe_error: "not_configured" });
   }
   const { data: row, error } = await supabase.from("crm_stripe_invoices")
-    .select("id,sale_id,client_id,amount_minor,currency,status,stripe_invoice_id,stripe_customer_id")
+    .select("id,sale_id,client_id,amount_minor,currency,status,stripe_invoice_id,stripe_customer_id,hosted_invoice_url")
     .eq("id", localId).eq("sale_id", saleId).maybeSingle();
   const local = row as DbInvoice | null;
-  if (error || !local?.stripe_invoice_id || !local.stripe_customer_id || local.status !== "draft") {
+  if (error || !local?.stripe_invoice_id || !local.stripe_customer_id ||
+    !["draft", "open"].includes(local.status) || local.hosted_invoice_url) {
     back(path, { stripe_error: "not_eligible" });
   }
   const { data: contacts } = await supabase.from("crm_contacts")
@@ -134,11 +144,13 @@ export async function sendStripeInvoice(form: FormData) {
   }
   try {
     const stripeCustomer = await stripeRequest<{ id: string; email: string | null }>(`/customers/${local.stripe_customer_id}`);
-    if (stripeCustomer.id !== local.stripe_customer_id || !isTestRecipient((stripeCustomer.email ?? "").trim())) {
+    if (stripeCustomer.id !== local.stripe_customer_id ||
+      !isTestRecipient((stripeCustomer.email ?? "").trim()) ||
+      (stripeCustomer.email ?? "").trim().toLowerCase() !== (contacts?.[0]?.email ?? "").trim().toLowerCase()) {
       back(path, { stripe_error: "test_email_required" });
     }
     const invoice = await stripeRequest<StripeInvoice>(`/invoices/${local.stripe_invoice_id}`);
-    if (invoice.status !== "draft" || invoice.livemode !== false ||
+    if (!["draft","open"].includes(invoice.status) || invoice.livemode !== false ||
       invoice.id !== local.stripe_invoice_id ||
       invoice.customer !== local.stripe_customer_id ||
       invoice.currency !== "usd" ||
@@ -147,10 +159,30 @@ export async function sendStripeInvoice(form: FormData) {
       invoice.total !== minor(local.amount_minor)) {
       back(path, { stripe_error: "invoice_mismatch" });
     }
+    // Stripe send requires an OPEN (finalized) invoice. auto_advance=false means
+    // Stripe never finalizes this draft for us. Owner approval triggers both steps.
+    if (invoice.status === "draft") {
+      const finalized = await stripeRequest<StripeInvoice>(
+        `/invoices/${local.stripe_invoice_id}/finalize`, "POST",
+        new URLSearchParams({ auto_advance: "false" }),
+        `avalon-test-finalize-${local.id}`
+      );
+      if (finalized.status !== "open" || finalized.livemode !== false ||
+        finalized.total !== minor(local.amount_minor) ||
+        finalized.customer !== local.stripe_customer_id) {
+        back(path, { stripe_error: "invoice_mismatch" });
+      }
+    }
     const sent = await stripeRequest<StripeInvoice>(
       `/invoices/${local.stripe_invoice_id}/send`, "POST", new URLSearchParams(),
       `avalon-test-send-${local.id}`
     );
+    if (sent.status !== "open" || sent.livemode !== false ||
+      sent.id !== local.stripe_invoice_id ||
+      sent.total !== minor(local.amount_minor) ||
+      !sent.hosted_invoice_url?.startsWith("https://invoice.stripe.com/")) {
+      back(path, { stripe_error: "send_failed" });
+    }
     const saved = await supabase.rpc("crm_stripe_mark_sent", {
       p_id: local.id, p_url: sent.hosted_invoice_url,
     });
