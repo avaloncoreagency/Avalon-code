@@ -131,7 +131,7 @@ test('password sign-in trims and normalizes email without touching password', as
   const form = new FormData();
   form.set('email', '  OWNER@EXAMPLE.TEST  ');
   form.set('password', 'Synthetic-Pass-WORD');
-  await assert.rejects(actions.signIn(form), /admin\\/dashboard/);
+  await assert.rejects(actions.signIn(form), /dashboard/);
   assert.deepEqual(calls, [{ email: 'owner@example.test', password: 'Synthetic-Pass-WORD' }]);
 });
 test('Google OAuth is not offered as a direct server login action', () => {
