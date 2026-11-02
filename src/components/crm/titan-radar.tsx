@@ -333,7 +333,7 @@ export function TitanRadar({ onChanged }: { onChanged?: () => void }) {
       {placesProvider === "missing" && <p className={s.hint} role="status">
         Para descubrir nuevos negocios hace falta conectar Geoapify Free en Vercel (AVALON_GEOAPIFY_PLACES_KEY). La bandeja y los leads existentes siguen disponibles.
       </p>}
-      {error && <p className={s.error} role="alert">{error}</p>
+      {error && <p className={s.error} role="alert">{error}</p>}
       {notice && <p className={s.ok} role="status">{notice}</p>}
 
       <div className={s.stage}>
