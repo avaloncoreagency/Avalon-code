@@ -60,3 +60,8 @@
 ## CP-08 — HUD + five modules implemented (not deployed)
 - See `docs/AVALON_OS_MODULES.md` for scope, operational vs pending, migration and rollback.
 - No production SQL, no merge, no deployment, no CRM files touched.
+- CI evidence (commit `a9556be`, PR #7): lint ✓, typecheck ✓, 39/39 unit + static security tests ✓, production build ✓, SSR integration 7/7 checks ✓ (Avalon Auth Review CI run 41402663604); PostgreSQL 16 RLS/trigger suite ✓ (run 41402663593).
+- Vercel preview READY: `avalon-core-agency-ef2fbov0r-avalon-core-agency.vercel.app` (SSO-protected; branch has no APP_ORIGIN/AUTH_* preview vars, so sign-in fails closed there).
+- Integration test found and fixed a real defect: HEAD count queries report a missing table as success; counts now use a 1-row GET.
+
+**Resume here:** owner decisions in `docs/AVALON_OS_MODULES.md` (migration approval, domain routing, preview env vars, leaked-password protection).
