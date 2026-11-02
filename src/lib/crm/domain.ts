@@ -1,10 +1,10 @@
 /** CRM domain: no credentials, network calls or authorization decisions here. */
 export const sections = [
-  { slug: "leads", label: "Leads & Pipeline" },
-  { slug: "calendar", label: "Calendario Avalon" },
-  { slug: "kpis", label: "KPI Tracker" },
   { slug: "hunter", label: "Lead Hunter" },
-  { slug: "ai-usage", label: "Medidores de IA" },
+  { slug: "leads", label: "Leads Pipeline" },
+  { slug: "calendar", label: "Calendario" },
+  { slug: "kpis", label: "Estadísticas" },
+  { slug: "ai-usage", label: "Uso de IA" },
 ] as const;
 export type Section = (typeof sections)[number]["slug"];
 export type Entity = "leads" | "events" | "prospects" | "usage" | "activities";
