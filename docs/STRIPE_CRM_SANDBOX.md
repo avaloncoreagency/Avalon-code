@@ -37,6 +37,14 @@
 6. Simular pago Stripe usando exclusivamente medios de prueba y verificar que llegue `invoice.payment_succeeded`; comprobar `crm_stripe_invoices.status=paid`, relación `payment_id`, un solo `crm_payments`, y total cobrado no superior al total contratado.
 7. Simular un `invoice.paid` sin `invoice.payment_succeeded` y comprobar que **no** aumenta el dinero cobrado. Luego reenviar el mismo evento firmado y comprobar que NO aparecen pagos duplicados. Simular fallo y reembolso para verificar alertas de revisión. Mantener pagos de producción desactivados.
 
+## Evidencia verificada — 2026-11-02
+
+- GitHub Actions sobre commit `364d4853cf05942ed1164f5c7749459c56d6c925`: **cinco workflows completados satisfactoriamente** (Auth, Security, CRM, Sales core, OS modules). Incluyen PGlite con pago confirmado, duplicados, pago fuera de Stripe y llegada temprana del webhook.
+- Stripe Sandbox API: cliente ficticio `cus_VYZZTPbxkF281k`, factura `in_1UXSQoQrmwDmSzrj7auG3Adf`, una línea de `2500` centavos USD.
+- Lectura directa de Stripe confirmó `status=draft`, `livemode=false`, `amount_due=2500`, `total=2500`, `auto_advance=false`, `automatic_tax.enabled=false`.
+- **No se envió correo, no se cobró dinero, no se hizo una prueba del webhook externo ni de la página de Avalon Preview**. Estos registros son sintéticos, aislados de clientes reales.
+- Bloqueo vigente: credenciales privadas y Supabase aislado de Preview aún no configurados; prohibido fusionar a producción sin prueba E2E externa.
+
 ## Resultado de lectura de Stripe Tax (Sandbox, 2026-11-02)
 - `tax.settings.status=pending`, sin `head_office` configurada.
 - `tax.registrations`: lista vacía.
