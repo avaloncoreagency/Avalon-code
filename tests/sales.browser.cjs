@@ -320,7 +320,9 @@ test('Nova Restaurant through the real app: one form, three departments, no dupl
   assert.ok(orbitHub.includes('Orbit Dental Sintético — CRM personalizado'), 'project visible from the client');
   // Calendar shows persisted due dates (tasks/deliveries) for everyone.
   await page.goto(origin + '/admin/workspace/crm/calendar?owner=all');
-  await page.getByRole('heading', { name: 'Vencimientos, entregas y seguimientos' }).waitFor();
+   await page.getByRole('heading', { name: 'Nuestro calendario' }).waitFor();
+   await page.getByText('Mostrar vencimientos, entregas y seguimientos del CRM').click();
+   await page.getByRole('heading', { name: 'Vencimientos, entregas y seguimientos' }).waitFor();
   assert.match(await page.locator('#main').innerText(), /Descubrimiento de procesos comerciales/, 'template task appears on the calendar');
   await page.screenshot({ path: `${EVIDENCE}/calendar.png`, fullPage: true });
   // History of the whole journey on the client timeline.
