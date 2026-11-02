@@ -14,6 +14,7 @@ export const dynamic = "force-dynamic";
 
 type Client = { id: string; client_code: string; legal_name: string; trade_name: string; website: string; industry: string; country: string; location: string; source: string; notes: string; owner_id: string; origin_lead_id: string | null; status: string; created_at: string; version: number };
 type Contact = { id: string; full_name: string; email: string | null; phone: string; role: string; is_primary: boolean };
+type InvoiceRow = { id: string; sale_id: string; stripe_invoice_id: string | null; currency: string; amount_minor: string | number; status: string; needs_review: boolean; review_reason: string; hosted_invoice_url: string | null; created_at: string };
 type Sale = { id: string; sale_number: string; sold_on: string; currency: string; total: string; recurring_monthly: string; contract_status: string; delivery_status: string; crm_payments: { amount: string }[]; crm_sale_lines: { id: string }[] };
 type Order = { id: string; sale_id: string; department_id: string; project_id: string | null; status: string; due_on: string | null; assignee_id: string; recurrence: string; crm_departments: { label: string } | null };
 type Task = { id: string; title: string; status: string; priority: string; due_at: string | null; assignee_id: string; project_id: string | null };
@@ -30,7 +31,7 @@ export default async function Client360({ params, searchParams }: { params: Prom
   if (!client.error && !client.data) notFound();
   const c = client.data;
   const leadId = c?.origin_lead_id ?? null;
-  const [contacts, sales, orders, projects, legacy, tasks, timeline, owners, lead, activities, meetings] = await Promise.all([
+  const [contacts, sales, orders, projects, legacy, tasks, timeline, owners, lead, activities, meetings, invoices] = await Promise.all([
     run<Contact[]>(supabase.from("crm_contacts").select("id,full_name,email,phone,role,is_primary").eq("client_id", id).order("is_primary", { ascending: false }).order("full_name")),
     run<Sale[]>(supabase.from("crm_sales").select("id,sale_number,sold_on,currency,total,recurring_monthly,contract_status,delivery_status,crm_payments(amount),crm_sale_lines(id)").eq("client_id", id).order("sold_on", { ascending: false }).limit(100)),
     run<Order[]>(supabase.from("crm_work_orders").select("id,sale_id,department_id,project_id,status,due_on,assignee_id,recurrence,crm_departments(label)").eq("client_id", id).order("created_at").limit(200)),
@@ -44,6 +45,7 @@ export default async function Client360({ params, searchParams }: { params: Prom
     // Activities on the client (FK) and, for history, on its origin lead.
     run<{ id: string; body: string; status: string; kind?: string; due_at: string | null; created_by: string; created_at: string }[]>(supabase.from("crm_activities").select("id,body,status,kind,due_at,created_by,created_at").or(leadId ? `client_id.eq.${id},lead_id.eq.${leadId}` : `client_id.eq.${id}`).order("created_at", { ascending: false }).limit(25)),
     leadId ? run<{ id: string; title: string; starts_at: string; kind: string; status: string }[]>(supabase.from("crm_events").select("id,title,starts_at,kind,status").eq("lead_id", leadId).order("starts_at", { ascending: false }).limit(10)) : Promise.resolve(null),
+    run<InvoiceRow[]>(supabase.from("crm_stripe_invoices").select("id,sale_id,stripe_invoice_id,currency,amount_minor,status,needs_review,review_reason,hosted_invoice_url,created_at").eq("client_id", id).order("created_at", { ascending: false }).limit(100)),
   ]);
   const ownerList = owners.data ?? [];
   const now = new Date().toISOString();
@@ -74,6 +76,21 @@ export default async function Client360({ params, searchParams }: { params: Prom
         <div className={s.stat}><span>{pick(lang, "Proyectos activos", "Active projects")}</span><strong>{allProjects.filter(x => x.status === "active").length}</strong><small>{allProjects.length} {pick(lang, "en total", "total")}</small></div>
         <div className={s.stat}><span>{pick(lang, "Tareas abiertas", "Open tasks")}</span><strong>{openTasks.length}</strong><small>{(tasks.data ?? []).filter(t => t.status === "done").length} {pick(lang, "hechas", "done")}</small></div>
         <div className={s.stat}><span>{pick(lang, "Alertas", "Alerts")}</span><strong>{alerts.length}</strong><small>{pick(lang, "Responsable", "Owner")}: {ownerName(ownerList, c.owner_id)}</small></div>
+      </section>
+
+      <section className={s.panel} aria-labelledby="invoices">
+        <header><h2 id="invoices">{pick(lang, "Facturas Stripe vinculadas", "Linked Stripe invoices")}</h2></header>
+        {invoices.error ? <Unavailable lang={lang} code={invoices.error}/> :
+          invoices.data.length === 0 ? <p className={s.muted}>{pick(lang, "No hay facturas Stripe registradas para este cliente.", "No Stripe invoices have been recorded for this client.")}</p> :
+          <ul className={s.list}>{invoices.data.map(inv => <li key={inv.id}>
+            <strong>{money(lang, Number(inv.amount_minor) / 100, inv.currency)} · <Tag lang={lang} value={inv.status}/></strong>
+            <span className={s.muted}>{inv.stripe_invoice_id ?? "—"} · {formatDate(lang, inv.created_at, true)}</span>
+            <Link href={`/admin/workspace/crm/sales/${inv.sale_id}#stripe-invoices`}>{pick(lang, "Ver venta y gestionar factura", "View sale and manage invoice")}</Link>
+            {inv.hosted_invoice_url?.startsWith("https://invoice.stripe.com/") &&
+              <a href={inv.hosted_invoice_url} target="_blank" rel="noopener noreferrer">{pick(lang, "Factura alojada en Stripe", "Stripe hosted invoice")}</a>}
+            {inv.needs_review && <span role="alert" className={s.muted}>{pick(lang, "Revisión de cobro requerida", "Payment review required")}: {inv.review_reason}</span>}
+          </li>)}</ul>}
+        <p className={s.muted}>{pick(lang, "Las facturas emitidas no se contabilizan como cobros hasta recibir confirmación verificada de Stripe.", "Invoices are not counted as collected until Stripe payment is verified.")}</p>
       </section>
 
       {alerts.length > 0 && <section className={s.panel} aria-labelledby="alerts"><h2 id="alerts">{pick(lang, "Alertas", "Alerts")}</h2><ul className={s.list}>{alerts.map(a => <li key={a.key} className={s.notice} data-severity="urgent"><Link href={a.href}>{a.text}</Link></li>)}</ul></section>}
