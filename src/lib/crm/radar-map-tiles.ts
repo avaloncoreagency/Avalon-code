@@ -13,7 +13,7 @@ export function resolveRadarMapTiles(configured?: string): string | null {
     const url = new URL(template.replace(/\{[zxy]\}/g, "0"));
     if (url.protocol !== "https:" || !url.hostname || url.username || url.password) return null;
     // Explicitly prevent the previously blocked community endpoint (and legacy subdomains).
-    if (/^(?:[abc]\.)?tile\.openstreetmap\.org$/i.test(url.hostname)) return null;
+    if (/(^|\.)tile\.openstreetmap\.org$/i.test(url.hostname.replace(/\.+$/, ""))) return null;
     return template;
   } catch {
     return null;
