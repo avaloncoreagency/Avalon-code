@@ -38,6 +38,10 @@ test("Stripe integration safety invariants are preserved", () => {
   assert.match(sql, /create unique index crm_stripe_invoice_one_active_per_sale/);
   assert.match(sql, /create policy crm_stripe_invoice_owner_read/);
   assert.match(sql, /on conflict do nothing/);
+  assert.match(sql, /if v_type = 'invoice.paid' then/);
+  assert.match(sql, /elsif v_type = 'invoice.payment_succeeded' then/);
+  assert.match(sql, /stripe_invoice_pending_link/);
+  assert.match(sql, /payment_source_unverified/);
   assert.match(sql, /grant execute on function public.crm_stripe_process_event\(jsonb\) to service_role/);
   assert.match(action, /crm_stripe_reserve_invoice/);
   assert.match(action, /TEST_EMAIL/);
