@@ -24,7 +24,7 @@ export function isValidRadarEmail(value: unknown): value is string {
   if (dot <= at + 1 || dot === value.length - 1 || value.includes("..")) return false;
   for (let i = 0; i < value.length; i++) {
     const code = value.charCodeAt(i);
-    if (code <= 32 || code >= 127 || "<>()[],;:\\\"".includes(value[i])) return false;
+    if (code <= 32 || code >= 127 || code === 34 || code === 92 || "<>()[],;:".includes(value[i])) return false;
   }
   return true;
 }
