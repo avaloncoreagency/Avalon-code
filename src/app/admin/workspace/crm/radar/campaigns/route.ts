@@ -17,7 +17,15 @@ export async function GET() {
   if (error) return reply({ error: "La migración del radar (20261102190000) no está aplicada en este entorno." }, 503);
   const endpoint = radarEndpoint();
   // The scheduler needs a server credential that Avalon deliberately does not hold (no service-role key in app code).
-  return reply({ campaigns: data, scheduler: { available: false, reason: "Programación automática pendiente: requiere proveedor con licencia y una credencial de servidor aprobada por los propietarios. Usa «Ejecutar ahora».", licensedProvider: !("error" in endpoint) && endpoint.licensed } });
+  return reply({ campaigns: data,
+    provider: "error" in endpoint
+      ? { kind: "missing", ready: false, freeRadiusM: 5000 }
+      : { kind: endpoint.provider, ready: true,
+          freeRadiusM: endpoint.provider === "geoapify" ? GEOAPIFY_FREE_MAX_RADIUS_M : null },
+    scheduler: { available: false,
+      reason: "Programación automática pendiente: usa «Ejecutar ahora» para búsquedas humanas, con cuota protegida.",
+      licensedProvider: !("error" in endpoint) && endpoint.licensed },
+  });
 }
 
 export async function POST(request: NextRequest) {
