@@ -113,7 +113,16 @@ test('marketing calendar grid starts on Monday and covers the month', () => {
 test('no service-role or secret keys are referenced by application code', () => {
   for (const file of sources) {
     const text = fs.readFileSync(file, 'utf8');
-    assert.doesNotMatch(text, /process\.env\.[A-Z_]*(?:SERVICE_ROLE|SUPABASE_SECRET)|sb_secret_[a-zA-Z0-9]{10,}/, file);
+    if (file === path.join('src', 'app', 'api', 'stripe', 'webhook', 'route.ts')) {
+      // Authenticated by an HMAC-verified raw-body Stripe signature, not by a
+      // browser cookie. Server-only exception: no client-side import permitted.
+      assert.match(text, /verifyStripeSignature\(payload, request\.headers\.get\("stripe-signature"\), secret\)/);
+      assert.match(text, /event\.livemode !== false/);
+      assert.match(text, /crm_stripe_process_event/);
+      assert.match(text, /process\.env\.SUPABASE_SERVICE_ROLE_KEY/);
+    } else {
+      assert.doesNotMatch(text, /process\.env\.[A-Z_]*(?:SERVICE_ROLE|SUPABASE_SECRET)|sb_secret_[a-zA-Z0-9]{10,}/, file);
+    }
     assert.doesNotMatch(text, /NEXT_PUBLIC_[A-Z_]*(SECRET|SERVICE)/, file);
   }
 });
@@ -130,7 +139,7 @@ test('every module server action re-verifies the owner before touching data', ()
     assert.doesNotMatch(text, /createClient\(|getSession\(/, file);
     // Only reviewed SECURITY DEFINER RPCs that re-check owner membership in SQL
     // (see 20261102170000_avalon_sales_core.sql and tests/sales.database.cjs).
-    const REVIEWED_RPCS = new Set(['crm_confirm_sale', 'crm_record_sale_failure']);
+    const REVIEWED_RPCS = new Set(['crm_confirm_sale', 'crm_record_sale_failure', 'crm_stripe_reserve_invoice', 'crm_stripe_attach_invoice', 'crm_stripe_mark_sent']);
     for (const call of text.matchAll(/\.rpc\(\s*(['"])?([\w]*)\1?/g)) {
       assert.ok(REVIEWED_RPCS.has(call[2]), `${file} calls unreviewed RPC ${call[2] || '(dynamic)'}`);
     }

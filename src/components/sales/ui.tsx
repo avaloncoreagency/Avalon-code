@@ -12,6 +12,7 @@ export const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f
 const LINKS = [
   ["sales", "/admin/workspace/crm/sales", "Ventas", "Sales"],
   ["new", "/admin/workspace/crm/sales/new", "Registrar venta", "Record sale"],
+  ["invoices", "/admin/workspace/crm/invoices", "Facturas", "Invoices"],
   ["clients", "/admin/workspace/crm/clients", "Clientes 360°", "Clients 360°"],
   ["activity", "/admin/workspace/crm/activity", "Centro de actividad", "Activity center"],
   ["notifications", "/admin/workspace/crm/notifications", "Avisos", "Notices"],

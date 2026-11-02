@@ -21,6 +21,9 @@ export async function updateSession(request: NextRequest) {
     target.pathname = path === "/login" ? "/admin/login" : "/admin/dashboard";
     return finish(NextResponse.redirect(target));
   }
+  // Stripe's signed webhook is intentionally sessionless. The route itself verifies
+  // the raw payload HMAC before invoking its service-role-only database RPC.
+  if (path === "/api/stripe/webhook" && request.method === "POST") return finish(response);
   // The callback exchanges its own PKCE code; do not refresh an old identity first.
   if (path === "/admin/auth/callback" || path === "/admin/auth/confirm") return finish(response);
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
