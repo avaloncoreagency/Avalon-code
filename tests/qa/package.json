@@ -1,0 +1,6 @@
+{
+  "dependencies": {
+    "@electric-sql/pglite": "0.3.14",
+    "playwright": "1.56.1"
+  }
+}
