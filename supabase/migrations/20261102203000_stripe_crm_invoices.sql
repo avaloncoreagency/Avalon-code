@@ -36,7 +36,9 @@ create table public.crm_stripe_events (
 
 alter table public.crm_stripe_invoices enable row level security;
 alter table public.crm_stripe_events enable row level security;
-revoke all on public.crm_stripe_invoices, public.crm_stripe_events from public, anon, authenticated;
+revoke all on public.crm_stripe_invoices from anon, authenticated;
+revoke all on public.crm_stripe_events from anon, authenticated;
+revoke all on public.crm_stripe_invoices, public.crm_stripe_events from public;
 grant select on public.crm_stripe_invoices, public.crm_stripe_events to authenticated;
 grant select, insert, update on public.crm_stripe_invoices, public.crm_stripe_events to service_role;
 create policy crm_stripe_invoice_owner_read on public.crm_stripe_invoices
