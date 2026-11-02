@@ -8,7 +8,9 @@
 - Un borrador de factura de prueba se crea con el **saldo real no cobrado** de la venta USD; el importe se reserva en la DB con bloqueo de fila. Solo 1 factura pendiente por venta.
 - API Stripe server-only usando una clave **test**; claves live se rechazan y `VERCEL_ENV=production` también se rechaza.
 - La operación solo puede ser iniciada por propietarios reales con Auth + membresía. El email de cliente en Sandbox debe ser sintético (`example.invalid`, `example.test`, `example.com`, etc.).
+- El alta de facturas fija explícitamente `automatic_tax[enabled]=false`, aun si cambia el valor predeterminado de Stripe. La tributación sigue pendiente de validación.
 - Crear borrador `auto_advance=false` **no envía correo ni cobra**. El envío está desactivado a menos que `STRIPE_ALLOW_TEST_SEND=true` y el propietario pulse enviar.
+- Al aprobar el envío, Avalon **finaliza primero** la factura (`draft → open`, conservando `auto_advance=false`) y **después** invoca `send`. Si una notificación `invoice.sent` llega después de una caída del servidor, el webhook repara el estado y la URL alojada en el CRM. No se envía ninguna factura a personas reales en este Sandbox.
 - Los registros `crm_stripe_invoices` y `crm_stripe_events` tienen RLS y lectura para owners; escritura únicamente desde RPCs restringidos.
 - El webhook público `POST /api/stripe/webhook` es la **única** excepción al middleware de sesiones; valida HMAC con timestamp y cuerpo RAW, rechaza eventos live y usa la cuenta/clave de pruebas.
 - RPC de conciliación: registra `invoice.payment_succeeded` en `crm_payments` solo si identificadores, moneda, importe y saldo son compatibles; la base de datos deduplica `event.id` en la misma transacción. No toma una página de éxito como prueba de pago.
