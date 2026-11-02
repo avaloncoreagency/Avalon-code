@@ -33,11 +33,11 @@ export default async function NotificationsPage({ searchParams }: { searchParams
       </li>)}</ul>}
     </section>;
   };
-  return <Suite active="crm"><main className={s.hud}>
+  return <Suite active="crm"><div className={s.hud}>
     <OpsHeader lang={lang} active="notifications" eyebrow="CRM / Avisos" title={pick(lang, "Avisos comerciales y operativos", "Commercial and operational notices")}
       lead={pick(lang, "Buzón del CRM: ventas, entregas, tareas y seguimientos. Los avisos técnicos de Vercel/Supabase no se mezclan aquí.", "CRM inbox: sales, delivery, tasks and follow-ups. Vercel/Supabase technical notices are not mixed in here.")}
       actions={<><Link className={s.button} href={all ? "?" : "?show=all"}>{all ? pick(lang, "Solo no leídos", "Unread only") : pick(lang, "Ver todos", "Show all")}</Link><form action={markRead}><button className={s.button}>{pick(lang, "Marcar todo como leído", "Mark all read")}</button></form></>} />
     <OkFlash lang={lang} code={q(p, "ok")} /><ErrorFlash lang={lang} code={q(p, "error")} />
     {notices.error ? <Unavailable lang={lang} code={notices.error} /> : <div className={s.columns}>{section("urgent", "Urgentes", "Urgent")}{section("normal", "Normales", "Normal")}</div>}
-  </main></Suite>;
+  </div></Suite>;
 }

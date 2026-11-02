@@ -28,7 +28,7 @@ export default async function ClientsPage({ searchParams }: { searchParams: Prom
     run<{ user_id: string; email: string }[]>(supabase.rpc("crm_owner_directory")),
   ]);
   const next = (n: number) => `?${new URLSearchParams({ ...(safe ? { q: safe } : {}), page: String(n) })}`;
-  return <Suite active="crm"><main className={s.hud}>
+  return <Suite active="crm"><div className={s.hud}>
     <OpsHeader lang={lang} active="clients" eyebrow="CRM / Clientes" title={pick(lang, "Clientes 360°", "Clients 360°")}
       lead={pick(lang, "Cada empresa tiene una ficha única con su identidad, contactos, ventas, proyectos por departamento, tareas e historial.", "Every company has one profile with identity, contacts, sales, departmental projects, tasks and history.")}
       actions={<Link className={`${s.button} ${s.primary}`} href="/admin/workspace/crm/sales/new">{pick(lang, "+ Registrar venta", "+ Record sale")}</Link>} />
@@ -57,5 +57,5 @@ export default async function ClientsPage({ searchParams }: { searchParams: Prom
         </form>
       </section>
     </div>
-  </main></Suite>;
+  </div></Suite>;
 }

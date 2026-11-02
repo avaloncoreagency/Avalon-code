@@ -27,7 +27,7 @@ export default async function SalesPage({ searchParams }: { searchParams: Promis
     run<null>(supabase.from("crm_tasks").select("id", { count: "exact" }).in("status", ["todo", "in_progress", "blocked"]).lt("due_at", new Date().toISOString()).range(0, 0)),
   ]);
   const ownerList = owners.data ?? [];
-  return <Suite active="crm"><main className={s.hud}>
+  return <Suite active="crm"><div className={s.hud}>
     <OpsHeader lang={lang} active="sales" crm="sales" eyebrow="CRM / Ventas" title={pick(lang, "Ventas y entregas", "Sales and delivery")}
       lead={pick(lang, "Ingresos contratados frente a dinero cobrado, órdenes de trabajo abiertas y cada venta con su estado de contrato y entrega.", "Contracted revenue versus money collected, open work orders and every sale with its contract and delivery status.")}
       actions={<><Link className={`${s.button} ${s.primary}`} href="/admin/workspace/crm/sales/new">{pick(lang, "+ Registrar venta", "+ Record sale")}</Link><Link className={s.button} href="/admin/workspace/crm/leads">{pick(lang, "Ver pipeline", "View pipeline")}</Link></>} />
@@ -54,5 +54,5 @@ export default async function SalesPage({ searchParams }: { searchParams: Promis
       </tr>)}</tbody></table></div>}
       <div className={s.actions} style={{ marginTop: 12 }}>{page > 0 && <Link className={s.button} href={`?page=${page - 1}`}>{pick(lang, "Anterior", "Previous")}</Link>}{(page + 1) * PAGE < (sales.count ?? 0) && <Link className={s.button} href={`?page=${page + 1}`}>{pick(lang, "Siguiente", "Next")}</Link>}</div>
     </section>
-  </main></Suite>;
+  </div></Suite>;
 }

@@ -54,7 +54,7 @@ export default async function TasksPage({ searchParams }: { searchParams: Promis
     <select id={`ta-${t.id}${ret ?? ""}`} name="assignee_id" defaultValue={t.assignee_id}>{ownerList.map(o => <option key={o.user_id} value={o.user_id}>{o.email.split("@")[0]}</option>)}</select>
     <button className={s.button}>{pick(lang, "Guardar", "Save")}</button></form>;
 
-  return <Suite active="crm"><main className={s.hud}>
+  return <Suite active="crm"><div className={s.hud}>
     <OpsHeader lang={lang} active="tasks" crm="tasks" eyebrow="CRM / Tareas" title={pick(lang, "Tareas internas", "Internal tasks")}
       lead={pick(lang, "Asigna trabajo entre Miguel y Samuel, sigue el progreso de cada proyecto y revisa lo vencido. Todo se guarda y queda en el historial.", "Assign work between Miguel and Samuel, follow each project's progress and review what's overdue. Everything persists with history.")} />
     <OkFlash lang={lang} code={q(p, "ok")} /><ErrorFlash lang={lang} code={q(p, "error")} />
@@ -112,5 +112,5 @@ export default async function TasksPage({ searchParams }: { searchParams: Promis
         </form>
       </section>
     </div>
-  </main></Suite>;
+  </div></Suite>;
 }

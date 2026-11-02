@@ -62,7 +62,7 @@ export default async function Client360({ params, searchParams }: { params: Prom
   ];
   const nextSteps = openTasks.filter(t => !t.due_at || t.due_at >= now).slice(0, 6);
 
-  return <Suite active="crm"><main className={s.hud}>
+  return <Suite active="crm"><div className={s.hud}>
     <OpsHeader lang={lang} active="clients" eyebrow={`CRM / Clientes / ${c?.client_code ?? ""}`} title={c?.legal_name ?? pick(lang, "Cliente", "Client")}
       lead={c ? [c.trade_name, c.industry, [c.location, c.country].filter(Boolean).join(", "), `${pick(lang, "Fuente", "Source")}: ${c.source}`].filter(Boolean).join(" · ") : undefined}
       actions={c && <><Link className={`${s.button} ${s.primary}`} href={`/admin/workspace/crm/sales/new?client=${c.id}`}>{pick(lang, "+ Nueva venta", "+ New sale")}</Link><Link className={s.button} href={`/admin/workspace/crm/tasks?view=all&client=${c.id}`}>{pick(lang, "Tareas", "Tasks")}</Link><Link className={s.button} href={`/admin/workspace/crm/activity?client=${c.id}`}>{pick(lang, "Actividad", "Activity")}</Link></>} />
@@ -123,5 +123,5 @@ export default async function Client360({ params, searchParams }: { params: Prom
         <ol className={s.timeline}>{timeline.data.map(e => <li key={e.id} data-result={e.result}><strong>{e.event_type}</strong> <span className={s.muted}>· {e.module} · {ownerName(ownerList, e.actor_id)} · {formatDate(lang, e.created_at, true)}</span><div className={s.muted}>{[e.from_state && e.to_state ? `${e.from_state} → ${e.to_state}` : e.to_state, e.detail].filter(Boolean).join(" · ")}</div></li>)}</ol>}
       </section>
     </>}
-  </main></Suite>;
+  </div></Suite>;
 }

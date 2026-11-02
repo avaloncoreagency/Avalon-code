@@ -50,7 +50,7 @@ export default async function ActivityCenter({ searchParams }: { searchParams: P
   const clientName = (id: string | null) => (clients.data ?? []).find(c => c.id === id)?.legal_name;
   const keep = Object.fromEntries(Object.entries(f).filter(([, v]) => v)) as Record<string, string>;
   const last = events.data?.at(-1)?.id;
-  return <Suite active="crm"><main className={s.hud}>
+  return <Suite active="crm"><div className={s.hud}>
     <OpsHeader lang={lang} active="activity" eyebrow="CRM / Auditoría" title={pick(lang, "Centro de actividad", "Activity center")}
       lead={pick(lang, "Historia protegida de cada operación: qué ocurrió, quién, cuándo, desde qué módulo, sobre qué cliente o proyecto y con qué resultado. Solo lectura; nadie puede editarla desde la aplicación.", "Protected history of every operation: what happened, who, when, from which module, on which client or project and with what result. Read-only; nobody can edit it from the app.")} />
     <section className={s.panel} aria-labelledby="filters"><h2 id="filters">{pick(lang, "Filtros", "Filters")}</h2>
@@ -79,5 +79,5 @@ export default async function ActivityCenter({ searchParams }: { searchParams: P
         </tr>)}</tbody></table></div>}
       {events.data && events.data.length === PAGE && last && <div className={s.actions} style={{ marginTop: 12 }}><Link className={s.button} href={`?${new URLSearchParams({ ...keep, before: String(last) })}`}>{pick(lang, "Más antiguos", "Older")}</Link></div>}
     </section>
-  </main></Suite>;
+  </div></Suite>;
 }

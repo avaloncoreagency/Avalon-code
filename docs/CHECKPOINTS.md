@@ -65,3 +65,11 @@
 - Integration test found and fixed a real defect: HEAD count queries report a missing table as success; counts now use a 1-row GET.
 
 **Resume here:** owner decisions in `docs/AVALON_OS_MODULES.md` (migration approval, domain routing, preview env vars, leaked-password protection).
+
+## CP-09 — Sales core: one sale → client, work orders, departmental projects, tasks (not applied)
+- Branch `claude/upbeat-galileo-grbelq` = PR #31 head `4856ae5` + `main` `99d5d3c` merged (auth conflicts resolved: main's login code, integration's Preview origin).
+- Migration `20261102170000_avalon_sales_core.sql` prepared; **not applied** to any Supabase project or branch. Production ledger read-only check: 4 versions, identical to repo.
+- Nova Restaurant E2E automated at DB level (`tests/sales.database.cjs`) and in the browser against the production build (`tests/sales.browser.cjs`); double click creates one sale.
+- Full detail, verification table and pending decisions: `docs/SALES_CORE.md`.
+
+**Resume here:** approve applying `20261102170000` to an isolated Supabase branch → advisors → Preview validation; then dashboard KPIs, calendar of due dates, module screens showing `client_id`.

@@ -23,7 +23,7 @@ export default async function NewSalePage({ searchParams }: { searchParams: Prom
   ]);
   const failed = services.error ?? clients.error ?? owners.error;
   const clientId = q(p, "client"), leadId = q(p, "lead");
-  return <Suite active="crm"><main className={s.hud}>
+  return <Suite active="crm"><div className={s.hud}>
     <OpsHeader lang={lang} active="new" crm="sales" eyebrow="CRM / Ventas" title={pick(lang, "Registrar venta", "Record a sale")}
       lead={pick(lang, "Registra la venta una sola vez: Avalon crea o vincula el cliente, genera las órdenes de trabajo, los proyectos por departamento, las tareas iniciales y los avisos.", "Record the sale once: Avalon creates or links the client and generates work orders, departmental projects, starter tasks and notices.")} />
     {failed ? <Unavailable lang={lang} code={failed} /> : <SaleForm lang={lang} idempotencyKey={randomUUID()} me={userId}
@@ -32,5 +32,5 @@ export default async function NewSalePage({ searchParams }: { searchParams: Prom
       leads={(leads.data ?? []).map(l => ({ id: l.id, label: l.contact ? `${l.company} · ${l.contact}` : l.company }))}
       owners={(owners.data ?? []).map(o => ({ id: o.user_id, label: o.email }))}
       defaults={{ client_id: clientId && UUID_RE.test(clientId) ? clientId : undefined, lead_id: leadId && UUID_RE.test(leadId) ? leadId : undefined }} />}
-  </main></Suite>;
+  </div></Suite>;
 }

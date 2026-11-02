@@ -133,7 +133,7 @@ export function SaleForm({ lang, idempotencyKey, services, clients, leads, owner
       <p className={s.muted}>{t(lang, "El pago inicial es lo acordado, no lo cobrado. Los cobros reales se registran después en la ficha de la venta.", "The upfront payment is what was agreed, not collected. Actual payments are recorded later on the sale.")}</p>
     </fieldset>
 
-    <div className={s.summary} aria-live="polite">
+    <div className={s.summary} aria-live="polite" role="region" aria-label={t(lang, "Resumen de la venta", "Sale summary")}>
       <dl>
         <div><dt>Subtotal</dt><dd>{fmt(totals.subtotal)}</dd></div>
         <div><dt>{t(lang, "Impuesto", "Tax")}</dt><dd>{fmt(totals.tax)}</dd></div>
