@@ -66,7 +66,7 @@ export async function createStripeInvoiceDraft(form: FormData) {
   try {
     const customerParams = new URLSearchParams({
       email,
-      name: s.crm_clients?.legal_name ?? s.sale_number,
+      name: `Avalon Sandbox ${s.sale_number}`,
       "metadata[avalon_client_id]": s.client_id,
     });
     const customer = await stripeRequest<{ id: string }>(
@@ -133,6 +133,10 @@ export async function sendStripeInvoice(form: FormData) {
     back(path, { stripe_error: "test_email_required" });
   }
   try {
+    const stripeCustomer = await stripeRequest<{ id: string; email: string | null }>(`/customers/${local.stripe_customer_id}`);
+    if (stripeCustomer.id !== local.stripe_customer_id || !isTestRecipient((stripeCustomer.email ?? "").trim())) {
+      back(path, { stripe_error: "test_email_required" });
+    }
     const invoice = await stripeRequest<StripeInvoice>(`/invoices/${local.stripe_invoice_id}`);
     if (invoice.status !== "draft" || invoice.livemode !== false ||
       invoice.id !== local.stripe_invoice_id ||
