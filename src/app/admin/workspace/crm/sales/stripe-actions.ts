@@ -2,7 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { ownerForAction, uuidField, back } from "@/lib/os/actions";
-import { stripeRequest, stripeSandboxReady, type StripeInvoice } from "@/lib/stripe/avalon";
+import { stripeRequest, stripeSandboxReady, stripeReservationRetryable, type StripeInvoice } from "@/lib/stripe/avalon";
 
 const BASE = "/admin/workspace/crm/sales";
 
@@ -76,10 +76,8 @@ export async function createStripeInvoiceDraft(form: FormData) {
   const { data: reservation, error: reservationError } = await supabase
     .from("crm_stripe_invoices").select("created_at")
     .eq("id", local.id).eq("sale_id", saleId).maybeSingle();
-  const createdAt = reservation?.created_at ? Date.parse(reservation.created_at) : NaN;
-  const ageMs = Date.now() - createdAt;
-  if (reservationError || !Number.isFinite(ageMs)) back(path, { stripe_error: "unavailable" });
-  if (ageMs < -5 * 60_000 || ageMs >= 20 * 60 * 60_000) {
+  if (reservationError || !reservation?.created_at) back(path, { stripe_error: "unavailable" });
+  if (!stripeReservationRetryable(reservation.created_at)) {
     back(path, { stripe_error: "stale_reservation" });
   }
 
