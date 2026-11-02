@@ -46,11 +46,11 @@ jobs:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
         with:
           persist-credentials: false
-      - name: Apply every migration in ledger order on PostgreSQL 16
+      - name: Apply every migration in ledger order on PostgreSQL 16, then the 13-stage pipeline suite
         run: |
           args="-f tests/sql/00_supabase_stub.sql"
           for f in $(ls supabase/migrations/*.sql | sort); do args="$args -f $f"; done
-          psql -v ON_ERROR_STOP=1 -q $args
+          psql -v ON_ERROR_STOP=1 -q $args -f tests/sql/crm_pipeline.test.sql
       - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
           node-version: "22"
@@ -58,7 +58,7 @@ jobs:
           cache-dependency-path: tests/qa/package-lock.json
       - run: npm ci --prefix tests/qa --no-audit --no-fund
       - name: Sales, RLS, idempotency and timeline tests (PGlite)
-        run: NODE_PATH=tests/qa/node_modules node --test tests/sales.database.cjs tests/crm.database.cjs tests/unified.database.cjs
+        run: NODE_PATH=tests/qa/node_modules node --test tests/sales.database.cjs tests/crm.pipeline.database.cjs tests/crm.database.cjs tests/unified.database.cjs
       - name: Summary
         if: always()
         run: echo "Synthetic data only. No remote Supabase, Vercel or production resource is touched." >> "$GITHUB_STEP_SUMMARY"
