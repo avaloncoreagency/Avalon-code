@@ -338,7 +338,7 @@ export function TitanRadar({ onChanged }: { onChanged?: () => void }) {
 
       <div className={s.stage}>
         <div className={s.mapWrap}>
-          <div ref={mapEl} className={s.map} role="application" aria-label="Radar de negocios. Toca para elegir el centro de búsqueda." />
+          <div ref={mapEl} className={s.map} data-basemap={USE_GEOAPIFY_MAP ? "geoapify" : undefined} role="application" aria-label="Radar de negocios. Toca para elegir el centro de búsqueda." />
           {(tileStatus === "unconfigured" || tileStatus === "failed") && <div className={s.mapNotice} role="status">
             <strong>{tileStatus === "failed" ? "Cartografía temporalmente no disponible" : "Radar en modo de respaldo"}</strong>
             <p>{tileStatus === "failed" ? "El proveedor de mapas no respondió. " : "No hay proveedor de mapas autorizado configurado. "}Los marcadores, el radio y la búsqueda siguen disponibles.</p>
