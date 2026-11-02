@@ -1,11 +1,32 @@
-import { notFound } from 'next/navigation';
-import { Suite } from '@/components/suite/suite';
-import { modules } from '@/components/suite/modules';
-import s from '@/components/suite/suite.module.css';
-export const dynamic = 'force-dynamic';
+import { notFound } from "next/navigation";
+import { Suite } from "@/components/suite/suite";
+import { moduleBySlug } from "@/components/suite/modules";
+import { PageHeader, Panel, Empty } from "@/components/os/ui";
+import s from "@/components/os/os.module.css";
+import { getLang } from "@/lib/i18n-server";
+import { pick } from "@/lib/i18n";
+
+export const dynamic = "force-dynamic";
+
+// Every module has its own static route. This dynamic fallback only serves the
+// CRM entry point until Samuel's CRM branch (PR #6) adds src/app/admin/workspace/crm,
+// which takes precedence automatically. No CRM files are created here.
 export default async function ModulePage({ params }: { params: Promise<{ module: string }> }) {
- const { module } = await params;
- const item = modules.find(m => m.slug === module);
- if (!item) notFound();
- return <Suite active={item.slug}><section className={s.hero}><small>WORKSPACE / {item.icon}</small><h1>{item.name}</h1><p>{item.description}</p></section><section className={s.empty}><h2>Espacio preparado</h2><p>Este módulo está en fase inicial. Todavía no permite crear, consultar ni modificar información de negocio.{item.slug === 'crm' ? ' CRM será el primer módulo de negocio en desarrollarse.' : ''}</p><a href="/admin/dashboard">← Volver al dashboard</a></section></Suite>;
+  const { module } = await params;
+  const item = moduleBySlug(module);
+  if (!item || item.slug !== "crm") notFound();
+  const lang = await getLang();
+  return (
+    <Suite active="crm">
+      <PageHeader eyebrow="CRM" title="CRM" description={item.description[lang]} />
+      <Panel>
+        <Empty title={pick(lang, "CRM en desarrollo por Samuel", "CRM in development by Samuel")}
+          body={pick(lang,
+            "El CRM operativo (leads, pipeline, calendario, métricas e importación de prospectos) se está construyendo en la rama feature/avalon-crm-foundation (PR #6). Cuando se apruebe y fusione, aparecerá aquí sin cambios en el resto de Avalon OS.",
+            "The operational CRM (leads, pipeline, calendar, metrics and prospect import) is being built on feature/avalon-crm-foundation (PR #6). Once approved and merged it will appear here with no other Avalon OS changes.")}>
+          <p className={s.meta}>{pick(lang, "Estado: en desarrollo · Pendiente de aprobación", "Status: in development · Pending approval")}</p>
+        </Empty>
+      </Panel>
+    </Suite>
+  );
 }
