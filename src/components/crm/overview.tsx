@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useState } from "react";
-import { crmNavigation } from "@/lib/crm/domain";
+import { CrmNavigation } from "./navigation";
 import s from "./crm.module.css";
 
 type UsageRow = {
@@ -84,13 +84,7 @@ export function CrmOverview() {
         </div>
         <Link className={s.link} href="/admin/dashboard">← Dashboard principal</Link>
       </header>
-      <nav aria-label="Flujo principal del CRM" className={s.tabs}>
-        {crmNavigation.map((section) => (
-          <Link key={section.slug} href={section.href} className={s.tab}>
-            {section.label}
-          </Link>
-        ))}
-      </nav>
+      <CrmNavigation />
 
       <section className={s.panel} aria-labelledby="usage-heading">
         <h2 id="usage-heading">Uso de tokens y costos</h2>
