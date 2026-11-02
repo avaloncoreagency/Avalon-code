@@ -177,6 +177,40 @@ begin
 end $$;
 revoke all on function crm_private.stamp() from public;
 
+-- The CRM audit trigger is also invoked by every crm_payments INSERT.
+-- Preserve its owner-only security rule, with the SAME narrowly verified
+-- service-role exception as crm_private.stamp. The recorded actor is the
+-- original sale owner; Stripe's service key is never a member.
+create or replace function crm_private.audit() returns trigger
+language plpgsql security definer set search_path = '' as $$
+declare
+  actor uuid := auth.uid();
+  stripe_insert boolean := false;
+begin
+  if tg_table_name = 'crm_payments' and tg_op = 'INSERT' then
+    stripe_insert := current_setting('request.jwt.claim.role', true) = 'service_role'
+      and current_setting('avalon.stripe.webhook', true) = 'verified'
+      and coalesce(new.reference, '') ~ '^stripe:in_[A-Za-z0-9]+$'
+      and exists (
+        select 1 from public.crm_stripe_invoices i
+        where i.stripe_invoice_id = substring(new.reference from 8)
+          and i.sale_id = new.sale_id
+          and i.created_by = new.created_by
+          and i.currency = new.currency
+      );
+    if stripe_insert then actor := new.created_by; end if;
+  end if;
+  if not stripe_insert and (actor is null or not exists (
+    select 1 from public.agency_memberships m where m.user_id = actor and m.role = 'owner'
+  )) then
+    raise exception 'CRM forbidden' using errcode = '42501';
+  end if;
+  insert into public.crm_audit (entity,record_id,actor_id,operation,before_data,after_data)
+    values (tg_table_name,new.id,actor,tg_op,case when tg_op='UPDATE' then to_jsonb(old) else null end,to_jsonb(new));
+  return new;
+end $$;
+revoke all on function crm_private.audit() from public, anon, authenticated;
+
 -- This function is called ONLY after a Stripe-Signature HMAC check by the Vercel webhook.
 -- Service-role-only, atomic event dedupe + payment recording in the same DB transaction.
 create function public.crm_stripe_process_event(p_event jsonb)
