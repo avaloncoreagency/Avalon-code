@@ -47,7 +47,13 @@ The project status is **draft** and the Higgsfield creative status is **referenc
 ```
 The example URL is **not a real deployment**. `module` can be `website`, `ecommerce` or `crm_creator`. The source ref must be a **real stable ID from a completed Higgsfield result**, never a fabricated value or an expiring signed URL. `company_name` is explicit and must identify the same company as `existing_lead_id`, if supplied. URLs must be stable HTTPS URLs without credentials or query tokens; at least one URL is required. Don't include phone, email, deal value, payment data, secrets or client contact details. Never commit a real handoff JSON to a potentially public repository.
 
-Run:
+Run **local validation first**, with no credentials, network call or registration:
+```sh
+npm run creative:validate -- /private/path/to/creative-handoff.json
+```
+This reports only safe metadata and a source fingerprint. `valid: true` is not proof that Higgsfield actually produced any media or that staging is ready.
+
+Only after a real exported deliverable and isolated staging are verified, authorized agents can submit:
 ```sh
 npm run creative:submit -- /private/path/to/creative-handoff.json
 ```
