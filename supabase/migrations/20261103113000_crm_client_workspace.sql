@@ -2,6 +2,32 @@
 -- Prepared only: do not apply to production without isolated-database verification and approval.
 begin;
 
+-- Finance permissions are separate from owner membership. Membership alone does not
+-- grant access to internal expenses; the finance allow-list is private to PostgreSQL.
+create table crm_private.finance_access (
+  user_id uuid primary key references auth.users(id) on delete cascade
+);
+alter table crm_private.finance_access enable row level security;
+revoke all on crm_private.finance_access from public, anon, authenticated;
+
+-- Bootstrap the financial owner from the agency's existing verified identity.
+-- New finance users require an explicit, audited administrator migration.
+insert into crm_private.finance_access(user_id)
+select u.id from auth.users u join public.agency_memberships m on m.user_id = u.id
+where lower(u.email) = 'avaloncoreagencysm@gmail.com' and m.role = 'owner';
+
+create function crm_private.can_view_client_finances() returns boolean
+language sql stable security definer set search_path = '' as $
+  select (select auth.uid()) is not null and exists (
+    select 1 from crm_private.finance_access fa
+    join public.agency_memberships m on m.user_id = fa.user_id
+    where fa.user_id = (select auth.uid()) and m.role = 'owner'
+  );
+$;
+revoke all on function crm_private.can_view_client_finances() from public, anon;
+grant execute on function crm_private.can_view_client_finances() to authenticated;
+
+
 create table public.crm_client_workspace (
   client_id uuid primary key references public.crm_clients(id),
   agency_key text not null default 'avalon' check (agency_key = 'avalon'),
@@ -184,9 +210,9 @@ create policy crm_client_journal_revisions_read on public.crm_client_journal_rev
 using ((select crm_private.is_owner()) and agency_key = 'avalon');
 
 create policy crm_client_costs_read on public.crm_client_costs for select to authenticated
-using ((select crm_private.is_owner()) and agency_key = 'avalon');
+using ((select crm_private.can_view_client_finances()) and agency_key = 'avalon');
 create policy crm_client_costs_insert on public.crm_client_costs for insert to authenticated
-with check ((select crm_private.is_owner()) and agency_key = 'avalon');
+with check ((select crm_private.can_view_client_finances()) and agency_key = 'avalon');
 
 -- Revision tables and cost rows have no UPDATE or DELETE grants/policies.
 commit;
