@@ -505,7 +505,7 @@ export function TitanRadar({ onChanged }: { onChanged?: () => void }) {
           <form key={`override:${current.id}`} className={s.inline} onSubmit={e => { e.preventDefault(); const f = new FormData(e.currentTarget); const v = String(f.get("stars"));
             void act(current.id, { op: "override", stars: v ? Number(v) : null, reason: f.get("reason") }, v ? "Calificación manual confirmada." : "Volviste al cálculo automático."); }}>
             <h4>Ajuste manual de estrellas</h4>
-            <select name="stars" aria-label="Estrellas manuales" defaultValue={current.stars_override ?? ""}><option value="">Usar cálculo automático</option>{[5, 4, 3, 2, 1].map(n => <option key={n} value={n}>{"★".repeat(n)}</option>)}</select>
+            <select name="stars" aria-label="Estrellas manuales" required defaultValue={current.stars_override ?? ""}><option value="" disabled>Selecciona 1–5 estrellas</option>{[5, 4, 3, 2, 1].map(n => <option key={n} value={n}>{"★".repeat(n)}</option>)}</select>
             <input name="reason" aria-label="Motivo del ajuste" placeholder="Motivo (mínimo 10 caracteres)" defaultValue={current.override_reason} maxLength={1000} />
             <button type="submit" className={s.pipeline} disabled={busy}>Calificar manualmente y crear lead</button>
           </form>
