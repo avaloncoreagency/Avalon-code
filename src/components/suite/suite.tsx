@@ -8,7 +8,7 @@ import { countRows } from "@/lib/os/data";
 import { signOut } from "@/app/dashboard/actions";
 import { modules } from "./modules";
 import { Icon } from "./icons";
-import { SuiteChrome, type ChromeNotification } from "./chrome";
+import { SuiteChrome, type ChromeNotification, type StaffNotice } from "./chrome";
 import s from "./suite.module.css";
 
 const sectionNames: Record<string, { es: string; en: string }> = {
@@ -38,7 +38,16 @@ export async function Suite({ children, active = "dashboard" }: { children: Reac
     notifications.push({ tone: "danger", text: pick(lang, `${overdue.count} contenido(s) de marketing con fecha vencida.`, `${overdue.count} marketing item(s) past their planned date.`), href: "/admin/workspace/marketing-hub" });
   }
 
-  const name = displayName(session.user);
+  const [office, inbox] = await Promise.all([
+    session.supabase.from("office_profiles").select("display_name,title,photo_sha256").eq("user_id",session.user.id).maybeSingle(),
+    session.supabase.from("crm_notifications").select("id,severity,category,title,body,link,created_at", { count:"exact" })
+      .eq("recipient_id",session.user.id).is("read_at",null).order("created_at",{ascending:false}).limit(20),
+  ]);
+  const name = office.data?.display_name || displayName(session.user);
+  const photoHash = office.data?.photo_sha256 ?? null;
+  const photoUrl = photoHash ? `/admin/workspace/crm/office/photo/${session.user.id}?v=${photoHash}` : null;
+  const staffNotices = (inbox.data ?? []) as StaffNotice[];
+  const unread = inbox.count ?? 0;
   const current = modules.find(m => m.slug === active);
   const section = current ? current.name : pick(lang, sectionNames[active]?.es ?? "Dashboard", sectionNames[active]?.en ?? "Dashboard");
   const logout = (
@@ -81,8 +90,10 @@ export async function Suite({ children, active = "dashboard" }: { children: Reac
       lang={lang}
       collapsed={collapsed}
       section={section}
-      user={{ name, email: session.user.email ?? "", role: session.role, initial: name.slice(0, 1).toUpperCase() }}
+      user={{ name, email: session.user.email ?? "", role: session.role, initial: name.slice(0, 1).toUpperCase(), title: office.data?.title ?? "", photoUrl }}
       notifications={notifications}
+      initialStaffNotices={staffNotices}
+      initialUnread={unread}
       schemaReady={overdue.error !== "schema_pending"}
       nav={nav}
       logout={logout}
