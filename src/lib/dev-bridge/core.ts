@@ -43,8 +43,8 @@ const row=(v:unknown):Row => v && typeof v==='object' ? v as Row : {};
 const str=(v:unknown) => typeof v==='string'?v:'';
 /** Multiple Issue references must not silently collapse to the first owner. */
 export function issueRefsFromBody(body:string):number[]{
- const phrases=[...body.matchAll(/(?:close[sd]?|fix(?:e[sd])?|resolve[sd]?|refs?)\\s+#\\d+(?:\\s*(?:,|and|&)\\s*#\\d+)*/gi)];
- return [...new Set(phrases.flatMap(m=>[...m[0].matchAll(/#(\\d+)/g)].map(id=>Number(id[1]))))]
+ const phrases=[...body.matchAll(/(?:close[sd]?|fix(?:e[sd])?|resolve[sd]?|refs?)\s+#\d+(?:\s*(?:,|and|&)\s*#\d+)*/gi)];
+ return [...new Set(phrases.flatMap(m=>[...m[0].matchAll(/#(\d+)/g)].map(id=>Number(id[1]))))]
    .filter(n=>Number.isSafeInteger(n)&&n>0).slice(0,8);
 }
 export async function github(config:Config, since?:string, previous?:Github, api=new Api('https://api.github.com',config.githubToken??'')):Promise<Github> {
