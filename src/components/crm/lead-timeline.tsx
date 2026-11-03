@@ -76,12 +76,24 @@ export function LeadTimeline({ lead, stages, revision, onClose, onEdit, onEditAc
   }
   return (
     <div className={s.scrim} onClick={e => e.target === e.currentTarget && onClose()}>
-      <aside ref={dialog} tabIndex={-1} className={s.drawer} role="dialog" aria-modal="true" aria-label={`Historial de ${lead.company}`}>
+      <aside ref={dialog} tabIndex={-1} className={s.drawer} role="dialog" aria-modal="true" aria-label={`Ficha del lead ${lead.company}`}>
         <header className={s.drawerHead}>
           <div>
             <p className={s.eyebrow}>{label(lead.stage_id)} · {money(lead.value)}</p>
             <h2>{String(lead.company)}</h2>
             <p className={s.sub}>{[lead.contact, lead.email, lead.phone].filter(Boolean).join(" · ") || "Sin contacto registrado"}</p>
+            <dl className={s.leadDetails}>
+              <div><dt>Etapa del pipeline</dt><dd>{label(lead.stage_id)}</dd></div>
+              <div><dt>Persona de contacto</dt><dd>{String(lead.contact || "—")}</dd></div>
+              <div><dt>Correo</dt><dd>{lead.email ? <a href={"mailto:" + String(lead.email)}>{String(lead.email)}</a> : "—"}</dd></div>
+              <div><dt>Teléfono</dt><dd>{lead.phone ? <a href={"tel:" + String(lead.phone).replace(/[^0-9+]/g, "")}>{String(lead.phone)}</a> : "—"}</dd></div>
+              <div><dt>Próximo seguimiento</dt><dd>{when(lead.follow_up_at)}</dd></div>
+              <div><dt>Fuente</dt><dd>{String(lead.source || "—")}</dd></div>
+              <div><dt>Valor estimado</dt><dd>{money(lead.value)}</dd></div>
+              <div><dt>Probabilidad</dt><dd>{lead.probability == null ? "—" : String(lead.probability) + "%"}</dd></div>
+              <div><dt>Prioridad</dt><dd>{String(lead.priority || "—")}</dd></div>
+              {Boolean(lead.archived) && <div><dt>Estado</dt><dd>Archivado</dd></div>}
+            </dl>
           </div>
           <div className={s.headActions}>
             <button type="button" onClick={onEdit}>Editar lead</button>
