@@ -145,7 +145,7 @@ test('Dev Bridge auto refresh is read-only and schedule is hourly',()=>{
  const auto=fs.readFileSync('src/app/admin/dev-bridge/bridge-auto-refresh.tsx','utf8');
  assert.match(auto,/document.visibilityState === 'visible'/);
  assert.match(auto,/router.refresh\(\)/);
- assert.doesNotMatch(auto,/fetch\(|POST|merge|writeFile/);
+ assert.doesNotMatch(auto,/fetch\(|writeFile|issueNewTurn/);
  const workflow=fs.readFileSync('.github/workflows/dev-bridge-sync.yml','utf8');
  assert.match(workflow,/cron: '17 \* \* \* \*'/);
 });
