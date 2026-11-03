@@ -355,12 +355,23 @@ function MemberPanel({ member, data, lang, when, onClose, onChanged }: { member:
             <dt>{t("Correo", "Email")}</dt><dd>{member.email}</dd>
             <dt>{t("Permisos", "Access")}</dt><dd>{t(...ROLE[member.role] ?? [member.role, member.role])} · {member.role === "owner" ? t("acceso completo al OS", "full OS access") : t("sin acceso a la app hasta que se habilite su rol", "no app access until their role is enabled")}</dd>
             <dt>{t("Disponibilidad", "Availability")}</dt><dd className={s.muted}>
-              {member.availability ? <>
-                <strong>{member.availability.timezone}</strong>
-                <div>{Object.entries(member.availability.weekly_hours ?? {}).map(([day, slot]) =>
-                  <span key={day} style={{display:"inline-block",marginRight:8}}>{day.toUpperCase()}: {slot[0]}–{slot[1]}</span>)}</div>
-                {(member.timeOff ?? []).length > 0 && <p>{t("Ausencias previstas", "Planned time off")}: {(member.timeOff ?? []).map(x=>x.starts_on+" – "+x.ends_on).join("; ")}</p>}
-              </> : t("Horario aún sin configurar", "Schedule not set")}
+              {member.availability ? <div className={s.memberSchedule}>
+                <div className={s.scheduleTop}><span className={s.scheduleSignal} aria-hidden="true" />
+                  <span>{t("Jornada configurada", "Schedule configured")}</span>
+                  <span className={s.scheduleZone}>{member.availability.timezone}</span>
+                </div>
+                <div className={s.scheduleDays}>
+                  {Object.entries(member.availability.weekly_hours ?? {}).map(([day, slot]) =>
+                    <div key={day} className={s.scheduleDay}>
+                      <strong>{({mon:"Lun",tue:"Mar",wed:"Mié",thu:"Jue",fri:"Vie",sat:"Sáb",sun:"Dom"} as Record<string,string>)[day] ?? day.toUpperCase()}</strong>
+                      <span>{slot[0]} – {slot[1]}</span>
+                    </div>)}
+                </div>
+                {(member.timeOff ?? []).length > 0 && <div className={s.scheduleAbsences}>
+                  <strong>{t("Próximas ausencias", "Upcoming time off")}</strong>
+                  {(member.timeOff ?? []).map(x => <span key={x.starts_on + x.ends_on}>{x.starts_on} – {x.ends_on}</span>)}
+                </div>}
+              </div> : <span className={s.scheduleUnset}>{t("Horario aún sin configurar", "Schedule not set")}</span>}
               {self && <p><Link href="/admin/profile#availability">{t("Editar mis horarios", "Edit my schedule")}</Link></p>}
             </dd>
           </dl>
