@@ -24,7 +24,9 @@ revoke all on table os_private.creative_bridge_identities from public, anon, aut
 -- machine identity. JWT-only impersonation or direct REST writes are denied.
 -- Audit actors remain the actual machine UUID; no owner session is forged.
 create or replace function crm_private.stamp() returns trigger
-language plpgsql security invoker set search_path = '' as $
+-- SECURITY DEFINER is required: machine has no direct SELECT grant on the
+-- private allowlist. Explicit auth.uid owner/allowlist checks remain mandatory.
+language plpgsql security definer set search_path = '' as $creative_stamp$
 declare v_approved_machine boolean;
 begin
   if not crm_private.is_owner() then
@@ -69,10 +71,10 @@ begin
   end if;
   return new;
 end;
-$;
+$creative_stamp$;
 
 create or replace function crm_private.audit() returns trigger
-language plpgsql security definer set search_path = '' as $
+language plpgsql security definer set search_path = '' as $creative_audit$
 begin
   if auth.uid() is null or not (
     exists (select 1 from public.agency_memberships
@@ -93,7 +95,7 @@ begin
     case when TG_OP = 'UPDATE' then to_jsonb(old) else null end, to_jsonb(new));
   return new;
 end;
-$;
+$creative_audit$;
 -- Preserve the original revocations; no public direct trigger functions.
 revoke all on function crm_private.stamp() from public, anon, authenticated;
 revoke all on function crm_private.audit() from public, anon, authenticated;
