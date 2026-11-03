@@ -27,7 +27,8 @@ create index office_manager_runs_recent on public.office_manager_runs (manager, 
 create index office_manager_runs_status on public.office_manager_runs (status, lease_until);
 
 alter table public.office_manager_runs enable row level security;
-revoke all on public.office_manager_runs from public, anon, authenticated;
+revoke all on public.office_manager_runs from anon, authenticated;
+revoke all on public.office_manager_runs from public;
 grant select on public.office_manager_runs to authenticated;
 grant select, insert, update on public.office_manager_runs to service_role;
 create policy office_manager_runs_owner_read on public.office_manager_runs
@@ -90,7 +91,7 @@ declare v_count integer;
 begin
   if p_status not in ('completed','failed') or
     (p_status = 'completed' and (p_result is null or p_error_code is not null)) or
-    (p_status = 'failed' and (p_result is not null or p_error_code <> 'check_unavailable'))
+    (p_status = 'failed' and (p_result is not null or p_error_code is distinct from 'check_unavailable'))
     then raise exception 'office_manager_invalid_finish' using errcode = '22023';
   end if;
   update public.office_manager_runs
