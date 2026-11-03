@@ -3,12 +3,14 @@ import Link from "next/link";
 import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties, type FormEvent } from "react";
 import type { Lang } from "@/lib/i18n";
 import { IsoOffice } from "./iso-office";
+import { PresenceAvatar, presenceName } from "./presence-avatar";
+import type { StaffPresence } from "@/lib/office/presence";
 import s from "./office.module.css";
 
 type Stats = { assigned: number; open: number; overdue: number; done: number; projects: number };
 type Member = {
   user_id: string; role: string; email: string; joined_at: string | null; display_name: string; title: string; department: string;
-  bio: string; specialties: string[]; has_photo: boolean; profile_updated_at: string | null; availability?: {timezone:string;weekly_hours: Record<string,string[]>} | null; timeOff?: {starts_on:string;ends_on:string;reason:string}[]; stats: Stats; lastActivity: string | null; unread: number;
+  bio: string; specialties: string[]; has_photo: boolean; profile_updated_at: string | null; presence?: StaffPresence; availability?: {timezone:string;weekly_hours: Record<string,string[]>} | null; timeOff?: {starts_on:string;ends_on:string;reason:string}[]; stats: Stats; lastActivity: string | null; unread: number;
 };
 type Manager = { key: string; name: string; hue: number; role: { es: string; en: string }; modules: { es: string; en: string }[];
   station: { x: number; y: number }; examples: { es: string; en: string }; status: string; registered: number };
@@ -109,12 +111,13 @@ export function Office({ lang }: { lang: Lang }) {
   const card = (m: Member) => (
     <button key={m.user_id} type="button" className={s.person} data-selected={selected?.kind === "member" && selected.id === m.user_id}
       onClick={() => setSelected({ kind: "member", id: m.user_id })} aria-label={`${t("Abrir perfil de", "Open profile of")} ${nameOf(m)}`}>
-      <Avatar member={m} size={44} />
+      <PresenceAvatar presence={m.presence} lang={lang} size={44}><Avatar member={m} size={44}/></PresenceAvatar>
       <span className={s.personText}>
         <strong>{nameOf(m)}{m.user_id === data.me ? ` · ${t("tú", "you")}` : ""}</strong>
         <small>{m.title || t(...ROLE[m.role] ?? ["Miembro", "Member"])}</small>
       </span>
       <span className={s.chips}>
+        <span className={s.presenceChip} data-presence={m.presence?.state ?? "inactive"}>{presenceName(m.presence?.state ?? "inactive", lang)}</span>
         <span>{m.stats.open} {t("abiertas", "open")}</span>
         {m.stats.overdue > 0 && <span data-tone="danger">{m.stats.overdue} {t("vencidas", "overdue")}</span>}
         {m.unread > 0 && <span data-tone="accent">{m.unread} {t("sin leer", "unread")}</span>}
@@ -173,12 +176,12 @@ export function Office({ lang }: { lang: Lang }) {
             people={[
               ...members.map(m => ({ id: m.user_id, kind: "human" as const, name: nameOf(m), initials: initials(nameOf(m)), subtitle: m.title || t(...ROLE[m.role] ?? ["Miembro", "Member"]),
                 photo: m.has_photo ? `/admin/workspace/crm/office/photo/${m.user_id}` : null, open: m.stats.open, overdue: m.stats.overdue, unread: m.unread,
-                recentMinutes: m.lastActivity ? Math.round((Date.now() - Date.parse(m.lastActivity)) / 60000) : null })),
+                recentMinutes: m.lastActivity ? Math.round((Date.now() - Date.parse(m.lastActivity)) / 60000) : null, presence: m.presence?.state ?? "inactive" })),
               ...managers.map(m => ({ id: `ai:${m.key}`, kind: "ai" as const, name: m.name, initials: m.name.slice(0, 2), subtitle: t(...STATUS[m.status]), hue: m.hue,
                 open: m.registered, overdue: 0, unread: 0, recentMinutes: null, offline: m.status !== "available" })),
             ]} />
-          <p className={s.sceneHint}>{t("Toca a una persona o manager para abrir su perfil. Luz verde: actividad registrada en la última hora (no es presencia en tiempo real). Se actualiza cada 30 s.",
-            "Tap a person or manager to open their profile. Green light: activity recorded in the last hour (not real-time presence). Refreshes every 30 s.")}</p>
+          <p className={s.sceneHint}>{t("Toca a una persona para abrir su perfil. Verde: activo en horario; amarillo: ocupado en calendario; rojo: inactivo o ausente. No indica conexión en línea. Se actualiza cada 30 s.",
+            "Tap a person to open their profile. Green: available during work hours; yellow: busy on the calendar; red: off hours or time off. Not an online signal. Updates every 30 seconds.")}</p>
         </section>
       ) : (
         <section className={s.directory} aria-label={t("Directorio", "Directory")}>
@@ -326,10 +329,11 @@ function MemberPanel({ member, data, lang, when, onClose, onChanged }: { member:
   };
   return (
     <Drawer lang={lang} onClose={onClose}
-      title={<div className={s.idRow}><Avatar member={member} size={72} /><div>
+      title={<div className={s.idRow}><PresenceAvatar presence={member.presence} lang={lang} size={72}><Avatar member={member} size={72}/></PresenceAvatar><div>
         <p className={s.eyebrow}>{t("Humano", "Human")} · {t(...ROLE[member.role] ?? ["Miembro", "Member"])}</p>
         <h2 id="office-drawer-title">{nameOf(member)}</h2>
         <p className={s.sub}>{[member.title, member.department].filter(Boolean).join(" · ") || t("Cargo y departamento sin definir", "Title and department not set")}</p>
+        <p className={s.presenceDrawerLabel} data-presence={member.presence?.state ?? "inactive"}>{presenceName(member.presence?.state ?? "inactive", lang)} · {t("Según horario y calendario", "Based on schedule and calendar")}</p>
       </div></div>}>
       <div className={s.tabs} role="tablist">
         {([["profile", t("Perfil", "Profile")], ["projects", t("Proyectos", "Projects")], ["tasks", t("Tareas", "Tasks")], ...(!self ? [["messages", t("Mensajes", "Messages")]] : [])] as [typeof tab, string][]).map(([k, label]) =>
