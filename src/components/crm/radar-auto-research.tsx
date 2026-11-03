@@ -27,6 +27,7 @@ export function RadarAutoResearch({ revision, onChanged }: {
 
   useEffect(() => {
     let cancelled = false;
+    let cycleActive = false;
     const controller = new AbortController();
     const pause = (ms: number) => new Promise<void>(resolve => setTimeout(resolve, ms));
     const loadQueue = async (): Promise<Queue> => {
@@ -40,6 +41,8 @@ export function RadarAutoResearch({ revision, onChanged }: {
     };
 
     const work = async () => {
+      if (cancelled || cycleActive) return;
+      cycleActive = true;
       setState("starting");
       try {
         // One pass is capped at 12 reports. This is a browser-initiated worker,
@@ -106,12 +109,17 @@ export function RadarAutoResearch({ revision, onChanged }: {
         if (cancelled || controller.signal.aborted) return;
         setState("unavailable");
         setDetail(cause instanceof Error ? cause.message : "La investigación no está disponible.");
+      } finally {
+        cycleActive = false;
       }
     };
 
     void work();
+    // Retry the safe queue hourly while the owner keeps Avalon open. A daily
+    // quota and 30-day dedupe ensure there is no runaway network scraping.
+    const interval = setInterval(() => { void work(); }, 60 * 60 * 1000);
     // A new radar search changes revision and initiates a fresh queue run.
-    return () => { cancelled = true; controller.abort(); };
+    return () => { cancelled = true; clearInterval(interval); controller.abort(); };
   }, [revision]);
 
   return (
@@ -135,7 +143,7 @@ export function RadarAutoResearch({ revision, onChanged }: {
       </div>
       {detail && <p className={s.detail} role="status">{detail}</p>}
       <p className={s.note}>
-        Se inicia solo al abrir el radar o buscar negocios. Sin clics adicionales, máximo 12 informes diarios por propietario.
+        Se inicia al abrir el radar, buscar negocios y se revisa cada hora mientras Avalon siga abierto. Sin clics adicionales, máximo 12 informes diarios por propietario.
         Los sitios sin web verificable o sin oportunidades comprobadas permanecen «Sin calificar».
         Esta versión requiere una sesión de propietario activa.
       </p>
