@@ -66,17 +66,20 @@ export function TitanRadar({ onChanged }: { onChanged?: () => void }) {
   type Campaign = { id: string; name: string; radius_m: number; place_label: string; categories: string[]; frequency: string; status: string; last_run_at: string | null; crm_radar_runs: { status: string; found: number; inserted: number; started_at: string }[] };
   const [campaigns, setCampaigns] = useState<Campaign[]>([]);
   const [placesProvider, setPlacesProvider] = useState<"geoapify" | "overpass" | "missing" | "unknown">("unknown");
+  // Searches recorded today vs the daily cap; credits are an upper bound computed from our own records.
+  const [quota, setQuota] = useState<{ searchesToday: number; limit: number; remaining: number; blocked: boolean; maxCreditsUsed: number; sharedDailyCredits: number } | null>(null);
   const [scheduler, setScheduler] = useState("");
   const loadCampaigns = useCallback(async () => {
     try {
       const res = await fetch("/admin/workspace/crm/radar/campaigns", { cache: "no-store" });
       if (!res.ok) throw new Error("campaigns unavailable");
       const body = await res.json() as {
-        campaigns?: Campaign[]; scheduler?: { reason: string };
+        campaigns?: Campaign[]; scheduler?: { reason: string }; quota?: typeof quota;
         provider?: { kind: "geoapify" | "overpass" | "missing"; ready: boolean };
       };
       setCampaigns(body.campaigns ?? []);
       setPlacesProvider(body.provider?.kind ?? "unknown");
+      setQuota(body.quota ?? null);
       setScheduler(body.scheduler?.reason ?? "");
     } catch {
       setScheduler("No se pudieron cargar las campañas. Revisa tu conexión e inténtalo nuevamente.");
@@ -266,8 +269,9 @@ export function TitanRadar({ onChanged }: { onChanged?: () => void }) {
       setLastSearch({ at: body.searchedAt ?? new Date().toISOString(), found: body.run?.found ?? 0, inserted: body.run?.inserted ?? 0, updated: body.run?.updated ?? 0 });
       setView("all"); setOnlyZone(true);
       await load();
+      void loadCampaigns();
       onChanged?.();
-    } catch (cause) { setError(cause instanceof Error ? cause.message : "Búsqueda no disponible"); }
+    } catch (cause) { setError(cause instanceof Error ? cause.message : "Búsqueda no disponible"); void loadCampaigns(); }
     finally { setSearching(false); }
   }
 
@@ -328,6 +332,7 @@ export function TitanRadar({ onChanged }: { onChanged?: () => void }) {
           : placesProvider === "overpass"
             ? "OpenStreetMap (Overpass autorizado)"
             : placesProvider === "missing" ? "NO CONFIGURADA" : "verificando…"}</span>
+        {quota && <span data-testid="radar-quota" data-blocked={quota.blocked || undefined}>Cuota de hoy: {quota.searchesToday} de {quota.limit} búsquedas · hasta {quota.maxCreditsUsed} de {quota.sharedDailyCredits.toLocaleString("es")} créditos Geoapify (estimación máxima, compartida con mapa y ciudades)</span>}
         <span>Mapa base: {tileStatus === "ready" ? "conectado" : tileStatus === "loading" ? "cargando" : "modo radar sin cartografía"}</span>
       </div>
       {placesProvider === "missing" && <p className={s.hint} role="status">

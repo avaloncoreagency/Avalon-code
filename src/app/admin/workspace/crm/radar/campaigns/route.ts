@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getOwnerSession } from "@/lib/auth/session";
 import { INDUSTRIES, LICENSED_MAX_RADIUS_M, PUBLIC_MAX_RADIUS_M, type IndustryId } from "@/lib/crm/radar";
-import { radarEndpoint, searchAndIngest } from "@/lib/crm/radar-search";
+import { radarEndpoint, radarQuota, searchAndIngest } from "@/lib/crm/radar-search";
 import { GEOAPIFY_FREE_MAX_RADIUS_M } from "@/lib/crm/radar-geoapify";
 
 export const dynamic = "force-dynamic";
@@ -9,6 +9,8 @@ export const runtime = "nodejs";
 const reply = (data: unknown, status = 200) => NextResponse.json(data, { status, headers: { "Cache-Control": "private, no-store" } });
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const COLS = "id,name,center_lat,center_lon,radius_m,place_label,categories,frequency,run_hour,timezone,source,max_results,monthly_budget_usd,status,last_run_at,next_run_at,crm_radar_runs(status,found,inserted,updated,error,started_at)";
+
+const isGeoapify = (e: ReturnType<typeof radarEndpoint>) => !("error" in e) && e.provider === "geoapify";
 
 export async function GET() {
   const session = await getOwnerSession();
@@ -18,6 +20,7 @@ export async function GET() {
   const endpoint = radarEndpoint();
   // The scheduler needs a server credential that Avalon deliberately does not hold (no service-role key in app code).
   return reply({ campaigns: data,
+    quota: isGeoapify(endpoint) ? await radarQuota(session.supabase) : null,
     provider: "error" in endpoint
       ? { kind: "missing", ready: false, freeRadiusM: 5000 }
       : { kind: endpoint.provider, ready: true,

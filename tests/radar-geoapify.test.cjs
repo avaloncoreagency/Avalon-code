@@ -22,6 +22,28 @@ function compile(path, dependency = {}) {
 const radar = compile("src/lib/crm/radar.ts");
 const geo = compile("src/lib/crm/radar-geoapify.ts",{"./radar":radar});
 const tiles = compile("src/lib/crm/radar-map-tiles.ts");
+const quota = compile("src/lib/crm/radar-quota.ts");
+// Minimal stand-in for the supabase-js query builder used by searchAndIngest (runs table reads only).
+function fakeDb({ runs = [], rpcResult } = {}) {
+  const calls = { rpc: [], from: [] };
+  const db = {
+    calls,
+    rpc: async (name, args) => { calls.rpc.push({ name, args }); return { data: rpcResult ?? { run_id: "mock", found: 2, inserted: 2, updated: 0, replayed: false }, error: null }; },
+    from: table => {
+      calls.from.push(table);
+      const q = { filters: [], head: false };
+      const api = {
+        select: (_cols, opts) => { q.head = !!opts?.head; return api; },
+        eq: (col, val) => { q.filters.push(["eq", col, val]); return api; },
+        gte: (col, val) => { q.filters.push(["gte", col, val]); return api; },
+        maybeSingle: async () => ({ data: runs.find(r => q.filters.every(([, c, v]) => r[c] === v)) ?? null, error: null }),
+        then: (resolve) => resolve({ count: runs.length, data: null, error: null }),
+      };
+      return api;
+    },
+  };
+  return db;
+}
 
 const area = {lat:25.7743,lon:-80.1937,radiusM:2000,industries:["dental"],label:"Miami"};
 const sample = {
@@ -99,7 +121,7 @@ test("server-only Geoapify provider never needs community Overpass in production
  const exports={};
  const env={VERCEL_ENV:"production",AVALON_GEOAPIFY_PLACES_KEY:"c3da27885e3573e09e550d044bc55e22"};
  new Function("require","exports","process",js)(
-  name=> name==="server-only"?{} : name==="./radar"?radar : name==="./radar-geoapify"?geo :
+  name=> name==="server-only"?{} : name==="./radar"?radar : name==="./radar-geoapify"?geo : name==="./radar-quota"?quota :
     (()=>{throw Error("Unexpected "+name)})(),
   exports,{env},
  );
@@ -120,7 +142,7 @@ test("live endpoint path sends a key ONLY server-side, limits results, persists 
   },
  };
  const output=compile("src/lib/crm/radar-search.ts",{
-  "./radar":radar, "./radar-geoapify":geo,
+  "./radar":radar, "./radar-geoapify":geo, "./radar-quota":quota,
   mockFetch:deps.mockFetch,
  });
  // The explicitly non-production default still supports bounded community
@@ -129,12 +151,13 @@ test("live endpoint path sends a key ONLY server-side, limits results, persists 
  const env={VERCEL_ENV:"production",AVALON_GEOAPIFY_PLACES_KEY:"c3da27885e3573e09e550d044bc55e22"};
  const exports={};
  new Function("require","exports","process","fetch","AbortSignal","URLSearchParams",js)(
-  name=>name==="server-only"?{} : name==="./radar"?radar : name==="./radar-geoapify"?geo:
+  name=>name==="server-only"?{} : name==="./radar"?radar : name==="./radar-geoapify"?geo: name==="./radar-quota"?quota:
     (()=>{throw Error("Unexpected "+name)})(),
   exports,{env},deps.mockFetch,AbortSignal,URLSearchParams,
  );
- const db={rpc:async(name,args)=>{ingested={name,args};return{data:{run_id:"mock",found:2,inserted:2,updated:0,replayed:false},error:null};}};
+ const db=fakeDb();
  const result=await exports.searchAndIngest(db,area,"manual:test-0001");
+ ingested=db.calls.rpc[0];
  assert.equal(result.ok,true);
  assert.equal(request.url,"https://api.geoapify.com/v2/places");
  assert.equal(request.opts.headers["x-api-key"],env.AVALON_GEOAPIFY_PLACES_KEY);
@@ -144,4 +167,90 @@ test("live endpoint path sends a key ONLY server-side, limits results, persists 
  assert.equal(ingested.args.places.length,2);
  assert.equal(ingested.args.places[0].source_ref,"osm:node/741122");
  assert.ok(!JSON.stringify(result).includes(env.AVALON_GEOAPIFY_PLACES_KEY));
+});
+
+// ── Quota and replay protection (defect found 2026-11-03: a repeated run key still queried the provider) ──
+function loadSearch(env, mockFetch) {
+ const js=ts.transpileModule(fs.readFileSync("src/lib/crm/radar-search.ts","utf8"),{
+  compilerOptions:{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2022},
+ }).outputText;
+ const exports={};
+ new Function("require","exports","process","fetch","AbortSignal","URLSearchParams",js)(
+  name=>name==="server-only"?{} : name==="./radar"?radar : name==="./radar-geoapify"?geo : name==="./radar-quota"?quota :
+    (()=>{throw Error("Unexpected "+name)})(),
+  exports,{env},mockFetch,AbortSignal,URLSearchParams,
+ );
+ return exports;
+}
+const KEY = "c3da27885e3573e09e550d044bc55e22";
+const okFetch = () => { const f = async () => { f.calls++; return { ok:true, status:200, headers:{get:()=>null}, json:async()=>sample }; }; f.calls = 0; return f; };
+
+test("quota helpers: limit parsing, UTC day start and honest upper-bound credits", () => {
+ assert.equal(quota.dailySearchLimit(undefined), 100);
+ assert.equal(quota.dailySearchLimit("40"), 40);
+ for (const bad of ["0", "501", "-3", "1e3", "abc", "", "  ", "12.5"]) assert.equal(quota.dailySearchLimit(bad), 100, bad);
+ assert.equal(quota.utcDayStartIso(Date.parse("2026-11-03T23:59:59Z")), "2026-11-03T00:00:00.000Z");
+ const q = quota.quotaState(30, 100);
+ assert.deepEqual({ ...q }, { searchesToday: 30, limit: 100, remaining: 70, blocked: false, maxCreditsUsed: 90, sharedDailyCredits: 3000 });
+ assert.equal(quota.quotaState(100, 100).blocked, true);
+ assert.equal(quota.quotaState(250, 100).remaining, 0);
+ assert.match(quota.quotaMessage(quota.quotaState(100, 100)), /100 de 100 búsquedas hoy/);
+});
+
+test("a run key that already exists is replayed WITHOUT querying the provider", async () => {
+ const f = okFetch();
+ const search = loadSearch({ VERCEL_ENV: "production", AVALON_GEOAPIFY_PLACES_KEY: KEY }, f);
+ const db = fakeDb({ runs: [{ id: "run-1", idempotency_key: "campaign:abc:2026-11-03T14", found: 7, inserted: 5, updated: 2 }] });
+ const out = await search.searchAndIngest(db, area, "campaign:abc:2026-11-03T14", "abc", 60);
+ assert.equal(out.ok, true);
+ assert.deepEqual({ ...out.run }, { run_id: "run-1", found: 7, inserted: 5, updated: 2, replayed: true });
+ assert.equal(f.calls, 0, "no provider call, no credits spent");
+ assert.equal(db.calls.rpc.length, 0, "nothing re-ingested");
+});
+
+test("a new run key queries the provider exactly once and persists it", async () => {
+ const f = okFetch();
+ const search = loadSearch({ VERCEL_ENV: "production", AVALON_GEOAPIFY_PLACES_KEY: KEY }, f);
+ const db = fakeDb({ runs: [] });
+ const out = await search.searchAndIngest(db, area, "manual:fresh-0001");
+ assert.equal(out.ok, true);
+ assert.equal(f.calls, 1);
+ assert.equal(db.calls.rpc.length, 1);
+});
+
+test("the daily cap blocks BEFORE spending credits and says why", async () => {
+ const f = okFetch();
+ const search = loadSearch({ VERCEL_ENV: "production", AVALON_GEOAPIFY_PLACES_KEY: KEY, AVALON_RADAR_DAILY_SEARCH_LIMIT: "2" }, f);
+ const db = fakeDb({ runs: [{ id: "a", idempotency_key: "k1" }, { id: "b", idempotency_key: "k2" }] });
+ const out = await search.searchAndIngest(db, area, "manual:over-quota-1");
+ assert.equal(out.ok, false);
+ assert.equal(out.status, 429);
+ assert.equal(out.blocked, "quota");
+ assert.match(out.error, /2 de 2 búsquedas hoy/);
+ assert.match(out.error, /00:00 UTC/);
+ assert.equal(f.calls, 0, "provider untouched once the cap is reached");
+ assert.ok(!out.error.includes(KEY));
+});
+
+test("quota is not applied to the community/licensed Overpass endpoint and is null when the table is unavailable", async () => {
+ const f = okFetch();
+ const search = loadSearch({ VERCEL_ENV: "production", AVALON_RADAR_OVERPASS_URL: "https://overpass.example.invalid/api" }, f);
+ const db = fakeDb({ runs: Array.from({ length: 500 }, (_, i) => ({ id: String(i), idempotency_key: "k" + i })) });
+ const out = await search.searchAndIngest(db, { ...area }, "manual:overpass-0001");
+ assert.equal(out.ok, true);
+ const broken = { from: () => { const api = { select: () => api, gte: () => api, then: r => r({ count: null, error: { code: "42P01" } }) }; return api; } };
+ const geoSearch = loadSearch({ AVALON_GEOAPIFY_PLACES_KEY: KEY }, f);
+ assert.equal(await geoSearch.radarQuota(broken), null, "never invents a figure when the data is unavailable");
+});
+
+test("campaign and area routes surface the quota and release the 30 s brake on blocked searches", () => {
+ const areaRoute = fs.readFileSync("src/app/admin/workspace/crm/radar/area/route.ts", "utf8");
+ assert.match(areaRoute, /if \(out\.blocked\) lastByOwner\.delete\(session\.userId\)/);
+ assert.match(areaRoute, /quota: await radarQuota\(session\.supabase\)/);
+ assert.doesNotMatch(areaRoute, /servidor de datos abiertos/, "message must not blame the open-data server when Geoapify is the provider");
+ const campaigns = fs.readFileSync("src/app/admin/workspace/crm/radar/campaigns/route.ts", "utf8");
+ assert.match(campaigns, /radarQuota\(session\.supabase\)/);
+ const ui = fs.readFileSync("src/components/crm/titan-radar.tsx", "utf8");
+ assert.match(ui, /data-testid="radar-quota"/);
+ assert.match(ui, /estimación máxima/);
 });
