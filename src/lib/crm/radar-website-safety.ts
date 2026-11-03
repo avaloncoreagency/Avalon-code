@@ -74,7 +74,7 @@ function sameBusinessHost(a: string, b: string): boolean {
 
 /** Pinned, vetted IPv4 resolution prevents a second DNS lookup from rebinding to an internal IP. */
 async function publicIPv4(hostname: string): Promise<string> {
-  let records: Awaited<ReturnType<typeof lookup>>;
+  let records: { address: string; family: number }[];
   try {
     records = await lookup(hostname, { all: true, verbatim: true });
   } catch {
