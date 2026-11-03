@@ -27,7 +27,7 @@ export default async function DeliveriesPage({ searchParams }: { searchParams: P
   const { supabase } = await requireOwner();
   const lang = await getLang();
   const params = await searchParams;
-  const view = ["active", "all", "closed"].includes(q(params, "view") ?? "") ? q(params, "view")! : "active";
+  const view = ["active", "attention", "all", "closed"].includes(q(params, "view") ?? "") ? q(params, "view")! : "active";
 
   // Existing owner RLS applies to every read. Nothing is inserted or updated here.
   const orders = await run<Order[]>(supabase.from("crm_work_orders")
@@ -50,13 +50,16 @@ export default async function DeliveriesPage({ searchParams }: { searchParams: P
   const completeTasks = !tasks.error && tasks.count !== null && tasks.count === (tasks.data?.length ?? 0);
   const summary = summarizeDelivery(rows, tasks.data ?? [], new Date().toISOString().slice(0, 10));
   const overdue = new Set(summary.overdueIds);
+  const attention = new Set(summary.attentionIds);
   const salesById = new Map((sales.data ?? []).map(sale => [sale.id, sale]));
   const visible = rows.filter(order => view === "all"
     || (view === "active" && (ACTIVE_ORDER_STATUSES as readonly string[]).includes(order.status))
+    || (view === "attention" && attention.has(order.id))
     || (view === "closed" && ["delivered", "cancelled"].includes(order.status)));
   const limited = orders.count !== null && orders.count > rows.length;
   const views: [string, string, string][] = [
     ["active", "En curso", "Active"],
+    ["attention", "Requieren atención", "Needs attention"],
     ["all", "Todas", "All"],
     ["closed", "Cerradas", "Closed"],
   ];
@@ -73,6 +76,7 @@ export default async function DeliveriesPage({ searchParams }: { searchParams: P
         <div className={s.stat}><span>{pick(lang, "Ordenes activas", "Active orders")}</span><strong>{summary.active}</strong></div>
         <div className={s.stat}><span>{pick(lang, "Bloqueadas", "Blocked")}</span><strong>{summary.blocked}</strong></div>
         <div className={s.stat}><span>{pick(lang, "Vencidas (fecha UTC)", "Overdue (UTC date)")}</span><strong>{summary.overdue}</strong></div>
+        <div className={s.stat}><span>{pick(lang, "Requieren atención", "Needs attention")}</span><strong>{summary.attention}</strong><small>{pick(lang, "Bloqueadas o vencidas, sin contar dos veces.", "Blocked or overdue, counted once.")}</small></div>
         <div className={s.stat}><span>{pick(lang, "Entregadas", "Delivered")}</span><strong>{summary.delivered}</strong></div>
       </section>
       <section className={s.panel} aria-labelledby="delivery-list">
