@@ -4,6 +4,19 @@
 -- Neither this file nor the creative-bridge route applies database changes.
 begin;
 
+-- Dedicated non-owner Supabase Auth principal(s). Populate this allowlist
+-- ONLY via an audited admin operation in isolated staging, after provisioning
+-- the machine user. No public table grant and no owner role for the machine.
+create table if not exists os_private.creative_bridge_identities (
+  user_id uuid primary key references auth.users(id) on delete cascade,
+  owner_id uuid not null references public.agency_memberships(user_id),
+  enabled boolean not null default false,
+  label text not null default '' check (length(label) <= 80),
+  created_at timestamptz not null default now()
+);
+alter table os_private.creative_bridge_identities enable row level security;
+revoke all on table os_private.creative_bridge_identities from public, anon, authenticated;
+
 -- Atomic, cross-request replay guard, scoped by module and completed source ID.
 -- FIRST audit existing rows for duplicates; CREATE UNIQUE INDEX will refuse them.
 create unique index if not exists os_projects_higgsfield_source_unique
@@ -11,10 +24,10 @@ create unique index if not exists os_projects_higgsfield_source_unique
   where (settings #>> '{creative,provider}') = 'higgsfield'
     and (settings #>> '{creative,external_ref}') is not null;
 
--- This routine is reachable ONLY by the server-side service_role key, never by
--- anon/authenticated or the agents. SECURITY INVOKER retains caller privileges.
--- It creates a draft product and links a lead in ONE transaction; no sale writes.
-create or replace function public.os_receive_creative_delivery(
+-- Private SECURITY DEFINER operation. The exposed wrapper is INVOKER-only.
+-- The explicit auth.uid() lookup MUST check this restricted machine allowlist
+-- before touching any CRM data. No owner session, no elevated app key.
+create or replace function os_private.os_receive_creative_delivery_impl(
   p_module text,
   p_source_ref text,
   p_company_name text,
@@ -26,9 +39,11 @@ create or replace function public.os_receive_creative_delivery(
   p_owner_id uuid,
   p_agent text
 ) returns jsonb
-language plpgsql security invoker set search_path = ''
+language plpgsql security definer set search_path = ''
 as $function$
 declare
+  v_machine_id uuid;
+  v_allowed_owner uuid;
   v_project record;
   v_project_id uuid;
   v_lead_id uuid;
@@ -38,8 +53,12 @@ declare
   v_lead_created boolean := false;
   v_settings jsonb;
 begin
-  if current_user <> 'service_role' then
-    raise exception 'machine endpoint only' using errcode = '42501';
+  v_machine_id := auth.uid();
+  select owner_id into v_allowed_owner
+    from os_private.creative_bridge_identities
+    where user_id = v_machine_id and enabled = true;
+  if v_machine_id is null or v_allowed_owner is null or v_allowed_owner is distinct from p_owner_id then
+    raise exception 'unapproved integration identity' using errcode = '42501';
   end if;
   if p_module not in ('website', 'ecommerce', 'crm_creator')
     or p_agent not in ('codex', 'claude')
@@ -161,11 +180,35 @@ begin
 end;
 $function$;
 
--- Explicitly remove Postgres's default PUBLIC EXECUTE grant on new functions.
+-- The wrapper is the ONLY Data API entrypoint. Its execution role has no
+-- grants on CRM tables or the integration allowlist; the private implementation
+-- enforces a fixed auth.uid() plus pre-approved owner association.
+create or replace function public.os_receive_creative_delivery(
+  p_module text, p_source_ref text, p_company_name text,
+  p_existing_lead_id uuid, p_product_name text, p_description text,
+  p_project_url text, p_repository_url text, p_owner_id uuid, p_agent text
+) returns jsonb language sql security invoker set search_path = ''
+as $wrapper$
+  select os_private.os_receive_creative_delivery_impl(
+    p_module, p_source_ref, p_company_name, p_existing_lead_id,
+    p_product_name, p_description, p_project_url, p_repository_url,
+    p_owner_id, p_agent
+  )
+$wrapper$;
+
+-- Public wrapper: callable by signed-in Auth users but always fails inside
+-- the private routine without a matching enabled machine allowlist record.
 revoke all on function public.os_receive_creative_delivery(
   text, text, text, uuid, text, text, text, text, uuid, text
 ) from public, anon, authenticated;
 grant execute on function public.os_receive_creative_delivery(
   text, text, text, uuid, text, text, text, text, uuid, text
-) to service_role;
+) to authenticated;
+-- No direct exposed endpoint exists for this private function.
+revoke all on function os_private.os_receive_creative_delivery_impl(
+  text, text, text, uuid, text, text, text, text, uuid, text
+) from public, anon, authenticated;
+grant execute on function os_private.os_receive_creative_delivery_impl(
+  text, text, text, uuid, text, text, text, text, uuid, text
+) to authenticated;
 commit;
