@@ -10,8 +10,10 @@ const ts = require("typescript");
 
 const PAGE = "src/app/admin/workspace/crm/clients/[id]/page.tsx";
 const WORKSPACE = "src/components/sales/client-workspace.tsx";
+const FINANCE = "src/lib/sales/client-finance.ts";
 const pageSource = fs.readFileSync(PAGE, "utf8");
 const workspaceSource = fs.readFileSync(WORKSPACE, "utf8");
+const financeSource = fs.existsSync(FINANCE) ? fs.readFileSync(FINANCE, "utf8") : null;
 const clientId = "00000000-0000-4000-8000-0000000000aa";
 
 const fixtures = {
@@ -89,8 +91,26 @@ function syntheticDb(costRows) {
   } };
 }
 
-// Runtime-import the actual TSX module. All UI helpers are local stubs, while
-// DB pagination, render branches and finance arithmetic are real component code.
+// Consume the REAL helper once HARU integrates #110, not a synthetic implementation.
+// Until then this same test exercises the unfixed #78 behavior and must stay red.
+function loadFinanceHelper() {
+  if (financeSource === null) return null;
+  const compiled = ts.transpileModule(financeSource, {
+    compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 },
+    fileName: FINANCE,
+  }).outputText;
+  const mod = { exports: {} };
+  vm.runInNewContext(compiled, {
+    module: mod, exports: mod.exports, Number, String, Array, Set, Map, Math,
+  }, { filename: FINANCE });
+  assert.equal(typeof mod.exports.loadAllRows, "function", "HARU helper must paginate real source rows");
+  assert.equal(typeof mod.exports.summarizeClientFinance, "function", "HARU helper must summarize loaded rows");
+  return mod.exports;
+}
+const financeLib = loadFinanceHelper();
+
+// Runtime-import the actual TSX module. UI helpers are local stubs, but finance
+// arithmetic and pagination come from production code, not a test fake.
 function loadWorkspace() {
   const output = ts.transpileModule(workspaceSource, {
     compilerOptions: {
@@ -114,6 +134,7 @@ function loadWorkspace() {
     "react/jsx-runtime": { jsx, jsxs: jsx, Fragment: Symbol.for("react.fragment") },
     "next/link": { __esModule: true, default: function Link() {} },
     "@/lib/os/data": { run: async (query) => await query },
+    ...(financeLib ? { "@/lib/sales/client-finance": financeLib } : {}),
     "@/lib/i18n": { pick: (_lang, es) => es, formatDate: () => "2026-11-03" },
     "@/lib/sales/domain": {
       money: (_lang, amount, currency) =>
@@ -158,8 +179,26 @@ function financialStatNodes(node, found = []) {
 async function renderFixture(saleRows, costRows) {
   const sales = saleRows.slice(0, parentSaleLimit());
   const render = loadWorkspace();
+  let finance;
+  if (financeLib) {
+    // A new helper alone is not a fix: the real parent must fetch the complete
+    // ledger AND pass that finance result to ClientWorkspace. Fail closed otherwise.
+    assert.match(pageSource, /loadAllRows/, "Parent must read paginated finance rows");
+    assert.match(pageSource, /crm_client_costs/, "Parent must include the expense ledger");
+    assert.match(pageSource, /finance=\{finance\}/, "Parent must pass the complete summary to its child");
+    const pager = rows => (from, to) => Promise.resolve({
+      data: rows.slice(from, to + 1), error: null, count: rows.length,
+    });
+    finance = financeLib.summarizeClientFinance({
+      sales: await financeLib.loadAllRows(pager(saleRows)),
+      costs: await financeLib.loadAllRows(pager(costRows)),
+    });
+    assert.equal(finance.salesRead, saleRows.length, "No sale may be silently skipped");
+    assert.equal(finance.costsRead, costRows.length, "No cost may be silently skipped");
+  }
   const tree = await render({
     clientId, lang: "es", sales, supabase: syntheticDb(costRows),
+    ...(finance ? { finance, financeAllowed: true, demo: false } : {}),
   });
   return { stats: financialStatNodes(tree), all: textOf(tree), usedSales: sales.length };
 }
