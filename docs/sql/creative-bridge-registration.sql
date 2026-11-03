@@ -219,7 +219,7 @@ begin
       raise exception 'lead identity mismatch' using errcode = '22023';
     end if;
   else
-    select count(*), min(id) into v_match_count, v_lead_id
+    select count(*), min(id::text)::uuid into v_match_count, v_lead_id
       from public.crm_leads
       where not archived and lower(btrim(company)) = lower(btrim(p_company_name));
     if v_match_count > 1 then
@@ -243,7 +243,7 @@ begin
   -- A paying client without an origin lead must also see this product in
   -- Client 360 / Sales. Match exact normalized legal/trade name, never fuzzy.
   -- An ambiguous client name is a conflict, never an arbitrary attachment.
-  select count(*), min(id) into v_client_count, v_client_id
+  select count(*), min(id::text)::uuid into v_client_count, v_client_id
     from public.crm_clients
     where status <> 'archived' and (
       lower(regexp_replace(btrim(legal_name), '[[:space:]]+', ' ', 'g')) =
