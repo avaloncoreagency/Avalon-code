@@ -108,6 +108,9 @@ test("database proposal restricts writes to a separately allowlisted machine ide
   assert.match(sql, /pg_advisory_xact_lock/g);
   assert.match(sql, /v_daily_count >= 30/);
   assert.match(sql, /from public\.crm_leads/);
+  assert.match(sql, /from public\.crm_clients/);
+  assert.match(sql, /created_by, client_id/);
+  assert.match(sql, /ambiguous client identity/);
   assert.match(sql, /insert into public\.os_projects/);
   assert.doesNotMatch(sql, /insert into public\.crm_sales|insert into public\.crm_payments/);
 });
