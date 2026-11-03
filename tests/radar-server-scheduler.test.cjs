@@ -67,6 +67,13 @@ test("native Deno HTTPS adapter parses bounded HTTP/1.1 and chunked responses", 
   assert.equal(safety.isPublicAddress("169.254.169.254"), false);
   assert.equal(safety.robotsAllows("User-agent: *\nDisallow: /private", "/private/records"), false);
   assert.throws(() => safety.parseHttpResponse(response, 4), e => e.code === "oversize");
+  const framed = enc.encode("HTTP/1.1 200 OK\r\nContent-Length: 5\r\nContent-Type: text/html\r\n\r\nhello");
+  assert.equal(safety.parseHttpResponse(framed, 20, true).text, "hello");
+  const unframed = enc.encode("HTTP/1.1 200 OK\r\nContent-Type: text/html\r\n\r\nhello");
+  assert.throws(() => safety.parseHttpResponse(unframed, 20, true), e => e.code === "truncated");
+  const missingRobots = enc.encode("HTTP/1.1 404 Not Found\r\nConnection: close\r\n\r\n");
+  assert.equal(safety.parseHttpResponse(missingRobots, 20, true).status, 404);
+  assert.match(source, /cause\.name === "UnexpectedEof"/);
   const compressed = enc.encode("HTTP/1.1 200 OK\r\nContent-Encoding: gzip\r\n\r\nabc");
   assert.throws(() => safety.parseHttpResponse(compressed, 20), e => e.code === "encoding");
   const malformed = enc.encode("HTTP/1.1 200 OK\r\nTransfer-Encoding: chunked\r\n\r\nabc\r\nbad\r\n");
