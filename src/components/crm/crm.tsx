@@ -933,13 +933,18 @@ function LeadLink({ onOpen }: { onOpen: (r: Row) => void }) {
     const id = new URLSearchParams(window.location.search).get("lead");
     if (!id) return;
     const controller = new AbortController();
-    fetch(`${endpoint}?entity=leads&id=${encodeURIComponent(id)}`, {
-      signal: controller.signal,
-    })
-      .then(async (r) => {
-        const d = await r.json();
-        if (!r.ok) throw new Error(d.error);
-        const lead = d.rows?.find((l: Row) => l.id === id);
+    const fetchLead = async (archived: boolean) => {
+      const r = await fetch(`${endpoint}?entity=leads&id=${encodeURIComponent(id)}&archived=${archived}`, {
+        signal: controller.signal,
+      });
+      const d = await r.json();
+      if (!r.ok) throw new Error(d.error);
+      return d.rows?.find((l: Row) => l.id === id) as Row | undefined;
+    };
+    fetchLead(false)
+      .then(async (lead) => lead || await fetchLead(true))
+      .then((lead) => {
+        if (controller.signal.aborted) return;
         if (lead) onOpen(lead);
         else setError("Lead no disponible en los registros autorizados.");
       })
