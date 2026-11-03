@@ -146,13 +146,13 @@ test("Geoapify geocoding drops invalid coordinates but accepts explicit zero", (
 test("Geoapify secret alias is explicit and cannot silently choose between two keys", () => {
   const code = fs.readFileSync("src/lib/crm/radar-search.ts", "utf8");
   function load(env) {
-    const module = { exports: {} };
+    const sandboxModule = { exports: {} };
     vm.runInNewContext(ts.transpileModule(code, {
       compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 },
     }).outputText, {
-      module, exports: module.exports, require: () => ({}), process: { env }, URL,
+      module: sandboxModule, exports: sandboxModule.exports, require: () => ({}), process: { env }, URL,
     });
-    return module.exports;
+    return sandboxModule.exports;
   }
   const primary = load({ AVALON_RADAR_PROVIDER: "geoapify", GEOAPIFY_API_KEY: "test-primary" });
   assert.equal(primary.geoapifyServerKey(), "test-primary");
