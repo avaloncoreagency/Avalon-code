@@ -39,9 +39,23 @@ test("dedicated worker state has private secrets and owner-only run history", { 
   ]);
   await ingest("Evidence Qualified Dental", "osm:node/worker999");
   await ingest("No Contact Synthetic", "osm:node/worker998");
+  await ingest("Autonomous Website Dental", "osm:node/worker997");
   const find = name => db.query("select id from crm_prospects where company=$1", [name]).then(x => x.rows[0].id);
   const qualified = await find("Evidence Qualified Dental");
   const dnc = await find("No Contact Synthetic");
+  const autoSite = await find("Autonomous Website Dental");
+  const report = {
+    status: "complete", identity_matched: true, warnings: [],
+    suggested_needs: [{
+      service: "website", state: "opportunity_to_improve", method: "website_review",
+      evidence_url: "https://autonomous.example.org/", confidence: "medium",
+      note: "Auditoría automática: dos omisiones técnicas observadas y comprobadas en el sitio",
+    }],
+  };
+  await db.query(
+    "insert into crm_radar_research_reports(prospect_id,website,status,report) values($1,'https://autonomous.example.org/','complete',$2::jsonb)",
+    [autoSite, JSON.stringify(report)]
+  );
 
   // Partial research cannot create a real lead.
   await db.query(
@@ -77,13 +91,24 @@ test("dedicated worker state has private secrets and owner-only run history", { 
     "reset role;",
     "grant select,update on crm_prospects to service_role;",
     "grant select,insert,update on crm_leads to service_role;",
-    "grant select on crm_prospect_needs to service_role;",
+    "grant select,insert,update on crm_prospect_needs to service_role;",
+    "grant select on crm_radar_research_reports to service_role;",
     "grant select on agency_memberships to service_role;",
     "grant select on crm_stages to service_role;",
     "grant usage on schema auth to service_role;",
     "grant execute on function auth.uid() to service_role;",
   ].join("\n"));
   await as("service_role", MIGUEL);
+  const added = (await db.query("select crm_radar_worker_record_website_need($1) as result", [autoSite])).rows[0].result;
+  assert.equal(added, true, "official-source report can create exactly one website evidence record");
+  assert.equal((await db.query("select crm_radar_worker_record_website_need($1) as result", [autoSite])).rows[0].result,
+    false, "worker cannot overwrite a previously verified opportunity");
+  const autoScore = (await db.query("select stars,confidence from crm_prospects where id=$1", [autoSite])).rows[0];
+  assert.equal(Number(autoScore.stars), 2);
+  assert.equal(autoScore.confidence, "low", "one website signal never counts as high-confidence commercial proof");
+  assert.equal((await db.query("select crm_radar_worker_convert_verified($1) as result", [autoSite])).rows[0].result,
+    null, "two-star website optimization cannot trigger premium auto pipeline conversion");
+
   const lead = (await db.query("select crm_radar_worker_convert_verified($1) as id", [qualified])).rows[0].id;
   assert.ok(lead, "a truly corroborated 4-star high-confidence lead is promoted");
   const card = (await db.query("select id,stage_id,prospect_id from crm_leads where id=$1", [lead])).rows[0];
