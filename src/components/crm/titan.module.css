@@ -200,3 +200,7 @@
 .qualifyPanel strong { font-size:14px; }
 .qualifyPanel small { color:#c0d4e8; font-size:12px; line-height:1.5; }
 .qualifyPanel button { width:100%; justify-content:center; min-height:48px; font-weight:700; }
+
+.quickManual { display:grid; gap:8px; border-top:1px solid #22d3ee38; padding-top:10px; }
+.quickManual .inline { background:#06142599; padding:10px; border-radius:11px; border:1px solid #344d67; }
+.quickManual .inline h4 { margin:0; }
