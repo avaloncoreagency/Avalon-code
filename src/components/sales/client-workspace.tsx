@@ -118,7 +118,7 @@ export async function ClientWorkspace({ supabase, clientId, lang, sales }: {
             <label className={s.field}>{pick(lang,"Tipo","Type")}<select name="kind">{kinds.map(([key,es,en])=><option key={key} value={key}>{pick(lang,es,en)}</option>)}</select></label>
             <label className={s.field}>{pick(lang,"Título","Title")}<input name="title" maxLength={160} required/></label>
           </div>
-          <label className={s.field}>{pick(lang,"Descripción","Description")}<textarea name="body" maxLength={4000} rows={3} required/></label>
+          <label className={s.field}>{pick(lang,"Descripción","Description")}<textarea name="journal_body" maxLength={4000} rows={3} required/></label>
           <button className={s.button}>{pick(lang,"Agregar registro","Add record")}</button>
         </form>
         <ol className={s.timeline}>{(journal.data??[]).map(item=><li key={item.id}>
@@ -132,7 +132,7 @@ export async function ClientWorkspace({ supabase, clientId, lang, sales }: {
               <input type="hidden" name="version" value={item.version}/>
               <label className={s.field}>{pick(lang,"Tipo","Type")}<select name="kind" defaultValue={item.kind}>{kinds.map(([key,es,en])=><option key={key} value={key}>{pick(lang,es,en)}</option>)}</select></label>
               <label className={s.field}>{pick(lang,"Título","Title")}<input name="title" defaultValue={item.title} maxLength={160} required/></label>
-              <label className={s.field}>{pick(lang,"Nota","Note")}<textarea name="body" defaultValue={item.body} maxLength={4000} rows={3} required/></label>
+              <label className={s.field}>{pick(lang,"Nota","Note")}<textarea name="journal_body" defaultValue={item.body} maxLength={4000} rows={3} required/></label>
               <button className={s.button}>{pick(lang,"Guardar nueva versión","Save new version")}</button>
             </form>
           </details>
