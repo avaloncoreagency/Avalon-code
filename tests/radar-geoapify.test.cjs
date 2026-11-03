@@ -254,3 +254,64 @@ test("campaign and area routes surface the quota and release the 30 s brake on b
  assert.match(ui, /data-testid="radar-quota"/);
  assert.match(ui, /estimación máxima/);
 });
+
+// ── Visible provider states (issue #98 priority 3): each failure says what happened and never invents data ──
+const failing = (response) => { const f = async () => { f.calls++; if (response instanceof Error) throw response; return response; }; f.calls = 0; return f; };
+const named = (name, message = name) => Object.assign(new Error(message), { name });
+const search = (fetchImpl, env = { VERCEL_ENV: "production", AVALON_GEOAPIFY_PLACES_KEY: KEY }) => loadSearch(env, fetchImpl);
+
+test("provider not configured: a clear 'provider' block, no call is attempted", async () => {
+  const f = failing(named("Error"));
+  const out = await search(f, { VERCEL_ENV: "production" }).searchAndIngest(fakeDb(), area, "manual:no-provider-1");
+  assert.equal(out.ok, false); assert.equal(out.status, 503); assert.equal(out.blocked, "provider");
+  assert.match(out.error, /Radar sin Geoapify configurado/);
+  assert.equal(f.calls, 0);
+});
+
+test("403 and 401 say the key was rejected, 429 says the quota was hit; neither retries nor leaks the key", async () => {
+  for (const status of [401, 403]) {
+    const f = failing({ ok: false, status, headers: { get: () => null }, json: async () => ({}) });
+    const out = await search(f).searchAndIngest(fakeDb(), area, "manual:forbidden-" + status);
+    assert.equal(out.ok, false); assert.equal(out.status, 503);
+    assert.match(out.error, /rechazó la clave \(401\/403\)/);
+    assert.ok(!out.error.includes(KEY));
+    assert.equal(f.calls, 1, "exactly one attempt, never an automatic retry");
+  }
+  const f429 = failing({ ok: false, status: 429, headers: { get: () => null }, json: async () => ({}) });
+  const limited = await search(f429).searchAndIngest(fakeDb(), area, "manual:limited-1");
+  assert.match(limited.error, /limitó las consultas \(429\).*No se realizan reintentos automáticos/);
+  assert.equal(f429.calls, 1);
+});
+
+test("other upstream errors report the status; nothing is persisted", async () => {
+  const f = failing({ ok: false, status: 502, headers: { get: () => null }, json: async () => ({}) });
+  const db = fakeDb();
+  const out = await search(f).searchAndIngest(db, area, "manual:upstream-1");
+  assert.match(out.error, /El proveedor respondió 502\. No se muestran resultados inventados/);
+  assert.equal(db.calls.rpc.length, 0, "no businesses saved");
+});
+
+test("timeout, network failure and malformed answer are three different visible states", async () => {
+  const dbs = [fakeDb(), fakeDb(), fakeDb()];
+  const timeout = await search(failing(named("TimeoutError", "The operation was aborted due to timeout"))).searchAndIngest(dbs[0], area, "manual:timeout-1");
+  assert.equal(timeout.status, 504);
+  assert.match(timeout.error, /no respondió a tiempo \(12 s\).*No se reintenta automáticamente/);
+  const aborted = await search(failing(named("AbortError"))).searchAndIngest(fakeDb(), area, "manual:aborted-1");
+  assert.equal(aborted.status, 504);
+  const network = await search(failing(new TypeError("fetch failed"))).searchAndIngest(dbs[1], area, "manual:network-1");
+  assert.equal(network.status, 503);
+  assert.match(network.error, /No se pudo conectar con el proveedor de búsqueda \(red\)/);
+  const badJson = await search(failing({ ok: true, status: 200, headers: { get: () => null }, json: async () => { throw new SyntaxError("Unexpected token <"); } })).searchAndIngest(dbs[2], area, "manual:badjson-1");
+  assert.equal(badJson.status, 502);
+  assert.match(badJson.error, /respuesta que no se pudo interpretar.*No se guardó nada/);
+  assert.notEqual(timeout.error, network.error);
+  assert.notEqual(network.error, badJson.error);
+  for (const db of dbs) assert.equal(db.calls.rpc.length, 0, "a failed call persists nothing");
+  for (const out of [timeout, network, badJson]) assert.ok(!out.error.includes(KEY));
+});
+
+test("providerFailure labels the licensed/community timeout with its own limit", () => {
+  const seconds = (n) => search(failing(named("Error"))).providerFailure(named("TimeoutError"), n).error;
+  assert.match(seconds(65), /\(65 s\)/);
+  assert.match(seconds(16), /\(16 s\)/);
+});

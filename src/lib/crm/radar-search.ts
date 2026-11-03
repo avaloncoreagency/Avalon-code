@@ -95,7 +95,20 @@ export async function searchAndIngest(db: SupabaseClient, area: RadarArea, runKe
     const { data, error } = await db.rpc("crm_radar_ingest", { places, run_key: runKey, campaign: campaignId });
     if (error) return { ok: false, status: 503, error: error.code === "PGRST202" ? "La migración del radar (20261102190000) no está aplicada en este entorno." : "No se pudieron guardar los resultados." };
     return { ok: true, run: data };
-  } catch {
-    return { ok: false, status: 503, error: "No se pudo consultar el mapa (tiempo agotado o red). No se muestran resultados inventados." };
+  } catch (cause) {
+    return providerFailure(cause, endpoint.provider === "geoapify" ? 12 : endpoint.licensed ? 65 : 16);
   }
+}
+
+/**
+ * Each way the provider call can fail gets its own visible state. A timeout is not a network error and neither is a
+ * malformed answer; none of them retries automatically (that would spend credits) or shows invented businesses.
+ */
+export function providerFailure(cause: unknown, timeoutSeconds: number): Extract<SearchOutcome, { ok: false }> {
+  const name = (cause as { name?: string } | null)?.name;
+  if (name === "TimeoutError" || name === "AbortError")
+    return { ok: false, status: 504, error: `El proveedor no respondió a tiempo (${timeoutSeconds} s). No se reintenta automáticamente ni se muestran resultados inventados; vuelve a intentarlo en unos minutos.` };
+  if (cause instanceof SyntaxError)
+    return { ok: false, status: 502, error: "El proveedor devolvió una respuesta que no se pudo interpretar. No se guardó nada ni se muestran resultados inventados." };
+  return { ok: false, status: 503, error: "No se pudo conectar con el proveedor de búsqueda (red). No se muestran resultados inventados." };
 }
