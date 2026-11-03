@@ -81,7 +81,10 @@ export async function publicGithubSummary(c:Config, api=new Api('https://api.git
    commits:[],migrations:[]};
 }
 export async function github(config:Config, since?:string, previous?:Github, api=new Api('https://api.github.com',config.githubToken??'')):Promise<Github> {
-  if(!config.githubToken)return publicGithubSummary(config,api);
+  if(!config.githubToken){
+    if(process.env.BRIDGE_PUBLIC_READ_DISABLED==='true')throw Error('GitHub public read disabled in isolated tests');
+    return publicGithubSummary(config,api);
+  }
   if(!/^[\w.-]+\/[\w.-]+$/.test(config.repo))throw Error('Invalid repository');
   const base=`/repos/${config.repo}`;
   const [issueRows,prs,branchRows,commitRows]=await Promise.all([api.pages(base+'/issues?state=all'+(since?'&since='+encodeURIComponent(since):'')),api.pages(base+'/pulls?state=open'),api.pages(base+'/branches'),api.pages(base+'/commits?sha='+encodeURIComponent(process.env.BRIDGE_CODE_REF??'main')+(since?'&since='+encodeURIComponent(since):''))]);
