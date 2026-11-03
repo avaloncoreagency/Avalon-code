@@ -9,16 +9,24 @@ const file = fs.readFileSync(path, "utf8");
 const js = ts.transpileModule(file, {
   compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 },
 }).outputText;
+const pureSrc = fs.readFileSync("src/lib/office/github-report.ts", "utf8");
+const pureJs = ts.transpileModule(pureSrc, {
+  compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 },
+}).outputText;
+const pure = { exports: {} };
+new Function("module", "exports", pureJs)(pure, pure.exports);
 const mod = { exports: {} };
 let owner = false;
 new Function("module", "exports", "require", js)(mod, mod.exports, id => {
+  if (id === "@/lib/office/github-report") return pure.exports;
   if (id === "next/server") return {
     NextResponse: { json: (data, opts = {}) => ({ data, status: opts.status ?? 200 }) },
   };
   if (id === "@/lib/auth/session") return { getOwnerSession: async () => owner ? { id: "synthetic-owner" } : null };
   throw new Error("unexpected_import: " + id);
 });
-const { decodePublicReport, GET } = mod.exports;
+const { GET } = mod.exports;
+const { decodePublicReport } = pure.exports;
 const when = new Date("2026-11-03T20:00:00.000Z");
 const pulls = [{ number: 10, title: "CRM ventas", state: "open", draft: true }];
 const runs = [{ id: 121, status: "completed", conclusion: "success" }];
