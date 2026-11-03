@@ -13,7 +13,8 @@ const mod = new Module(filename, module);
 mod.filename = filename;
 mod._compile(compiled, filename);
 const { visibleDays, isCalendarDay, moveDay, moveMonth, dayInZone, eventOnDay, hourInZone,
-  CALENDAR_COLORS, BANNER_THEMES, EVENT_KINDS, leadCardHref, linkedLeadName } = mod.exports;
+  CALENDAR_COLORS, BANNER_THEMES, EVENT_KINDS, EVENT_KIND_COLORS, EVENT_KIND_ICONS,
+  colorForEventKind, matchesCalendarFilters, leadCardHref, linkedLeadName } = mod.exports;
 
 test("calendar offers correct month, week and day views including leap years", () => {
   const month = visibleDays("2028-02-17", "month");
@@ -126,4 +127,47 @@ test("the lead card shows saved contact, pipeline stage, follow-up and history",
   assert.match(ui, /fetchLead\(false\)/);
   assert.match(ui, /fetchLead\(true\)/, "historical calendar links should still open archived leads");
   assert.match(ui, /entity=leads&id=/);
+});
+
+
+test("calendar event types have distinct, safe color presets and readable symbols", () => {
+  assert.deepEqual(Object.keys(EVENT_KIND_COLORS).sort(), [...EVENT_KINDS].sort());
+  assert.deepEqual(Object.keys(EVENT_KIND_ICONS).sort(), [...EVENT_KINDS].sort());
+  for (const kind of EVENT_KINDS) {
+    assert.ok(CALENDAR_COLORS.includes(colorForEventKind(kind)), "invalid color for " + kind);
+    assert.equal(colorForEventKind(kind), EVENT_KIND_COLORS[kind]);
+    assert.ok(EVENT_KIND_ICONS[kind]?.length > 0, "missing visual symbol for " + kind);
+  }
+  assert.equal(colorForEventKind("other"), CALENDAR_COLORS[0]);
+  assert.notEqual(colorForEventKind("meeting"), colorForEventKind("appointment"));
+  assert.notEqual(colorForEventKind("call"), colorForEventKind("follow-up"));
+});
+
+test("type filters honor owner and attendee, and never display cancelled meetings", () => {
+  const e = { kind: "call", owner_id: "owner-one", attendee_ids: ["owner-two"], status: "scheduled" };
+  assert.equal(matchesCalendarFilters(e, "all", "all"), true);
+  assert.equal(matchesCalendarFilters(e, "owner-one", "call"), true);
+  assert.equal(matchesCalendarFilters(e, "owner-two", "call"), true);
+  assert.equal(matchesCalendarFilters(e, "outsider", "call"), false);
+  assert.equal(matchesCalendarFilters(e, "all", "meeting"), false);
+  assert.equal(matchesCalendarFilters(e, "all", "unsupported-type"), false);
+  assert.equal(matchesCalendarFilters({ ...e, status: "cancelled" }, "all", "call"), false);
+  assert.equal(matchesCalendarFilters({ ...e, attendee_ids: [] }, "owner-two", "call"), false);
+});
+
+test("calendar UX exposes selected dates, event-type toggles and motion preferences", () => {
+  const ui = fs.readFileSync("src/components/crm/shared-calendar.tsx", "utf8");
+  const css = fs.readFileSync("src/components/crm/shared-calendar.module.css", "utf8");
+  assert.match(ui, /role="group" aria-label=\{t\("Filtrar eventos por tipo"/);
+  assert.match(ui, /aria-pressed=\{kindFilter === kind\}/);
+  assert.match(ui, /setKindFilter\(current => current === kind \? "all" : kind\)/);
+  assert.match(ui, /aria-selected=\{day === selected\}/);
+  assert.match(ui, /aria-pressed=\{day === selected\}/);
+  assert.match(ui, /colorForEventKind\(nextKind\)/);
+  assert.match(ui, /draft\.color === colorForEventKind\(draft\.kind\)/);
+  assert.match(ui, /eventTypeIcon/);
+  assert.match(css, /@media\(prefers-reduced-motion:reduce\)/);
+  assert.match(css, /\.selectedDay\{/);
+  assert.match(css, /\.typePillActive\{/);
+  assert.match(css, /@keyframes calendarRiseIn/);
 });
