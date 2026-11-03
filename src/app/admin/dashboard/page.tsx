@@ -76,6 +76,7 @@ export default async function DashboardPage() {
           <Link className={s.heroButton} href="/admin/workspace/crm"><Icon name="crm" size={18} />{pick(lang, "Abrir CRM", "Open CRM")}</Link>
           <Link className={s.heroButton} href="/admin/workspace/crm/sales/new"><Icon name="plus" size={18} />{pick(lang, "Registrar venta", "Record sale")}</Link>
           <Link className={s.heroButton} href="/admin/workspace/crm/tasks"><Icon name="clock" size={18} />{pick(lang, "Mis tareas", "My tasks")}</Link>
+          <Link className={s.heroButton} href="/admin/workspace/crm/office"><Icon name="profile" size={18} />{pick(lang, "Oficina", "Office")}</Link>
           <Link className={s.heroButton} href="/admin/workspace/website-designer#new"><Icon name="plus" size={18} />{pick(lang, "Nuevo sitio web", "New website")}</Link>
         </div>
       </section>

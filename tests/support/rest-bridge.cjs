@@ -196,7 +196,10 @@ async function startBridge(db, { users, log = () => {} }) {
           try {
             for (const row of list) {
               const keys = Object.keys(row);
-              const r = (await db.query(`insert into public.${q(table)} (${keys.map(q).join(', ')}) values (${keys.map((_, i) => `$${i + 1}`).join(', ')}) returning id`, await Promise.all(keys.map(k => value(table, k, row[k]))))).rows[0];
+              // Upsert like PostgREST (Prefer: resolution=merge-duplicates + ?on_conflict=col): every payload column is SET.
+              const conflict = url.searchParams.get('on_conflict');
+              const upsert = conflict && /resolution=merge-duplicates/.test(prefer) ? ` on conflict (${q(conflict)}) do update set ${keys.map(k => `${q(k)} = excluded.${q(k)}`).join(', ')}` : '';
+              const r = (await db.query(`insert into public.${q(table)} (${keys.map(q).join(', ')}) values (${keys.map((_, i) => `$${i + 1}`).join(', ')})${upsert} returning *`, await Promise.all(keys.map(k => value(table, k, row[k]))))).rows[0];
               out.push(r.id);
             }
             await db.exec('commit');

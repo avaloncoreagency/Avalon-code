@@ -14,7 +14,7 @@ const MIGUEL = '00000000-0000-4000-8000-0000000000a1';
 const SAMUEL = '00000000-0000-4000-8000-0000000000b2';
 const OUTSIDER = '00000000-0000-4000-8000-0000000000c3';
 const EVIDENCE = process.env.EVIDENCE_DIR || '../evidence';
-const ROUTES = ['/admin/dashboard', '/admin/workspace/crm', '/admin/workspace/crm/calendar', '/admin/workspace/crm/settings', '/admin/workspace/crm/sales', '/admin/workspace/crm/sales/new', '/admin/workspace/crm/clients', '/admin/workspace/crm/tasks', '/admin/workspace/crm/notifications', '/admin/workspace/crm/activity'];
+const ROUTES = ['/admin/dashboard', '/admin/workspace/crm', '/admin/workspace/crm/calendar', '/admin/workspace/crm/settings', '/admin/workspace/crm/sales', '/admin/workspace/crm/sales/new', '/admin/workspace/crm/clients', '/admin/workspace/crm/tasks', '/admin/workspace/crm/notifications', '/admin/workspace/crm/activity', '/admin/workspace/crm/office'];
 
 test('Nova Restaurant through the real app: one form, three departments, no duplicates', { timeout: 240000 }, async t => {
   const db = new PGlite();
@@ -303,7 +303,7 @@ test('Nova Restaurant through the real app: one form, three departments, no dupl
   await page.reload();
   assert.equal(await page.getByLabel('Etapa de Orbit Dental Sintético').inputValue(), 'negotiation', 'drag & drop moved the lead');
   await card.getByRole('button', { name: 'Ficha', exact: true }).click();
-  const drawer = page.getByRole('dialog', { name: 'Historial de Orbit Dental Sintético' });
+  let drawer = page.getByRole('dialog', { name: 'Historial de Orbit Dental Sintético' });
   await drawer.getByText(/Movido de .* a Negociación/).first().waitFor();
   await drawer.getByLabel('Nota').fill('Cliente pidió propuesta revisada (sintético)');
   await drawer.getByRole('button', { name: 'Guardar nota' }).click();
@@ -429,6 +429,67 @@ test('Nova Restaurant through the real app: one form, three departments, no dupl
   await page.getByText('Campaña activada.').waitFor();
   assert.equal((await one("select status from crm_radar_campaigns where name='Dentistas sintéticos Miami'")).status, 'active');
   assert.match(await page.locator('#main').innerText(), /Programación automática pendiente/, 'scheduler limitation stated, not faked');
+
+  // ── Oficina: directory from memberships, profiles, private messages, tasks, AI managers (never faked) ──
+  await page.goto(origin + '/admin/workspace/crm/office');
+  await page.getByRole('heading', { name: 'Oficina', level: 1 }).waitFor();
+  const scene = page.getByRole('region', { name: 'Sede de Avalon: selecciona una estación' });
+  for (const name of ['REN', 'SHIN', 'HARU', 'SORA', 'KENJI']) await scene.getByRole('button', { name: new RegExp('^' + name + ' · manager virtual de IA · Sin conexión') }).waitFor();
+  assert.equal(await scene.getByRole('button', { name: /Propietario/ }).count(), 2, 'both owners come from agency_memberships');
+  // Own profile: edit (self-only).
+  await scene.getByRole('button', { name: /^miguel · Propietario/ }).click();
+  drawer = page.getByRole('dialog');
+  await drawer.getByLabel('Nombre visible').fill('Miguel Sintético');
+  await drawer.getByLabel('Cargo').fill('Co-fundador');
+  await drawer.getByLabel('Departamento').fill('Dirección');
+  await drawer.getByRole('button', { name: 'Guardar perfil' }).click();
+  await drawer.getByText('Perfil guardado.').waitFor();
+  assert.equal((await one(`select title from office_profiles where user_id='${MIGUEL}'`)).title, 'Co-fundador');
+  await drawer.getByRole('button', { name: 'Volver a la oficina' }).click();
+  // Samuel's profile: assign a task and send a private message linked to a real lead.
+  await scene.getByRole('button', { name: /^samuel · Propietario/ }).click();
+  drawer = page.getByRole('dialog');
+  assert.equal(await drawer.getByText('Editar mi perfil').count(), 0, 'cannot edit someone else\'s profile');
+  await drawer.getByRole('tab', { name: 'Tareas' }).click();
+  await drawer.getByLabel('Título').fill('Preparar propuesta Oficina (sintético)');
+  await drawer.getByRole('button', { name: 'Crear tarea' }).click();
+  await drawer.getByText('Tarea creada.').waitFor();
+  await drawer.getByRole('link', { name: 'Preparar propuesta Oficina (sintético)' }).waitFor();
+  assert.equal((await one(`select assignee_id from crm_tasks where title='Preparar propuesta Oficina (sintético)'`)).assignee_id, SAMUEL);
+  await drawer.getByRole('tab', { name: 'Mensajes' }).click();
+  await drawer.getByPlaceholder(/Mensaje para samuel/).fill('Revisa el lead de Orbit, por favor.');
+  await drawer.getByText('Vincular a un registro del CRM (opcional)').click();
+  await drawer.locator('select[name="ref_type"]').selectOption('lead');
+  await drawer.locator('input[name="ref_id"]').fill(leadId);
+  await drawer.getByRole('button', { name: 'Enviar' }).click();
+  await drawer.getByText('Revisa el lead de Orbit, por favor.').waitFor();
+  await drawer.getByRole('link', { name: /Lead/ }).waitFor();
+  await page.screenshot({ path: `${EVIDENCE}/office-messages.png` });
+  await drawer.getByRole('button', { name: 'Volver a la oficina' }).click();
+  // AI manager: request is registered, explicitly NOT executed; no fabricated reply.
+  await scene.getByRole('button', { name: /^REN · manager virtual de IA/ }).click();
+  drawer = page.getByRole('dialog');
+  await drawer.getByText('Manager virtual de IA · no es una persona').waitFor();
+  await drawer.getByLabel(/Solicitud para REN/).fill('REN, muéstrame lo que falta para completar Avalon.');
+  await drawer.getByRole('button', { name: 'Registrar solicitud' }).click();
+  await drawer.getByText('Agente sin conexión de ejecución. La solicitud quedó registrada, pero no se ha ejecutado.').waitFor();
+  await drawer.getByText('Registrada · sin ejecutar').waitFor();
+  const reqRow = await one("select agent, status from office_agent_requests");
+  assert.deepEqual({ ...reqRow }, { agent: 'ren', status: 'registered' });
+  await page.screenshot({ path: `${EVIDENCE}/office-manager.png` });
+  await drawer.getByRole('button', { name: 'Volver a la oficina' }).click();
+  await page.screenshot({ path: `${EVIDENCE}/office-desktop.png`, fullPage: true });
+  // Samuel (iPhone width) sees the unread message, reads it in the directory view.
+  await sam.goto(origin + '/admin/workspace/crm/office');
+  await sam.getByRole('heading', { name: 'Oficina', level: 1 }).waitFor();
+  await sam.screenshot({ path: `${EVIDENCE}/office-mobile.png`, fullPage: true });
+  await sam.getByRole('button', { name: 'Directorio' }).click();
+  await sam.getByRole('button', { name: /Abrir perfil de Miguel Sintético/ }).getByText('1 sin leer').waitFor();
+  await sam.getByRole('button', { name: /Abrir perfil de Miguel Sintético/ }).click();
+  await sam.getByRole('dialog').getByRole('tab', { name: /Mensajes/ }).click();
+  await sam.getByRole('dialog').getByText('Revisa el lead de Orbit, por favor.').waitFor();
+  await sam.screenshot({ path: `${EVIDENCE}/office-mobile-chat.png` });
+  assert.ok((await one("select read_at from office_messages")).read_at, 'opening the conversation marks it read');
 
   // ── Public website: quote request → pending Lead Hunter prospect only ──
   const visitor = await browser.newContext({ viewport: { width: 320, height: 720 } });

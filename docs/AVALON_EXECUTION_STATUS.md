@@ -111,3 +111,40 @@ until an isolated DB is chosen (owner decision).
 
 Next exact task: owner chooses (a) isolated DB for Preview and (b) map/places provider; then campaign runner
 (`/api/radar/cron` with CRON_SECRET, advisory lock, budget) and AI usage center.
+
+## 8. Lead card history (owner request, 2026-11-02; rebased on main 2026-11-03)
+
+`main` already ships a drag-and-drop `LeadBoard`; it is kept (not duplicated). Its **Ficha** opens a history
+drawer per lead: stage changes written by trigger (with time in previous stage), notes, scheduled
+activities and files (≤ 5 MB, type allowlist + signature check, 25 MB/lead, immutable, owner RLS,
+download as attachment + `nosniff` + sandbox CSP). Migration `20261102210000_pipeline_board.sql`:
+**not applied anywhere**. Evidence: `tests/pipeline-board.{test,database}.cjs`, `tests/sales.browser.cjs`.
+
+## 9. Avalon OS 2.0 — Oficina / Office (2026-11-03)
+
+Route `/admin/workspace/crm/office` (6th CRM tab; Dashboard shortcut). Owner-only (server `requireOwner`
+on the page, `getOwnerSession` on every route, same-origin check on writes).
+
+| Item | State | Evidence |
+|---|---|---|
+| 2.5D HQ scene (CSS/SVG: glass façade, skyline, meeting room, desks), light pointer parallax, reduced-motion off | done | `office-desktop.png` |
+| Directory from `agency_memberships` (all roles) via `office_directory()`; new members appear without code changes | done (isolated DB) | `tests/office.database.cjs` |
+| Profiles + photo written only by the person themselves (no invented portraits; neutral monogram otherwise) | done (isolated DB) | DB + browser |
+| Member stats from `crm_tasks` (assigned / open / overdue / completed / projects), recent activity from `crm_timeline`; definitions shown; no productivity score | done | `tests/office.test.cjs` |
+| Assign task from a profile (existing `crm_tasks`, existing RLS) | done | browser |
+| Private messages (sender/recipient-only RLS, immutable, read-once receipts, linked lead/client/sale/project/task must exist, 200/h bound); 20 s refresh, no Realtime dependency | done (isolated DB) | DB + browser (desktop → iPhone width) |
+| AI managers REN/SHIN/HARU/SORA/KENJI: profiles + request inbox; status **Sin conexión**; requests are only "registrada" or "cancelada", never "ejecutada"; no generated replies | done | DB + browser |
+| Office stats panel + filters (period, role, department, person) + 14-day completed sparkline | done | browser |
+| Higgsfield imagery (HQ panorama, area variants, manager portraits) | **awaiting owner approval** | credits read-only checked (see below) |
+| Visual expansion to Dashboard/CRM/Sales/Calendar/other modules | not started in this increment | — |
+
+Not built (honest): AI execution backend (managers cannot run anything), presence/availability source,
+push/e-mail notifications for messages, "incidents" (no incident entity exists yet).
+
+Migration `20261103100000_office.sql`: **not applied anywhere**. Until applied, the Office shows owners
+(from `crm_owner_directory`), stats and activity; profiles, photos, messages and manager requests show
+"migración pendiente".
+
+Higgsfield (checked 2026-11-03, read-only): MCP reachable from Claude Code; balance 2,000 credits, team
+plan; candidate models `soul_location` (environments) and `soul_cast` (consistent characters). Per-image
+price not exposed by the API → no generation performed, 0 credits spent.
