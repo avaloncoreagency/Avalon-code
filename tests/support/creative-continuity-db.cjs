@@ -1,0 +1,7 @@
+const fs=require('node:fs');const {PGlite}=require('@electric-sql/pglite');
+const OWNER='00000000-0000-4000-8000-0000000000a1',OTHER='00000000-0000-4000-8000-0000000000b2',OUTSIDER='00000000-0000-4000-8000-0000000000c3',MACHINE='00000000-0000-4000-8000-0000000000d4';
+async function setup(t){const db=new PGlite();t.after(()=>db.close());await db.exec(fs.readFileSync('tests/sql/00_supabase_stub.sql','utf8'));await db.exec(`insert into auth.users(id,email) values('${OWNER}','owner@example.invalid'),('${OTHER}','other@example.invalid'),('${OUTSIDER}','outsider@example.invalid'),('${MACHINE}','machine@example.invalid')`);
+for(const name of fs.readdirSync('supabase/migrations').filter(n=>n.endsWith('.sql')).sort()){await db.exec(fs.readFileSync('supabase/migrations/'+name,'utf8'));if(name.startsWith('20261102053022'))await db.exec(`insert into agency_memberships(user_id,role) values('${OWNER}','owner'),('${OTHER}','owner')`);}
+for(const segment of fs.readFileSync('docs/sql/creative-bridge-registration.sql','utf8').split(/(?=^create or replace function (?:crm_private|os_private|public)\.)/m))await db.exec(segment);
+await db.exec(fs.readFileSync('docs/sql/creative-continuity.sql','utf8'));await db.query('insert into os_private.creative_bridge_identities(user_id,owner_id,enabled,label) values($1,$2,true,$3)',[MACHINE,OWNER,'synthetic-machine']);return {db,as:id=>db.exec(`reset role;set request.jwt.claim.sub='${id}';set role authenticated`)};}
+module.exports={setup,OWNER,OTHER,OUTSIDER,MACHINE};

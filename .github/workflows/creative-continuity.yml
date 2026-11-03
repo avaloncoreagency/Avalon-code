@@ -3,10 +3,18 @@ on:
   pull_request:
     paths:
       - 'src/lib/creative-bridge/**'
+      - 'src/app/admin/creative-bridge/**'
+      - 'src/app/api/creative-bridge/projects/**'
+      - 'docs/sql/creative-continuity.sql'
       - 'schemas/creative-bridge/**'
-      - 'scripts/creative-bridge/checkpoint.cjs'
+      - 'scripts/creative-bridge/*.cjs'
       - 'scripts/creative-bridge/continuity-loader.cjs'
       - 'tests/creative-continuity*'
+      - 'tests/creative-lifecycle*'
+      - 'tests/creative-projects*'
+      - 'tests/creative-media*'
+      - 'tests/creative-projects.http.cjs'
+      - 'tests/support/creative-continuity-db.cjs'
       - '.github/workflows/creative-continuity.yml'
   workflow_dispatch:
 permissions:
@@ -31,8 +39,15 @@ jobs:
       - run: npm run lint
       - run: npm run typecheck
       - run: npm test
-      - run: node --test tests/creative-bridge.database.cjs tests/creative-continuity.database.cjs
+      - run: node --test tests/creative-bridge.database.cjs tests/creative-continuity.database.cjs tests/creative-lifecycle.database.cjs
         env:
           NODE_PATH: ./tests/qa/node_modules
+      - run: node tests/qa/node_modules/playwright/cli.js install --with-deps chromium
+      - run: npm run build
+      - name: Real administration HTTP and mobile browser on isolated PostgreSQL
+        run: node --test tests/creative-projects.http.cjs
+        env:
+          NODE_PATH: ./tests/qa/node_modules
+          CREATIVE_BROWSER: '1'
       - name: Build and actual signed HTTP route with synthetic Auth/RPC
         run: node --test tests/creative-bridge.http.cjs

@@ -1,10 +1,8 @@
 // Private-file CLI. No network, provider generation or database credentials.
-const fs=require('node:fs');const path=require('node:path');const cp=require('node:child_process');
+const fs=require('node:fs');const cp=require('node:child_process');
 const core=require('./continuity-loader.cjs')('src/lib/creative-bridge/continuity.ts');
 const [command,file,...args]=process.argv.slice(2);
-function privatePath(value){if(!value)throw Error('path');const lexical=path.resolve(value);const parent=fs.realpathSync(path.dirname(lexical));const candidate=path.join(parent,path.basename(lexical));const result=fs.existsSync(candidate)?fs.realpathSync(candidate):candidate;const root=cp.execFileSync('git',['rev-parse','--show-toplevel'],{encoding:'utf8'}).trim();if(result===root||result.startsWith(root+path.sep))throw Error('private');return result;}
-function read(value){const p=privatePath(value);if(fs.statSync(p).size>262144)throw Error('size');return JSON.parse(fs.readFileSync(p,'utf8'));}
-function atomic(p,value){const tmp=p+'.'+process.pid+'.tmp';try{fs.writeFileSync(tmp,JSON.stringify(value,null,2)+'\n',{mode:0o600,flag:'wx'});fs.renameSync(tmp,p);}finally{if(fs.existsSync(tmp))fs.unlinkSync(tmp);}}
+const {privatePath,read,atomic}=require('./private-files.cjs');
 try{
  const input=privatePath(file);let m=core.manifest(read(input));
  if(command==='validate'){console.log(JSON.stringify({valid:true,agent:m.agent,assets:m.assets.length,registration:'NOT_PERFORMED'}));}
@@ -14,6 +12,7 @@ try{
   try{
    m=core.manifest(read(input));
    if(command==='event')m=core.reconcile(m,read(args[0]));
+   else if(command==='advance'){const current=cp.execFileSync('git',['rev-parse','HEAD'],{encoding:'utf8'}).trim();if(current!==args[1])throw Error('commit');const branch=cp.execFileSync('git',['branch','--show-current'],{encoding:'utf8'}).trim();m=core.advance(m,args[0],args[1],branch,args[2]);}
    else if(command==='handoff')m=core.handoff(m,args[0],args[1],args[2]);
    else if(command==='emit-delivery'){
     const plan=core.registrationPlan(m);if(plan.status!=='ready_for_authorized_submission')throw Error('blocked');

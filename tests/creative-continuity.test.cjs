@@ -36,3 +36,8 @@ test('CLI writes private atomic checkpoints, refuses stale handoffs and does not
  const run=(...args)=>cp.spawnSync(process.execPath,['scripts/creative-bridge/checkpoint.cjs',...args],{encoding:'utf8'});
  try{const result=run('validate',p);assert.equal(result.status,0);assert.ok(!result.stdout.includes('Synthetic Dental'));assert.equal(run('handoff',p,'claude','b'.repeat(40),'Review').status,2);assert.equal(run('handoff',p,'claude',sha,'Review').status,0);assert.equal(JSON.parse(fs.readFileSync(p)).agent,'claude');assert.equal(fs.statSync(p).mode&0o777,0o600);assert.equal(fs.existsSync(p+'.lock'),false);const delivery=path.join(dir,'delivery.json');assert.equal(run('emit-delivery',p,delivery).status,0);assert.equal(run('emit-delivery',p,delivery).status,2);assert.equal(run('validate','package.json').status,2);const alias=path.join(dir,'repository');fs.symlinkSync(process.cwd(),alias,'dir');assert.equal(run('validate',path.join(alias,'tests/fixtures/creative-manifest.synthetic.json')).status,2);}finally{fs.rmSync(dir,{recursive:true,force:true});}
 });
+
+test('advancing code invalidates old CI and rejects late resource events',()=>{
+ const m=fixture(),next=c.advance(m,sha,'b'.repeat(40),'feature/resume','Run CI on new commit');assert.equal(next.ci,'UNKNOWN');assert.equal(next.head_sha,'b'.repeat(40));assert.equal(next.history[0].sha,sha);assert.throws(()=>c.advance(m,'c'.repeat(40),'b'.repeat(40),'feature/resume','Run CI'));
+ assert.throws(()=>c.reconcile(next,{id:'late',source_sha:sha,kind:'checkpoint',agent:'codex',next_action:'Old result'}));
+});

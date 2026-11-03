@@ -3,7 +3,7 @@ import Ajv from 'ajv';
 import schema from '../../../schemas/creative-bridge/manifest.schema.json';
 import {parseCreativeDelivery, type CreativeDelivery} from '../os/creative-bridge-protocol';
 export type Agent = 'codex'|'claude';
-export type Asset = {id:string;kind:'image'|'video';alt:string; state:'pending'|'generating'|'ready'|'failed'|'cancelled'; job_ref:string|null; storage_ref:string|null; sha256:string|null; reduced_motion_ref:string|null};
+export type Asset = {id:string;public_path?:string;kind:'image'|'video';alt:string; state:'pending'|'generating'|'ready'|'failed'|'cancelled'; job_ref:string|null; storage_ref:string|null; sha256:string|null; reduced_motion_ref:string|null};
 export type Manifest = {schema_version:1; task_id:string; project_ref:string; owner:'miguel'|'samuel'; agent:Agent; branch:string; head_sha:string; ci:'UNKNOWN'|'PENDING'|'PASSED'|'FAILED'; next_action:string; delivery:CreativeDelivery|null; assets:Asset[]; events:{id:string;digest:string}[]; receipt:{project_id:string;lead_id:string}|null; history:{sha:string;agent:Agent;action:string}[]};
 const validate = new Ajv({allErrors:true}).compile(schema);
 export function manifest(input:unknown):Manifest {
@@ -13,6 +13,7 @@ export function manifest(input:unknown):Manifest {
   if(!value.delivery && value.receipt)throw Error('Unassigned project cannot claim a receipt');
   if(new Set(value.assets.map(a=>a.id)).size!==value.assets.length || new Set(value.events.map(e=>e.id)).size!==value.events.length)throw Error('Duplicate identity');
   for(const asset of value.assets)if(asset.state==='ready'&&(!asset.sha256||!asset.storage_ref))throw Error('Ready asset requires durable storage and checksum');
+  for(const asset of value.assets)if(asset.public_path&&(!asset.sha256||!asset.public_path.startsWith('/creative-bridge/'+asset.sha256+'.')))throw Error('Asset path checksum mismatch');
   for(const asset of value.assets)if(asset.state==='ready'&&asset.kind==='video'&&!asset.reduced_motion_ref)throw Error('Video requires reduced-motion resource');
   return value;
 }
@@ -48,6 +49,13 @@ export function handoff(input:Manifest,to:Agent,expectedSha:string,nextAction:st
   const state=manifest(input);if(state.head_sha!==expectedSha)throw Error('Source advanced');
   if(!['codex','claude'].includes(to)||to===state.agent)throw Error('Invalid target');
   state.history.push({sha:state.head_sha,agent:state.agent,action:'handoff:'+to});state.agent=to;state.next_action=nextAction;return manifest(state);
+}
+export function advance(input:Manifest,expectedSha:string,newSha:string,branch:string,nextAction:string):Manifest {
+  const state=manifest(input);
+  if(state.head_sha!==expectedSha||!/^[a-f0-9]{40}$/.test(newSha)||newSha===expectedSha)throw Error('Invalid source advance');
+  state.history.push({sha:expectedSha,agent:state.agent,action:'advance:'+newSha});
+  state.head_sha=newSha;state.branch=branch;state.ci='UNKNOWN';state.next_action=nextAction;
+  return manifest(state);
 }
 export function overlaps(a:Manifest,b:Manifest,areasA:string[],areasB:string[]) {
   return a.task_id!==b.task_id&&areasA.some(p=>areasB.includes(p));

@@ -30,3 +30,27 @@ Asset lifecycle: pending → generating → ready/failed/cancelled; failed can b
 
 ## Gates and rollback
 No migrations, Auth, RLS, grants, users, secrets, hosted data or production changed. #87 SQL remains review-only and must be tested in isolated staging after independent review. Signed HTTP receipt, real asset import, authenticated Preview/mobile and real owner acceptance remain activation gates. CI does not prove them. Rollback this extension by reverting its new files; private checkpoints can be retained for audit. Never roll back by dropping client projects or histories. Main and other authors' branches are untouched.
+
+## Persistent lifecycle and administration (second increment)
+`/admin/creative-bridge` is an isolated owner-only page, using the existing Suite, libraries and CRM. Its POST `/api/creative-bridge/projects` accepts only four explicit operations: create unassigned draft, link existing CRM lead, persist checkpoint, link an already confirmed sale of the SAME client. UUID/role authorization is verified server-side and in PostgreSQL, Origin must match, payload is bounded, errors are generic. Direct machine and anonymous access is denied; machine registration of identified companies still uses #87. No free-text request executes code.
+
+PROPOSAL `docs/sql/creative-continuity.sql` must follow #87's registration proposal, ONLY after review and isolated testing. It adds invoker RPCs, not a second project/customer table, owner grant, machine identity or Storage service. Existing `os_projects.settings` holds the checkpoint/assets and up to 100 immutable event digests; existing version and audit triggers retain history. A 16 KB manifest bound prevents unbounded metadata. Identical event replay returns the current receipt; conflicting events, stale versions, reassignment to another lead, ambiguous client identity and cross-client sales fail. Archival is respected. Sale linkage never inserts payments, changes sale status or fabricates a purchase. The original sales flow remains responsible for pipeline transitions. Check the sale's CURRENT state in its original module; a saved reference is not a promise it will never be cancelled.
+
+All three libraries list the same `os_projects` rows; lead/company HUD and Client 360 keep their existing backlinks through `operations.client_lead_id` and `client_id`. Reusable templates need a DISTINCT source_ref per client implementation; the template/source identity is never reused to overwrite another client's association. UI lists latest 100 creative projects/active leads/confirmed sales explicitly; use the main CRM for records outside that selection. Owners can create a new lead in the existing CRM and select it afterwards. No duplicate lead is created for unassigned work.
+
+### Approved local media importer
+```
+node scripts/creative-bridge/import-asset.cjs /private/manifest.json ASSET_ID /private/approved.png --approve-public-use
+```
+This command performs a real filesystem copy ONLY for media approved for PUBLIC use. It checks file signature and 12 MB bound, hashes bytes, stores immutable content-addressed files under public/creative-bridge, atomically updates the private manifest and rejects symlink escapes, mismatched types, SVG/HTML and conflicting ready content. PNG/JPEG/WebP and MP4 containers are accepted; this is NOT a codec transcoder or malware scanner. Video requires an existing ready image fallback. Explicit approval is an operator declaration; do not import private client material. Review Git diff before committing the public file. Nothing is uploaded, generated, deployed or charged automatically.
+
+The new owner page renders approved local image paths with lazy Next Image. Video has controls, no autoplay, preload=none, image poster and CSS reduced-motion fallback. External storage references without local approved paths are displayed as metadata rather than fetched automatically. Failed resources remain visible as failed and do not break registration. Importing local bytes is tested with a synthetic PNG; real Higgsfield output requires an authorized export, which was not performed.
+
+### Advancing code safely
+```
+node scripts/creative-bridge/checkpoint.cjs advance /private/manifest.json OLD_SHA NEW_SHA 'Run CI for the new source'
+```
+The CLI requires NEW_SHA to be actual local Git HEAD and records its branch. Core refuses a stale OLD_SHA, retains history and resets CI to UNKNOWN. A late new event for the old source is rejected. Existing receipted projects retain their identity; save the new checkpoint with a fresh event ID and current DB version. Do not create a second source_ref to retry a failed save.
+
+### Verification and activation boundary
+Tests cover isolated SQL registration and complete lifecycle; actual Next HTTP and mobile browser through synthetic Auth/PostgREST + PGlite; body/Origin/owner checks; importer/CLI; and existing signed delivery HTTP. Every table/role/user in those fixtures is synthetic. No hosted SQL, credentials, owner accounts or publication was changed. Automated libraries on a deployed Avalon require independently reviewed #87 SQL, reviewed continuity RPCs, configured low-scope machine integration and a verified isolated Preview. Those are activation gates, not permissions this code can infer. Do not mark a deployment/asset ready from CI alone.
