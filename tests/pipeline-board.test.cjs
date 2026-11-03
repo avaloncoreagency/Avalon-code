@@ -30,17 +30,6 @@ test("attachments: PostgREST bytea hex decodes to the original bytes", () => {
   assert.equal(decodeBytea(null).length, 0);
 });
 
-test("pipeline board: card activity dot is green/red/gray", () => {
-  const src = fs.readFileSync("src/components/crm/pipeline-board.tsx", "utf8");
-  const body = src.slice(src.indexOf("export function activityTone"), src.indexOf("export function PipelineBoard"));
-  const fn = vm.runInNewContext("(" + ts.transpileModule(body.replace("export ", ""), { compilerOptions: { target: ts.ScriptTarget.ES2022 } }).outputText.trim().replace(/;$/, "") + ")", { Date });
-  const now = Date.parse("2026-11-02T12:00:00Z");
-  assert.equal(fn(null, false, now), "none");
-  assert.equal(fn("2026-11-01T12:00:00Z", true, now), "overdue");
-  assert.equal(fn("2026-11-03T12:00:00Z", true, now), "planned");
-  assert.equal(fn(null, true, now), "planned", "pending without date is still planned");
-});
-
 test("pipeline routes: owner session, same-origin writes, safe download headers", () => {
   for (const f of ["src/app/admin/workspace/crm/pipeline/route.ts", "src/app/admin/workspace/crm/pipeline/files/route.ts", "src/app/admin/workspace/crm/pipeline/files/[id]/route.ts"]) {
     const src = fs.readFileSync(f, "utf8");

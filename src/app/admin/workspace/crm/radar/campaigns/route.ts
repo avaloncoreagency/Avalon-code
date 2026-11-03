@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getOwnerSession } from "@/lib/auth/session";
 import { INDUSTRIES, LICENSED_MAX_RADIUS_M, PUBLIC_MAX_RADIUS_M, type IndustryId } from "@/lib/crm/radar";
 import { radarEndpoint, searchAndIngest } from "@/lib/crm/radar-search";
+import { GEOAPIFY_FREE_MAX_RADIUS_M } from "@/lib/crm/radar-geoapify";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -16,7 +17,15 @@ export async function GET() {
   if (error) return reply({ error: "La migración del radar (20261102190000) no está aplicada en este entorno." }, 503);
   const endpoint = radarEndpoint();
   // The scheduler needs a server credential that Avalon deliberately does not hold (no service-role key in app code).
-  return reply({ campaigns: data, scheduler: { available: false, reason: "Programación automática pendiente: requiere proveedor con licencia y una credencial de servidor aprobada por los propietarios. Usa «Ejecutar ahora».", licensedProvider: !("error" in endpoint) && endpoint.licensed } });
+  return reply({ campaigns: data,
+    provider: "error" in endpoint
+      ? { kind: "missing", ready: false, freeRadiusM: 5000 }
+      : { kind: endpoint.provider, ready: true,
+          freeRadiusM: endpoint.provider === "geoapify" ? GEOAPIFY_FREE_MAX_RADIUS_M : null },
+    scheduler: { available: false,
+      reason: "Programación automática pendiente: usa «Ejecutar ahora» para búsquedas humanas, con cuota protegida.",
+      licensedProvider: !("error" in endpoint) && endpoint.licensed },
+  });
 }
 
 export async function POST(request: NextRequest) {
@@ -48,7 +57,10 @@ export async function POST(request: NextRequest) {
     if (error || !c) return reply({ error: "Campaña no encontrada." }, 404);
     const endpoint = radarEndpoint();
     if ("error" in endpoint) return reply({ error: endpoint.error, blocked: "provider" }, 503);
-    if (!endpoint.licensed && c.radius_m > PUBLIC_MAX_RADIUS_M) return reply({ error: "Esta campaña supera 5 km: necesita un proveedor con licencia o propio.", blocked: "provider" }, 503);
+    if (endpoint.provider === "geoapify" && c.radius_m > GEOAPIFY_FREE_MAX_RADIUS_M)
+      return reply({ error: "Geoapify Free: la ejecución manual de campañas admite hasta 5 km.", blocked: "provider" }, 400);
+    if (!endpoint.licensed && c.radius_m > PUBLIC_MAX_RADIUS_M)
+      return reply({ error: "Esta campaña supera 5 km: necesita un proveedor con licencia o propio.", blocked: "provider" }, 503);
     // One run per campaign per hour: repeated clicks replay the same run instead of re-querying.
     const runKey = `campaign:${c.id}:${new Date().toISOString().slice(0, 13)}`;
     const out = await searchAndIngest(db, { lat: c.center_lat, lon: c.center_lon, radiusM: c.radius_m, industries: c.categories as IndustryId[], label: c.place_label }, runKey, c.id, c.max_results);

@@ -295,14 +295,14 @@ test('Nova Restaurant through the real app: one form, three departments, no dupl
   assert.equal(await page.getByLabel('Etapa de Orbit Dental Sintético').inputValue(), 'proposal', 'stage move persisted');
   const leadId = (await one("select id from crm_leads where company='Orbit Dental Sintético'")).id;
   // ── Pipedrive-style board: drag between stages, card history, note, file ──
-  const card = page.locator('li[data-lead="' + leadId + '"]');
-  const target = page.getByRole('listitem', { name: 'Etapa Negociación', exact: true });
+  const card = page.locator('article', { has: page.getByLabel('Etapa de Orbit Dental Sintético') });
+  const target = page.getByRole('region', { name: 'Negociación', exact: true });
   await target.scrollIntoViewIfNeeded();
   await card.dragTo(target, { sourcePosition: { x: 6, y: 6 }, targetPosition: { x: 40, y: 20 } });
   await page.waitForTimeout(500);
   await page.reload();
   assert.equal(await page.getByLabel('Etapa de Orbit Dental Sintético').inputValue(), 'negotiation', 'drag & drop moved the lead');
-  await page.getByRole('button', { name: 'Abrir historial de Orbit Dental Sintético' }).click();
+  await card.getByRole('button', { name: 'Ficha', exact: true }).click();
   const drawer = page.getByRole('dialog', { name: 'Historial de Orbit Dental Sintético' });
   await drawer.getByText(/Movido de .* a Negociación/).first().waitFor();
   await drawer.getByLabel('Nota').fill('Cliente pidió propuesta revisada (sintético)');
@@ -353,9 +353,57 @@ test('Nova Restaurant through the real app: one form, three departments, no dupl
   assert.ok(orbitHub.includes('Orbit Dental Sintético — CRM personalizado'), 'project visible from the client');
   // Calendar shows persisted due dates (tasks/deliveries) for everyone.
   await page.goto(origin + '/admin/workspace/crm/calendar?owner=all');
-  await page.getByRole('heading', { name: 'Vencimientos, entregas y seguimientos' }).waitFor();
+   await page.getByRole('heading', { name: 'Nuestro calendario' }).waitFor();
+   await page.getByText('Mostrar vencimientos, entregas y seguimientos del CRM').click();
+   await page.getByRole('heading', { name: 'Vencimientos, entregas y seguimientos' }).waitFor();
   assert.match(await page.locator('#main').innerText(), /Descubrimiento de procesos comerciales/, 'template task appears on the calendar');
   await page.screenshot({ path: `${EVIDENCE}/calendar.png`, fullPage: true });
+
+  // Synthetic Shared Calendar E2E: two owners, no double-booking, shared banners.
+  await page.getByRole('button', { name: '+ Crear evento' }).click();
+  const meetingForm = page.getByRole('dialog', { name: 'Crear evento' });
+  await meetingForm.locator('input[name="title"]').fill('Kickoff compartido Avalon');
+  await meetingForm.locator('input[name="start_local"]').fill('2026-11-20T14:00');
+  await meetingForm.locator('input[name="end_local"]').fill('2026-11-20T15:00');
+  await meetingForm.locator('select[name="owner_id"]').selectOption(MIGUEL);
+  await meetingForm.locator('input[name="meeting_url"]').fill('https://meet.google.com/synthetic-test');
+  await meetingForm.getByRole('button', { name: 'Guardar para ambos' }).click();
+  await page.getByText('Evento creado en el calendario compartido.').waitFor({ timeout: 12000 }).catch(async () => {
+    const alerts = await page.getByRole('alert').allTextContents();
+    const statuses = await page.getByRole('status').allTextContents();
+    const stillOpen = await page.getByRole('dialog').count();
+    const stored = await count("select count(*) n from crm_events where title='Kickoff compartido Avalon'");
+    throw new Error('Calendar save unconfirmed ' + JSON.stringify({ alerts, statuses, stillOpen, stored, bridgeErrors: errors.slice(-3) }));
+  });
+  const scheduled = await one("select owner_id,attendee_ids,meeting_url from crm_events where title='Kickoff compartido Avalon'");
+  assert.equal(scheduled.owner_id, MIGUEL);
+  assert.ok(scheduled.attendee_ids.includes(SAMUEL));
+  assert.equal(scheduled.meeting_url, 'https://meet.google.com/synthetic-test');
+  const samuelPage = await context(samuel);
+  await samuelPage.goto(origin + '/admin/workspace/crm/calendar?date=2026-11-20&view=month');
+  await samuelPage.getByRole('button', { name: 'Kickoff compartido Avalon' }).first().waitFor();
+  await samuelPage.screenshot({ path: EVIDENCE + '/calendar-shared-samuel.png', fullPage: true });
+  await samuelPage.getByRole('button', { name: '+ Crear evento' }).click();
+  const overlap = samuelPage.getByRole('dialog', { name: 'Crear evento' });
+  await overlap.locator('input[name="title"]').fill('Cita solapada');
+  await overlap.locator('input[name="start_local"]').fill('2026-11-20T14:30');
+  await overlap.locator('input[name="end_local"]').fill('2026-11-20T15:30');
+  await overlap.locator('select[name="owner_id"]').selectOption(SAMUEL);
+  await overlap.getByRole('button', { name: 'Guardar para ambos' }).click();
+  await overlap.getByRole('alert').getByText('Ya hay otra cita para uno de los participantes en ese horario.').waitFor();
+  assert.equal(await count("select count(*) n from crm_events where title='Cita solapada'"), 0);
+  await overlap.getByRole('button', { name: 'Cerrar', exact: true }).last().click();
+  await page.getByRole('button', { name: '🎉 Banner de día' }).click();
+  const bannerForm = page.getByRole('dialog', { name: 'Banner de fecha especial' });
+  await bannerForm.locator('input[name="day"]').fill('2026-11-20');
+  await bannerForm.locator('input[name="title"]').fill('Hito de Avalon');
+  await bannerForm.locator('select[name="theme"]').selectOption('rose');
+  await bannerForm.getByRole('button', { name: 'Guardar banner' }).click();
+  await page.getByText('Banner guardado y visible para Miguel y Samuel.').waitFor();
+  await samuelPage.reload();
+  await samuelPage.getByRole('button', { name: /Hito de Avalon/ }).first().waitFor();
+  assert.equal(await count("select count(*) n from crm_calendar_banners where title='Hito de Avalon'"), 1);
+
   // History of the whole journey on the client timeline.
   await page.goto(`${origin}/admin/workspace/crm/activity?client=${orbit.id}`);
   await page.getByText('lead.won', { exact: true }).first().waitFor();

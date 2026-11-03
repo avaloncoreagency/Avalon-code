@@ -1,15 +1,13 @@
 "use client";
-import { useCallback, useEffect, useMemo, useRef, useState, type DragEvent } from "react";
+import { useEffect, useRef, useState } from "react";
 import type { Row, Stage } from "@/lib/crm/domain";
-import s from "./pipeline.module.css";
+import s from "./lead-timeline.module.css";
 
 type Owner = { user_id: string; email: string };
-type Meta = { owners: Owner[]; next: Record<string, string | null> };
 type Entry = { id: string; at: string; type: "stage" | "activity" | "file"; data: Record<string, unknown> };
 const base = "/admin/workspace/crm/pipeline";
 const money = (n: unknown) => new Intl.NumberFormat("es", { style: "currency", currency: "USD", maximumFractionDigits: 0 }).format(Number(n ?? 0));
 const when = (v: unknown) => (v ? new Intl.DateTimeFormat("es", { dateStyle: "medium", timeStyle: "short" }).format(new Date(String(v))) : "—");
-const initials = (email?: string) => (email ?? "?").split("@")[0].slice(0, 2).toUpperCase();
 const duration = (sec: unknown) => {
   const n = Number(sec ?? 0);
   if (n < 3600) return `${Math.max(1, Math.round(n / 60))} min`;
@@ -19,91 +17,15 @@ const duration = (sec: unknown) => {
 const KIND_LABEL: Record<string, string> = { note: "Nota", call: "Llamada", email: "Email", whatsapp: "WhatsApp", meeting: "Reunión", task: "Tarea", system: "Sistema" };
 const kb = (n: unknown) => (Number(n) < 1024 * 1024 ? `${Math.max(1, Math.round(Number(n) / 1024))} KB` : `${(Number(n) / 1048576).toFixed(1)} MB`);
 
-/** Activity status of a card: next pending activity overdue (red), scheduled (green) or none (gray). */
-export function activityTone(due: string | null | undefined, hasPending: boolean, now = Date.now()) {
-  if (!hasPending) return "none";
-  return due && new Date(due).getTime() < now ? "overdue" : "planned";
-}
-
-export function PipelineBoard({ rows, stages, busy, onMove, onEdit, revision }: {
-  rows: Row[]; stages: Stage[]; busy: boolean; revision: number;
-  onMove: (lead: Row, stageId: string) => void; onEdit: (lead: Row) => void;
+/** Card history drawer: stage changes, notes, scheduled activities and files of one lead. */
+export function LeadTimeline({ lead, stages, revision, onClose, onEdit, onEditActivity, onChanged }: {
+  lead: Row; stages: Stage[]; revision: number; onClose: () => void; onEdit: () => void;
+  onEditActivity?: (activity: Row) => void; onChanged?: () => void;
 }) {
-  const [meta, setMeta] = useState<Meta>({ owners: [], next: {} });
-  const [over, setOver] = useState<string | null>(null);
-  const [open, setOpen] = useState<Row | null>(null);
-  const dragged = useRef<Row | null>(null);
-  const loadMeta = useCallback(() => {
-    fetch(base).then(r => (r.ok ? r.json() : null)).then(d => d && setMeta({ owners: d.owners, next: d.next })).catch(() => undefined);
+  const [owners, setOwners] = useState<Owner[]>([]);
+  useEffect(() => {
+    fetch(base).then(r => (r.ok ? r.json() : null)).then(d => d && setOwners(d.owners ?? [])).catch(() => undefined);
   }, []);
-  useEffect(loadMeta, [loadMeta, revision]);
-  const columns = useMemo(() => stages.filter(st => (st as Stage & { active?: boolean }).active !== false || rows.some(l => l.stage_id === st.id)).map(st => {
-    const leads = rows.filter(l => l.stage_id === st.id);
-    return { stage: st, leads, total: leads.reduce((t, l) => t + Number(l.value ?? 0), 0) };
-  }), [rows, stages]);
-  const drop = (e: DragEvent, stageId: string) => {
-    e.preventDefault();
-    setOver(null);
-    const lead = dragged.current;
-    dragged.current = null;
-    if (lead && lead.stage_id !== stageId && !busy) onMove(lead, stageId);
-  };
-  const current = open ? rows.find(l => l.id === open.id) ?? open : null;
-  return (
-    <div className={s.wrap}>
-      <p className={s.hint}>Arrastra una tarjeta a otra etapa o usa «Mover a» en cada tarjeta. Pulsa la tarjeta para ver su historial.</p>
-      <div className={s.board} role="list" aria-label="Pipeline de leads">
-        {columns.map(({ stage, leads, total }) => (
-          <section key={stage.id} role="listitem" aria-label={`Etapa ${stage.label}`} className={s.column} data-kind={stage.kind} data-over={over === stage.id}
-            onDragOver={e => { e.preventDefault(); e.dataTransfer.dropEffect = "move"; if (over !== stage.id) setOver(stage.id); }}
-            onDragLeave={e => { if (!e.currentTarget.contains(e.relatedTarget as Node)) setOver(null); }}
-            onDrop={e => drop(e, stage.id)}>
-            <header className={s.colHead}>
-              <h3>{stage.label}</h3>
-              <p>{money(total)} · {leads.length} {leads.length === 1 ? "lead" : "leads"}</p>
-            </header>
-            <ul className={s.cards}>
-              {leads.map(l => {
-                const id = String(l.id), owner = meta.owners.find(o => o.user_id === l.owner_id);
-                const tone = activityTone(meta.next[id], id in meta.next);
-                return (
-                  <li key={id} className={s.card} draggable={!busy} data-lead={id}
-                    onDragStart={e => { dragged.current = l; e.dataTransfer.effectAllowed = "move"; e.dataTransfer.setData("text/plain", id); }}
-                    onDragEnd={() => { dragged.current = null; setOver(null); }}>
-                    <button type="button" className={s.cardMain} onClick={() => setOpen(l)} aria-label={`Abrir historial de ${l.company}`}>
-                      <strong>{String(l.company)}</strong>
-                      {l.contact ? <small>{String(l.contact)}</small> : null}
-                    </button>
-                    <div className={s.cardFoot}>
-                      <span className={s.avatar} title={owner?.email ?? "Responsable"}>{initials(owner?.email)}</span>
-                      <span className={s.value}>{money(l.value)}</span>
-                      <span className={s.dot} data-tone={tone} role="img"
-                        aria-label={tone === "overdue" ? `Actividad vencida (${when(meta.next[id])})` : tone === "planned" ? `Próxima actividad ${when(meta.next[id])}` : "Sin actividad programada"}
-                        title={tone === "overdue" ? "Actividad vencida" : tone === "planned" ? `Próxima: ${when(meta.next[id])}` : "Sin actividad programada"} />
-                    </div>
-                    <label className={s.move}>
-                      <span>Mover a</span>
-                      <select aria-label={`Etapa de ${l.company}`} disabled={busy} value={String(l.stage_id)} onChange={e => onMove(l, e.target.value)}>
-                        {stages.map(x => <option key={x.id} value={x.id}>{x.label}</option>)}
-                      </select>
-                    </label>
-                  </li>
-                );
-              })}
-              {!leads.length && <li className={s.empty}>Suelta aquí</li>}
-            </ul>
-          </section>
-        ))}
-      </div>
-      {current && <LeadTimeline lead={current} stages={stages} owners={meta.owners} revision={revision}
-        onClose={() => setOpen(null)} onEdit={() => onEdit(current)} onChanged={loadMeta} />}
-    </div>
-  );
-}
-
-function LeadTimeline({ lead, stages, owners, revision, onClose, onEdit, onChanged }: {
-  lead: Row; stages: Stage[]; owners: Owner[]; revision: number; onClose: () => void; onEdit: () => void; onChanged: () => void;
-}) {
   const [entries, setEntries] = useState<Entry[] | null>(null);
   const [warning, setWarning] = useState(""), [error, setError] = useState(""), [ok, setOk] = useState(""), [saving, setSaving] = useState(false);
   const [tick, setTick] = useState(0), [mode, setMode] = useState<"note" | "activity" | "file">("note");
@@ -149,7 +71,7 @@ function LeadTimeline({ lead, stages, owners, revision, onClose, onEdit, onChang
       form.reset();
       setOk(mode === "file" ? "Archivo subido." : mode === "activity" ? "Actividad programada." : "Nota guardada.");
       setTick(n => n + 1);
-      onChanged();
+      onChanged?.();
     } catch (e) { setError((e as Error).message); } finally { setSaving(false); }
   }
   return (
@@ -206,7 +128,8 @@ function LeadTimeline({ lead, stages, owners, revision, onClose, onEdit, onChang
                     {e.data.note ? <span className={s.body}>{String(e.data.note)}</span> : null}</p>
                 ) : (
                   <p><strong>{KIND_LABEL[String(e.data.kind)] ?? "Nota"}{e.data.status === "pending" ? ` · pendiente para ${when(e.data.due_at)}` : ""}</strong>
-                    <span className={s.body}>{String(e.data.body)}</span></p>
+                    <span className={s.body}>{String(e.data.body)}</span>
+                    {onEditActivity && e.data.kind !== "system" ? <button type="button" className={s.inlineEdit} onClick={() => onEditActivity({ ...(e.data as Row), lead_id: String(lead.id) })}>Editar actividad</button> : null}</p>
                 )}
                 <small>{when(e.at)} · {who(e.type === "stage" ? e.data.actor_id : e.data.created_by)}</small>
               </li>
