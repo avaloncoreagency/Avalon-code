@@ -26,7 +26,7 @@ export function safeLicensedOverpassUrl(input: string): string | null {
   } catch { return null; }
 }
 
-/** PR #65 compatibility: accept either server-only Places secret, never choose
+/** Compatibility with the alternate server-only Places secret; never choose
  * between two different keys silently. A provider selector remains mandatory.
  */
 export function geoapifyServerKey(): string | null {
