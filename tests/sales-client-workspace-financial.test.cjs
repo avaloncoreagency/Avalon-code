@@ -189,3 +189,43 @@ test("KENJI: 101 sales + 201 expenses cannot masquerade as complete USD 8,000 pr
       "An incomplete state must not present the truncated balance as a full total.");
   }
 });
+
+
+// Separate the two independent query caps so HARU can prove that both were
+// addressed, not just that two omitted rows happened to cancel each other.
+// A legitimately complete 100/200 dossier MUST still be allowed to show 8000.
+test("KENJI: exactly 100 sales and 200 expenses are a complete USD 8,000 boundary", async () => {
+  const result = await renderFixture(fixtures.sales.slice(0, 100), fixtures.costs.slice(0, 200));
+  const stats = result.stats.join(" | ");
+  assert.match(stats, /Rentabilidad registrada[^|]*USD 8000\.00/,
+    "At the exact query boundaries, 100 x 100 collected - 200 x 10 expensed = USD 8000; rendered: " + stats);
+});
+
+async function assertCompleteOrMarkedPartial(saleRows, costRows, expectedAmount, truncatedAmount) {
+  const result = await renderFixture(saleRows, costRows);
+  const stats = result.stats.join(" | ");
+  if (/Rentabilidad registrada|Recorded profitability/i.test(stats)) {
+    assert.ok(stats.includes("USD " + expectedAmount),
+      "Do not label truncated pages as a full profit. Expected USD " + expectedAmount +
+      ", got " + stats + "; parent supplied " + result.usedSales + "/" + saleRows.length + " sales.");
+    assert.ok(!stats.includes("USD " + truncatedAmount),
+      "Truncated USD " + truncatedAmount + " must not be labeled as full profitability.");
+  } else {
+    assert.match(result.all, /parcial|incomplet|partial|incomplete|no disponible|unavailable/i,
+      "If there is no reliable full profit, the UI must clearly indicate it is incomplete.");
+    assert.ok(!stats.includes("USD " + truncatedAmount),
+      "Even an incomplete view must not present the truncated balance as full.");
+  }
+}
+
+test("KENJI: the 101st sale alone must not be silently omitted from total profit", async () => {
+  // 101 paid sales x USD 100 - 200 costs x USD 10 = USD 8,100.
+  // The pre-fix parent .limit(100) incorrectly renders USD 8,000.
+  await assertCompleteOrMarkedPartial(fixtures.sales, fixtures.costs.slice(0, 200), "8100.00", "8000.00");
+});
+
+test("KENJI: the 201st expense alone must not be silently omitted from total profit", async () => {
+  // 100 paid sales x USD 100 - 201 costs x USD 10 = USD 7,990.
+  // The pre-fix workspace .limit(200) incorrectly renders USD 8,000.
+  await assertCompleteOrMarkedPartial(fixtures.sales.slice(0, 100), fixtures.costs, "7990.00", "8000.00");
+});
