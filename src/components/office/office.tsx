@@ -8,7 +8,7 @@ import s from "./office.module.css";
 type Stats = { assigned: number; open: number; overdue: number; done: number; projects: number };
 type Member = {
   user_id: string; role: string; email: string; joined_at: string | null; display_name: string; title: string; department: string;
-  bio: string; specialties: string[]; has_photo: boolean; profile_updated_at: string | null; stats: Stats; lastActivity: string | null; unread: number;
+  bio: string; specialties: string[]; has_photo: boolean; profile_updated_at: string | null; availability?: {timezone:string;weekly_hours: Record<string,string[]>} | null; timeOff?: {starts_on:string;ends_on:string;reason:string}[]; stats: Stats; lastActivity: string | null; unread: number;
 };
 type Manager = { key: string; name: string; hue: number; role: { es: string; en: string }; modules: { es: string; en: string }[];
   station: { x: number; y: number }; examples: { es: string; en: string }; status: string; registered: number };
@@ -354,7 +354,15 @@ function MemberPanel({ member, data, lang, when, onClose, onChanged }: { member:
           <dl className={s.facts}>
             <dt>{t("Correo", "Email")}</dt><dd>{member.email}</dd>
             <dt>{t("Permisos", "Access")}</dt><dd>{t(...ROLE[member.role] ?? [member.role, member.role])} · {member.role === "owner" ? t("acceso completo al OS", "full OS access") : t("sin acceso a la app hasta que se habilite su rol", "no app access until their role is enabled")}</dd>
-            <dt>{t("Disponibilidad", "Availability")}</dt><dd className={s.muted}>{t("Sin fuente de presencia conectada", "No presence source connected")}</dd>
+            <dt>{t("Disponibilidad", "Availability")}</dt><dd className={s.muted}>
+              {member.availability ? <>
+                <strong>{member.availability.timezone}</strong>
+                <div>{Object.entries(member.availability.weekly_hours ?? {}).map(([day, slot]) =>
+                  <span key={day} style={{display:"inline-block",marginRight:8}}>{day.toUpperCase()}: {slot[0]}–{slot[1]}</span>)}</div>
+                {(member.timeOff ?? []).length > 0 && <p>{t("Ausencias previstas", "Planned time off")}: {(member.timeOff ?? []).map(x=>x.starts_on+" – "+x.ends_on).join("; ")}</p>}
+              </> : t("Horario aún sin configurar", "Schedule not set")}
+              {self && <p><Link href="/admin/profile#availability">{t("Editar mis horarios", "Edit my schedule")}</Link></p>}
+            </dd>
           </dl>
         </section>
         <section className={s.block}>

@@ -10,7 +10,7 @@ import s from "@/components/sales/sales.module.css";
 export const dynamic = "force-dynamic";
 
 type Notice = { id: string; severity: "urgent" | "normal"; category: string; title: string; body: string; link: string; read_at: string | null; created_at: string };
-const CATEGORY: Record<string, [string, string]> = { sales: ["Ventas", "Sales"], delivery: ["Entrega", "Delivery"], task: ["Tareas", "Tasks"], pipeline: ["Pipeline", "Pipeline"] };
+const CATEGORY: Record<string, [string, string]> = { sales: ["Ventas", "Sales"], delivery: ["Entrega", "Delivery"], task: ["Tareas", "Tasks"], pipeline: ["Pipeline", "Pipeline"], calendar: ["Calendario", "Calendar"], message: ["Mensajes", "Messages"], project: ["Proyectos", "Projects"] };
 
 export default async function NotificationsPage({ searchParams }: { searchParams: Promise<Query> }) {
   const { supabase } = await requireOwner();
@@ -35,7 +35,7 @@ export default async function NotificationsPage({ searchParams }: { searchParams
   };
   return <Suite active="crm"><div className={s.hud}>
     <OpsHeader lang={lang} active="notifications" eyebrow="CRM / Avisos" title={pick(lang, "Avisos comerciales y operativos", "Commercial and operational notices")}
-      lead={pick(lang, "Buzón del CRM: ventas, entregas, tareas y seguimientos. Los avisos técnicos de Vercel/Supabase no se mezclan aquí.", "CRM inbox: sales, delivery, tasks and follow-ups. Vercel/Supabase technical notices are not mixed in here.")}
+      lead={pick(lang, "Bandeja privada para tareas, calendario, mensajes, proyectos, ventas y seguimientos.", "Private inbox for tasks, calendar, messages, projects, sales and follow-ups.")}
       actions={<><Link className={s.button} href={all ? "?" : "?show=all"}>{all ? pick(lang, "Solo no leídos", "Unread only") : pick(lang, "Ver todos", "Show all")}</Link><form action={markRead}><button className={s.button}>{pick(lang, "Marcar todo como leído", "Mark all read")}</button></form></>} />
     <OkFlash lang={lang} code={q(p, "ok")} /><ErrorFlash lang={lang} code={q(p, "error")} />
     {notices.error ? <Unavailable lang={lang} code={notices.error} /> : <div className={s.columns}>{section("urgent", "Urgentes", "Urgent")}{section("normal", "Normales", "Normal")}</div>}
