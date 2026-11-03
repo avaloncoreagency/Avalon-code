@@ -256,13 +256,14 @@ begin
     raise exception 'ambiguous client identity' using errcode = '22023';
   end if;
 
-  v_settings := case p_module
-    when 'ecommerce' then jsonb_build_object('currency', 'USD')
-    when 'crm_creator' then jsonb_build_object('blueprint',
+  v_settings := '{}'::jsonb;
+  if p_module = 'ecommerce' then
+    v_settings := jsonb_build_object('currency', 'USD');
+  elsif p_module = 'crm_creator' then
+    v_settings := jsonb_build_object('blueprint',
       jsonb_build_object('schemaVersion', 1, 'entities', '[]'::jsonb,
-        'pipelines', '[]'::jsonb, 'roles', '[]'::jsonb))
-    else '{}'::jsonb
-  end;
+        'pipelines', '[]'::jsonb, 'roles', '[]'::jsonb));
+  end if;
   v_settings := v_settings || jsonb_build_object(
     'operations', jsonb_build_object(
       'client_lead_id', v_lead_id::text,
