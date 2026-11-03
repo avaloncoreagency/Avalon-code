@@ -251,7 +251,7 @@ begin
       or (btrim(trade_name) <> '' and
         lower(regexp_replace(btrim(trade_name), '[[:space:]]+', ' ', 'g')) =
         lower(regexp_replace(btrim(p_company_name), '[[:space:]]+', ' ', 'g'))
-    );
+    ));
   if v_client_count > 1 then
     raise exception 'ambiguous client identity' using errcode = '22023';
   end if;
