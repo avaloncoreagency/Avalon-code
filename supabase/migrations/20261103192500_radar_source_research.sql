@@ -16,7 +16,8 @@ create table public.crm_radar_research_reports (
 create index crm_radar_research_latest on public.crm_radar_research_reports (prospect_id, scanned_at desc);
 create index crm_radar_research_daily on public.crm_radar_research_reports (created_by, scanned_at desc);
 alter table public.crm_radar_research_reports enable row level security;
-revoke all on public.crm_radar_research_reports from public, anon, authenticated;
+revoke all on public.crm_radar_research_reports from anon, authenticated;
+revoke all on public.crm_radar_research_reports from public;
 grant select, insert on public.crm_radar_research_reports to authenticated;
 create policy crm_radar_research_read on public.crm_radar_research_reports
   for select to authenticated
