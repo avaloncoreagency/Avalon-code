@@ -6,7 +6,7 @@ import { qualifyRadarProspect } from "@/lib/crm/radar-qualification";
 export const dynamic = "force-dynamic";
 const reply = (data: unknown, status = 200) => NextResponse.json(data, { status, headers: { "Cache-Control": "private, no-store" } });
 const COLS = "id,company,contact,email,phone,source,industry,category,location,opportunity,status,source_kind,source_ref,lat,lon,website,license,first_seen_at,last_seen_at,do_not_contact,research_status,stars,stars_reasons,confidence,stars_override,override_reason,lead_id,owner_id,version,crm_prospect_needs(service,state,evidence_url,method,note,confidence,verified_at)";
-const VIEWS = ["all", "new", "unrated", "qualified", "approved", "pipeline", "discarded", "dnc"];
+const VIEWS = ["all", "new", "unrated", "preliminary", "qualified", "approved", "pipeline", "discarded", "dnc"];
 const SERVICES = ["website", "ecommerce", "crm", "receptionist", "marketing", "automation"];
 const STATES = ["verified_missing", "verified_present", "opportunity_to_improve", "unverified", "not_applicable"];
 const METHODS = ["call", "website_review", "public_listing", "owner_statement", "visit", "other"];
@@ -22,7 +22,8 @@ export async function GET(request: NextRequest) {
   switch (view) {
     case "new": q = q.eq("research_status", "new").eq("status", "pending").eq("do_not_contact", false); break;
     case "unrated": q = q.is("stars", null).is("stars_override", null).eq("status", "pending").eq("do_not_contact", false); break;
-    case "qualified": q = q.or("stars.not.is.null,stars_override.not.is.null").eq("status", "pending").eq("do_not_contact", false); break;
+    case "preliminary": q = q.gte("stars", 1).lte("stars", 2).is("stars_override", null).eq("status", "pending").eq("do_not_contact", false); break;
+    case "qualified": q = q.or("stars.gte.3,stars_override.not.is.null").eq("status", "pending").eq("do_not_contact", false); break;
     case "approved": q = q.eq("status", "approved"); break;
     case "pipeline": q = q.eq("status", "converted"); break;
     case "discarded": q = q.eq("status", "rejected").eq("do_not_contact", false); break;
@@ -59,7 +60,7 @@ export async function POST(request: NextRequest) {
       return reply({ ok: true, qualified: true, stars: result.stars,
         lead_id: result.leadId, created: result.created, link_warning: result.linkWarning });
     if (result.kind === "unrated")
-      return reply({ error: "Sin calificar: verifica al menos una necesidad real o registra un ajuste manual justificado antes de crear un lead.", code: "unrated" }, 422);
+      return reply({ error: "Calificación insuficiente o preliminar: investiga necesidades reales o confirma una calificación manual justificada antes de crear la tarjeta.", code: "unrated" }, 422);
     if (result.kind === "blocked") return reply({ error: result.message }, result.status);
     return reply({ error: result.message, code: result.code, saved: true }, result.status);
   };
@@ -79,8 +80,10 @@ export async function POST(request: NextRequest) {
       if (error) return fail(error);
       // Database trigger recalculates evidence-based stars; evidence entry alone
       // never finalizes a partially investigated business.
-      const { data: score } = await db.from("crm_prospects").select("stars,stars_override").eq("id", id).maybeSingle();
-      return reply({ ok: true, qualified: (score?.stars_override ?? score?.stars) != null,
+      const { data: score } = await db.from("crm_prospects").select("stars,stars_override,stars_reasons").eq("id", id).maybeSingle();
+      return reply({ ok: true, qualified: (score?.stars_override != null) ||
+        ((score?.stars != null) && !score.stars_reasons?.some((reason: string) =>
+          reason.startsWith("Precalificación automática:"))),
         stars: score?.stars_override ?? score?.stars ?? null });
     }
     case "override": {
