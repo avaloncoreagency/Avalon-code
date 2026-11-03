@@ -14,7 +14,7 @@ const MIGUEL = '00000000-0000-4000-8000-0000000000a1';
 const SAMUEL = '00000000-0000-4000-8000-0000000000b2';
 const OUTSIDER = '00000000-0000-4000-8000-0000000000c3';
 const EVIDENCE = process.env.EVIDENCE_DIR || '../evidence';
-const ROUTES = ['/admin/dashboard', '/admin/workspace/crm', '/admin/workspace/crm/calendar', '/admin/workspace/crm/settings', '/admin/workspace/crm/sales', '/admin/workspace/crm/sales/new', '/admin/workspace/crm/clients', '/admin/workspace/crm/tasks', '/admin/workspace/crm/notifications', '/admin/workspace/crm/activity'];
+const ROUTES = ['/admin/dashboard', '/admin/workspace/crm', '/admin/workspace/crm/calendar', '/admin/workspace/crm/settings', '/admin/workspace/crm/sales', '/admin/workspace/crm/sales/new', '/admin/workspace/crm/clients', '/admin/workspace/crm/tasks', '/admin/workspace/crm/notifications', '/admin/workspace/crm/activity', '/admin/service-factory'];
 
 test('Nova Restaurant through the real app: one form, three departments, no duplicates', { timeout: 240000 }, async t => {
   const db = new PGlite();
@@ -383,6 +383,53 @@ test('Nova Restaurant through the real app: one form, three departments, no dupl
   await page.getByText('Cambios guardados.').waitFor();
   assert.equal(Number((await one("select suggested_price p from crm_service_catalog where code='desarrollo-web'")).p), 2000);
   await page.screenshot({ path: `${EVIDENCE}/crm-settings.png`, fullPage: true });
+  // ── Private Service Factory: draft → review → deliberate activation ──
+  await page.goto(origin + '/admin/service-factory');
+  await page.getByRole('heading', { name: 'Fábrica de servicios' }).waitFor();
+  await page.getByText('+ Preparar nuevo servicio').click();
+  const newServiceForm = page.locator('form:has(input[name="code"]:not([readonly]))');
+  await newServiceForm.locator('input[name="code"]').fill('brand-synthetic');
+  await newServiceForm.locator('input[name="name"]').fill('Identidad Sintética');
+  await newServiceForm.locator('input[name="name_en"]').fill('Synthetic Brand Identity');
+  await newServiceForm.locator('select[name="family"]').selectOption('brand');
+  await newServiceForm.locator('select[name="department_id"]').selectOption('marketing');
+  await newServiceForm.locator('input[name="suggested_price"]').fill('1250');
+  await newServiceForm.locator('input[name="estimated_hours"]').fill('12');
+  await newServiceForm.locator('input[name="estimated_cost"]').fill('100');
+  await newServiceForm.locator('textarea[name="deliverables"]').fill('Brandbook y elementos editables');
+  await newServiceForm.locator('textarea[name="qa_checklist"]').fill('Licencias verificadas\nEntregables editables');
+  await newServiceForm.locator('textarea[name="task_template"]').fill('[{"title":"Brief","offset_days":1,"priority":"high"}]');
+  await Promise.all([
+    page.waitForURL(/service-factory\?ok=created/),
+    newServiceForm.getByRole('button', { name: 'Crear borrador' }).click(),
+  ]);
+  assert.equal((await one("select active from crm_service_catalog where code='brand-synthetic'")).active, false,
+    'new SKU cannot be sold automatically');
+  const card = () => page.locator('article').filter({ hasText: 'brand-synthetic' });
+  await card().getByText('Editar y revisar').click();
+  const edit = card().locator('form:has(input[name="code"][readonly])');
+  await edit.locator('select[name="readiness"]').selectOption('sellable');
+  await Promise.all([page.waitForURL(/service-factory\?ok=saved/), edit.getByRole('button', { name: 'Guardar ficha' }).click()]);
+  assert.equal((await one("select readiness from crm_service_catalog where code='brand-synthetic'")).readiness, 'sellable');
+  await Promise.all([
+    page.waitForURL(/service-factory\?ok=availability/),
+    card().getByRole('button', { name: 'Activar en Ventas' }).click(),
+  ]);
+  assert.equal((await one("select active from crm_service_catalog where code='brand-synthetic'")).active, true,
+    'reviewed SKU activated only by a second explicit action');
+  await page.reload();
+  await page.getByText('brand-synthetic').first().waitFor();
+  await page.goto(origin + '/admin/workspace/crm/sales/new');
+  assert.equal(await page.locator('select[name="line_0_service"] option[value="brand-synthetic"]').count(), 1,
+    'activated SKU appears in the existing sales form, without duplicating CRM');
+  await page.goto(origin + '/admin/service-factory');
+  await Promise.all([
+    page.waitForURL(/service-factory\?ok=availability/),
+    card().getByRole('button', { name: 'Pausar en Ventas' }).click(),
+  ]);
+  assert.equal((await one("select active from crm_service_catalog where code='brand-synthetic'")).active, false);
+  await page.screenshot({ path: `${EVIDENCE}/service-factory.png`, fullPage: true });
+
 
   // ── Radar campaigns: created paused, toggled, persisted (no provider call in tests) ──
   await page.route('**/tile.openstreetmap.org/**', r => r.abort());

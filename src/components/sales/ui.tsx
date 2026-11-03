@@ -16,6 +16,7 @@ const LINKS = [
   ["activity", "/admin/workspace/crm/activity", "Centro de actividad", "Activity center"],
   ["notifications", "/admin/workspace/crm/notifications", "Avisos", "Notices"],
   ["settings", "/admin/workspace/crm/settings", "Configuración", "Settings"],
+  ["factory", "/admin/service-factory", "Service Factory", "Service Factory"],
 ] as const;
 
 /** Secondary CRM access row (Clientes | Avisos | Actividad | Configuración, plus sales). */
