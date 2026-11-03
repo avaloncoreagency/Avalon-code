@@ -52,7 +52,7 @@ export function issueRefsFromBody(body:string):number[]{
  * packages from this limited snapshot. Uses only three public GET requests.
  */
 export async function publicGithubSummary(c:Config, api=new Api('https://api.github.com','')):Promise<Github>{
- if(!/^[\\w.-]+\\/[\\w.-]+$/.test(c.repo))throw Error('Invalid repository');
+ if(!/^[\w.-]+\/[\w.-]+$/.test(c.repo))throw Error('Invalid repository');
  const base=`/repos/${c.repo}`;
  const [issueRows,prs,main]=await Promise.all([
    api.pages(base+'/issues?state=open'),
