@@ -290,9 +290,13 @@ export function TitanRadar({ onChanged }: { onChanged?: () => void }) {
     setBusy(true); setError(""); setNotice("");
     try {
       const res = await fetch("/admin/workspace/crm/radar/places", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ id, ...payload }) });
-      const body = await res.json() as { error?: string; lead_id?: string };
+      const body = await res.json() as { error?: string; lead_id?: string; stars?: number | null; qualified?: boolean; created?: boolean; link_warning?: boolean };
       if (!res.ok) throw new Error(body.error ?? "No se pudo guardar");
-      setNotice(ok);
+      if (body.lead_id)
+        setNotice(`${ok} ${body.created === false ? "La tarjeta ya existía" : "Tarjeta creada automáticamente"} en Nuevo lead.${body.link_warning ? " Revisa la vinculación con el prospecto." : ""}`);
+      else if (payload.op === "need" && body.qualified)
+        setNotice(`${ok} El radar calculó ${body.stars} estrella(s). Termina la investigación y pulsa «Calificar y crear tarjeta».`);
+      else setNotice(ok);
       await load();
       onChanged?.();
     } catch (cause) { setError(cause instanceof Error ? cause.message : "No se pudo guardar"); }
@@ -306,8 +310,8 @@ export function TitanRadar({ onChanged }: { onChanged?: () => void }) {
     <section className={s.titan} aria-labelledby="titan-title">
       <header className={s.head}>
         <div><p className={s.eyebrow}>Avalon · Lead Hunter</p><h2 id="titan-title">Titan Radar</h2>
-          <p className={s.muted}>Explorar → Descubrir → Investigar → Calificar → Aprobar → Pipeline. Datos reales de OpenStreetMap; las estrellas solo nacen de evidencia verificada.</p></div>
-        <ol className={s.steps} aria-label="Recorrido">{["Explorar", "Investigar", "Calificar", "Aprobar", "Pipeline"].map((step, i) => <li key={step} data-done={i < (current ? (current.status === "converted" ? 5 : current.status === "approved" ? 4 : effective(current) ? 3 : 1) : lastSearch ? 1 : 0)}>{step}</li>)}</ol>
+          <p className={s.muted}>Explorar → Descubrir → Investigar → Calificar → Pipeline. El radar calcula estrellas con evidencia o tú puedes asignarlas justificadamente; al finalizar se crea la tarjeta en Leads Pipeline.</p></div>
+        <ol className={s.steps} aria-label="Recorrido">{["Explorar", "Investigar", "Calificar", "Pipeline"].map((step, i) => <li key={step} data-done={i < (current ? (current.status === "converted" ? 4 : effective(current) !== null ? 3 : 1) : lastSearch ? 1 : 0)}>{step}</li>)}</ol>
       </header>
 
       <form className={s.searchBar} onSubmit={geocode} role="search">
@@ -361,7 +365,7 @@ export function TitanRadar({ onChanged }: { onChanged?: () => void }) {
             <li>Abre un negocio y revisa su web, atención, CRM, marketing y e-commerce solo cuando aplique.</li>
             <li>En «Necesidades por servicio» registra lo que comprobaste, el método, una nota o URL y el nivel de confianza.</li>
             <li>La calificación calculada depende de la evidencia registrada. Puedes ajustarla manualmente solo con un motivo verificable.</li>
-            <li>Después de revisar el prospecto, apruébalo tú mismo antes de enviarlo al pipeline.</li>
+            <li>Cuando termines, pulsa «Calificar y crear tarjeta»: se aprueba y se crea automáticamente en «Nuevo lead», sin otro paso. Una calificación manual justificada también lo hace.</li>
           </ol>
           <ul className={s.ratingRules}>
             {RATING_GUIDE.map(item => <li key={String(item.stars)}>
@@ -455,16 +459,23 @@ export function TitanRadar({ onChanged }: { onChanged?: () => void }) {
         <div className={s.actions}>
           {current.phone && !current.do_not_contact && <a className={s.call} href={`tel:${current.phone.replace(/[^\d+]/g, "")}`}>☎ Llamar</a>}
           {current.website && <a className={s.research} href={current.website} target="_blank" rel="noopener noreferrer nofollow">Investigar web</a>}
-          {current.status === "pending" && !current.do_not_contact && <button type="button" className={s.approve} disabled={busy} onClick={() => act(current.id, { op: "status", action: "approve" }, `${current.company} aprobado. Ya puedes pasarlo al pipeline.`)}>✓ Aprobar</button>}
-          {current.status === "approved" && <button type="button" className={s.pipeline} disabled={busy} onClick={() => act(current.id, { op: "pipeline" }, `${current.company} está ahora en Leads Pipeline.`)}>→ Pasar al pipeline</button>}
-          {current.status === "converted" && <Link className={s.pipeline} href="/admin/workspace/crm/leads">Abrir en pipeline</Link>}
+          {current.status === "converted" && <Link className={s.pipeline} href={current.lead_id ? `/admin/workspace/crm/leads?lead=${current.lead_id}` : "/admin/workspace/crm/leads"}>Abrir tarjeta en pipeline</Link>}
           {current.status !== "converted" && current.status !== "rejected" && <button type="button" className={s.discard} disabled={busy} onClick={() => act(current.id, { op: "status", action: "discard" }, "Descartado.")}>Descartar</button>}
           {current.status === "rejected" && !current.do_not_contact && <button type="button" className={s.ghost} disabled={busy} onClick={() => act(current.id, { op: "status", action: "reopen" }, "Reabierto.")}>Reabrir</button>}
           {current.status !== "converted" && !current.do_not_contact && <button type="button" className={s.discard} disabled={busy} onClick={() => act(current.id, { op: "status", action: "dnc" }, "Marcado como No contactar.")}>No contactar</button>}
         </div>
 
         {current.status !== "converted" && <>
-          <h4>Necesidades por servicio (evidencia)</h4>
+          <div className={s.qualifyPanel} data-ready={effective(current) !== null ? "true" : "false"}>
+             <strong>Calificación actual: <span style={{ color: tierStyle(effective(current)).color }}>{tierStyle(effective(current)).label}</span></strong>
+             {effective(current) !== null && !current.do_not_contact && current.status !== "rejected"
+               ? <button type="button" className={s.pipeline} disabled={busy} onClick={() => void act(current.id, { op: "qualify" }, `${current.company}: calificación confirmada.`)}>★ Calificar y crear tarjeta en pipeline</button>
+               : <p className={s.ratingTip}>{current.do_not_contact || current.status === "rejected"
+                 ? "Negocio bloqueado o descartado: no se enviará al pipeline."
+                 : "Sin evidencia suficiente. Guarda necesidades verificadas o asigna estrellas manualmente con motivo."}</p>}
+             <small>Una tarjeta por negocio en «Nuevo lead». La oportunidad y la confianza de evidencia se muestran por separado.</small>
+           </div>
+           <h4>Necesidades por servicio (evidencia)</h4>
            <p className={s.ratingTip}>Registra lo comprobado antes de decidir las estrellas. «Sin verificar» no cuenta como una carencia.</p>
            <details className={s.sheetGuide}><summary>Ver escala de estrellas para este lead</summary>
              <ul>{RATING_GUIDE.map(item => <li key={String(item.stars)}><strong style={{ color: tierStyle(item.stars).color }}>{tierStyle(item.stars).label}:</strong> {item.rule}</li>)}</ul>
@@ -472,7 +483,7 @@ export function TitanRadar({ onChanged }: { onChanged?: () => void }) {
            </details>
           <div className={s.needs}>{SERVICES.map(([key, name]) => {
             const n = current.crm_prospect_needs.find(x => x.service === key);
-            return <form key={key} className={s.need} onSubmit={e => { e.preventDefault(); const f = new FormData(e.currentTarget);
+            return <form key={`${current.id}:${key}`} className={s.need} onSubmit={e => { e.preventDefault(); const f = new FormData(e.currentTarget);
               void act(current.id, { op: "need", service: key, state: f.get("state"), method: f.get("method"), evidence_url: f.get("evidence_url"), note: f.get("note"), confidence: f.get("confidence") }, `${name}: guardado.`); }}>
               <strong>{name}</strong>
               <select name="state" aria-label={`Estado de ${name}`} defaultValue={n?.state ?? "unverified"}>{STATES.map(([v, t]) => <option key={v} value={v}>{t}</option>)}</select>
@@ -491,12 +502,12 @@ export function TitanRadar({ onChanged }: { onChanged?: () => void }) {
             <input name="email" aria-label="Correo comercial" placeholder="Correo comercial" defaultValue={current.email ?? ""} maxLength={254} />
             <button type="submit" disabled={busy}>Guardar contacto</button>
           </form>
-          <form className={s.inline} onSubmit={e => { e.preventDefault(); const f = new FormData(e.currentTarget); const v = String(f.get("stars"));
-            void act(current.id, { op: "override", stars: v ? Number(v) : null, reason: f.get("reason") }, "Calificación ajustada (auditada)."); }}>
+          <form key={`override:${current.id}`} className={s.inline} onSubmit={e => { e.preventDefault(); const f = new FormData(e.currentTarget); const v = String(f.get("stars"));
+            void act(current.id, { op: "override", stars: v ? Number(v) : null, reason: f.get("reason") }, v ? "Calificación manual confirmada." : "Volviste al cálculo automático."); }}>
             <h4>Ajuste manual de estrellas</h4>
             <select name="stars" aria-label="Estrellas manuales" defaultValue={current.stars_override ?? ""}><option value="">Usar cálculo automático</option>{[5, 4, 3, 2, 1].map(n => <option key={n} value={n}>{"★".repeat(n)}</option>)}</select>
             <input name="reason" aria-label="Motivo del ajuste" placeholder="Motivo (mínimo 10 caracteres)" defaultValue={current.override_reason} maxLength={1000} />
-            <button type="submit" disabled={busy}>Guardar ajuste</button>
+            <button type="submit" className={s.pipeline} disabled={busy}>Calificar manualmente y crear lead</button>
           </form>
         </>}
       </aside>}
