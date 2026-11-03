@@ -13,6 +13,7 @@ on:
       - 'tests/creative-lifecycle*'
       - 'tests/creative-projects*'
       - 'tests/creative-media*'
+      - 'tests/creative-register*'
       - 'tests/creative-projects.http.cjs'
       - 'tests/support/creative-continuity-db.cjs'
       - '.github/workflows/creative-continuity.yml'
