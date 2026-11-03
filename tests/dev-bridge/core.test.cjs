@@ -49,7 +49,7 @@ test('detects CI/deployment failures, divergence, overlaps, migration drift and 
 test('resume requires unique Issue, linked PR, fresh branch and exact next action',()=>{
  const s=fixture();let pkg=b.resume(s,8,'samuel','org/repo',sha);assert.ok(validate(pkg),JSON.stringify(validate.errors));
  assert.equal(pkg.original_owner,'miguel');assert.equal(pkg.resuming_owner,'samuel');assert.match(pkg.deployment_status,/health UNKNOWN/);
- assert.throws(()=>b.resume(s,9,'samuel','org/repo',sha),/Missing issue/);
+ assert.throws(()=>b.resume(s,9,'samuel','org/repo',sha),/Missing (?:active )?issue/);
  assert.throws(()=>b.resume(s,8,'samuel','org/repo',base),/advanced/);
  s.github.data.issues[0].body='';assert.throws(()=>b.resume(s,8,'samuel','org/repo',sha),/Next action/);
  s.github.data.pulls=[];assert.throws(()=>b.resume(s,8,'samuel','org/repo',sha),/Missing linked/);
