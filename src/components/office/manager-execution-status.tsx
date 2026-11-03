@@ -19,7 +19,7 @@ export function ManagerExecutionStatus({ lang }: { lang: string }) {
   async function refresh() {
     setLoading(true);
     try {
-      const response = await fetch("/admin/workspace/crm/office/manager-work/history/api", {
+      const response = await fetch("/admin/workspace/crm/office/manager-work/github-history/api", {
         credentials: "same-origin", cache: "no-store",
       });
       if (!response.ok) throw new Error("history_unavailable");
