@@ -4,7 +4,7 @@ on:
   pull_request:
     paths: ['src/lib/dev-bridge/**', 'src/app/admin/dev-bridge/**', 'src/app/api/dev-bridge/**', 'scripts/dev-bridge/**', 'schemas/dev-bridge/**', 'tests/dev-bridge/**', 'tests/auth.integration.cjs', '.github/workflows/dev-bridge-*.yml', 'package*.json']
   push:
-    branches: [feature/avalon-dev-bridge]
+    branches: [main]
 permissions:
   contents: read
 concurrency:
