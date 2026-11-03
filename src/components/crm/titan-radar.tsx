@@ -19,6 +19,15 @@ const STATES: [string, string][] = [["unverified", "Sin verificar"], ["verified_
 const METHODS: [string, string][] = [["call", "Llamada"], ["website_review", "Revisión de su web"], ["public_listing", "Ficha pública"], ["owner_statement", "Lo dijo el negocio"], ["visit", "Visita"], ["other", "Otro"]];
 const VIEWS: [string, string][] = [["all", "Encontrados"], ["new", "Nuevos"], ["unrated", "Sin calificar"], ["qualified", "Calificados"], ["approved", "Aprobados"], ["pipeline", "En pipeline"], ["discarded", "Descartados"], ["dnc", "No contactar"]];
 const CONFIDENCE: Record<string, string> = { none: "Sin evidencia", low: "Baja", medium: "Media", high: "Alta" };
+/** Guidance only; actual automatic scores come from the verified evidence RPC. */
+const RATING_GUIDE: { stars: number | null; rule: string }[] = [
+  { stars: 5, rule: "Necesidades verificadas en prácticamente todos los servicios aplicables; propuesta integral clara." },
+  { stars: 4, rule: "Varias carencias importantes verificadas; oportunidad real de vender múltiples servicios." },
+  { stars: 3, rule: "Una o dos necesidades de alto impacto confirmadas; oferta concreta." },
+  { stars: 2, rule: "Ya usa herramientas, pero hay mejoras específicas y verificadas." },
+  { stars: 1, rule: "Sus sistemas funcionan razonablemente bien; solo oportunidad menor o futura, basada en revisión." },
+  { stars: null, rule: "Falta investigar o no hay pruebas suficientes. No asignes estrellas por ausencia de datos." },
+];
 const CUSTOM_MAP_TILE_URL = resolveRadarMapTiles(process.env.NEXT_PUBLIC_AVALON_MAP_TILES);
 const GEOAPIFY_MAP_TILE_URL = geoapifyFreeTileUrl(process.env.NEXT_PUBLIC_AVALON_GEOAPIFY_MAP_KEY);
 const MAP_TILE_URL = CUSTOM_MAP_TILE_URL ?? GEOAPIFY_MAP_TILE_URL;
@@ -190,19 +199,24 @@ export function TitanRadar({ onChanged }: { onChanged?: () => void }) {
     const mod = L.current, group = layer.current;
     if (!mod || !group) return;
     group.clearLayers();
+    let animatedMarkers = 0;
     for (const p of visible) {
       if (p.lat === null || p.lon === null) continue;
       const tier = tierStyle(effective(p));
       const kind = shape(p);
+      // Limit continuous marker animations to protect low-end mobile devices.
+      const live = sweep && animatedMarkers < 14;
+      const delay = ((animatedMarkers % 7) * 0.45).toFixed(2);
+      animatedMarkers++;
       const icon = mod.divIcon({
         className: "", iconSize: [30, 30], iconAnchor: [15, 15],
-        html: `<span class="${s.marker} ${s[kind]} ${p.id === selected ? s.markerSelected : ""}" style="--tier:${tier.color}" aria-hidden="true">${effective(p) ?? "?"}</span>`,
+        html: `<span class="${s.marker} ${s[kind]} ${live ? s.markerLive : ""} ${p.id === selected ? s.markerSelected : ""}" style="--tier:${tier.color};--blip-delay:${delay}s" aria-hidden="true">${effective(p) ?? "?"}</span>`,
       });
       const marker = mod.marker([p.lat, p.lon], { icon, title: `${p.company} · ${tier.label} · ${SHAPE_LABEL[kind]}`, keyboard: true, alt: p.company });
       marker.on("click", () => setSelected(p.id));
       group.addLayer(marker);
     }
-  }, [visible, selected, mapRevision]);
+  }, [visible, selected, mapRevision, sweep]);
 
   useEffect(() => {
     const p = places.find(x => x.id === selected);
@@ -336,6 +350,29 @@ export function TitanRadar({ onChanged }: { onChanged?: () => void }) {
       {error && <p className={s.error} role="alert">{error}</p>}
       {notice && <p className={s.ok} role="status">{notice}</p>}
 
+      <details className={s.ratingGuide} id="radar-calificacion">
+        <summary>
+          <span className={s.ratingGuideIcon} aria-hidden="true">✦</span>
+          <span className={s.ratingGuideHeading}><strong>Cómo calificar leads con estrellas</strong><small>Investiga primero · Guarda evidencia · Califica después</small></span>
+          <span className={s.ratingGuideAction}>Ver criterios</span>
+        </summary>
+        <div className={s.ratingGuideBody}>
+          <ol className={s.ratingSteps}>
+            <li>Abre un negocio y revisa su web, atención, CRM, marketing y e-commerce solo cuando aplique.</li>
+            <li>En «Necesidades por servicio» registra lo que comprobaste, el método, una nota o URL y el nivel de confianza.</li>
+            <li>La calificación calculada depende de la evidencia registrada. Puedes ajustarla manualmente solo con un motivo verificable.</li>
+            <li>Después de revisar el prospecto, apruébalo tú mismo antes de enviarlo al pipeline.</li>
+          </ol>
+          <ul className={s.ratingRules}>
+            {RATING_GUIDE.map(item => <li key={String(item.stars)}>
+              <strong style={{ color: tierStyle(item.stars).color }}>{tierStyle(item.stars).label}</strong>
+              <span>{item.rule}</span>
+            </li>)}
+          </ul>
+          <p className={s.ratingWarning}><strong>Regla de evidencia:</strong> que una ficha no muestre página web, correo o teléfono NO prueba que el negocio carezca de ellos. Las estrellas miden oportunidad; «Confianza» mide la solidez de la prueba. Son indicadores distintos.</p>
+        </div>
+      </details>
+
       <div className={s.stage}>
         <div className={s.mapWrap}>
           <div ref={mapEl} className={s.map} data-basemap={USE_GEOAPIFY_MAP ? "geoapify" : undefined} role="application" aria-label="Radar de negocios. Toca para elegir el centro de búsqueda." />
@@ -344,7 +381,15 @@ export function TitanRadar({ onChanged }: { onChanged?: () => void }) {
             <p>{tileStatus === "failed" ? "El proveedor de mapas no respondió. " : "No hay proveedor de mapas autorizado configurado. "}Los marcadores, el radio y la búsqueda siguen disponibles.</p>
             <a href={"https://www.openstreetmap.org/#map=13/" + center[0].toFixed(4) + "/" + center[1].toFixed(4)} target="_blank" rel="noopener noreferrer">Ver la zona en OpenStreetMap</a>
           </div>}
-          {sweep && <div className={s.sweep} aria-hidden="true" />}
+          {sweep && <div className={s.radarFx} data-searching={searching || undefined} aria-hidden="true">
+            <div className={s.radarDial}>
+              <div className={s.radarBeam} />
+              <div className={s.radarEcho} />
+              <div className={s.radarEchoDelayed} />
+              <div className={s.radarCrosshair} />
+            </div>
+            <span className={s.radarTelemetry}><span className={s.radarLed} />{searching ? "CONSULTANDO FUENTE" : "BARRIDO VISUAL"} · {visible.length} EN VISTA</span>
+          </div>}
           <ul className={s.legend} aria-label="Leyenda">{[5, 4, 3, 2, 1, null].map(t => <li key={String(t)}><span style={{ background: tierStyle(t).color }} />{tierStyle(t).label}</li>)}</ul>
         </div>
 
@@ -420,6 +465,11 @@ export function TitanRadar({ onChanged }: { onChanged?: () => void }) {
 
         {current.status !== "converted" && <>
           <h4>Necesidades por servicio (evidencia)</h4>
+           <p className={s.ratingTip}>Registra lo comprobado antes de decidir las estrellas. «Sin verificar» no cuenta como una carencia.</p>
+           <details className={s.sheetGuide}><summary>Ver escala de estrellas para este lead</summary>
+             <ul>{RATING_GUIDE.map(item => <li key={String(item.stars)}><strong style={{ color: tierStyle(item.stars).color }}>{tierStyle(item.stars).label}:</strong> {item.rule}</li>)}</ul>
+             <p>La confianza de cada prueba se evalúa aparte. Para un ajuste manual necesitas justificar el motivo.</p>
+           </details>
           <div className={s.needs}>{SERVICES.map(([key, name]) => {
             const n = current.crm_prospect_needs.find(x => x.service === key);
             return <form key={key} className={s.need} onSubmit={e => { e.preventDefault(); const f = new FormData(e.currentTarget);
