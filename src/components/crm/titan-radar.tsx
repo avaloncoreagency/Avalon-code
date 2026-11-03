@@ -5,6 +5,7 @@ import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent } fro
 import type { Map as LeafletMap, LayerGroup, Circle } from "leaflet";
 import { INDUSTRIES, PUBLIC_MAX_RADIUS_M, RADIUS_PRESETS_MI, tierStyle, type IndustryId } from "@/lib/crm/radar";
 import s from "./titan.module.css";
+import { RadarResearchPanel } from "./radar-research-panel";
 import { resolveRadarMapTiles, geoapifyFreeTileUrl, GEOAPIFY_FREE_TILE_ATTRIBUTION } from "@/lib/crm/radar-map-tiles";
 
 type Need = { service: string; state: string; evidence_url: string; method: string; note: string; confidence: string; verified_at: string | null };
@@ -312,7 +313,7 @@ export function TitanRadar({ onChanged }: { onChanged?: () => void }) {
     <section className={s.titan} aria-labelledby="titan-title">
       <header className={s.head}>
         <div><p className={s.eyebrow}>Avalon · Lead Hunter</p><h2 id="titan-title">Titan Radar</h2>
-          <p className={s.muted}>Explorar → Descubrir → Investigar → Calificar → Pipeline. El radar calcula estrellas con evidencia o tú puedes asignarlas justificadamente; al finalizar se crea la tarjeta en Leads Pipeline.</p></div>
+          <p className={s.muted}>Explorar → Descubrir → Investigar el sitio oficial con fuentes → Revisar evidencias → Calificar → Pipeline. El radar verifica lo observable, pero nunca inventa necesidades invisibles.</p></div>
         <ol className={s.steps} aria-label="Recorrido">{["Explorar", "Investigar", "Calificar", "Pipeline"].map((step, i) => <li key={step} data-done={i < (current ? (current.status === "converted" ? 4 : effective(current) !== null ? 3 : 1) : lastSearch ? 1 : 0)}>{step}</li>)}</ol>
       </header>
 
@@ -458,6 +459,13 @@ export function TitanRadar({ onChanged }: { onChanged?: () => void }) {
           <dt>Fuente</dt><dd>{current.source_ref} · {current.license || "—"}</dd>
           <dt>Vista por última vez</dt><dd>{current.last_seen_at ? new Date(current.last_seen_at).toLocaleString() : "—"}</dd>
         </dl>
+        {!current.do_not_contact && current.status !== "rejected" && <RadarResearchPanel
+          key={current.id}
+          prospectId={current.id}
+          businessName={current.company}
+          initialWebsite={current.website}
+          onChanged={() => { void load(); onChanged?.(); }}
+        />}
         <div className={s.actions}>
           {current.phone && !current.do_not_contact && <a className={s.call} href={`tel:${current.phone.replace(/[^\d+]/g, "")}`}>☎ Llamar</a>}
           {current.website && <a className={s.research} href={current.website} target="_blank" rel="noopener noreferrer nofollow">Investigar web</a>}
