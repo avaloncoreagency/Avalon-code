@@ -1,6 +1,7 @@
 "use client";
 import { useState, type ChangeEvent } from "react";
 import { useRouter } from "next/navigation";
+import styles from "@/app/admin/profile/staff-profile.module.css";
 
 export function MyProfilePhoto({ userId, photoHash, name }: { userId: string; photoHash: string | null; name: string }) {
   const [busy, setBusy] = useState(false);
@@ -27,15 +28,27 @@ export function MyProfilePhoto({ userId, photoHash, name }: { userId: string; ph
       setMessage(error instanceof Error ? error.message : "No se pudo guardar la foto.");
     } finally { setBusy(false); event.target.value = ""; }
   };
-  return <div style={{ display: "flex", gap: 16, alignItems: "center", flexWrap: "wrap", marginBottom: 16 }}>
-    {photoHash ? <img src={`/admin/workspace/crm/office/photo/${userId}?v=${photoHash}`} alt={name} width={78} height={78}
-      style={{ width: 78, height: 78, objectFit: "cover", borderRadius: "50%" }} /> :
-      <span aria-hidden="true" style={{ display: "grid", placeItems: "center", width: 78, height: 78, borderRadius: "50%", background: "var(--surface-2, #334155)", color: "white", fontSize: 28 }}>{name.slice(0,1).toUpperCase()}</span>}
-    <label style={{ display: "grid", gap: 5 }}>
-      <strong>Foto de perfil</strong>
-      <input type="file" accept=".png,.jpg,.jpeg,.webp" disabled={busy} onChange={upload} aria-label="Cambiar foto de perfil" />
-      <small>PNG, JPG o WEBP · máximo 700 KB</small>
-    </label>
-    {message && <span role="status">{message}</span>}
-  </div>;
+  return (
+    <div className={styles.photoRow}>
+      {photoHash ? (
+        // Private authenticated avatar route; next/image optimization cannot access its cookies.
+        // eslint-disable-next-line @next/next/no-img-element
+        <img className={styles.photoAvatar} src={`/admin/workspace/crm/office/photo/${userId}?v=${photoHash}`}
+          alt={name} width={92} height={92} />
+      ) : (
+        <span className={styles.photoAvatar} role="img" aria-label={name}>{name.slice(0,1).toUpperCase()}</span>
+      )}
+      <div className={styles.photoDetails}>
+        <strong>Tu foto de perfil</strong>
+        <small>Personaliza cómo te ve el equipo en Oficina, tareas y en la barra superior.</small>
+        <small>PNG, JPG o WEBP · máximo 700 KB</small>
+        <label className={styles.fileLabel}>
+          {busy ? "Actualizando foto…" : photoHash ? "Cambiar fotografía" : "Agregar fotografía"}
+          <input className={styles.visuallyHidden} type="file" accept=".png,.jpg,.jpeg,.webp"
+            disabled={busy} onChange={upload} aria-label="Cambiar foto de perfil"/>
+        </label>
+        {message && <span role="status">{message}</span>}
+      </div>
+    </div>
+  );
 }
