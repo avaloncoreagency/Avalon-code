@@ -23,8 +23,20 @@ type Data = {
 type Selected = { kind: "member"; id: string } | { kind: "manager"; key: string } | null;
 type Message = { id: string; sender_id: string; recipient_id: string; body: string; ref_type: string | null; ref_id: string | null; read_at: string | null; created_at: string };
 type Request = { id: string; body: string; ref_type: string | null; ref_id: string | null; status: string; created_by: string; created_at: string };
+type StaffProject = { id: string | null; name: string; module: string | null; status: string | null; client_id: string | null; client_name: string | null; work_orders: number; open_tasks: number };
 
 const API = "/admin/workspace/crm/office/api";
+const PROJECT_BASE: Record<string, string> = {
+  website: "/admin/workspace/website-designer",
+  ecommerce: "/admin/workspace/ecommerce-designer",
+  crm_creator: "/admin/workspace/crm-creator",
+  receptionist: "/admin/workspace/ai-receptionist",
+  marketing: "/admin/workspace/marketing-hub",
+};
+const projectHref = (project: StaffProject) =>
+  project.id && project.module && PROJECT_BASE[project.module]
+    ? `${PROJECT_BASE[project.module]}/${project.id}`
+    : null;
 const PERIODS = [["7", "7 días", "7 days"], ["30", "30 días", "30 days"], ["90", "90 días", "90 days"], ["all", "Todo", "All time"]] as const;
 const REFS = [["lead", "Lead", "Lead"], ["client", "Cliente", "Client"], ["sale", "Venta", "Sale"], ["project", "Proyecto", "Project"], ["task", "Tarea", "Task"]] as const;
 const ROLE: Record<string, [string, string]> = { owner: ["Propietario", "Owner"], admin: ["Administrador", "Admin"], operator: ["Operador", "Operator"] };
@@ -286,8 +298,9 @@ function RefFields({ lang }: { lang: Lang }) {
 function MemberPanel({ member, data, lang, when, onClose, onChanged }: { member: Member; data: Data; lang: Lang; when: (v: string | null) => string; onClose: () => void; onChanged: () => void }) {
   const t = (es: string, en: string) => (lang === "en" ? en : es);
   const self = member.user_id === data.me;
-  const [tab, setTab] = useState<"profile" | "tasks" | "messages">("profile");
-  const [detail, setDetail] = useState<{ activity: Activity[]; tasks: { id: string; title: string; priority: string; status: string; due_at: string | null }[] } | null>(null);
+  const [tab, setTab] = useState<"profile" | "projects" | "tasks" | "messages">("profile");
+  const [detail, setDetail] = useState<{ activity: Activity[]; tasks: { id: string; title: string; priority: string; status: string; due_at: string | null }[]; projects: StaffProject[]; projectsUnavailable?: boolean } | null>(null);
+  const [projectFilter, setProjectFilter] = useState("");
   const [ok, setOk] = useState(""), [err, setErr] = useState(""), [busy, setBusy] = useState(false);
   const [rev, setRev] = useState(0);
   useEffect(() => {
@@ -319,7 +332,7 @@ function MemberPanel({ member, data, lang, when, onClose, onChanged }: { member:
         <p className={s.sub}>{[member.title, member.department].filter(Boolean).join(" · ") || t("Cargo y departamento sin definir", "Title and department not set")}</p>
       </div></div>}>
       <div className={s.tabs} role="tablist">
-        {([["profile", t("Perfil", "Profile")], ["tasks", t("Tareas", "Tasks")], ...(!self ? [["messages", t("Mensajes", "Messages")]] : [])] as [typeof tab, string][]).map(([k, label]) =>
+        {([["profile", t("Perfil", "Profile")], ["projects", t("Proyectos", "Projects")], ["tasks", t("Tareas", "Tasks")], ...(!self ? [["messages", t("Mensajes", "Messages")]] : [])] as [typeof tab, string][]).map(([k, label]) =>
           <button key={k} type="button" role="tab" aria-selected={tab === k} onClick={() => { setTab(k); setOk(""); setErr(""); }}>{label}{k === "messages" && member.unread > 0 ? ` · ${member.unread}` : ""}</button>)}
       </div>
       {ok && <p role="status" className={s.ok}>{ok}</p>}
@@ -368,6 +381,34 @@ function MemberPanel({ member, data, lang, when, onClose, onChanged }: { member:
           </section>
         ) : <p className={s.notice}>{t("La edición de perfil y foto se activa al aplicar la migración de Oficina.", "Profile and photo editing activate once the Office migration is applied.")}</p>)}
       </>}
+
+      {tab === "projects" && (
+        <section className={s.block} aria-label={t("Proyectos asignados", "Assigned projects")}>
+          <h3>{t("Proyectos asignados", "Assigned projects")}</h3>
+          <p className={s.muted}>{t("Solo proyectos con tareas u órdenes asignadas a este miembro. Los expedientes de clientes se comparten entre perfiles autorizados.", "Only projects with tasks or work orders assigned to this member. Client records are shared across authorized profiles.")}</p>
+          <label className={s.projectFinder}>
+            {t("Finder de proyectos", "Project finder")}
+            <input type="search" value={projectFilter} onChange={e => setProjectFilter(e.target.value)} placeholder={t("Buscar por proyecto o cliente…", "Search by project or client…")} maxLength={100} />
+          </label>
+          {!detail ? <div className={`${s.skeleton} ${s.skeletonLine}`} /> : detail.projectsUnavailable ? (
+            <p role="status" className={s.notice}>{t("No se pudo cargar el listado completo de proyectos.", "Could not load the complete project list.")}</p>
+          ) : (() => {
+            const filtered = (detail.projects ?? []).filter(pr => `${pr.name} ${pr.client_name ?? ""} ${pr.module ?? ""}`.toLocaleLowerCase().includes(projectFilter.trim().toLocaleLowerCase()));
+            return filtered.length ? <ul className={s.projectList}>{filtered.map((pr, index) => (
+              <li key={pr.id ?? `client-${pr.client_id ?? index}`} className={s.projectItem}>
+                <div><strong>{pr.name}</strong><small>{[pr.client_name, pr.module, pr.status].filter(Boolean).join(" · ") || t("Proyecto vinculado", "Linked project")}</small>
+                <small>{pr.work_orders} {t("órdenes", "orders")} · {pr.open_tasks} {t("tareas abiertas", "open tasks")}</small></div>
+                <div className={s.projectLinks}>
+                  {projectHref(pr) && <Link href={projectHref(pr)!}>{t("Abrir proyecto", "Open project")}</Link>}
+                  {pr.client_id && <Link href={`/admin/workspace/crm/clients/${pr.client_id}`}>{t("Ficha del cliente", "Client record")}</Link>}
+                  {!pr.id && !pr.client_id && <span>{t("Sin vínculo", "Not linked")}</span>}
+                </div>
+              </li>
+            ))}</ul> : <p className={s.empty}>{projectFilter ? t("No hay coincidencias.", "No matches.") : t("Todavía no tiene proyectos asignados.", "No projects assigned yet.")}</p>;
+          })()}
+          <Link className={s.linkBtn} href="/admin/search">{t("Abrir Finder global", "Open global Finder")}</Link>
+        </section>
+      )}
 
       {tab === "tasks" && <>
         <section className={s.block}>
