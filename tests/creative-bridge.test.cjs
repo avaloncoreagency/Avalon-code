@@ -117,3 +117,31 @@ test("database proposal restricts writes to a separately allowlisted machine ide
   assert.match(sql, /insert into public\.os_projects/);
   assert.doesNotMatch(sql, /insert into public\.crm_sales|insert into public\.crm_payments/);
 });
+
+test("offline creative handoff validation checks exact protocol without exposing business identity",()=>{
+ const os=require("node:os"),path=require("node:path");
+ const cp=require("node:child_process");
+ const dir=fs.mkdtempSync(path.join(os.tmpdir(),"avalon-creative-preflight-"));
+ try{
+  const manifest=path.join(dir,"private.json");
+  fs.writeFileSync(manifest,JSON.stringify(handoff),{mode:0o600});
+  const run=()=>cp.spawnSync(process.execPath,["scripts/creative-bridge/validate.cjs",manifest],{
+    encoding:"utf8",timeout:15000,
+  });
+  let response=run();
+  assert.equal(response.status,0,response.stderr);
+  const result=JSON.parse(response.stdout);
+  assert.equal(result.valid,true);
+  assert.equal(result.registration,"NOT_PERFORMED");
+  assert.equal(result.asset_imported,false);
+  assert.equal(result.module,"website");
+  assert.ok(!response.stdout.includes(handoff.company_name));
+  assert.ok(!response.stdout.includes(handoff.project_url));
+  fs.writeFileSync(manifest,JSON.stringify({...handoff,module:"pricing"}));
+  response=run();
+  assert.equal(response.status,2);
+  assert.ok(!response.stderr.includes(handoff.company_name));
+  fs.writeFileSync(manifest," ".repeat(9000));
+  assert.equal(run().status,2);
+ }finally{fs.rmSync(dir,{recursive:true,force:true});}
+});
