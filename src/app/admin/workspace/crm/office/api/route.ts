@@ -116,7 +116,7 @@ export async function GET(request: NextRequest) {
     db.from("office_messages").select("sender_id").eq("recipient_id", me).is("read_at", null).limit(1000),
     db.from("office_agent_requests").select("agent").eq("status", "registered").limit(1000),
     db.from("office_availability").select("user_id,timezone,weekly_hours").limit(100),
-    db.from("office_time_off").select("user_id,starts_on,ends_on,reason").gte("ends_on",new Date().toISOString().slice(0,10)).order("starts_on").limit(100),
+    db.from("office_time_off").select("user_id,starts_on,ends_on,reason").gte("ends_on",new Date(now - 2 * 86400000).toISOString().slice(0,10)).order("starts_on").limit(100),
     db.from("crm_events").select("owner_id,attendee_ids,starts_at,ends_at,status")
       .eq("status", "scheduled").lte("starts_at",new Date(now).toISOString()).gt("ends_at",new Date(now).toISOString()).limit(300),
   ]);
