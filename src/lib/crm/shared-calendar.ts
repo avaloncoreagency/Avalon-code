@@ -5,6 +5,32 @@ export const CALENDAR_COLORS = [
 ] as const;
 export const BANNER_THEMES = ["violet", "blue", "teal", "green", "amber", "rose"] as const;
 export const EVENT_KINDS = ["meeting", "appointment", "call", "follow-up", "task", "personal"] as const;
+/** Suggested, accessible color families by type; owners may override per event. */
+export const EVENT_KIND_COLORS: Record<(typeof EVENT_KINDS)[number], (typeof CALENDAR_COLORS)[number]> = {
+  meeting: "#8b5cf6",
+  appointment: "#3b82f6",
+  call: "#06b6d4",
+  "follow-up": "#f59e0b",
+  task: "#10b981",
+  personal: "#ec4899",
+};
+export const EVENT_KIND_ICONS: Record<(typeof EVENT_KINDS)[number], string> = {
+  meeting: "◆", appointment: "◉", call: "◌", "follow-up": "↗", task: "✓", personal: "✦",
+};
+export function colorForEventKind(kind: string): (typeof CALENDAR_COLORS)[number] {
+  return EVENT_KIND_COLORS[kind as keyof typeof EVENT_KIND_COLORS] ?? CALENDAR_COLORS[0];
+}
+
+/** One reusable filter for owner, attendees and appointment type. */
+export function matchesCalendarFilters(
+  event: Pick<CalendarEvent, "status" | "kind" | "owner_id" | "attendee_ids">,
+  ownerFilter: string, kindFilter: string
+): boolean {
+  if (event.status === "cancelled") return false;
+  if (ownerFilter !== "all" && event.owner_id !== ownerFilter && !(event.attendee_ids || []).includes(ownerFilter)) return false;
+  return kindFilter === "all" || ((EVENT_KINDS as readonly string[]).includes(kindFilter) && event.kind === kindFilter);
+}
+
 export type CalendarView = "month" | "week" | "day";
 export type OwnerOption = { user_id: string; email: string };
 export type CalendarEvent = {
