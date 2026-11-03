@@ -189,7 +189,6 @@ Deno.serve(async (request: Request) => {
   if (configError || !config) return json({ error: "worker_config_unavailable" }, 503);
   const supplied = await hashToken(token);
   if (!sameHash(supplied, config.token_sha256)) return json({ error: "unauthorized" }, 401);
-  if (!config.enabled) return json({ ok: true, enabled: false, message: "worker_disabled" });
 
   let dryRun = false;
   try { dryRun = (await request.json())?.dry_run === true; } catch { /* no body */ }
@@ -201,6 +200,7 @@ Deno.serve(async (request: Request) => {
       : json({ ok: true, dry_run: true, pending_with_web: count ?? 0, max_daily: MAX_DAILY_REPORTS });
   }
 
+  if (!config.enabled) return json({ ok: true, enabled: false, message: "worker_disabled" });
   const start = new Date();
   const lease = new Date(start.getTime() + LEASE_MS).toISOString();
   const { data: locked, error: leaseError } = await db.from("crm_radar_worker_config")
