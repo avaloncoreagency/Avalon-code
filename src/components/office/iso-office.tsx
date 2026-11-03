@@ -1,5 +1,6 @@
 "use client";
-import { useCallback, useMemo, useRef, useState, type KeyboardEvent, type PointerEvent as ReactPointerEvent, type ReactNode } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type KeyboardEvent, type PointerEvent as ReactPointerEvent, type ReactNode } from "react";
+import { INITIAL_CAMERA, OFFICE_MIN_ZOOM, OFFICE_MAX_ZOOM, officeViewport, officePointerAnchor, zoomOfficeAt, panOfficeBy, type Camera } from "@/lib/office/scene-camera";
 import s from "./iso-office.module.css";
 
 /**
@@ -11,13 +12,19 @@ export type IsoPerson = {
   id: string; kind: "human" | "ai"; name: string; initials: string; subtitle: string; hue?: number;
   photo?: string | null; open: number; overdue: number; unread: number; recentMinutes: number | null; offline?: boolean;
 };
+type WorkerRun = { display_status: string; started_at: string; lease_until: string };
+type WorkerHistory = { last: Record<string, WorkerRun>; observedAt: string };
+type HistoryConnection = "checking" | "available" | "unavailable" | "not_installed";
+const HISTORY_API = "/admin/workspace/crm/office/manager-work/github-history/api";
+const MANAGER_IDS = ["ren", "shin", "haru", "sora", "kenji"] as const;
+
 type Props = {
   people: IsoPerson[]; selected: string | null; onSelect: (id: string) => void; lang: "es" | "en";
   screen: { active: number | null; overdue: number | null; done: number | null; unread: number };
 };
 
 const S = 30; // px per world unit
-const W = 24, D = 16, H = 4.6;
+const W = 28, D = 18, H = 5.2;
 const K = 1.55; // character scale relative to furniture, for legibility (Sims-like proportions) // room size (x, y) and wall height
 const COS = 0.8660254, SIN = 0.5;
 const px = (x: number, y: number, z = 0): [number, number] => [(x - y) * COS * S, (x + y) * SIN * S - z * S];
@@ -101,6 +108,7 @@ function person(p: IsoPerson, x: number, y: number, selected: boolean, onSelect:
         <ellipse cx={fx} cy={fy} rx={52} ry={26} className={s.ring} />
         <g transform={`translate(${fx0} ${fy0}) scale(${K}) translate(${-fx0} ${-fy0})`}><g className={s.body}>
           <path d={`M ${bx - 17} ${by + 18} Q ${bx - 18} ${by - 16} ${bx} ${by - 18} Q ${bx + 18} ${by - 16} ${bx + 17} ${by + 18} Z`} fill={torso} />
+          <path className={s.arm} d={`M ${bx + 12} ${by - 8} Q ${bx + 28} ${by + 1} ${bx + 25} ${by + 12}`} fill="none" stroke={p.kind === "ai" ? "#a5a5da" : "#899db6"} strokeWidth={4.5} strokeLinecap="round" />
           <path d={`M ${bx - 5} ${by - 17} L ${bx} ${by - 6} L ${bx + 5} ${by - 17}`} fill="none" stroke={p.kind === "ai" ? "#e7e2ff" : "#bba88e"} strokeWidth={1.4} />
           <circle cx={hx} cy={hy0} r={13} fill={p.kind === "ai" ? `hsl(${p.hue ?? 250} 30% 24%)` : "#1b2236"} stroke={p.kind === "ai" ? `hsl(${p.hue ?? 250} 70% 75%)` : "#bba88e"} strokeWidth={1.4} />
           {p.photo
@@ -125,41 +133,179 @@ function person(p: IsoPerson, x: number, y: number, selected: boolean, onSelect:
 }
 
 /** Seats: humans in the executive / operations rows, AI managers in the front arc. Positions are seat centres. */
-const HUMAN_SEATS: [number, number][] = [[9.6, 4.4], [13.6, 4.4], [8.0, 8.4], [12.0, 8.4], [15.6, 10.6], [4.2, 9.6], [19.6, 11.0], [22.0, 14.2]];
-const AI_SEATS: [number, number][] = [[3.4, 14.2], [7.2, 13.2], [11.2, 12.8], [15.2, 13.6], [19.0, 14.8]];
+const HUMAN_SEATS: [number, number][] = [[9.8, 4.6], [14.2, 4.6], [8.1, 9.0], [13.1, 9.0], [18.3, 11.0], [4.5, 9.8], [23.8, 11.0], [24.2, 15.4]];
+const AI_SEATS: [number, number][] = [[3.6, 16.2], [8.4, 15.2], [13.1, 14.8], [18.1, 15.1], [23.4, 16.0]];
 
 export function IsoOffice({ people, selected, onSelect, lang, screen }: Props) {
   const t = useCallback((es: string, en: string) => (lang === "en" ? en : es), [lang]);
-  const humans = people.filter(p => p.kind === "human");
-  const agents = people.filter(p => p.kind === "ai");
+  const humans = useMemo(() => people.filter(p => p.kind === "human"), [people]);
+  const agents = useMemo(() => people.filter(p => p.kind === "ai"), [people]);
+  const [workerHistory, setWorkerHistory] = useState<WorkerHistory | null>(null);
+  const [historyConnection, setHistoryConnection] = useState<HistoryConnection>("checking");
+  const [checkedAt, setCheckedAt] = useState<string | null>(null);
+
+  // Connected to the authenticated, owner-only GitHub-history endpoint introduced by PR #102.
+  // It is not available in main yet: 404 shows "pending" rather than inventing worker activity.
+  // 20 s polling only while this tab is visible; hourly GitHub reports are not continuous AI work.
+  useEffect(() => {
+    let mounted = true;
+    let missingEndpoint = false;
+    let active: AbortController | null = null;
+    const refresh = async () => {
+      if (!mounted || missingEndpoint || active || document.visibilityState !== "visible") return;
+      const controller = new AbortController();
+      active = controller;
+      try {
+        const response = await fetch(HISTORY_API, {
+          credentials: "same-origin", cache: "no-store", signal: controller.signal,
+        });
+        if (response.status === 404) {
+          missingEndpoint = true;
+          if (mounted) { setHistoryConnection("not_installed"); setWorkerHistory(null); }
+          return;
+        }
+        if (!response.ok) throw new Error("history_unavailable");
+        const payload: unknown = await response.json();
+        if (!payload || typeof payload !== "object" || !("last" in payload) || !("observedAt" in payload))
+          throw new Error("history_invalid");
+        const source = payload as { last: unknown; observedAt: unknown };
+        if (!source.last || typeof source.last !== "object" || typeof source.observedAt !== "string")
+          throw new Error("history_invalid");
+        const result: Record<string, WorkerRun> = {};
+        for (const id of MANAGER_IDS) {
+          const raw = (source.last as Record<string, unknown>)[id];
+          if (!raw || typeof raw !== "object") continue;
+          const run = raw as Partial<WorkerRun>;
+          if (typeof run.display_status !== "string" || typeof run.started_at !== "string" ||
+              typeof run.lease_until !== "string") continue;
+          if (!["running", "completed", "stalled", "stale", "failed"].includes(run.display_status)) continue;
+          result[id] = run as WorkerRun;
+        }
+        if (mounted) {
+          setWorkerHistory({ last: result, observedAt: source.observedAt });
+          setCheckedAt(new Date().toISOString());
+          setHistoryConnection("available");
+        }
+      } catch {
+        if (mounted && !controller.signal.aborted) {
+          setHistoryConnection("unavailable");
+          setWorkerHistory(null);
+        }
+      } finally {
+        if (active === controller) active = null;
+      }
+    };
+    void refresh();
+    const interval = window.setInterval(() => { void refresh(); }, 20000);
+    const onVisibility = () => { if (document.visibilityState === "visible") void refresh(); };
+    document.addEventListener("visibilitychange", onVisibility);
+    return () => {
+      mounted = false;
+      active?.abort();
+      window.clearInterval(interval);
+      document.removeEventListener("visibilitychange", onVisibility);
+    };
+  }, []);
+
+  const managerPeople = useMemo(() => agents.map(person => {
+    const code = person.id.startsWith("ai:") ? person.id.slice(3) : "";
+    const run = workerHistory?.last[code];
+    const running = run?.display_status === "running" && Date.parse(run.lease_until) > Date.now();
+    const description = !run ? person.subtitle :
+      run.display_status === "completed" ? (lang === "es" ? "Última comprobación completada" : "Last check completed") :
+      run.display_status === "running" && running ? (lang === "es" ? "Comprobación ejecutándose" : "Check running") :
+      run.display_status === "stalled" ? (lang === "es" ? "Ejecución interrumpida" : "Execution stalled") :
+      run.display_status === "failed" ? (lang === "es" ? "Comprobación fallida" : "Check failed") :
+      (lang === "es" ? "Sin actividad reciente" : "No recent activity");
+    return { ...person, subtitle: description, offline: !running };
+  }), [agents, workerHistory, lang]);
+  const activeWorkers = managerPeople.filter(p => !p.offline).length;
+  const recentChecks = MANAGER_IDS.filter(code => workerHistory?.last[code]?.display_status === "completed").length;
   const hour = new Date().getHours();
   const night = hour >= 19 || hour < 7;
 
-  const [zoom, setZoom] = useState(1);
-  const [pan, setPan] = useState<[number, number]>([0, 0]);
-  const drag = useRef<{ x: number; y: number; px: number; py: number; moved: boolean } | null>(null);
+  // Multi-pointer camera: one finger drags at zoom >1; two fingers pinch from any zoom.
+  // Only decorative animations are used; motion never implies a worker is running.
+  const [camera, setCamera] = useState<Camera>(INITIAL_CAMERA);
   const svg = useRef<SVGSVGElement>(null);
+  const activePointers = useRef(new Map<number, { x: number; y: number }>());
+  const gesture = useRef<{
+    mode: "single" | "pinch"; startCamera: Camera; x: number; y: number;
+    distance: number; anchor: { x: number; y: number }; captured: boolean;
+  } | null>(null);
+  const suppressClick = useRef(false);
 
-  // Scene bounds in screen space.
-  const minX = px(0, D)[0] - 20, maxX = px(W, 0)[0] + 20, minY = px(0, 0, H)[1] - 30, maxY = px(W, D)[1] + 30;
-  const fullW = maxX - minX, fullH = maxY - minY;
-  const vw = fullW / zoom, vh = fullH / zoom;
-  const clampPan = useCallback((x: number, y: number, z: number): [number, number] => {
-    const mx = (fullW - fullW / z) / 2, my = (fullH - fullH / z) / 2;
-    return [Math.max(-mx, Math.min(mx, x)), Math.max(-my, Math.min(my, y))];
-  }, [fullW, fullH]);
-  const viewBox = `${minX + (fullW - vw) / 2 + pan[0]} ${minY + (fullH - vh) / 2 + pan[1]} ${vw} ${vh}`;
-  const setZ = (z: number) => { const nz = Math.max(1, Math.min(2.6, z)); setZoom(nz); setPan(p => clampPan(p[0], p[1], nz)); };
+  const minX = px(0, D)[0] - 20, maxX = px(W, 0)[0] + 20;
+  const minY = px(0, 0, H)[1] - 30, maxY = px(W, D)[1] + 30;
+  const bounds = { minX, minY, width: maxX - minX, height: maxY - minY };
+  const viewport = officeViewport(camera, bounds);
+  const viewBox = `${viewport.x} ${viewport.y} ${viewport.width} ${viewport.height}`;
+  const anchorAt = (x: number, y: number, c: Camera = camera) => svg.current
+    ? officePointerAnchor(x, y, svg.current.getBoundingClientRect(), c, bounds)
+    : { x: 0.5, y: 0.5 };
+  const zoomBy = (step: number) => setCamera(c => zoomOfficeAt(c, bounds, c.zoom + step));
+  const fullView = () => setCamera(INITIAL_CAMERA);
 
-  const down = (e: ReactPointerEvent<SVGSVGElement>) => { if (zoom > 1) drag.current = { x: e.clientX, y: e.clientY, px: pan[0], py: pan[1], moved: false }; };
-  const move = (e: ReactPointerEvent<SVGSVGElement>) => {
-    const d = drag.current, el = svg.current;
-    if (!d || !el) return;
-    const k = vw / el.clientWidth, dx = (e.clientX - d.x) * k, dy = (e.clientY - d.y) * k;
-    if (Math.abs(dx) + Math.abs(dy) > 4) { d.moved = true; el.setPointerCapture(e.pointerId); }
-    setPan(clampPan(d.px - dx, d.py - dy, zoom));
+  const down = (e: ReactPointerEvent<SVGSVGElement>) => {
+    if (e.pointerType === "mouse" && e.button !== 0) return;
+    const pointers = activePointers.current;
+    if (pointers.size === 0) suppressClick.current = false;
+    pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
+    if (pointers.size >= 2) {
+      const [a, b] = [...pointers.values()];
+      const x = (a.x + b.x) / 2, y = (a.y + b.y) / 2;
+      const distance = Math.max(1, Math.hypot(a.x - b.x, a.y - b.y));
+      gesture.current = { mode: "pinch", startCamera: camera, x, y, distance,
+        anchor: anchorAt(x, y), captured: true };
+      suppressClick.current = true;
+      // Capture both touches so the pinch stays stable when fingers move outside SVG.
+      for (const id of pointers.keys()) {
+        try { e.currentTarget.setPointerCapture(id); } catch { /* unsupported pointer capture */ }
+      }
+    } else if (pointers.size === 1) {
+      gesture.current = { mode: "single", startCamera: camera, x: e.clientX, y: e.clientY,
+        distance: 0, anchor: { x: 0.5, y: 0.5 }, captured: false };
+    }
   };
-  const up = () => { drag.current = null; };
+
+  const move = (e: ReactPointerEvent<SVGSVGElement>) => {
+    const pointers = activePointers.current;
+    if (!pointers.has(e.pointerId)) return;
+    pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
+    const g = gesture.current, element = svg.current;
+    if (!g || !element) return;
+    if (g.mode === "pinch" && pointers.size >= 2) {
+      const [a, b] = [...pointers.values()];
+      const x = (a.x + b.x) / 2, y = (a.y + b.y) / 2;
+      const distance = Math.max(1, Math.hypot(a.x - b.x, a.y - b.y));
+      const targetZoom = g.startCamera.zoom * distance / g.distance;
+      setCamera(zoomOfficeAt(g.startCamera, bounds, targetZoom, g.anchor,
+        anchorAt(x, y, g.startCamera)));
+      suppressClick.current = true;
+    } else if (g.mode === "single" && pointers.size === 1 && g.startCamera.zoom > 1) {
+      const dx = e.clientX - g.x, dy = e.clientY - g.y;
+      if (Math.hypot(dx, dy) < 7 && !g.captured) return;
+      if (!g.captured) {
+        g.captured = true;
+        suppressClick.current = true;
+        try { e.currentTarget.setPointerCapture(e.pointerId); } catch { /* fallback to pointer events */ }
+      }
+      const previous = officeViewport(g.startCamera, bounds);
+      const rect = element.getBoundingClientRect();
+      const scale = Math.min(rect.width / previous.width, rect.height / previous.height);
+      if (scale > 0) setCamera(panOfficeBy(g.startCamera, bounds, -dx / scale, -dy / scale));
+    }
+  };
+
+  const up = (e: ReactPointerEvent<SVGSVGElement>) => {
+    activePointers.current.delete(e.pointerId);
+    if (activePointers.current.size === 0) gesture.current = null;
+    else if (activePointers.current.size === 1) {
+      const remaining = [...activePointers.current.values()][0];
+      gesture.current = { mode: "single", startCamera: camera, x: remaining.x, y: remaining.y,
+        distance: 0, anchor: { x: 0.5, y: 0.5 }, captured: false };
+    }
+  };
 
   const items = useMemo(() => {
     const list: Item[] = [];
@@ -168,9 +314,14 @@ export function IsoOffice({ people, selected, onSelect, lang, screen }: Props) {
     list.push(box("sofa-a", 1.4, 1.5, 0, 5.2, 1.1, 0.45, FABRIC), box("sofa-a-back", 1.4, 1.2, 0.45, 5.2, 0.35, 0.5, FABRIC));
     list.push(box("sofa-b", 1.3, 2.7, 0, 1.1, 3.2, 0.45, FABRIC));
     list.push(box("table-l", 3.4, 3.4, 0.3, 2.4, 1.4, 0.1, CHAMP), box("table-l-base", 4.2, 3.9, 0, 0.8, 0.4, 0.3, TITAN));
-    list.push(plant("pl-1", 0.4, 0.4, 1.5), plant("pl-2", 8.4, 0.4, 1.2), plant("pl-3", 0.4, 7.4, 1.3), plant("pl-4", 0.4, 14.6, 1.4), plant("pl-5", 22.8, 14.8, 1.3), plant("pl-6", 15.2, 0.4, 1.1), plant("pl-7", 22.8, 9.6, 1.1));
+    list.push(plant("pl-1", 0.4, 0.4, 1.5), plant("pl-2", 8.4, 0.4, 1.2), plant("pl-3", 0.4, 7.4, 1.3), plant("pl-4", 0.4, 16.6, 1.4), plant("pl-5", 25.8, 16.6, 1.3), plant("pl-6", 15.2, 0.4, 1.1), plant("pl-7", 26.8, 9.6, 1.1), plant("pl-8", 26.8, 1.5, 1.4));
     // Meeting room (right): table + chairs; glass walls added on top with low opacity.
     list.push(box("m-table", 17.6, 3.0, 0.72, 4.6, 1.8, 0.09, WOOD), box("m-table-base", 19.4, 3.6, 0, 1.0, 0.6, 0.72, TITAN));
+    // Welcome desk and team studio enlarge the HQ without inventing staff.
+    list.push(box("welcome-counter", 1.8, 7.1, 0, 3.0, 0.9, 0.95, CHAMP));
+    list.push(box("welcome-display", 2.5, 7.45, 0.96, 1.2, 0.18, 0.25, { top: "#6de6f1", left: "#123a58", right: "#10304c" }));
+    list.push(box("studio-bench", 24.4, 2.4, 0, 2.0, 2.9, 0.42, FABRIC));
+    list.push(box("studio-console", 24.5, 2.6, 0.48, 1.75, 2.4, 0.16, { top: "#374666", left: "#1c2e4d", right: "#253552" }));
     for (let i = 0; i < 4; i++) { list.push(...chair(`mc-a${i}`, 17.8 + i * 1.1, 2.0), ...chair(`mc-b${i}`, 17.8 + i * 1.1, 5.0)); }
     list.push({ depth: 23.8 + 8 + 0.1, node: (
       <g key="glass" className={s.glass}>
@@ -184,12 +335,12 @@ export function IsoOffice({ people, selected, onSelect, lang, screen }: Props) {
       const [sx, sy] = HUMAN_SEATS[i % HUMAN_SEATS.length];
       list.push(...chair(`hc-${p.id}`, sx - 0.4, sy - 0.75), ...desk(`hd-${p.id}`, sx - 1.2, sy + 0.25, "#64d7f5", true), person(p, sx, sy - 0.35, selected === p.id, onSelect, lang));
     });
-    agents.forEach((p, i) => {
+    managerPeople.forEach((p, i) => {
       const [sx, sy] = AI_SEATS[i % AI_SEATS.length];
       list.push(...chair(`ac-${p.id}`, sx - 0.4, sy - 0.75), ...desk(`ad-${p.id}`, sx - 1.2, sy + 0.25, `hsl(${p.hue ?? 250} 80% 70%)`, !p.offline), person(p, sx, sy - 0.35, selected === p.id, onSelect, lang));
     });
     return list.sort((a, b) => a.depth - b.depth);
-  }, [humans, agents, selected, onSelect, lang]);
+  }, [humans, managerPeople, selected, onSelect, lang]);
 
   // Wall screen (left wall, x = 0): live counts from stored data, laid on the wall plane.
   const [sx0, sy0] = px(0, 13.4, 3.4);
@@ -198,8 +349,10 @@ export function IsoOffice({ people, selected, onSelect, lang, screen }: Props) {
   return (
     <div className={s.wrap}>
       <svg ref={svg} className={s.svg} viewBox={viewBox} role="group" aria-label={t("Sede de Avalon en vista isométrica. Selecciona a una persona o manager.", "Avalon HQ, isometric view. Select a person or manager.")}
-        data-zoomed={zoom > 1} onPointerDown={down} onPointerMove={move} onPointerUp={up} onPointerLeave={up}
-        onClickCapture={e => { if (drag.current?.moved) { e.stopPropagation(); e.preventDefault(); } }}>
+        data-zoomed={camera.zoom > 1} onPointerDown={down} onPointerMove={move}
+        onPointerUp={up} onPointerCancel={up} onPointerLeave={e => { if (!e.currentTarget.hasPointerCapture(e.pointerId)) up(e); }}
+        onDoubleClick={e => { e.preventDefault(); setCamera(c => zoomOfficeAt(c, bounds, c.zoom + 0.6, anchorAt(e.clientX, e.clientY))); }}
+        onClickCapture={e => { if (suppressClick.current) { e.stopPropagation(); e.preventDefault(); suppressClick.current = false; } }}>
         <defs>
           <linearGradient id="iso-sky" x1="0" y1="0" x2="0" y2="1">
             <stop offset="0" stopColor={night ? "#050911" : "#1a2347"} /><stop offset="0.7" stopColor={night ? "#141a36" : "#5b5fa8"} /><stop offset="1" stopColor={night ? "#2a2357" : "#b39bd6"} />
@@ -226,7 +379,7 @@ export function IsoOffice({ people, selected, onSelect, lang, screen }: Props) {
         {/* Live wall screen. */}
         <g transform={`matrix(${COS} ${-SIN} 0 1 ${sx0} ${sy0})`} className={s.screen}>
           <rect x={0} y={0} width={150} height={92} rx={4} className={s.screenBg} />
-          <text x={10} y={16} className={s.screenTitle}>{t("Operación en vivo", "Live operations")}</text>
+          <text x={10} y={16} className={s.screenTitle}>{t("Operación · registros", "Operations · records")}</text>
           {screenLines.map(([label, value], i) => (
             <g key={label} transform={`translate(10 ${32 + i * 15})`}>
               <text className={s.screenLabel}>{label}</text>
@@ -242,18 +395,38 @@ export function IsoOffice({ people, selected, onSelect, lang, screen }: Props) {
         {[[12, 6], [12, 13], [23, 5], [4, 4]].map(([x, y], i) => { const [cx, cy] = px(x, y); return <ellipse key={`pool${i}`} cx={cx} cy={cy} rx={150} ry={75} fill="url(#iso-pool)" />; })}
         <polyline points={pts([0, D, 0], [W, D, 0], [W, 0, 0])} className={s.edge} />
 
+        {/* Ambient control island: purely decorative glow, not simulated live execution. */}
+        <g aria-hidden="true">
+          <ellipse cx={px(11, 7.0, 0)[0]} cy={px(11, 7.0, 0)[1]} rx={84} ry={43} className={s.floorHalo} />
+          <ellipse cx={px(11, 7.0, 0.65)[0]} cy={px(11, 7.0, 0.65)[1]} rx={29} ry={13} className={s.holoRing} />
+          <ellipse cx={px(11, 7.0, 0.78)[0]} cy={px(11, 7.0, 0.78)[1]} rx={19} ry={8} className={s.holoCore} />
+          <circle cx={px(11, 7.0, 1.04)[0]} cy={px(11, 7.0, 1.04)[1]} r={3} className={s.ambientLight} />
+        </g>
         {items.map(i => i.node)}
 
         {/* Zone labels on the floor plane. */}
-        {([[t("Lounge", "Lounge"), 4.4, 7.2], [t("Sala de reuniones", "Meeting room"), 20.2, 8.9], [t("Equipo", "Team"), 11.6, 2.2], [t("Managers de IA · virtuales", "AI managers · virtual"), 11.2, 16.2]] as [string, number, number][]).map(([label, x, y]) => {
+        {([[t("Recepción", "Reception"), 3.1, 8.5], [t("Lounge", "Lounge"), 4.4, 6.3], [t("Sala de reuniones", "Meeting room"), 20.2, 8.9], [t("Equipo", "Team"), 11.6, 2.2], [t("Estudio", "Studio"), 25.2, 6.5], [t("Managers virtuales", "Virtual managers"), 12.2, 17.7]] as [string, number, number][]).map(([label, x, y]) => {
           const [lx, ly] = px(x, y);
           return <text key={label} x={lx} y={ly} textAnchor="middle" className={s.zone}>{label}</text>;
         })}
       </svg>
+      <div className={s.runtimeStatus} role="status" aria-live="polite">
+        <span className={s.runtimeDot} data-recent={recentChecks === 5 && historyConnection === "available"} />
+        <strong>{t("Managers · ejecuciones reales", "Managers · verified runs")}</strong>
+        <span>{historyConnection === "available"
+          ? `${recentChecks}/5 ${t("reportes recientes", "recent reports")} · ${activeWorkers} ${t("ejecutando ahora", "running now")} · ${t("última lectura", "last read")} ${checkedAt ? new Date(checkedAt).toLocaleTimeString(lang === "en" ? "en-US" : "es-US", { hour: "2-digit", minute: "2-digit" }) : "—"}`
+          : historyConnection === "checking" ? t("Comprobando historial…", "Checking history…")
+          : historyConnection === "not_installed" ? t("El ejecutor aún no está instalado", "Worker not installed yet")
+          : t("Historial no disponible · sin reportes verificados", "History unavailable · no verified reports")}</span>
+        <small>{t("GitHub comprueba cada hora si el workflow está activo. Esta pantalla consulta cada 20 s; animaciones decorativas.",
+          "GitHub checks hourly when its workflow is enabled. This screen reads every 20 s; motion is decorative.")}</small>
+      </div>
+      <p className={s.gestureHint}>{t("Dos dedos para zoom · arrastra para recorrer · doble toque para acercar", "Pinch to zoom · drag to pan · double tap to zoom")}</p>
       <div className={s.controls} role="group" aria-label={t("Cámara", "Camera")}>
-        <button type="button" onClick={() => setZ(zoom + 0.4)} aria-label={t("Acercar", "Zoom in")}>+</button>
-        <button type="button" onClick={() => setZ(zoom - 0.4)} aria-label={t("Alejar", "Zoom out")} disabled={zoom <= 1}>−</button>
-        <button type="button" onClick={() => { setZoom(1); setPan([0, 0]); }} aria-label={t("Vista completa", "Full view")} disabled={zoom === 1}>⤢</button>
+        <span className={s.zoomReadout} aria-live="off">{Math.round(camera.zoom * 100)}%</span>
+        <button type="button" onClick={() => zoomBy(0.35)} aria-label={t("Acercar", "Zoom in")} disabled={camera.zoom >= OFFICE_MAX_ZOOM}>+</button>
+        <button type="button" onClick={() => zoomBy(-0.35)} aria-label={t("Alejar", "Zoom out")} disabled={camera.zoom <= OFFICE_MIN_ZOOM}>−</button>
+        <button type="button" onClick={fullView} aria-label={t("Vista completa", "Full view")} disabled={camera.zoom === OFFICE_MIN_ZOOM && camera.panX === 0 && camera.panY === 0}>⤢</button>
       </div>
     </div>
   );
