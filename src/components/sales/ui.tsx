@@ -58,8 +58,10 @@ const OK: Record<string, [string, string]> = {
 };
 export function OkFlash({ lang, code }: { lang: Lang; code?: string }) {
   const message = code ? workspaceFeedback("ok", lang, code) : null;
-  if (!code || (!OK[code] && !message)) return null;
-  return <p className={s.flash} data-tone="ok" role="status">{message ?? pick(lang, ...OK[code])}</p>;
+  // Query-string codes are untrusted; inherited Object keys are not valid success codes.
+  const legacy = code && Object.hasOwn(OK, code) ? OK[code] : undefined;
+  if (!message && !legacy) return null;
+  return <p className={s.flash} data-tone="ok" role="status">{message ?? (legacy ? pick(lang, ...legacy) : "")}</p>;
 }
 
 export function Unavailable({ lang, code }: { lang: Lang; code: string }) {
