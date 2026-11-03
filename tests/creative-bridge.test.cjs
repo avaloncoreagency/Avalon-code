@@ -103,7 +103,9 @@ test("database proposal restricts writes to a separately allowlisted machine ide
   assert.doesNotMatch(sql, /context_token|creative_bridge_token/);
   assert.match(sql, /create or replace function crm_private.stamp/);
   assert.match(sql, /create or replace function crm_private.audit/);
-  assert.match(sql, /TG_TABLE_NAME = 'crm_leads' and TG_OP = 'INSERT'/);
+  assert.match(sql, /TG_OP = 'INSERT' and TG_TABLE_NAME = 'crm_leads'/);
+  assert.match(sql, /TG_OP = 'INSERT' and TG_TABLE_NAME = 'crm_activities'/);
+  assert.match(sql, /new\.kind = 'system'/);
   assert.match(sql, /revoke all on function public\.os_receive_creative_delivery/);
   assert.match(sql, /to authenticated/);
   assert.match(sql, /pg_advisory_xact_lock/g);
