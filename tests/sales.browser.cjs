@@ -144,6 +144,37 @@ test('Nova Restaurant through the real app: one form, three departments, no dupl
   for (const name of ['Nova Restaurant — Desarrollo web', 'Nova Restaurant — Recepcionista de IA', 'Nova Restaurant — Marketing mensual', 'AV-2026-']) assert.ok(hub.includes(name), `client hub shows ${name}`);
   await page.screenshot({ path: `${EVIDENCE}/client-360.png`, fullPage: true });
 
+  // Module → shared spine: the project of each service reaches the same client, sale, work order and tasks.
+  const novaProjects = (await db.query("select p.id, p.module, p.client_id from os_projects p order by p.module")).rows;
+  assert.equal(novaProjects.length, 3, 'one project per module service');
+  for (const proj of novaProjects) assert.equal(proj.client_id, clientId, 'every module project points at the same client');
+  const websiteProject = novaProjects.find(r => r.module === 'website');
+  const saleRow = (await db.query('select s.id, s.sale_number from crm_sales s')).rows[0];
+  const websiteTasks = Number((await db.query('select count(*) n from crm_tasks where project_id=$1', [websiteProject.id])).rows[0].n);
+  assert.ok(websiteTasks >= 1, 'the sale generated tasks for the website project');
+  await page.goto(`${origin}/admin/workspace/products/${websiteProject.id}`);
+  const ctx = page.getByTestId('project-context');
+  await ctx.getByRole('heading', { name: 'Contexto comercial' }).waitFor();
+  await ctx.getByRole('link', { name: /Nova Restaurant · CLI-/ }).waitFor();
+  assert.match(await page.locator('header').filter({ hasText: 'Nova Restaurant' }).first().innerText(), /Nova Restaurant/, 'header names the real client, not "sin empresa vinculada"');
+  assert.doesNotMatch(await page.locator('#main').innerText(), /Sin empresa vinculada/);
+  await ctx.getByRole('link', { name: saleRow.sale_number }).waitFor();
+  assert.match(await ctx.innerText(), new RegExp(`${websiteTasks} abiertas|abiertas`), 'task counters shown');
+  await page.screenshot({ path: `${EVIDENCE}/project-context.png`, fullPage: false });
+  await ctx.getByRole('link', { name: /Nova Restaurant · CLI-/ }).click();
+  await page.waitForURL(`${origin}/admin/workspace/crm/clients/${clientId}`);
+  await page.goto(`${origin}/admin/workspace/products/${websiteProject.id}`);
+  await page.getByTestId('project-context').getByRole('link', { name: saleRow.sale_number }).click();
+  await page.waitForURL(new RegExp('/admin/workspace/crm/sales/' + saleRow.id));
+  await page.goto(`${origin}/admin/workspace/products/${websiteProject.id}`);
+  await page.getByTestId('project-context').getByRole('link', { name: /Ver y crear tareas de esta orden/ }).click();
+  await page.waitForURL(/\/admin\/workspace\/crm\/tasks\?work_order=/);
+  // A manually created project has no client or sale: the panel says so instead of inventing context.
+  const manual = (await db.query("insert into os_projects(module,name,created_by) values('website','Proyecto manual sintético',$1) returning id", [MIGUEL])).rows[0];
+  await page.goto(`${origin}/admin/workspace/products/${manual.id}`);
+  await page.getByTestId('project-context').getByText(/creó a mano/).waitFor();
+  await db.exec('reset role;');
+
   // Record a real payment: collected moves, contracted stays.
   await page.goto(saleUrl.split('?')[0]);
   await page.getByLabel(/^Importe/).fill('1750');
