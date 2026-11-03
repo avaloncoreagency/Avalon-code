@@ -80,6 +80,8 @@ test("dedicated worker state has private secrets and owner-only run history", { 
     "grant select on crm_prospect_needs to service_role;",
     "grant select on agency_memberships to service_role;",
     "grant select on crm_stages to service_role;",
+    "grant usage on schema auth to service_role;",
+    "grant execute on function auth.uid() to service_role;",
   ].join("\n"));
   await as("service_role", MIGUEL);
   const lead = (await db.query("select crm_radar_worker_convert_verified($1) as id", [qualified])).rows[0].id;
