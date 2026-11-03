@@ -1,7 +1,8 @@
 import Link from "next/link";
 import { Suite } from "@/components/suite/suite";
-import { PageHeader, Panel, Badge } from "@/components/os/ui";
+import { Panel, Badge } from "@/components/os/ui";
 import s from "@/components/os/os.module.css";
+import ui from "./staff-profile.module.css";
 import { requireOwner, displayName } from "@/lib/auth/session";
 import { getLang } from "@/lib/i18n-server";
 import { pick, formatDate } from "@/lib/i18n";
@@ -34,63 +35,146 @@ export default async function ProfilePage({ searchParams }: { searchParams: Prom
   const passwordEnabled = true;
   return (
     <Suite active="profile">
-      <PageHeader eyebrow={pick(lang, "Cuenta", "Account")} title={profileName} description={user.email ?? undefined} />
-      {profileMessage && <p role={profileStatus === "saved" ? "status" : "alert"} className={s.meta}>{profileMessage}</p>}
-      <Panel title="Mi perfil profesional" id="staff-identity">
-        <p className={s.meta}>Tu nombre y foto se utilizan en la cabecera, el directorio de Oficina y los flujos de trabajo. El cargo no cambia tus permisos de acceso.</p>
-        {office.error ? <p role="alert">No se pudo cargar el perfil de Oficina.</p> : <>
-          <MyProfilePhoto userId={user.id} photoHash={staff?.photo_sha256 ?? null} name={profileName}/>
-          <form action={saveStaffProfile} className={s.form}>
-            <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fit,minmax(190px,1fr))", gap:12 }}>
-              <label>Nombre visible<input name="display_name" maxLength={80} required defaultValue={staff?.display_name || displayName(user)} /></label>
-              <label>Cargo profesional<input name="title" maxLength={80} placeholder="Director de operaciones" defaultValue={staff?.title ?? ""}/></label>
-              <label>Departamento<input name="department" maxLength={80} placeholder="Operaciones / CRM" defaultValue={staff?.department ?? ""}/></label>
-              <label>Especialidades (separadas por comas)<input name="specialties" maxLength={330} defaultValue={(staff?.specialties ?? []).join(", ")}/></label>
+      <div className={ui.staff}>
+        <header className={ui.hero}>
+          <div className={ui.heroContent}>
+            <span className={ui.eyebrow}>Avalon Core / Staff Hub</span>
+            <h1>{profileName}</h1>
+            <p className={ui.heroSubtitle}>Tu espacio personal de trabajo. Gestiona tu identidad profesional, coordina tu disponibilidad y protege tu cuenta desde un mismo lugar.</p>
+            <div className={ui.identityTags}>
+              <span className={ui.identityTag}><strong>{staff?.title || "Cargo por definir"}</strong></span>
+              <span className={ui.identityTag}>{staff?.department || "Departamento sin definir"}</span>
+              <span className={ui.identityTag}>Cuenta {role}</span>
             </div>
-            <label>Descripción profesional<textarea name="bio" rows={3} maxLength={600} defaultValue={staff?.bio ?? ""}/></label>
-            <div className={s.actions}><button type="submit" className={s.btn}>Guardar perfil</button></div>
-          </form>
-        </>}
-      </Panel>
-      <Panel title="Disponibilidad y horarios" id="availability">
-        <p className={s.meta}>Define tu horario habitual y zona horaria. Son horarios informativos para que el equipo pueda coordinar citas y tareas; la disponibilidad no bloquea todavía la creación de eventos.</p>
-        {availability.error ? <p role="alert">Los horarios aún no están disponibles en este entorno.</p> :
-        <form action={saveStaffAvailability} className={s.form}>
-          <label>Zona horaria (IANA)
-            <select name="timezone" defaultValue={prefs?.timezone ?? "America/New_York"}>
-              {["America/New_York","America/Chicago","America/Denver","America/Los_Angeles","America/Puerto_Rico","America/Bogota","America/Mexico_City","Europe/Madrid","UTC"].map(tz=><option key={tz} value={tz}>{tz}</option>)}
-            </select>
-          </label>
-          <div style={{ display:"grid", gap:10 }}>
-            {weekdays.map(([day,label]) => <div key={day} style={{ display:"flex",flexWrap:"wrap",alignItems:"center",gap:12 }}>
-              <label style={{ minWidth:115 }}><input type="checkbox" name={day+"_enabled"} defaultChecked={Boolean(schedule[day] ?? (["mon","tue","wed","thu","fri"].includes(day) && !prefs))}/> {label}</label>
-              <label>Desde <input type="time" name={day+"_start"} defaultValue={schedule[day]?.[0] ?? "09:00"}/></label>
-              <label>Hasta <input type="time" name={day+"_end"} defaultValue={schedule[day]?.[1] ?? "17:00"}/></label>
-            </div>)}
           </div>
-          <div style={{ display:"flex",gap:12,flexWrap:"wrap" }}>
-            <label>Silencio desde <input type="time" name="quiet_start" defaultValue={prefs?.quiet_start ?? "18:00"}/></label>
-            <label>Hasta <input type="time" name="quiet_end" defaultValue={prefs?.quiet_end ?? "09:00"}/></label>
+          <div className={ui.heroSide}>
+            <div className={ui.heroLinks}>
+              <Link className={ui.heroLink} href="/admin/workspace/crm/office">Ver Oficina <span aria-hidden="true">↗</span></Link>
+            </div>
           </div>
-          <p className={s.meta}>Las horas de silencio quedan guardadas como preferencia; los avisos permanecen accesibles en la bandeja.</p>
-          <div className={s.actions}><button type="submit" className={s.btn}>Guardar disponibilidad</button></div>
-        </form>}
-        <h3>Ausencias y días libres</h3>
-        <form action={addStaffTimeOff} className={s.form}>
-          <div style={{ display:"flex",gap:12,flexWrap:"wrap" }}>
-            <label>Desde <input name="starts_on" type="date" required /></label>
-            <label>Hasta <input name="ends_on" type="date" required /></label>
-            <label>Motivo (opcional) <input name="reason" maxLength={200} placeholder="Vacaciones, descanso…"/></label>
+        </header>
+
+        <nav className={ui.quickLinks} aria-label="Secciones del perfil">
+          <a className={ui.quickLink} href="#staff-identity">Identidad</a>
+          <a className={ui.quickLink} href="#availability">Disponibilidad</a>
+          <a className={ui.quickLink} href="#time-off">Ausencias</a>
+          <a className={ui.quickLink} href="#identity">Seguridad</a>
+        </nav>
+
+        {profileMessage && <p role={profileStatus === "saved" ? "status" : "alert"} data-error={profileStatus !== "saved"} className={ui.notice}>{profileMessage}</p>}
+        <div className={ui.mainGrid}>
+          <div className={ui.stack}>
+            <section className={ui.sectionCard} id="staff-identity" aria-labelledby="staff-identity-title">
+              <div className={ui.sectionIntro}>
+                <span className={ui.sectionIcon} aria-hidden="true">✦</span>
+                <div className={ui.sectionText}>
+                  <span className={ui.sectionKicker}>Tu identidad</span>
+                  <h2 id="staff-identity-title">Perfil profesional</h2>
+                  <p>Esta información aparece en la barra superior y en el directorio de Oficina. No modifica tus permisos de seguridad.</p>
+                </div>
+              </div>
+              {office.error ? <p className={ui.notice} data-error="true" role="alert">No se pudo cargar el perfil de Oficina.</p> : <>
+                <MyProfilePhoto userId={user.id} photoHash={staff?.photo_sha256 ?? null} name={profileName}/>
+                <form action={saveStaffProfile} className={ui.form}>
+                  <div className={ui.fieldGrid}>
+                    <label className={ui.field}>Nombre visible
+                      <input name="display_name" maxLength={80} required defaultValue={staff?.display_name || displayName(user)} placeholder="Tu nombre profesional" />
+                    </label>
+                    <label className={ui.field}>Cargo profesional
+                      <input name="title" maxLength={80} placeholder="Director de operaciones" defaultValue={staff?.title ?? ""}/>
+                    </label>
+                    <label className={ui.field}>Departamento
+                      <input name="department" maxLength={80} placeholder="Operaciones / CRM" defaultValue={staff?.department ?? ""}/>
+                    </label>
+                    <label className={ui.field}>Especialidades
+                      <input name="specialties" maxLength={330} defaultValue={(staff?.specialties ?? []).join(", ")} placeholder="Diseño, estrategia, ventas"/>
+                      <small>Separa cada especialidad con una coma.</small>
+                    </label>
+                  </div>
+                  <label className={ui.field}>Acerca de mí
+                    <textarea name="bio" rows={3} maxLength={600} placeholder="Cuenta brevemente en qué trabajas y cómo aportas al equipo..." defaultValue={staff?.bio ?? ""}/>
+                    <small>Máximo 600 caracteres.</small>
+                  </label>
+                  <div className={ui.formFooter}>
+                    <p className={ui.help}>Tu equipo verá estos datos cuando consulte tu perfil.</p>
+                    <button type="submit" className={ui.primary}>Guardar cambios <span aria-hidden="true">↗</span></button>
+                  </div>
+                </form>
+              </>}
+            </section>
+            <section className={ui.sectionCard} id="availability" aria-labelledby="availability-title">
+              <div className={ui.sectionIntro}>
+                <span className={ui.sectionIcon} aria-hidden="true">◷</span>
+                <div className={ui.sectionText}>
+                  <span className={ui.sectionKicker}>Organización del equipo</span>
+                  <h2 id="availability-title">Disponibilidad semanal</h2>
+                  <p>Comparte tu jornada con el equipo. Los horarios son informativos y aún no bloquean automáticamente eventos.</p>
+                </div>
+              </div>
+              {availability.error ? <p className={ui.notice} data-error="true" role="alert">No se pudieron cargar los horarios en este entorno.</p> :
+              <form action={saveStaffAvailability} className={ui.form}>
+                <label className={ui.field}>Zona horaria
+                  <select name="timezone" defaultValue={prefs?.timezone ?? "America/New_York"}>
+                    {["America/New_York","America/Chicago","America/Denver","America/Los_Angeles","America/Puerto_Rico","America/Bogota","America/Mexico_City","Europe/Madrid","UTC"].map(tz=><option key={tz} value={tz}>{tz}</option>)}
+                  </select>
+                  <small>Las horas se interpretan en tu zona horaria seleccionada.</small>
+                </label>
+                <div className={ui.weekly} aria-label="Horario por día">
+                  {weekdays.map(([day,label]) => <div key={day} className={ui.dayRow}>
+                    <label className={ui.dayCheck}>
+                      <input type="checkbox" name={day+"_enabled"} defaultChecked={Boolean(schedule[day] ?? (["mon","tue","wed","thu","fri"].includes(day) && !prefs))}/>
+                      <span>{label}</span>
+                    </label>
+                    <div className={ui.dayTimes}>
+                      <label className={ui.timeLabel}>Inicio
+                        <input type="time" name={day+"_start"} defaultValue={schedule[day]?.[0] ?? "09:00"}/>
+                      </label>
+                      <label className={ui.timeLabel}>Fin
+                        <input type="time" name={day+"_end"} defaultValue={schedule[day]?.[1] ?? "17:00"}/>
+                      </label>
+                    </div>
+                  </div>)}
+                </div>
+                <div className={ui.quietBox}>
+                  <div className={ui.quietHeading}>
+                    <span className={ui.quietSymbol} aria-hidden="true">☾</span>
+                    <div><strong>Horas de silencio</strong><p>Guarda las horas en que prefieres no recibir interrupciones. Los avisos seguirán disponibles en la bandeja.</p></div>
+                  </div>
+                  <div className={ui.quietRow}>
+                    <label className={ui.timeLabel}>Desde <input type="time" name="quiet_start" defaultValue={prefs?.quiet_start ?? "18:00"}/></label>
+                    <label className={ui.timeLabel}>Hasta <input type="time" name="quiet_end" defaultValue={prefs?.quiet_end ?? "09:00"}/></label>
+                  </div>
+                </div>
+                <div className={ui.formFooter}>
+                  <p className={ui.help}>Tu horario se muestra en Oficina al consultar tu perfil.</p>
+                  <button type="submit" className={ui.primary}>Guardar disponibilidad</button>
+                </div>
+              </form>}
+              <div className={ui.timeOffHeader} id="time-off">
+                <h3>Ausencias y días libres</h3>
+                <p>Marca vacaciones y fechas en las que no estarás disponible.</p>
+              </div>
+              <form action={addStaffTimeOff} className={ui.timeOffForm}>
+                <div className={ui.fieldGrid}>
+                  <label className={ui.field}>Desde<input name="starts_on" type="date" required /></label>
+                  <label className={ui.field}>Hasta<input name="ends_on" type="date" required /></label>
+                </div>
+                <label className={ui.field}>Motivo (opcional)<input name="reason" maxLength={200} placeholder="Vacaciones, descanso o compromiso personal"/></label>
+                <div className={ui.formFooter}><p className={ui.help}>También podrás eliminar cualquier ausencia que hayas creado.</p>
+                  <button type="submit" className={ui.secondary}>+ Agregar ausencia</button>
+                </div>
+              </form>
+              {absences.error ? <p className={ui.notice} data-error="true" role="alert">No se pudieron consultar las ausencias.</p> :
+                (absences.data ?? []).length === 0 ? <p className={ui.empty}>Todavía no tienes ausencias programadas.</p> :
+                <ul className={ui.absences}>{(absences.data ?? []).map(x=><li key={x.id} className={ui.absence}>
+                  <div><strong>{x.starts_on} — {x.ends_on}</strong>{x.reason && <span className={ui.absenceReason}>{x.reason}</span>}</div>
+                  <form action={deleteStaffTimeOff}><input type="hidden" name="id" value={x.id}/><button type="submit" className={ui.remove}>Eliminar</button></form>
+                </li>)}</ul>}
+            </section>
           </div>
-          <div className={s.actions}><button type="submit" className={s.btn}>Agregar ausencia</button></div>
-        </form>
-        {absences.error ? <p role="alert">No se pudieron consultar las ausencias.</p> :
-          <ul>{(absences.data ?? []).map(x=><li key={x.id}>
-            <span>{x.starts_on} – {x.ends_on} {x.reason ? "· "+x.reason : ""}</span>
-            <form action={deleteStaffTimeOff} style={{display:"inline",marginLeft:10}}><input type="hidden" name="id" value={x.id}/><button type="submit">Eliminar</button></form>
-          </li>)}</ul>}
-      </Panel>
-      <div className={s.split}>
+          <aside className={ui.security} aria-label="Cuenta y seguridad">
+            <h2 className={ui.securityTitle}>Cuenta y seguridad</h2>
+                  <div className={ui.stack}>
         <Panel title={pick(lang, "Identidad", "Identity")} id="identity">
           <div className={s.tableWrap}>
             <table className={s.table}>
@@ -104,7 +188,7 @@ export default async function ProfilePage({ searchParams }: { searchParams: Prom
               </tbody>
             </table>
           </div>
-          <p className={s.meta}>{pick(lang, "El nombre visible proviene del proveedor de identidad. Los permisos dependen solo de la membresía en la base de datos.", "The display name comes from the identity provider. Permissions depend only on the database membership.")}</p>
+          <p className={s.meta}>{pick(lang, "El nombre visible se edita en tu perfil profesional. Los permisos dependen únicamente de tu membresía en la base de datos.", "Your display name is edited in your staff profile. Access permissions are based only on database membership.")}</p>
         </Panel>
         <div>
           <Panel title={pick(lang, "Sesión", "Session")} id="session">
@@ -137,6 +221,9 @@ export default async function ProfilePage({ searchParams }: { searchParams: Prom
               <Link className={s.btn} href="/admin/forgot-password">{pick(lang, "Solicitar enlace", "Request link")}</Link>
             </Panel>
           )}
+        </div>
+      </div>
+          </aside>
         </div>
       </div>
     </Suite>
