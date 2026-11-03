@@ -67,7 +67,7 @@ declare
   source_report jsonb;
   existing public.crm_prospect_needs;
   actor uuid;
-  state text;
+  v_need_state text;
   evidence text;
   note_text text;
 begin
@@ -84,10 +84,10 @@ begin
     from jsonb_array_elements(coalesce(source_report->'suggested_needs','[]'::jsonb)) as item
     where item->>'service' = 'website' limit 1;
   if not found then return false; end if;
-  state := suggestion->>'state';
+  v_need_state := suggestion->>'state';
   evidence := suggestion->>'evidence_url';
   note_text := suggestion->>'note';
-  if state not in ('verified_present','opportunity_to_improve') or evidence is null
+  if v_need_state not in ('verified_present','opportunity_to_improve') or evidence is null
     or evidence not like 'https://%' or length(evidence) > 500
     or note_text is null or length(note_text) < 12 or length(note_text) > 2000
     or suggestion->>'method' <> 'website_review'
@@ -105,20 +105,20 @@ begin
     existing.method='website_review'
     and existing.state='verified_present'
     and existing.note like 'Web oficial accesible por HTTPS%'
-    and state='opportunity_to_improve'
+    and v_need_state='opportunity_to_improve'
   ) then return false; end if;
   -- Local transaction claim, used only inside this server-only RPC; no
   -- persistent impersonated login cookie or externally visible session.
   perform set_config('request.jwt.claim.sub',actor::text,true);
   if existing.id is not null then
     update public.crm_prospect_needs set
-      state=state,method='website_review',confidence='medium',
+      state=v_need_state,method='website_review',confidence='medium',
       evidence_url=evidence,note=note_text,verified_at=now()
       where id=existing.id;
   else
     insert into public.crm_prospect_needs(
       prospect_id,service,state,method,confidence,evidence_url,note,created_by
-    ) values (p.id,'website',state,'website_review','medium',evidence,note_text,actor);
+    ) values (p.id,'website',v_need_state,'website_review','medium',evidence,note_text,actor);
   end if;
   return true;
 end $function$;
@@ -176,10 +176,10 @@ begin
   -- ordinary approved -> converted transition. The dedicated service-role
   -- RPC supplies that owner only inside its current transaction.
   perform set_config('request.jwt.claim.sub',actor::text,true);
-  if p.status='pending' then
-    update public.crm_prospects set status='approved' where id=p.id;
-  end if;
   begin
+    if p.status='pending' then
+      update public.crm_prospects set status='approved' where id=p.id;
+    end if;
     insert into public.crm_leads(
       company,contact,email,phone,source,owner_id,created_by,
       stage_id,prospect_id,website,industry,location,priority
