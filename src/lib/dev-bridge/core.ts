@@ -114,7 +114,7 @@ export async function supabase(c:Config,api=new Api('https://api.supabase.com',c
 export async function fact<T>(fetcher:()=>Promise<T>, old?:Fact<T>, now=new Date().toISOString()):Promise<Fact<T>> {
   try{return {status:'VERIFIED',checked_at:now,verified_at:now,data:await fetcher()};}catch(error){return {status:old?.data?'STALE':'UNKNOWN',checked_at:now,verified_at:old?.verified_at??null,data:old?.data??null,error:error instanceof Error?redact(error.message):'Unavailable'};}
 }
-export function freshness<T>(f:Fact<T>,now=Date.now()):Fact<T>{return f.status==='VERIFIED'&&(!Number.isFinite(Date.parse(f.verified_at??''))||now-Date.parse(f.verified_at??'')>7*3600000)?{...f,status:'STALE'}:f;}
+export function freshness<T>(f:Fact<T>,now=Date.now()):Fact<T>{return f.status==='VERIFIED'&&(!Number.isFinite(Date.parse(f.verified_at??''))||now-Date.parse(f.verified_at??'')>2*3600000)?{...f,status:'STALE'}:f;}
 export function findings(input:Pick<Snapshot,'github'|'vercel'|'supabase'>):Snapshot['findings'] {
   const s={github:freshness(input.github),vercel:freshness(input.vercel),supabase:freshness(input.supabase)};
   const out:Snapshot['findings']=[];
