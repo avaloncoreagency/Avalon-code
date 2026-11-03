@@ -57,6 +57,7 @@ test("machine creates exactly one synthetic lead and product, with real audit ac
   assert.equal(replay.created,false);
   assert.equal(replay.project_id,result.project_id);
   assert.equal(replay.lead_id,result.lead_id);
+  await db.exec("reset role;"); // root-level test fixture verification, NOT machine RLS.
   assert.equal(await num("crm_leads"), 1);
   assert.equal(await num("os_projects"), 1);
   const lead = await one("select company, contact, email, source, owner_id, created_by, stage_id, value from crm_leads where id=$1", [result.lead_id]);
@@ -78,8 +79,10 @@ test("machine creates exactly one synthetic lead and product, with real audit ac
   assert.equal(project.settings.creative.external_ref,"synthetic-site-2026-123");
   assert.equal(project.settings.creative.state,"reference_only");
   assert.equal(await num("crm_sales"),0);
+  await as(MACHINE);
   await assert.rejects(submit({company:"Another Company"}), /source collision/);
   await assert.rejects(submit({name:"Different Site"}), /source collision/);
+  await db.exec("reset role;");
   assert.equal(await num("os_projects"),1);
   t.diagnostic("Database executed proposal SQL: unique replay, private machine audit, no sale.");
 });
@@ -95,6 +98,7 @@ test("outsiders and owners cannot call the machine-only RPC, nor can machine wri
     values ('Forgery','manual','${OWNER}')`), /forbidden|policy|permission denied/i);
   await assert.rejects(db.query(`update crm_leads set company='Forgery'`), /policy|permission denied/i);
   await assert.rejects(db.query(`select * from os_private.creative_bridge_identities`), /permission denied/i);
+  await db.exec("reset role;");
   assert.equal(await num("crm_leads"),0);
   assert.equal(await num("os_projects"),0);
 });
@@ -108,6 +112,7 @@ test("existing lead reused, exact existing customer linked to Client 360 without
     values ('Synthetic Dental LLC','Synthetic Dental','Synthetic referral',$1::uuid,$2::uuid) returning id`,[OWNER,lead.id]);
   await as(MACHINE);
   const result=await submit({ref:"synthetic-site-existing-321"});
+  await db.exec("reset role;");
   assert.equal(result.lead_id,lead.id);
   assert.equal(result.lead_created,false);
   assert.equal(await num("crm_leads"),1);
@@ -126,6 +131,7 @@ test("ambiguous leads and client identities fail closed without orphan records",
   const before=await num("crm_leads");
   await as(MACHINE);
   await assert.rejects(submit(),/ambiguous company identity/);
+  await db.exec("reset role;");
   assert.equal(await num("crm_leads"),before);
   assert.equal(await num("os_projects"),0);
   await as(OWNER);
@@ -134,6 +140,7 @@ test("ambiguous leads and client identities fail closed without orphan records",
            ('Another Legal Business','Synthetic Dental LLC','Manual','${OWNER}');`);
   await as(MACHINE);
   await assert.rejects(submit({company:"Synthetic Dental LLC",ref:"another-source"}), /ambiguous company identity|ambiguous client identity/);
+  await db.exec("reset role;");
   assert.equal(await num("os_projects"),0);
   // A new name colliding with two customer trade identities rolls back the lead insert.
   await as(OWNER);
@@ -143,6 +150,7 @@ test("ambiguous leads and client identities fail closed without orphan records",
   await as(MACHINE);
   const countBefore=await num("crm_leads");
   await assert.rejects(submit({company:"Ambiguous Brand",ref:"rolled-back-source"}),/ambiguous client identity/);
+  await db.exec("reset role;");
   assert.equal(await num("crm_leads"),countBefore);
   assert.equal(await num("os_projects"),0);
 });
@@ -153,6 +161,7 @@ test("machine cannot impersonate arbitrary owner, change stage or write sales", 
   await assert.rejects(submit({owner:OUTSIDER}),/unapproved integration identity/);
   await assert.rejects(submit({module:"marketing"}),/invalid creative delivery/);
   await assert.rejects(submit({agent:"other"}),/invalid creative delivery/);
+  await db.exec("reset role;");
   assert.equal(await num("crm_leads"),0);
   assert.equal(await num("os_projects"),0);
 });
