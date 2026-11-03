@@ -31,7 +31,7 @@ reset role;
 -- A different agency owner sees the SAME client record, can revise it and preserves the first editor's version.
 set role authenticated;
 select set_config('request.jwt.claim.sub','00000000-0000-4000-8000-0000000000a2',false);
-do $
+do $$
 declare c uuid; j uuid;
 begin
   select id into c from public.crm_clients where legal_name='Acme QA';
@@ -45,16 +45,16 @@ begin
   assert (select count(*) from public.crm_client_workspace_revisions where client_id=c)=3, 'all workspace revisions retained';
   assert (select count(*) from public.crm_client_journal_revisions where entry_id=j)=3, 'all journal revisions retained';
   assert (select sum(amount) from public.crm_client_costs where client_id=c)=100, 'second owner sees same cost ledger';
-end $;
+end $$;
 reset role;
 set role authenticated;
 select set_config('request.jwt.claim.sub','00000000-0000-4000-8000-0000000000a1',false);
-do $
+do $$
 declare c uuid;
 begin
   select id into c from public.crm_clients where legal_name='Acme QA';
   assert (select next_step from public.crm_client_workspace where client_id=c)='Aprobación del segundo propietario', 'first owner sees second owner changes';
-end $;
+end $$;
 reset role;
 set role authenticated;
 select set_config('request.jwt.claim.sub','00000000-0000-4000-8000-0000000000a3',false);
