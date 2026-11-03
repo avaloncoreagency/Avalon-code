@@ -476,6 +476,15 @@ export function TitanRadar({ onChanged }: { onChanged?: () => void }) {
                  ? "Negocio bloqueado o descartado: no se enviará al pipeline."
                  : "Sin evidencia suficiente. Guarda necesidades verificadas o asigna estrellas manualmente con motivo."}</p>}
              <small>Una tarjeta por negocio en «Nuevo lead». La oportunidad y la confianza de evidencia se muestran por separado.</small>
+             <div className={s.quickManual}><p className={s.ratingTip}>¿Verificaste otra oportunidad? Puedes asignar estrellas manualmente y crear el lead en un solo paso.</p>
+          <form key={`override:${current.id}`} className={s.inline} onSubmit={e => { e.preventDefault(); const f = new FormData(e.currentTarget); const v = String(f.get("stars"));
+            void act(current.id, { op: "override", stars: v ? Number(v) : null, reason: f.get("reason") }, v ? "Calificación manual confirmada." : "Volviste al cálculo automático."); }}>
+            <h4>Ajuste manual de estrellas</h4>
+            <select name="stars" aria-label="Estrellas manuales" required defaultValue={current.stars_override ?? ""}><option value="" disabled>Selecciona 1–5 estrellas</option>{[5, 4, 3, 2, 1].map(n => <option key={n} value={n}>{"★".repeat(n)}</option>)}</select>
+            <input name="reason" aria-label="Motivo del ajuste" placeholder="Motivo (mínimo 10 caracteres)" defaultValue={current.override_reason} maxLength={1000} />
+            <button type="submit" className={s.pipeline} disabled={busy}>Calificar manualmente y crear lead</button>
+          </form>
+             </div>
            </div>
            <h4>Necesidades por servicio (evidencia)</h4>
            <p className={s.ratingTip}>Registra lo comprobado antes de decidir las estrellas. «Sin verificar» no cuenta como una carencia.</p>
@@ -504,13 +513,7 @@ export function TitanRadar({ onChanged }: { onChanged?: () => void }) {
             <input name="email" aria-label="Correo comercial" placeholder="Correo comercial" defaultValue={current.email ?? ""} maxLength={254} />
             <button type="submit" disabled={busy}>Guardar contacto</button>
           </form>
-          <form key={`override:${current.id}`} className={s.inline} onSubmit={e => { e.preventDefault(); const f = new FormData(e.currentTarget); const v = String(f.get("stars"));
-            void act(current.id, { op: "override", stars: v ? Number(v) : null, reason: f.get("reason") }, v ? "Calificación manual confirmada." : "Volviste al cálculo automático."); }}>
-            <h4>Ajuste manual de estrellas</h4>
-            <select name="stars" aria-label="Estrellas manuales" required defaultValue={current.stars_override ?? ""}><option value="" disabled>Selecciona 1–5 estrellas</option>{[5, 4, 3, 2, 1].map(n => <option key={n} value={n}>{"★".repeat(n)}</option>)}</select>
-            <input name="reason" aria-label="Motivo del ajuste" placeholder="Motivo (mínimo 10 caracteres)" defaultValue={current.override_reason} maxLength={1000} />
-            <button type="submit" className={s.pipeline} disabled={busy}>Calificar manualmente y crear lead</button>
-          </form>
+
         </>}
       </aside>}
     </section>
