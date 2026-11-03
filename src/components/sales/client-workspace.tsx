@@ -18,17 +18,17 @@ const kinds: [string, string, string][] = [
   ["milestone","Hito","Milestone"],["decision","Decisión","Decision"]
 ];
 
-export async function ClientWorkspace({ supabase, clientId, lang, sales }: {
-  supabase: SupabaseClient; clientId: string; lang: Lang; sales: Sale[];
+export async function ClientWorkspace({ supabase, clientId, lang, sales, financeAllowed, demo }: {
+  supabase: SupabaseClient; clientId: string; lang: Lang; sales: Sale[]; financeAllowed: boolean; demo: boolean;
 }) {
   const [workspace, journal, costs, revisions, detailRevisions] = await Promise.all([
     run<Workspace | null>(supabase.from("crm_client_workspace").select("client_id,package_name,development_stage,next_step,version").eq("client_id",clientId).maybeSingle()),
     run<Journal[]>(supabase.from("crm_client_journal").select("id,kind,title,body,version,updated_at").eq("client_id",clientId).order("created_at",{ascending:false}).limit(100)),
-    run<Cost[]>(supabase.from("crm_client_costs").select("id,amount,currency,category,memo,incurred_on,created_at").eq("client_id",clientId).order("incurred_on",{ascending:false}).limit(200)),
+    financeAllowed ? run<Cost[]>(supabase.from("crm_client_costs").select("id,amount,currency,category,memo,incurred_on,created_at").eq("client_id",clientId).order("incurred_on",{ascending:false}).limit(200)) : Promise.resolve({ data: [] as Cost[], error: null, count: null }),
     run<Revision[]>(supabase.from("crm_client_journal_revisions").select("id,entry_id,version,before_value,after_value,edited_by,edited_at").eq("client_id",clientId).order("id",{ascending:false}).limit(100)),
     run<WorkspaceRevision[]>(supabase.from("crm_client_workspace_revisions").select("id,version,before_value,after_value,edited_by,edited_at").eq("client_id",clientId).order("id",{ascending:false}).limit(50)),
   ]);
-  const salesIds = sales.map(x=>x.id);
+  const salesIds = financeAllowed ? sales.map(x=>x.id) : [];
   const lines = salesIds.length
     ? await run<Line[]>(supabase.from("crm_sale_lines").select("id,description,billing_type,quantity,line_total,crm_service_catalog(name)").in("sale_id",salesIds).limit(150))
     : { data: [] as Line[], error: null };
@@ -53,10 +53,19 @@ export async function ClientWorkspace({ supabase, clientId, lang, sales }: {
         "Collections come from confirmed sales; expenses are cumulative internal entries. Costs and payments are never estimated.")}</p></div>
       <Link href="/admin/search">{pick(lang,"Finder global","Global finder")}</Link>
     </header>
+    {demo && <section className={s.notice} aria-label={pick(lang,"Escenario comercial ilustrativo","Illustrative commercial scenario")}>
+      <strong>{pick(lang,"DEMO · Propuesta comercial simulada — no contratada ni cobrada","DEMO · Simulated proposal — not contracted or collected")}</strong>
+      <p>{pick(lang,"Chino Barber · Crecimiento Local: sitio web, reservas, SEO local y WhatsApp. Etapa sugerida: diagnóstico inicial.","Chino Barber · Local Growth: website, bookings, local SEO and WhatsApp. Suggested stage: discovery.")}</p>
+      {financeAllowed && <div className={s.stats}>
+        <div className={s.stat}><span>{pick(lang,"Implementación estimada","Estimated setup")}</span><strong>US$1,800</strong><small>{pick(lang,"Gasto ilustrativo US$550 · margen ilustrativo US$1,250","Illustrative cost US$550 · margin US$1,250")}</small></div>
+        <div className={s.stat}><span>{pick(lang,"Mantenimiento estimado / mes","Estimated monthly maintenance")}</span><strong>US$250</strong><small>{pick(lang,"Gasto ilustrativo US$80 · margen ilustrativo US$170/mes","Illustrative cost US$80 · margin US$170/month")}</small></div>
+      </div>}
+      <p>{pick(lang,"Estos importes son exclusivamente ejemplos visuales: no se guardan como ventas, gastos, pagos o contratos.","These amounts are display-only examples: they are not posted as sales, expenses, payments or contracts.")}</p>
+    </section>}
     {pending && <p role="status" className={s.notice}>{pick(lang,"La migración del expediente interno aún no está aplicada. No se muestran cifras incompletas.","The internal dossier migration has not been applied. Incomplete amounts are hidden.")}</p>}
     {failed && <p role="alert" className={s.notice}>{pick(lang,"No fue posible leer parte del expediente. Verifica los permisos y la base de datos.","Part of the dossier could not be loaded. Verify permissions and database.")}</p>}
     {!(pending||failed) && <>
-      <div className={s.stats}>
+      {financeAllowed && <div className={s.stats}>
         {[...revenue.entries()].map(([currency,totals])=><div key={currency} className={s.stat}>
           <span>{pick(lang,"Rentabilidad registrada","Recorded profitability")} · {currency}</span>
           <strong>{money(lang,totals.collected-totals.expenses,currency)}</strong>
@@ -65,7 +74,7 @@ export async function ClientWorkspace({ supabase, clientId, lang, sales }: {
           <small>{pick(lang,"Contratado","Contracted")}: {money(lang,totals.contracted,currency)} · MRR {money(lang,totals.recurring,currency)}</small>
         </div>)}
         {revenue.size===0 && <p className={s.muted}>{pick(lang,"Sin movimientos financieros registrados.","No recorded financial transactions.")}</p>}
-      </div>
+      </div>}
       <div className={s.columns}>
         <section aria-labelledby="workspace-package">
           <h3 id="workspace-package">{pick(lang,"Paquete y desarrollo","Package and development")}</h3>
@@ -81,14 +90,14 @@ export async function ClientWorkspace({ supabase, clientId, lang, sales }: {
             <button className={s.button}>{pick(lang,"Guardar y auditar cambios","Save and audit changes")}</button>
           </form>
           <h3>{pick(lang,"Servicios comprados","Purchased services")}</h3>
-          {lines.error ? <p className={s.muted}>{pick(lang,"Servicios no disponibles.","Services unavailable.")}</p> :
+          {!financeAllowed ? <p className={s.muted}>{pick(lang,"Los importes y contratos se muestran únicamente al responsable financiero.","Amounts and contracts are available only to the finance administrator.")}</p> : lines.error ? <p className={s.muted}>{pick(lang,"Servicios no disponibles.","Services unavailable.")}</p> :
             lines.data.length===0 ? <p className={s.muted}>{pick(lang,"Sin servicios asociados a una venta.","No services linked to a sale.")}</p> :
             <ul className={s.list}>{lines.data.map(line=><li key={line.id}>
               <strong>{line.crm_service_catalog?.name??line.description}</strong>
               <span className={s.muted}>{line.billing_type} · {line.quantity} × {line.line_total} {pick(lang,"(total de línea)","(line total)")}</span>
             </li>)}</ul>}
         </section>
-        <section aria-labelledby="workspace-costs">
+        {financeAllowed && <section aria-labelledby="workspace-costs">
           <h3 id="workspace-costs">{pick(lang,"Gastos reales del cliente","Actual client expenses")}</h3>
           <p className={s.muted}>{pick(lang,"No se eliminan movimientos. Para corregir uno, registra un ajuste negativo con explicación.","Entries cannot be deleted. Correct an entry with a documented negative adjustment.")}</p>
           <form action={appendClientCost} className={s.form}>
@@ -108,7 +117,7 @@ export async function ClientWorkspace({ supabase, clientId, lang, sales }: {
             <strong>{money(lang,Number(x.amount),x.currency)}</strong> · {x.category} · {formatDate(lang,x.incurred_on)}
             <div className={s.muted}>{x.memo}</div>
           </li>)}</ol>
-        </section>
+        </section>}
       </div>
       <section aria-labelledby="workspace-journal">
         <h3 id="workspace-journal">{pick(lang,"Historial permanente y editable","Permanent, editable history")}</h3>
