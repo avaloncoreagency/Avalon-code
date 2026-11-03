@@ -57,3 +57,7 @@
   .person .body, .leaves, .person[data-selected="true"] .ring { animation: none !important; }
   .person .body, .person .tag, .person .ring { transition: none !important; }
 }
+
+/* Red / green / amber staff availability in the isometric floorplan. */
+.lampBusy { fill:#ffc24e; }
+.lampInactive { fill:#ff687f; }
