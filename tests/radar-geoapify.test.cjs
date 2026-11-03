@@ -106,7 +106,7 @@ test("server-only Geoapify provider never needs community Overpass in production
  assert.equal(exports.radarEndpoint().provider,"geoapify");
  assert.equal(exports.radarEndpoint().licensed,true);
  delete env.AVALON_GEOAPIFY_PLACES_KEY;
- assert.match(exports.radarEndpoint().error,/Radar sin proveedor/);
+ assert.match(exports.radarEndpoint().error,/Radar sin Geoapify configurado/);
 });
 test("live endpoint path sends a key ONLY server-side, limits results, persists pending real places",async()=>{
  const js=ts.transpileModule(fs.readFileSync("src/lib/crm/radar-search.ts","utf8"),{
