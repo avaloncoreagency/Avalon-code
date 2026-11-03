@@ -34,6 +34,12 @@ export async function GET(request: NextRequest) {
   // setup for that same account; dashboard access still requires membership.
   if (!verifiedUserId) return done("/admin/login?error=callback");
   const purpose = PURPOSE[linkType];
-  await grantPasswordFlow(verifiedUserId, purpose);
+  try {
+    await grantPasswordFlow(verifiedUserId, purpose);
+  } catch {
+    // OTP may already be consumed, but no usable recovery flow was granted.
+    // Never redirect to password setup or expose signing/cookie failures.
+    return done("/admin/login?error=callback");
+  }
   return done(purpose === "invite" ? "/admin/signup" : "/admin/reset-password");
 }
