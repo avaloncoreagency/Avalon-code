@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { MANAGER_JOBS, type ManagerCode, type ManagerReport } from "@/lib/office/manager-work";
 
 const codes: readonly ManagerCode[] = ["ren", "shin", "haru", "sora", "kenji"];
@@ -12,6 +12,11 @@ const hints: Record<ManagerCode, string> = {
   kenji: "Órdenes bloqueadas y vencimientos",
 };
 type Status = { busy: boolean; result: ManagerReport | null; error: string | null };
+type RunRecord = {
+  run_key: string; manager: string; status: string; display_status: string;
+  started_at: string; finished_at: string | null; lease_until: string;
+  result: ManagerReport | null;
+};
 const empty = (): Status => ({ busy: false, result: null, error: null });
 
 /** Real on-demand DB checks, never an assertion of autonomous background execution. */
@@ -21,6 +26,46 @@ export function ManagerWorkstation({ lang }: { lang: string }) {
     ren: empty(), shin: empty(), haru: empty(), sora: empty(), kenji: empty(),
   });
   const [batch, setBatch] = useState(false);
+  const [recent, setRecent] = useState<Partial<Record<ManagerCode, RunRecord>>>({});
+  const [historyStatus, setHistoryStatus] = useState("not_loaded");
+  const [queue, setQueue] = useState<Partial<Record<ManagerCode, string>>>({});
+  const [queuing, setQueuing] = useState<ManagerCode | null>(null);
+  const refreshHistory = async () => {
+    try {
+      const res = await fetch("/admin/workspace/crm/office/manager-work/history/api", {
+        credentials: "same-origin", cache: "no-store",
+      });
+      if (!res.ok) throw new Error("no_history");
+      const data = await res.json();
+      setRecent(data.last ?? {});
+      setHistoryStatus("loaded");
+    } catch {
+      setHistoryStatus("unavailable");
+    }
+  };
+  useEffect(() => { void refreshHistory(); }, []);
+  const queueCheck = async (manager: ManagerCode) => {
+    setQueuing(manager);
+    setQueue(prev => ({ ...prev, [manager]: "" }));
+    try {
+      const response = await fetch("/admin/workspace/crm/office/api", {
+        method: "POST", credentials: "same-origin", cache: "no-store",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ op: "agent_request", agent: manager,
+          body: "AVALON_MANAGER_CHECK_V1", ref_type: null, ref_id: null }),
+      });
+      if (!response.ok) throw new Error("queue_unavailable");
+      setQueue(prev => ({ ...prev, [manager]: en
+        ? "Request registered. It is not completed until a worker result appears below."
+        : "Solicitud registrada. No está completada hasta que aparezca un resultado del ejecutor." }));
+    } catch {
+      setQueue(prev => ({ ...prev, [manager]: en
+        ? "Could not register request. Verify Office staging migration."
+        : "No se pudo registrar. Verifica la migración de Oficina en staging." }));
+    } finally {
+      setQueuing(null);
+    }
+  };
   const runOne = async (manager: ManagerCode) => {
     setStatus(prev => ({ ...prev, [manager]: { ...prev[manager], busy: true, error: null } }));
     try {
@@ -50,15 +95,24 @@ export function ManagerWorkstation({ lang }: { lang: string }) {
   return <section aria-labelledby="office-managers-work-title" style={{ padding: "24px", maxWidth: 1140, margin: "auto" }}>
     <h1 id="office-managers-work-title">{en ? "Manager workstations" : "Estaciones de trabajo de los managers"}</h1>
     <p>{en
-      ? "These five checks execute real read-only database queries under your owner permissions. They do not run an AI model, create PRs or work while this page is closed."
-      : "Estas cinco tareas ejecutan consultas reales y de solo lectura con tus permisos owner. No ejecutan un modelo de IA, no crean PRs ni trabajan mientras esta página está cerrada."}</p>
+      ? "Manual checks run under your owner permissions. When the isolated staging runner is configured, its scheduled checks can run while this page is closed; none of these jobs edits code or calls AI."
+      : "Las comprobaciones manuales usan tus permisos owner. Si está configurado el ejecutor aislado, sus consultas horarias pueden ejecutarse con la página cerrada; ninguna edita código ni llama a IA."}</p>
     <p role="note" style={{ opacity: 0.85 }}>{en
-      ? "Hourly ChatGPT automations are independent and are not connected to this office. Registered free-form requests remain pending until a real worker is integrated."
-      : "Las automatizaciones horarias de ChatGPT son independientes y todavía no están conectadas a esta Oficina. Las solicitudes libres registradas siguen pendientes hasta conectar un ejecutor real."}</p>
+      ? "Only fixed diagnostic requests are eligible for the staging runner. Free-form messages and ChatGPT programming agents remain separate and are not executed from this Office."
+      : "Solo las solicitudes de diagnóstico predefinidas se pueden ejecutar mediante este runner de staging. Los mensajes libres y los agentes programadores de ChatGPT siguen separados."}</p>
     <button type="button" onClick={() => void runAll()} disabled={batch || codes.some(c => status[c].busy)}
       style={{ padding: "10px 18px", margin: "14px 0 22px", cursor: "pointer" }}>
       {batch ? (en ? "Running checks…" : "Ejecutando consultas…") : (en ? "Run all five now" : "Ejecutar las cinco ahora")}
     </button>
+    <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 16 }}>
+      <strong>{en ? "Persisted hourly activity" : "Actividad horaria registrada"}</strong>
+      <button type="button" onClick={() => void refreshHistory()}>
+        {en ? "Refresh history" : "Actualizar historial"}
+      </button>
+      {historyStatus === "unavailable" && <small role="status">{en
+        ? "No verified history. The staging migration or runner may be unavailable."
+        : "Sin historial verificable. Puede faltar la migración o el ejecutor de staging."}</small>}
+    </div>
     <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(255px, 1fr))", gap: 14 }}>
       {codes.map(code => {
         const job = MANAGER_JOBS[code], s = status[code];
@@ -73,6 +127,25 @@ export function ManagerWorkstation({ lang }: { lang: string }) {
             style={{ padding: "8px 12px", cursor: "pointer", marginBottom: 12 }}>
             {en ? "Run check" : "Ejecutar comprobación"}
           </button>
+          <button type="button" disabled={queuing !== null}
+            onClick={() => void queueCheck(code)} style={{ padding: "8px 12px", cursor: "pointer", marginLeft: 8 }}>
+            {queuing === code ? (en ? "Registering…" : "Registrando…")
+              : en ? "Queue a staged check" : "Encolar comprobación"}
+          </button>
+          {queue[code] && <p role="status">{queue[code]}</p>}
+          {recent[code] && <div style={{ padding: "10px 0", borderTop: "1px solid #566" }}>
+            <strong>{en ? "Last recorded worker run" : "Última ejecución del worker"}</strong>
+            <p>{recent[code]?.display_status} · {new Date(recent[code]!.started_at).toLocaleString(en ? "en-US" : "es-US")}</p>
+            {recent[code]?.result?.status === "completed" && <>
+              <p>{recent[code]?.result?.nextAction}</p>
+              <dl>{recent[code]?.result?.metrics?.map(m => <div key={m.key}>
+                <dt>{m.label}</dt><dd>{m.count}</dd>
+              </div>)}</dl>
+            </>}
+          </div>}
+          {!recent[code] && historyStatus === "loaded" && <p>{en
+            ? "No scheduled execution recorded for this manager."
+            : "Sin ejecución programada registrada para este manager."}</p>}
           {s.error && <p role="alert">{s.error}</p>}
           {s.result && <div>
             <small>{en ? "Verified at:" : "Verificado:"} {new Date(s.result.observedAt).toLocaleString(en ? "en-US" : "es-US")}</small>
