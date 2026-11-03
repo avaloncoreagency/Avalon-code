@@ -104,10 +104,18 @@ test("outsiders and owners cannot call the machine-only RPC, nor can machine wri
   await as(MACHINE);
   await assert.rejects(db.query(`insert into crm_leads(company,source,owner_id)
     values ('Forgery','manual','${OWNER}')`), /forbidden|policy|permission denied/i);
-  await assert.rejects(db.query(`update crm_leads set company='Forgery'`), /policy|permission denied/i);
+  // UPDATE may return zero rows under RLS rather than throwing. Seed one
+  // real row via the owner, then prove the machine cannot modify it.
+  await as(OWNER);
+  const seed = (await db.query(`insert into crm_leads(company,source,owner_id)
+    values ('Original','Manual',$1::uuid) returning id`, [OWNER])).rows[0].id;
+  await as(MACHINE);
+  await db.query("update crm_leads set company='Forgery' where id=$1", [seed]);
   await assert.rejects(db.query(`select * from os_private.creative_bridge_identities`), /permission denied/i);
   await db.exec("reset role;");
-  assert.equal(await num("crm_leads"),0);
+  const untouched = (await db.query("select company from crm_leads where id=$1", [seed])).rows[0];
+  assert.equal(untouched.company, "Original");
+  assert.equal(await num("crm_leads"),1);
   assert.equal(await num("os_projects"),0);
 });
 
