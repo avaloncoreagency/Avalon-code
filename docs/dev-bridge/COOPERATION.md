@@ -5,7 +5,7 @@
 ## What changed for both owners
 - The owner-only `/admin/dev-bridge` page shows both workspaces, **unassigned PRs**, overlap of changed paths, live CI and related Higgsfield work. Unassigned != inactive. Never infer ownership from a branch name, AI model, commit author, or the agent's claim.
 - The private page refreshes every five minutes while visible; the app-level cache is also five minutes. GitHub Actions `Dev Bridge sync` runs hourly **best effort** after this PR is integrated into `main`. GitHub's scheduler can delay/skip; no always-on sync is promised.
-- `npm run bridge:brief -- --read-only` asks GitHub for a new read-only snapshot and prints a bounded JSON summary: verified main SHA, open PRs grouped by **actual Issue owner labels**, unassigned PRs, overlapping file paths and Higgsfield bridge PRs. This requires a GitHub token in the agent's environment (`GH_TOKEN` or `BRIDGE_GITHUB_TOKEN`) with read access. An assistant's connector authorization is **not automatically available** in a local shell. Never paste tokens in prompts, commits, logs, JSON handoffs or public Issues.
+- `npm run bridge:brief -- --read-only` asks GitHub for a new read-only snapshot and prints a bounded JSON summary: verified main SHA, open PRs grouped by **actual Issue owner labels**, unassigned PRs, overlapping file paths and Higgsfield bridge PRs. This can reuse an existing `gh auth login` or a GitHub token in the agent's environment (`GH_TOKEN` or `BRIDGE_GITHUB_TOKEN`) with read access. An assistant's connector authorization is **not automatically available** in a local shell. Never paste tokens in prompts, commits, logs, JSON handoffs or public Issues.
 - The brief and dashboard distinguish GitHub Actions tests (`PASSED`, `FAILED`, `PENDING`, `UNKNOWN`) from Vercel deployment state. A Vercel Preview that fails closed because it points at production Supabase is **not** a unit-test failure, and passing tests is not browser QA.
 
 ## Every session: start from the same checkpoint
@@ -14,6 +14,10 @@
 3. Run `npm run bridge:brief -- --read-only`. If GitHub is unavailable, report `BLOCKED / UNKNOWN`, inspect historical docs only, and **do not resume or modify another person's work based on cached data**. A connected GitHub MCP can be used for equivalent live read-only inspection instead of the CLI.
 4. Identify one small task, its exact source PR and Issue, changed files, CI status, dependencies and overlaps. If ownership is `UNKNOWN`, ask for a canonical Issue with a unique `owner:miguel` or `owner:samuel` label; **do not claim the work belongs to that owner** until recorded.
 5. Work in a separate branch or git worktree from the verified SHA; add tests and open a PR referencing the Issue. Prefer a new PR over editing either person's branch. Never auto-merge, deploy production or change RLS/Auth/secret/billing/client data.
+
+
+## Automatic PR preflight (read-only)
+A new `.github/workflows/dev-bridge-pr-preflight.yml` runs on every same-repository PR open/edit/commit. It reads the PR's linked Issue metadata and changed file names using a short-lived **read-only** GitHub Actions token. It reports the exact head SHA, explicit owner label, and whether the Issue has a literal `Next action:` line; it warns about shared auth/suite/schema paths and truncated file lists. Missing labels or old closed Issues produce `NEEDS_HANDOFF` advisory metadata, **not automatic assignment or a merge**. The check does not block legacy PRs while they are being organized. For safety, it does not run an external fork's checkout with internal credentials, nor put full Issue bodies into public Actions summaries. No customer data, passwords, OAuth scopes or new Vercel infrastructure are required.
 
 ## One small durable handoff per PR
 The author or authorized owner uses a **canonical GitHub Issue**, with one owner label, a `module:...` label, branch, head SHA, linked PR and a literal line:
