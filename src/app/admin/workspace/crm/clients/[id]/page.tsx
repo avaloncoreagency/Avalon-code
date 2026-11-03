@@ -8,6 +8,7 @@ import { pick, formatDate } from "@/lib/i18n";
 import { run, type ProjectRow, PROJECT_COLUMNS } from "@/lib/os/data";
 import { SERVICES, isService } from "@/lib/os/client-hud";
 import { label, money } from "@/lib/sales/domain";
+import { ClientWorkspace } from "@/components/sales/client-workspace";
 import { addClientActivity, addContact, updateClient, updateClientNotes } from "../actions";
 import s from "@/components/sales/sales.module.css";
 export const dynamic = "force-dynamic";
@@ -21,7 +22,7 @@ type Event = { id: number; event_type: string; module: string; detail: string; r
 const OPEN = ["todo", "in_progress", "blocked"];
 
 export default async function Client360({ params, searchParams }: { params: Promise<{ id: string }>; searchParams: Promise<Query> }) {
-  const { supabase } = await requireOwner();
+  const { supabase, user } = await requireOwner();
   const { id } = await params;
   if (!UUID_RE.test(id)) notFound();
   const lang = await getLang();
@@ -76,6 +77,9 @@ export default async function Client360({ params, searchParams }: { params: Prom
         <div className={s.stat}><span>{pick(lang, "Alertas", "Alerts")}</span><strong>{alerts.length}</strong><small>{pick(lang, "Responsable", "Owner")}: {ownerName(ownerList, c.owner_id)}</small></div>
       </section>
 
+      <ClientWorkspace supabase={supabase} clientId={c.id} lang={lang} sales={sales.data ?? []}
+        financeAllowed={user.email?.toLowerCase() === "avaloncoreagencysm@gmail.com"}
+        demo={c.id === "eb442ca9-8991-4dd0-b7e9-648513613d5a"} />
       {alerts.length > 0 && <section className={s.panel} aria-labelledby="alerts"><h2 id="alerts">{pick(lang, "Alertas", "Alerts")}</h2><ul className={s.list}>{alerts.map(a => <li key={a.key} className={s.notice} data-severity="urgent"><Link href={a.href}>{a.text}</Link></li>)}</ul></section>}
 
       <section className={s.panel} aria-labelledby="projects"><header><h2 id="projects">{pick(lang, "Proyectos por departamento", "Projects by department")}</h2></header>
