@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { Suite } from "@/components/suite/suite";
 import { CrmNavigation } from "@/components/crm/navigation";
 import { Office } from "@/components/office/office";
@@ -12,6 +13,7 @@ export default async function OfficePage() {
   return (
     <Suite active="crm">
       <CrmNavigation active="office" />
+      <div style={{ padding: "12px 24px" }}><Link href="/admin/workspace/crm/office/manager-work">Abrir estaciones de trabajo · ejecutar las cinco comprobaciones reales</Link></div>
       <Office lang={lang} />
     </Suite>
   );
