@@ -1,3 +1,4 @@
+import { canonicalUnit } from "./usage-units";
 /** CRM domain: no credentials, network calls or authorization decisions here. */
 export const sections = [
   { slug: "hunter", label: "Lead Hunter" },
@@ -164,7 +165,7 @@ export function validate(entity: Entity, input: Record<string, unknown>): Row {
       "Codex",
     ),
     amount: number(input.amount, "Consumo", 1e15),
-    unit: text(input.unit, "Unidad", 50, true),
+    unit: canonicalUnit(text(input.unit, "Unidad", 50, true)),
     period_start,
     period_end,
     limit_value:

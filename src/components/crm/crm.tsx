@@ -57,7 +57,10 @@ async function request(body: unknown) {
     body: JSON.stringify(body),
   });
   const result = await r.json();
-  if (!r.ok) throw new Error(result.error ?? "No se pudo guardar");
+  if (!r.ok) {
+    // A duplicate lead is reported with the lead itself, so the UI can offer to open or link it.
+    throw Object.assign(new Error(result.error ?? "No se pudo guardar"), { lead: result.code === "lead_exists" ? result.lead : undefined });
+  }
   return result;
 }
 function Metric({ label, value }: { label: string; value: string }) {
@@ -81,7 +84,8 @@ export function Crm({ section = "leads" }: { section?: CrmSection }) {
     [error, setError] = useState(""),
     [loading, setLoading] = useState(true),
     [busy, setBusy] = useState(false),
-    [notice, setNotice] = useState("");
+    [notice, setNotice] = useState(""),
+    [existingLead, setExistingLead] = useState<{ prospectId: string; id: string; company: string } | null>(null);
   const [revision, setRevision] = useState(0),
     [page, setPage] = useState(0),
     [filters, setFilters] = useState<Record<string, string>>({}),
@@ -129,6 +133,7 @@ export function Crm({ section = "leads" }: { section?: CrmSection }) {
     setBusy(true);
     setError("");
     setNotice("");
+    setExistingLead(null);
     try {
       const result = await request(body);
       setNotice("Guardado correctamente.");
@@ -136,6 +141,9 @@ export function Crm({ section = "leads" }: { section?: CrmSection }) {
       return result;
     } catch (e) {
       setError((e as Error).message);
+      const lead = (e as { lead?: { id: string; company: string } }).lead;
+      const prospectId = (body as { id?: string } | null)?.id;
+      if (lead && prospectId) setExistingLead({ prospectId, id: lead.id, company: lead.company });
       throw e;
     } finally {
       setBusy(false);
@@ -348,6 +356,19 @@ export function Crm({ section = "leads" }: { section?: CrmSection }) {
         Datos persistidos de la agencia. Valores comerciales estimados en USD;
         no representan ingresos cobrados.
       </p>
+      {existingLead && (
+        <div role="status" className={s.notice} data-testid="existing-lead">
+          Lead existente:{" "}
+          <Link href={`/admin/workspace/crm/leads?lead=${existingLead.id}`}>{existingLead.company}</Link>{" "}
+          <button
+            type="button"
+            disabled={busy}
+            onClick={() => action({ action: "link_existing", id: existingLead.prospectId })}
+          >
+            Vincular al lead existente
+          </button>
+        </div>
+      )}
       {error && (
         <div role="alert" className={s.notice}>
           {error} <button onClick={reload}>Reintentar</button>
