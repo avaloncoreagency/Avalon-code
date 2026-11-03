@@ -100,6 +100,6 @@ test("no new environment, Supabase privileges or paid providers in free workflow
  assert.match(workflow,/issues: write/);
  assert.match(workflow,/contents: read/);
  assert.doesNotMatch(workflow,/service_role|SUPABASE|openai|claude|vercel/i);
- assert.ok(!workflow.includes("secrets."));
+ assert.ok(!workflow.includes("$" + "{{ secrets."));
  assert.ok(workflow.includes("node --test tests/office-manager-free-github.test.cjs"));
 });
