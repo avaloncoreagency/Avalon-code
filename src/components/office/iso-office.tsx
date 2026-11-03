@@ -1,5 +1,5 @@
 "use client";
-import { useCallback, useMemo, useRef, useState, type KeyboardEvent, type PointerEvent as ReactPointerEvent, type ReactNode } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type KeyboardEvent, type PointerEvent as ReactPointerEvent, type ReactNode } from "react";
 import { INITIAL_CAMERA, OFFICE_MIN_ZOOM, OFFICE_MAX_ZOOM, officeViewport, officePointerAnchor, zoomOfficeAt, panOfficeBy, type Camera } from "@/lib/office/scene-camera";
 import s from "./iso-office.module.css";
 
@@ -12,6 +12,12 @@ export type IsoPerson = {
   id: string; kind: "human" | "ai"; name: string; initials: string; subtitle: string; hue?: number;
   photo?: string | null; open: number; overdue: number; unread: number; recentMinutes: number | null; offline?: boolean;
 };
+type WorkerRun = { display_status: string; started_at: string; lease_until: string };
+type WorkerHistory = { last: Record<string, WorkerRun>; observedAt: string };
+type HistoryConnection = "checking" | "available" | "unavailable" | "not_installed";
+const HISTORY_API = "/admin/workspace/crm/office/manager-work/history/api";
+const MANAGER_IDS = ["ren", "shin", "haru", "sora", "kenji"] as const;
+
 type Props = {
   people: IsoPerson[]; selected: string | null; onSelect: (id: string) => void; lang: "es" | "en";
   screen: { active: number | null; overdue: number | null; done: number | null; unread: number };
@@ -134,6 +140,86 @@ export function IsoOffice({ people, selected, onSelect, lang, screen }: Props) {
   const t = useCallback((es: string, en: string) => (lang === "en" ? en : es), [lang]);
   const humans = useMemo(() => people.filter(p => p.kind === "human"), [people]);
   const agents = useMemo(() => people.filter(p => p.kind === "ai"), [people]);
+  const [workerHistory, setWorkerHistory] = useState<WorkerHistory | null>(null);
+  const [historyConnection, setHistoryConnection] = useState<HistoryConnection>("checking");
+  const [checkedAt, setCheckedAt] = useState<string | null>(null);
+
+  // Connected to the authenticated, owner-only history endpoint introduced by PR #102.
+  // It is not available in main yet: 404 shows "pending" rather than inventing worker activity.
+  // 20 s polling only while this tab is visible; it never triggers jobs or calls a model.
+  useEffect(() => {
+    let mounted = true;
+    let missingEndpoint = false;
+    let active: AbortController | null = null;
+    const refresh = async () => {
+      if (!mounted || missingEndpoint || active || document.visibilityState !== "visible") return;
+      const controller = new AbortController();
+      active = controller;
+      try {
+        const response = await fetch(HISTORY_API, {
+          credentials: "same-origin", cache: "no-store", signal: controller.signal,
+        });
+        if (response.status === 404) {
+          missingEndpoint = true;
+          if (mounted) { setHistoryConnection("not_installed"); setWorkerHistory(null); }
+          return;
+        }
+        if (!response.ok) throw new Error("history_unavailable");
+        const payload: unknown = await response.json();
+        if (!payload || typeof payload !== "object" || !("last" in payload) || !("observedAt" in payload))
+          throw new Error("history_invalid");
+        const source = payload as { last: unknown; observedAt: unknown };
+        if (!source.last || typeof source.last !== "object" || typeof source.observedAt !== "string")
+          throw new Error("history_invalid");
+        const result: Record<string, WorkerRun> = {};
+        for (const id of MANAGER_IDS) {
+          const raw = (source.last as Record<string, unknown>)[id];
+          if (!raw || typeof raw !== "object") continue;
+          const run = raw as Partial<WorkerRun>;
+          if (typeof run.display_status !== "string" || typeof run.started_at !== "string" ||
+              typeof run.lease_until !== "string") continue;
+          if (!["running", "completed", "stalled", "stale", "failed"].includes(run.display_status)) continue;
+          result[id] = run as WorkerRun;
+        }
+        if (mounted) {
+          setWorkerHistory({ last: result, observedAt: source.observedAt });
+          setCheckedAt(new Date().toISOString());
+          setHistoryConnection("available");
+        }
+      } catch {
+        if (mounted && !controller.signal.aborted) {
+          setHistoryConnection("unavailable");
+          setWorkerHistory(null);
+        }
+      } finally {
+        if (active === controller) active = null;
+      }
+    };
+    void refresh();
+    const interval = window.setInterval(() => { void refresh(); }, 20000);
+    const onVisibility = () => { if (document.visibilityState === "visible") void refresh(); };
+    document.addEventListener("visibilitychange", onVisibility);
+    return () => {
+      mounted = false;
+      active?.abort();
+      window.clearInterval(interval);
+      document.removeEventListener("visibilitychange", onVisibility);
+    };
+  }, []);
+
+  const managerPeople = useMemo(() => agents.map(person => {
+    const code = person.id.startsWith("ai:") ? person.id.slice(3) : "";
+    const run = workerHistory?.last[code];
+    const running = run?.display_status === "running" && Date.parse(run.lease_until) > Date.now();
+    const description = !run ? person.subtitle :
+      run.display_status === "completed" ? (lang === "es" ? "Última comprobación completada" : "Last check completed") :
+      run.display_status === "running" && running ? (lang === "es" ? "Comprobación ejecutándose" : "Check running") :
+      run.display_status === "stalled" ? (lang === "es" ? "Ejecución interrumpida" : "Execution stalled") :
+      run.display_status === "failed" ? (lang === "es" ? "Comprobación fallida" : "Check failed") :
+      (lang === "es" ? "Sin actividad reciente" : "No recent activity");
+    return { ...person, subtitle: description, offline: !running };
+  }), [agents, workerHistory, lang]);
+  const activeWorkers = managerPeople.filter(p => !p.offline).length;
   const hour = new Date().getHours();
   const night = hour >= 19 || hour < 7;
 
@@ -248,12 +334,12 @@ export function IsoOffice({ people, selected, onSelect, lang, screen }: Props) {
       const [sx, sy] = HUMAN_SEATS[i % HUMAN_SEATS.length];
       list.push(...chair(`hc-${p.id}`, sx - 0.4, sy - 0.75), ...desk(`hd-${p.id}`, sx - 1.2, sy + 0.25, "#64d7f5", true), person(p, sx, sy - 0.35, selected === p.id, onSelect, lang));
     });
-    agents.forEach((p, i) => {
+    managerPeople.forEach((p, i) => {
       const [sx, sy] = AI_SEATS[i % AI_SEATS.length];
       list.push(...chair(`ac-${p.id}`, sx - 0.4, sy - 0.75), ...desk(`ad-${p.id}`, sx - 1.2, sy + 0.25, `hsl(${p.hue ?? 250} 80% 70%)`, !p.offline), person(p, sx, sy - 0.35, selected === p.id, onSelect, lang));
     });
     return list.sort((a, b) => a.depth - b.depth);
-  }, [humans, agents, selected, onSelect, lang]);
+  }, [humans, managerPeople, selected, onSelect, lang]);
 
   // Wall screen (left wall, x = 0): live counts from stored data, laid on the wall plane.
   const [sx0, sy0] = px(0, 13.4, 3.4);
@@ -292,7 +378,7 @@ export function IsoOffice({ people, selected, onSelect, lang, screen }: Props) {
         {/* Live wall screen. */}
         <g transform={`matrix(${COS} ${-SIN} 0 1 ${sx0} ${sy0})`} className={s.screen}>
           <rect x={0} y={0} width={150} height={92} rx={4} className={s.screenBg} />
-          <text x={10} y={16} className={s.screenTitle}>{t("Operación en vivo", "Live operations")}</text>
+          <text x={10} y={16} className={s.screenTitle}>{t("Operación · registros", "Operations · records")}</text>
           {screenLines.map(([label, value], i) => (
             <g key={label} transform={`translate(10 ${32 + i * 15})`}>
               <text className={s.screenLabel}>{label}</text>
@@ -323,6 +409,17 @@ export function IsoOffice({ people, selected, onSelect, lang, screen }: Props) {
           return <text key={label} x={lx} y={ly} textAnchor="middle" className={s.zone}>{label}</text>;
         })}
       </svg>
+      <div className={s.runtimeStatus} role="status" aria-live="polite">
+        <span className={s.runtimeDot} data-active={activeWorkers > 0 && historyConnection === "available"} />
+        <strong>{t("Managers · ejecuciones reales", "Managers · verified runs")}</strong>
+        <span>{historyConnection === "available"
+          ? `${activeWorkers}/5 ${t("ejecutando comprobaciones", "running checks")} · ${t("última lectura", "last read")} ${checkedAt ? new Date(checkedAt).toLocaleTimeString(lang === "en" ? "en-US" : "es-US", { hour: "2-digit", minute: "2-digit" }) : "—"}`
+          : historyConnection === "checking" ? t("Comprobando historial…", "Checking history…")
+          : historyConnection === "not_installed" ? t("El ejecutor aún no está instalado", "Worker not installed yet")
+          : t("Historial no disponible · sin actividad verificada", "History unavailable · no verified activity")}</span>
+        <small>{t("Actualización cada 20 s con la Oficina abierta. Las animaciones son decorativas.",
+          "Refresh every 20 s while the Office is open. Animations are decorative.")}</small>
+      </div>
       <p className={s.gestureHint}>{t("Dos dedos para zoom · arrastra para recorrer · doble toque para acercar", "Pinch to zoom · drag to pan · double tap to zoom")}</p>
       <div className={s.controls} role="group" aria-label={t("Cámara", "Camera")}>
         <span className={s.zoomReadout} aria-live="off">{Math.round(camera.zoom * 100)}%</span>
