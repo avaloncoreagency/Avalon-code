@@ -13,7 +13,7 @@ function loadRoute({ owner = null, key, fetchMock = () => { throw Error("unexpec
   const js = ts.transpileModule(fs.readFileSync(file, "utf8"), {
     compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 },
   }).outputText;
-  const module = { exports: {} };
+  const outputMod = { exports: {} };
   const deps = {
     "next/server": { NextResponse: { json: (data, opts = {}) => ({
       data, status: opts.status ?? 200, headers: opts.headers ?? {},
@@ -29,11 +29,11 @@ function loadRoute({ owner = null, key, fetchMock = () => { throw Error("unexpec
         if (!Object.hasOwn(deps, name)) throw Error("Unexpected module: " + name);
         return deps[name];
       },
-      module, module.exports,
+      outputMod, outputMod.exports,
       { env: key === undefined ? {} : { AVALON_GEOAPIFY_PLACES_KEY: key } },
       fetchMock, AbortSignal, URL, URLSearchParams,
     );
-  return module.exports;
+  return outputMod.exports;
 }
 
 test("geocode denies anonymous users before touching the provider", async () => {
