@@ -1,6 +1,4 @@
 // Shared Avalon Radar research implementation; sync changes with src/lib/crm/radar-website-safety.ts.
-import { lookup } from "node:dns/promises";
-import { request } from "node:https";
 import { isIP } from "node:net";
 
 const BOT = "AvalonResearchBot";
@@ -74,100 +72,213 @@ function sameBusinessHost(a: string, b: string): boolean {
 }
 
 /**
- * Node 20+ may request lookup({ all: true }) when autoSelectFamily is enabled.
- * Returning a string to an all:true callback breaks every HTTPS request before
- * a TCP connection starts. Always return ONLY the vetted, pinned IPv4.
+ * Supabase Edge/Deno transport. Node's https.request() custom resolver
+ * throws ERR_NOT_IMPLEMENTED here. Resolve DNS once, verify every address,
+ * dial ONLY the vetted public IPv4 and authenticate the original hostname
+ * using TLS SNI/certificate validation. Never follow fetch() redirects.
  */
-export function pinnedDnsLookup(address: string) {
-  return (
-    _host: string,
-    options: { all?: boolean },
-    callback: (error: Error | null, addresses: string | { address: string; family: number }[], family?: number) => void,
-  ) => {
-    if (options?.all) callback(null, [{ address, family: 4 }]);
-    else callback(null, address, 4);
+async function publicIPv4(hostname: string): Promise<string> {
+  let ips: string[];
+  try {
+    ips = await Deno.resolveDns(hostname, "A");
+  } catch {
+    throw new ResearchBlocked("dns_unavailable", "La web oficial no tiene DNS verificable.");
+  }
+  if (!ips.length || ips.some(ip => !isPublicAddress(ip)))
+    throw new ResearchBlocked("unsafe_host", "El dominio no es seguro para una consulta automatizada.");
+  return ips[0];
+}
+
+const decoder = new TextDecoder();
+const encoder = new TextEncoder();
+
+function concat(chunks: Uint8Array[], total: number): Uint8Array {
+  const combined = new Uint8Array(total);
+  let i = 0;
+  for (const chunk of chunks) { combined.set(chunk, i); i += chunk.byteLength; }
+  return combined;
+}
+
+function findCRLF(bytes: Uint8Array, from: number): number {
+  for (let i = from; i + 1 < bytes.length; i++)
+    if (bytes[i] === 13 && bytes[i + 1] === 10) return i;
+  return -1;
+}
+
+export function decodeChunked(raw: Uint8Array, maxBytes: number): Uint8Array {
+  let cursor = 0, total = 0;
+  const parts: Uint8Array[] = [];
+  for (let step = 0; step < 5000; step++) {
+    const eol = findCRLF(raw, cursor);
+    if (eol < 0 || eol - cursor > 40)
+      throw new ResearchBlocked("chunk_invalid", "La respuesta HTTP está incompleta.");
+    const line = decoder.decode(raw.subarray(cursor, eol)).split(";", 1)[0].trim();
+    if (!/^[0-9a-f]{1,8}$/i.test(line))
+      throw new ResearchBlocked("chunk_invalid", "La respuesta HTTP tiene un bloque inválido.");
+    const size = Number.parseInt(line, 16);
+    cursor = eol + 2;
+    if (size === 0) return concat(parts, total);
+    if (total + size > maxBytes)
+      throw new ResearchBlocked("oversize", "La página supera el límite de lectura segura.");
+    if (cursor + size + 2 > raw.length || raw[cursor + size] !== 13 || raw[cursor + size + 1] !== 10)
+      throw new ResearchBlocked("chunk_invalid", "La respuesta HTTP está incompleta.");
+    parts.push(raw.subarray(cursor, cursor + size));
+    cursor += size + 2;
+    total += size;
+  }
+  throw new ResearchBlocked("chunk_invalid", "La respuesta HTTP tiene demasiados bloques.");
+}
+
+export function parseHttpResponse(raw: Uint8Array, maxBytes: number, uncleanTlsClose = false): {
+  status: number; contentType: string; location?: string; text: string;
+} {
+  let sep = -1;
+  for (let i = 0; i + 3 < raw.length; i++) {
+    if (raw[i] === 13 && raw[i+1] === 10 && raw[i+2] === 13 && raw[i+3] === 10) {
+      sep = i; break;
+    }
+  }
+  if (sep < 0 || sep > 32 * 1024)
+    throw new ResearchBlocked("headers_invalid", "No se pudo interpretar la respuesta HTTPS.");
+  const lines = decoder.decode(raw.subarray(0, sep)).split("\r\n");
+  const match = /^HTTP\/1\.[01] (\d{3})(?: |$)/.exec(lines[0] ?? "");
+  if (!match) throw new ResearchBlocked("protocol_invalid", "La web no respondió con HTTP/1.1.");
+  const headers = new Map<string, string>();
+  for (const line of lines.slice(1)) {
+    const colon = line.indexOf(":");
+    if (colon <= 0) throw new ResearchBlocked("headers_invalid", "La cabecera HTTP no es válida.");
+    const key = line.slice(0, colon).trim().toLowerCase();
+    const value = line.slice(colon + 1).trim();
+    if (!headers.has(key)) headers.set(key, value);
+  }
+  const contentEncoding = (headers.get("content-encoding") ?? "identity").toLowerCase();
+  if (contentEncoding !== "identity")
+    throw new ResearchBlocked("encoding", "La web no permitió lectura sin compresión.");
+  const lengthHeader = headers.get("content-length");
+  let declared: number | null = null;
+  if (lengthHeader !== undefined) {
+    if (!/^\d{1,10}$/.test(lengthHeader))
+      throw new ResearchBlocked("headers_invalid", "Longitud HTTP inválida.");
+    declared = Number(lengthHeader);
+    if (declared > maxBytes)
+      throw new ResearchBlocked("oversize", "La página supera el límite de lectura segura.");
+  }
+  let bytes = raw.subarray(sep + 4);
+  const chunked = (headers.get("transfer-encoding") ?? "").toLowerCase().includes("chunked");
+  const status = Number(match[1]);
+  // An unclean TLS close (no close_notify) cannot prove the body is complete
+  // unless HTTP frames it with Content-Length or a terminating chunk. For
+  // robots 404/410 and redirects, only the complete headers are needed.
+  if (uncleanTlsClose && declared === null && !chunked &&
+      ![301,302,303,307,308,404,410].includes(status))
+    throw new ResearchBlocked("truncated", "No pudimos comprobar que el contenido llegó completo.");
+  if (chunked) {
+    bytes = decodeChunked(bytes, maxBytes);
+  } else if (declared !== null) {
+    if (bytes.length < declared) throw new ResearchBlocked("truncated", "La página llegó incompleta.");
+    bytes = bytes.subarray(0, declared);
+  }
+  if (bytes.byteLength > maxBytes)
+    throw new ResearchBlocked("oversize", "La página supera el límite de lectura segura.");
+  return {
+    status: Number(match[1]),
+    contentType: (headers.get("content-type") ?? "").slice(0, 100).toLowerCase(),
+    location: headers.get("location"),
+    text: decoder.decode(bytes),
   };
 }
 
-/** Pinned, vetted IPv4 resolution prevents a second DNS lookup from rebinding to an internal IP. */
-async function publicIPv4(hostname: string): Promise<string> {
-  let records: { address: string; family: number }[];
+async function pinnedRequest(url: URL, kind: "robots" | "html"): Promise<FetchedPage & {location?: string}> {
+  const address = await publicIPv4(url.hostname);
+  const maxBytes = kind === "robots" ? MAX_ROBOTS : MAX_HTML;
+  let tcp: Deno.Conn | null = null;
+  let tls: Deno.TlsConn | null = null;
+  let uncleanTlsClose = false;
+  let expired = false;
+  let timer: number | undefined;
+  const task = async () => {
+    tcp = await Deno.connect({ hostname: address, port: 443 });
+    if (expired) throw new ResearchBlocked("timeout", "La web no respondió a tiempo.");
+    tls = await Deno.startTls(tcp, { hostname: url.hostname, alpnProtocols: ["http/1.1"] });
+    tcp = null;
+    if (expired) throw new ResearchBlocked("timeout", "La web no respondió a tiempo.");
+    const target = (url.pathname || "/") + url.search;
+    const headers = [
+      "GET " + target + " HTTP/1.1",
+      "Host: " + url.hostname,
+      "User-Agent: " + AGENT,
+      "Accept: " + (kind === "robots" ? "text/plain" : "text/html,application/xhtml+xml"),
+      "Accept-Encoding: identity",
+      "Cookie:",
+      "Connection: close",
+      "",
+      "",
+    ].join("\r\n");
+    await tls.write(encoder.encode(headers));
+    const received: Uint8Array[] = [];
+    let bytes = 0;
+    const buf = new Uint8Array(8192);
+    for (;;) {
+      let n: number | null;
+      try { n = await tls.read(buf); }
+      catch (cause) {
+        // Many legitimate HTTPS servers omit TLS close_notify. Keep the
+        // received bytes, but only accept complete HTTP framing below.
+        if (cause instanceof Error && cause.name === "UnexpectedEof") {
+          uncleanTlsClose = true;
+          break;
+        }
+        throw cause;
+      }
+      if (n === null) break;
+      bytes += n;
+      if (bytes > maxBytes + 64 * 1024)
+        throw new ResearchBlocked("oversize", "La página supera el límite de lectura segura.");
+      if (n > 0) received.push(buf.slice(0, n));
+    }
+    const parsed = parseHttpResponse(concat(received, bytes), maxBytes, uncleanTlsClose);
+    return { url: url.href, ...parsed, complete: true };
+  };
   try {
-    records = await lookup(hostname, { all: true, verbatim: true });
-  } catch {
-    throw new ResearchBlocked("dns_unavailable", "No se pudo resolver la web oficial; sin evidencia nueva.");
+    const timed = new Promise<never>((_resolve, reject) => {
+      timer = setTimeout(() => {
+        expired = true;
+        try { tls?.close(); } catch { /* socket closed */ }
+        try { tcp?.close(); } catch { /* socket closed */ }
+        reject(new ResearchBlocked("timeout", "La web no respondió a tiempo."));
+      }, TIMEOUT_MS);
+    });
+    return await Promise.race([task(), timed]);
+  } catch (cause) {
+    if (cause instanceof ResearchBlocked) throw cause;
+    throw new ResearchBlocked("network_unavailable", "La conexión segura no estuvo disponible.");
+  } finally {
+    if (timer !== undefined) clearTimeout(timer);
+    try { tls?.close(); } catch { /* socket closed */ }
+    try { tcp?.close(); } catch { /* socket closed */ }
   }
-  if (!records.length || records.some(r => !isPublicAddress(r.address)))
-    throw new ResearchBlocked("unsafe_host", "El dominio no es seguro para una consulta automatizada.");
-  const ipv4 = records.find(r => r.family === 4);
-  if (!ipv4) throw new ResearchBlocked("unsupported_dns", "El dominio no ofrece una dirección IPv4 pública verificable.");
-  return ipv4.address;
 }
 
-/**
- * HTTPS only: no redirects to third parties, cookies, internal IPs or arbitrary ports.
- * The response body and total time are bounded, even when the remote site streams forever.
- */
+/** HTTPS-only; same-business-host redirect cap, robots handled by checkRobots. */
 export async function fetchPublicPage(initial: URL, kind: "robots" | "html"): Promise<FetchedPage> {
   const originalHost = initial.hostname;
   let current = new URL(initial.href);
-  const maxBytes = kind === "robots" ? MAX_ROBOTS : MAX_HTML;
   for (let hop = 0; hop <= 2; hop++) {
     const accepted = websiteUrl(current.href);
     if (!accepted || !sameBusinessHost(accepted.hostname, originalHost))
-      throw new ResearchBlocked("unsafe_redirect", "La web redirige fuera del dominio oficial; no se siguió el enlace.");
-    const address = await publicIPv4(accepted.hostname);
-    const page = await new Promise<FetchedPage & { location?: string }>((resolve, reject) => {
-      const req = request(accepted, {
-        method: "GET",
-        timeout: TIMEOUT_MS,
-        maxHeaderSize: 32 * 1024,
-        headers: {
-          "User-Agent": AGENT,
-          "Accept": kind === "robots" ? "text/plain" : "text/html,application/xhtml+xml",
-          "Accept-Encoding": "identity",
-          "Cookie": "",
-        },
-        lookup: pinnedDnsLookup(address),
-      }, res => {
-        const status = res.statusCode ?? 0;
-        const length = Number(res.headers["content-length"] ?? 0);
-        if (Number.isFinite(length) && length > maxBytes) {
-          req.destroy(new ResearchBlocked("oversize", "La página supera el límite de lectura segura."));
-          return;
-        }
-        const chunks: Buffer[] = [];
-        let bytes = 0;
-        res.on("data", (chunk: Buffer) => {
-          bytes += chunk.length;
-          if (bytes > maxBytes) {
-            req.destroy(new ResearchBlocked("oversize", "La página supera el límite de lectura segura."));
-          } else chunks.push(chunk);
-        });
-        res.on("end", () => resolve({
-          url: accepted.href,
-          status,
-          contentType: String(res.headers["content-type"] ?? "").slice(0, 100).toLowerCase(),
-          text: Buffer.concat(chunks).toString("utf8"),
-          complete: true,
-          location: typeof res.headers.location === "string" ? res.headers.location : undefined,
-        }));
-        res.on("error", reject);
-      });
-      req.on("timeout", () => req.destroy(new ResearchBlocked("timeout", "La web no respondió a tiempo.")));
-      req.on("error", reject);
-      req.end();
-    });
+      throw new ResearchBlocked("unsafe_redirect", "La web redirige fuera del dominio oficial.");
+    const page = await pinnedRequest(accepted, kind);
     if ([301, 302, 303, 307, 308].includes(page.status)) {
-      if (!page.location || hop === 2) throw new ResearchBlocked("redirect_limit", "Demasiadas redirecciones.");
+      if (!page.location || hop === 2)
+        throw new ResearchBlocked("redirect_limit", "Demasiadas redirecciones.");
       const next = new URL(page.location, accepted);
       if (!websiteUrl(next.href) || !sameBusinessHost(next.hostname, originalHost))
-        throw new ResearchBlocked("unsafe_redirect", "La web redirige fuera del dominio oficial; no se siguió el enlace.");
+        throw new ResearchBlocked("unsafe_redirect", "La web redirige fuera del dominio oficial.");
       current = next;
       continue;
     }
     if (kind === "html" && page.status === 200 && !/text\/html|application\/xhtml\+xml/.test(page.contentType))
-      throw new ResearchBlocked("not_html", "El sitio respondió con contenido que no es una página web.");
+      throw new ResearchBlocked("not_html", "El sitio respondió sin contenido HTML.");
     return page;
   }
   throw new ResearchBlocked("redirect_limit", "No se pudo completar la navegación segura.");
