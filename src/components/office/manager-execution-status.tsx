@@ -65,6 +65,7 @@ export function ManagerExecutionStatus({ lang }: { lang: string }) {
         const state = run?.display_status ?? "not_run";
         const label = state === "completed" ? (en ? "Completed" : "Completado")
           : state === "running" ? (en ? "Running" : "Trabajando")
+          : state === "stale" ? (en ? "No recent activity" : "Sin actividad reciente")
           : state === "stalled" ? (en ? "Stalled" : "Interrumpido")
           : state === "failed" ? (en ? "Failed" : "Falló")
           : en ? "Not run" : "Sin ejecutar";
