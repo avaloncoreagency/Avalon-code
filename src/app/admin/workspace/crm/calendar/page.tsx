@@ -43,7 +43,7 @@ export default async function CalendarPage({ searchParams }: { searchParams: Pro
     run<{ id: string; sale_id: string; due_on: string; status: string; assignee_id: string; crm_departments: { label: string } | null; crm_clients: { legal_name: string } | null }[]>(orders.limit(200)),
     run<{ id: string; company: string; follow_up_at: string; owner_id: string }[]>(leads.limit(200)),
     run<{ user_id: string; email: string }[]>(supabase.rpc("crm_owner_directory")),
-    run<CalendarEvent[]>(supabase.from("crm_events").select("id,title,owner_id,attendee_ids,starts_at,ends_at,timezone,all_day,kind,status,color,description,location,meeting_url,participants,lead_id,client_id,version").neq("status", "cancelled").lt("starts_at", rangeTo + "T00:00:00Z").gt("ends_at", rangeFrom + "T00:00:00Z").order("starts_at").limit(600)),
+    run<CalendarEvent[]>(supabase.from("crm_events").select("id,title,owner_id,attendee_ids,starts_at,ends_at,timezone,all_day,kind,status,color,description,location,meeting_url,participants,lead_id,client_id,version,crm_leads(company)").neq("status", "cancelled").lt("starts_at", rangeTo + "T00:00:00Z").gt("ends_at", rangeFrom + "T00:00:00Z").order("starts_at").limit(600)),
     run<DayBanner[]>(supabase.from("crm_calendar_banners").select("id,day,title,subtitle,emoji,theme,version").gte("day", rangeFrom).lt("day", rangeTo).order("day").limit(180)),
     run<{ id: string; legal_name: string }[]>(supabase.from("crm_clients").select("id,legal_name").neq("status", "archived").order("legal_name").limit(150)),
     run<{ id: string; company: string }[]>(supabase.from("crm_leads").select("id,company").eq("archived", false).order("created_at", { ascending: false }).limit(150)),
