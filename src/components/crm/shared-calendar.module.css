@@ -41,6 +41,9 @@
 .leadLink{display:inline-flex;align-items:center;max-width:100%;min-height:34px;border-radius:8px;padding:5px 8px;border:1px solid rgba(84,209,231,.35);background:rgba(36,121,151,.16);color:#b0eeff;font-size:12px;font-weight:700;text-decoration:none;overflow-wrap:anywhere}
 .leadChip:hover,.leadChip:focus-visible,.leadLink:hover,.leadLink:focus-visible{text-decoration:underline;outline-offset:2px;border-color:#7de2fb}
 .helper{display:block;color:var(--cal-muted);font-size:11px;font-weight:450}
+.saleLinks{display:flex;gap:6px;flex-wrap:wrap;margin-top:7px}
+.saleLinks a{color:#a9e8ff;font-size:11px;text-underline-offset:2px;padding:3px 5px;border:1px solid rgba(84,209,231,.25);border-radius:6px}
+.saleLinks a:hover,.saleLinks a:focus-visible{border-color:#7de2fb;outline-offset:2px}
 .slot .eventStack{position:relative;z-index:2}
 .eventChip:focus-visible,.daySelect:focus-visible,.dayAdd:focus-visible{outline:2px solid #a3dbff;outline-offset:2px}
 .more{border:0;background:transparent;color:#9fcbff;text-align:left;cursor:pointer;font-size:11px}
