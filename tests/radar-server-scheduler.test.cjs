@@ -76,6 +76,6 @@ test("native Deno HTTPS adapter parses bounded HTTP/1.1 and chunked responses", 
   assert.match(source, /cause\.name === "UnexpectedEof"/);
   const compressed = enc.encode("HTTP/1.1 200 OK\r\nContent-Encoding: gzip\r\n\r\nabc");
   assert.throws(() => safety.parseHttpResponse(compressed, 20), e => e.code === "encoding");
-  const malformed = enc.encode("HTTP/1.1 200 OK\r\nTransfer-Encoding: chunked\r\n\r\nabc\r\nbad\r\n");
+  const malformed = enc.encode("HTTP/1.1 200 OK\r\nTransfer-Encoding: chunked\r\n\r\nZ\r\nbad\r\n");
   assert.throws(() => safety.parseHttpResponse(malformed, 20), e => e.code === "chunk_invalid");
 });
