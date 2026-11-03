@@ -8,7 +8,7 @@ import { pick, formatDate } from "@/lib/i18n";
 import { run } from "@/lib/os/data";
 import { label, TASK_PRIORITIES, TASK_STATUSES } from "@/lib/sales/domain";
 import { commentTask, createTask, updateTask } from "./actions";
-import { taskLink } from "@/lib/crm/task-links";
+import { taskLink, resolveTaskView } from "@/lib/crm/task-links";
 import s from "@/components/sales/sales.module.css";
 export const dynamic = "force-dynamic";
 
@@ -21,8 +21,8 @@ export default async function TasksPage({ searchParams }: { searchParams: Promis
   const { supabase, userId } = await requireOwner();
   const lang = await getLang();
   const p = await searchParams;
-  const view = ["mine", "all", "overdue", "done", "assigned"].includes(q(p, "view") ?? "") ? q(p, "view")! : "mine";
   const client = q(p, "client"), workOrder = q(p, "work_order"), taskId = q(p, "task");
+  const view = resolveTaskView(q(p, "view"), Boolean(workOrder && UUID_RE.test(workOrder)));
   const page = Math.min(Number(/^\d{1,4}$/.test(q(p, "page") ?? "") ? q(p, "page") : 0), 2000);
   const now = new Date().toISOString();
 
@@ -34,17 +34,23 @@ export default async function TasksPage({ searchParams }: { searchParams: Promis
   if (view === "all") query = query.in("status", OPEN);
   if (client && UUID_RE.test(client)) query = query.eq("client_id", client);
   if (workOrder && UUID_RE.test(workOrder)) query = query.eq("work_order_id", workOrder);
-  const [tasks, owners, clients, detail] = await Promise.all([
+  const [tasks, owners, clients, detail, orderContext] = await Promise.all([
     run<Task[]>(query.order("due_at", { ascending: true, nullsFirst: false }).order("created_at", { ascending: false }).range(page * PAGE, page * PAGE + PAGE - 1)),
     run<{ user_id: string; email: string }[]>(supabase.rpc("crm_owner_directory")),
     run<{ id: string; legal_name: string }[]>(supabase.from("crm_clients").select("id,legal_name").neq("status", "archived").order("legal_name").limit(500)),
     taskId && UUID_RE.test(taskId) ? run<Task | null>(supabase.from("crm_tasks").select(COLS).eq("id", taskId).maybeSingle()) : Promise.resolve(null),
+    workOrder && UUID_RE.test(workOrder)
+      ? run<{ id: string; client_id: string; sale_id: string; project_id: string | null; department_id: string } | null>(
+        supabase.from("crm_work_orders").select("id,client_id,sale_id,project_id,department_id").eq("id", workOrder).maybeSingle())
+      : Promise.resolve(null),
   ]);
   const [comments, history] = detail?.data ? await Promise.all([
     run<{ id: string; body: string; created_by: string; created_at: string }[]>(supabase.from("crm_task_comments").select("id,body,created_by,created_at").eq("task_id", detail.data.id).order("created_at")),
     run<{ id: number; event_type: string; from_state: string | null; to_state: string | null; actor_id: string | null; created_at: string }[]>(supabase.from("crm_timeline").select("id,event_type,from_state,to_state,actor_id,created_at").eq("task_id", detail.data.id).order("id")),
   ]) : [null, null];
   const ownerList = owners.data ?? [];
+  const activeOrder = orderContext?.data ?? null;
+  const mismatchedClient = Boolean(activeOrder && client && UUID_RE.test(client) && client !== activeOrder.client_id);
   const tabs: [string, string, string][] = [["mine", "Mis tareas", "My tasks"], ["assigned", "Asignadas por mí", "Assigned by me"], ["overdue", "Vencidas", "Overdue"], ["all", "Todas abiertas", "All open"], ["done", "Cerradas", "Closed"]];
   const isOverdue = (t: Task) => OPEN.includes(t.status) && t.due_at !== null && t.due_at < now;
   const taskHref = (task?: string, pageNumber = page, viewName = view) => taskLink({
@@ -109,6 +115,12 @@ export default async function TasksPage({ searchParams }: { searchParams: Promis
         <div className={s.actions} style={{ marginTop: 12 }}>{page > 0 && <Link className={s.button} href={taskHref(undefined, page - 1)}>{pick(lang, "Anterior", "Previous")}</Link>}{(page + 1) * PAGE < (tasks.count ?? 0) && <Link className={s.button} href={taskHref(undefined, page + 1)}>{pick(lang, "Siguiente", "Next")}</Link>}</div>
       </section>
       <section className={s.panel} aria-labelledby="new-task"><h2 id="new-task">{pick(lang, "Nueva tarea", "New task")}</h2>
+        {workOrder && (orderContext?.error
+          ? <Unavailable lang={lang} code={orderContext.error} />
+          : activeOrder
+            ? <p className={s.muted}>{pick(lang, "La tarea quedará vinculada a la orden, venta y cliente. Ver", "The task will be linked to the work order, sale and client. View")} <Link href={`/admin/workspace/crm/sales/${activeOrder.sale_id}`}>{pick(lang, "venta", "sale")}</Link> · <Link href={`/admin/workspace/crm/clients/${activeOrder.client_id}`}>{pick(lang, "cliente", "client")}</Link>{activeOrder.project_id && <> · <Link href={`/admin/workspace/products/${activeOrder.project_id}`}>{pick(lang, "proyecto", "project")}</Link></>}.</p>
+            : <p className={s.muted}>{pick(lang, "La orden de trabajo no está disponible. Quita el filtro para crear una tarea sin orden.", "Work order unavailable. Clear the filter to create a task without an order.")}</p>)}
+        {mismatchedClient && <p className={s.muted}>{pick(lang, "El filtro de cliente no corresponde a esta orden.", "The client filter does not match this order.")} <Link href={taskLink({ view, page: 0, workOrder: activeOrder?.id })}>{pick(lang, "Quitar solo filtro de cliente", "Clear client filter only")}</Link></p>}
         <form action={createTask} className={s.form}>{taskContextFields}<TzOffset />
           <label className={s.field}>{pick(lang, "Título *", "Title *")}<input name="title" required maxLength={200} /></label>
           <label className={s.field}>{pick(lang, "Descripción", "Description")}<textarea name="description" maxLength={4000} rows={3} /></label>
@@ -118,10 +130,10 @@ export default async function TasksPage({ searchParams }: { searchParams: Promis
           </div>
           <div className={s.row}>
             <label className={s.field}>{pick(lang, "Vencimiento (hora local)", "Due (local time)")}<input name="due_at" type="datetime-local" /></label>
-            <label className={s.field}>{pick(lang, "Departamento", "Department")}<select name="department_id" defaultValue=""><option value="">—</option>{[["website", "Website Designer"], ["ecommerce", "E-commerce Designer"], ["crm_creator", "CRM Creator"], ["receptionist", "AI Receptionist"], ["marketing", "Marketing Hub"], ["sales", pick(lang, "Comercial", "Sales")]].map(([k, v]) => <option key={k} value={k}>{v}</option>)}</select></label>
+            <label className={s.field}>{pick(lang, "Departamento", "Department")}<select name="department_id" defaultValue={activeOrder?.department_id ?? ""} disabled={Boolean(activeOrder)}><option value="">—</option>{[["website", "Website Designer"], ["ecommerce", "E-commerce Designer"], ["crm_creator", "CRM Creator"], ["receptionist", "AI Receptionist"], ["marketing", "Marketing Hub"], ["sales", pick(lang, "Comercial", "Sales")]].map(([k, v]) => <option key={k} value={k}>{v}</option>)}</select></label>
           </div>
-          <label className={s.field}>{pick(lang, "Cliente", "Client")}<select name="client_id" defaultValue={client && UUID_RE.test(client) ? client : ""}><option value="">—</option>{(clients.data ?? []).map(c => <option key={c.id} value={c.id}>{c.legal_name}</option>)}</select></label>
-          <button className={`${s.button} ${s.primary}`}>{pick(lang, "Crear y asignar", "Create and assign")}</button>
+          <label className={s.field}>{pick(lang, "Cliente", "Client")}<select name="client_id" defaultValue={activeOrder?.client_id ?? (client && UUID_RE.test(client) ? client : "")} disabled={Boolean(activeOrder)}><option value="">—</option>{(clients.data ?? []).map(c => <option key={c.id} value={c.id}>{c.legal_name}</option>)}</select></label>
+          <button className={`${s.button} ${s.primary}`} disabled={Boolean(workOrder && !activeOrder) || mismatchedClient}>{pick(lang, "Crear y asignar", "Create and assign")}</button>
         </form>
       </section>
     </div>
