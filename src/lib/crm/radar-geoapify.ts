@@ -98,10 +98,18 @@ export function normalizeGeoapifyPlaces(input: unknown, areaLabel: string): Inge
     const raw = asObject(datasource.raw) ?? {};
     const geometry = asObject(asObject(feature)?.geometry);
     const coords = Array.isArray(geometry?.coordinates) ? geometry.coordinates : [];
-    const lat = Number(props.lat ?? coords[1]), lon = Number(props.lon ?? coords[0]);
+    // Do not treat missing/blank coordinates as zero (Number(null) === 0).
+    const coordinate = (value: unknown) =>
+      typeof value === "number" ? value :
+      typeof value === "string" && value.trim() ? Number(value) : Number.NaN;
+    const lat = coordinate(props.lat ?? coords[1]), lon = coordinate(props.lon ?? coords[0]);
     if (!name || !Number.isFinite(lat) || !Number.isFinite(lon) ||
         lat < -90 || lat > 90 || lon < -180 || lon > 180) continue;
-    const osmType = raw.osm_type, osmId = Number(raw.osm_id);
+    const osmType = raw.osm_type;
+    const rawOsmId = raw.osm_id;
+    const osmId = typeof rawOsmId === "number" ||
+      (typeof rawOsmId === "string" && /^\\d+$/.test(rawOsmId))
+      ? Number(rawOsmId) : Number.NaN;
     const mapping: Record<string, string> = { n: "node", w: "way", r: "relation" };
     const ref = typeof osmType === "string" && mapping[osmType] &&
       Number.isSafeInteger(osmId) && osmId > 0

@@ -38,3 +38,9 @@ Geoapify's map tile URL requires a browser-visible API key. Restrict that key to
 5. Roll back by removing `AVALON_RADAR_PROVIDER` or unsetting the API key (production then fail-closed; existing records remain intact). No SQL migrations required.
 
 **No vendor offers an unconditional guarantee against rate limits. The durable architecture separates independent place-data, geocoding and map-tile providers.**
+
+## Defensive provider contract (3 Nov 2026)
+- Explicitly reject empty coordinates and invalid OSM identifiers instead of creating false (0,0) businesses.
+- Cache geocoding by selected provider; validate Geoapify server key before cache hit and preserve attribution on cached responses.
+- Require GeoJSON response; reject upstream redirects and unexpected formats, and never mark an incompatible nonempty Places payload as a successful empty import.
+- Configurable Overpass URLs reject known public/community hosts, loopback/internal and unsafe host formats. This is not proof of data licensing, nor a distributed rate limiter.

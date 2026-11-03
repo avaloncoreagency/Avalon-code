@@ -9,6 +9,23 @@ export type RadarProvider =
   | { kind: "geoapify"; url: string; licensed: true }
   | { kind: "overpass"; url: string; licensed: boolean };
 
+/** Only explicitly configured remote HTTPS hosts may act as owned/licensed Overpass.
+ * Ownership and commercial rights must be verified separately by the agency.
+ */
+export function safeLicensedOverpassUrl(input: string): string | null {
+  try {
+    const u = new URL(input);
+    const host = u.hostname.toLowerCase().replace(/\\.$/, "");
+    const community = ["overpass-api.de", "overpass.kumi.systems", "tile.openstreetmap.org", "nominatim.openstreetmap.org"];
+    if (u.protocol !== "https:" || u.username || u.password || u.port ||
+        !host.includes(".") || /^[0-9.]+$/.test(host) || host.includes(":") ||
+        host.endsWith(".local") || host.endsWith(".internal") ||
+        host.endsWith(".localhost") || host.endsWith(".test") ||
+        community.some(domain => host === domain || host.endsWith("." + domain))) return null;
+    return u.href;
+  } catch { return null; }
+}
+
 /** Explicit provider selection. Missing key fails closed: never falls back to a public API. */
 export function radarEndpoint(): RadarProvider | { error: string } {
   const provider = process.env.AVALON_RADAR_PROVIDER;
@@ -24,11 +41,9 @@ export function radarEndpoint(): RadarProvider | { error: string } {
     if (process.env.VERCEL_ENV === "production") return { error: "El radar necesita un proveedor de mapas propio o con licencia comercial en producción (AVALON_RADAR_OVERPASS_URL). No se usa el servidor comunitario para prospección comercial." };
     return { kind: "overpass", url: "https://overpass-api.de/api/interpreter", licensed: false };
   }
-  try {
-    const u = new URL(configured);
-    if (u.protocol !== "https:" || u.username || u.password || u.hostname === "overpass-api.de" || u.hostname === "overpass.kumi.systems") throw Error();
-    return { kind: "overpass", url: u.href, licensed: true };
-  } catch { return { error: "La URL del proveedor privado Overpass no es válida o corresponde a un servidor comunitario." }; }
+  const url = safeLicensedOverpassUrl(configured);
+  if (!url) return { error: "URL del proveedor Overpass inválida: no usar infraestructura comunitaria, local o sin HTTPS." };
+  return { kind: "overpass", url, licensed: true };
 }
 
 /** One bounded query to the provider, persisted through the idempotent ingest RPC (never approves). */
@@ -42,12 +57,12 @@ export async function searchAndIngest(db: SupabaseClient, area: RadarArea, runKe
       method: "POST",
       headers: { "Content-Type": "application/json", "x-api-key": key ?? "" },
       body: JSON.stringify(buildGeoapifyRequest(area, limit)),
-      signal: AbortSignal.timeout(12_000), cache: "no-store",
+      signal: AbortSignal.timeout(12_000), redirect: "error", cache: "no-store",
     } : {
       method: "POST",
       headers: { "Content-Type": "application/x-www-form-urlencoded;charset=UTF-8", "User-Agent": "AvalonCoreAgency-LeadHunter/2.0 (https://avaloncoreagency.com; human-initiated)" },
       body: new URLSearchParams({ data: buildAreaQuery(area, limit ?? (endpoint.licensed ? 1000 : 200)) }),
-      signal: AbortSignal.timeout(endpoint.licensed ? 65_000 : 16_000), cache: "no-store",
+      signal: AbortSignal.timeout(endpoint.licensed ? 65_000 : 16_000), redirect: "error", cache: "no-store",
     });
     if (res.status === 429) return { ok: false, status: 429, error: "El proveedor alcanzó su límite (429). Detenemos la búsqueda; revisa consumo o inténtalo más tarde." };
     if (res.status === 401 || res.status === 403) return { ok: false, status: 503, error: "Proveedor no autorizado o clave incorrecta. Revisa la cuenta, dominio y cuota sin compartir la clave." };
@@ -58,6 +73,9 @@ export async function searchAndIngest(db: SupabaseClient, area: RadarArea, runKe
       return { ok: false, status: 503, error: "El proveedor devolvió un formato inesperado. No se importaron negocios." };
     }
     const places = geoapify ? normalizeGeoapifyPlaces(body, area.label) : toIngest(body.elements, area.label);
+    if (geoapify && Array.isArray(body.features) && body.features.length > 0 && places.length === 0) {
+      return { ok: false, status: 502, error: "Geoapify devolvió lugares sin nombre, coordenadas o identidad OSM verificables; no se importaron resultados." };
+    }
     const { data, error } = await db.rpc("crm_radar_ingest", { places, run_key: runKey, campaign: campaignId });
     if (error) return { ok: false, status: 503, error: error.code === "PGRST202" ? "La migración del radar (20261102190000) no está aplicada en este entorno." : "No se pudieron guardar los resultados." };
     return { ok: true, run: data };

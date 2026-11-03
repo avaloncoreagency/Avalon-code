@@ -84,3 +84,44 @@ test("Geoapify provider is explicit, server-only, owner gated and uses the exist
   assert.match(geoRoute, /getOwnerSession\(\)/);
   assert.match(geoRoute, /new URL\("https:\/\/api.geoapify.com\/v1\/geocode\/search"\)/);
 });
+
+test("empty coordinates are discarded, but explicitly supplied zero is valid", () => {
+  const basic = { type: "Feature", properties: {
+    name: "Example", place_id: "0123456789abcdef0123456789abcdef",
+    datasource: { sourcename: "openstreetmap", raw: {} } } };
+  for (const coordinates of [[null, null], [undefined, undefined], ["", ""]]) {
+    assert.equal(normalizeGeoapifyPlaces({ features: [{ ...basic, geometry: { type: "Point", coordinates } }] }, "Miami").length, 0);
+  }
+  assert.equal(normalizeGeoapifyPlaces({ features: [{ ...basic, geometry: { type: "Point", coordinates: [0, 0] } }] }, "Equator").length, 1);
+});
+test("boolean OSM IDs fall back to stable place IDs rather than invented nodes", () => {
+  const p = { properties: { name: "Business", lat: 25.7, lon: -80.2, place_id: "0123456789abcdef0123456789abcdef",
+    datasource: { sourcename: "openstreetmap", raw: { osm_type: "n", osm_id: true } } } };
+  assert.equal(normalizeGeoapifyPlaces({ features: [p] }, "Miami")[0].source_ref,
+    "geoapify:0123456789abcdef0123456789abcdef");
+});
+test("Geoapify geocoding cache never bypasses missing key or mixes sources", () => {
+  const g = fs.readFileSync("src/app/admin/workspace/crm/radar/geocode/route.ts", "utf8");
+  assert.ok(g.indexOf("if (geoapify && !apiKey)") < g.indexOf("const hit = cache.get(key)"));
+  assert.match(g, /geoapify \? "geoapify" : base/);
+  assert.match(g, /attribution: hit.attribution/);
+  assert.match(g, /format: "geojson"/);
+  assert.match(g, /redirect: "error"/);
+});
+test("configured Overpass cannot route to known community or local destinations", () => {
+  const code = fs.readFileSync("src/lib/crm/radar-search.ts", "utf8");
+  const runtime = { exports: {} };
+  vm.runInNewContext(ts.transpileModule(code, {
+    compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 },
+  }).outputText, { module: runtime, exports: runtime.exports, require: () => ({}), process: { env: {} }, URL });
+  const check = runtime.exports.safeLicensedOverpassUrl;
+  for (const url of [
+    "https://overpass-api.de/api/interpreter", "https://mirror.overpass-api.de/api",
+    "https://overpass.kumi.systems/api", "https://127.0.0.1/api",
+    "https://localhost/api", "https://metadata.internal/api",
+    "http://private.example.com/api", "https://u:p@private.example.com/api",
+  ]) assert.equal(check(url), null, url);
+  assert.equal(check("https://private.example.com/api"), "https://private.example.com/api");
+  assert.match(code, /redirect: "error"/);
+  assert.match(code, /Geoapify devolvió lugares sin nombre/);
+});
