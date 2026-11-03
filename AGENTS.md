@@ -56,3 +56,12 @@ Applies to Codex, ChatGPT and other repo-aware agents. Detailed playbook: `docs/
 - If Graphify is unavailable, stale, misses the needed code or costs more context than direct inspection, switch immediately to targeted git/GitHub lookups; do not loop or block progress.
 - Limit exploration to a small number of targeted calls before choosing files. Report succinctly: files changed, tests actually run/results, open risks, next checkpoint; no invented token-savings percentages.
 - Never send credentials, private customer data or secrets to graph queries, memory or agent logs. Graphify memory notes can require separate human review before other agents can recall them.
+
+
+## Visual requests: Higgsfield -> Avalon delivery gate (2026-11-03)
+- For any requested Higgsfield image/video, redesign, futuristic animation or creative update, read `docs/HIGGSFIELD_TO_AVALON.md` before coding. Generation is NOT delivery.
+- The required deliverable is actual media/code incorporated into the relevant Avalon Next.js route and reviewable on isolated Preview. A prompt, link, concept, screenshot, completed Higgsfield job or green CI by itself is NOT a completed app change.
+- If external media is inaccessible (expired CDN URL, download blocked or missing connector), report BLOCKED with the exact reason and do not claim installation; deliver only independently useful CSS/HTML improvements with truthful scope.
+- Before paid generation, estimate cost and respect the explicitly approved budget; never spend without authorization. Never copy credentials to client, commit secrets, hotlink expiring signed URLs, weaken owner gating/RLS, or modify production.
+- Every visual PR must state source/job ID or "no generated asset", actual route/files changed, desktop/mobile Preview proof on exact SHA, reduced-motion handling, tests executed, remaining blockers, cost and rollback. Without browser evidence, status remains "PR pendiente de aceptación visual".
+- Coordinate shared shell changes by PR; do not overwrite other agents' branches or declare the entire suite redesigned after a partial change.
