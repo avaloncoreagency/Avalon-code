@@ -5,11 +5,11 @@ const vm = require("node:vm");
 const ts = require("typescript");
 const read = path => fs.readFileSync(path, "utf8");
 
-const module = { exports: {} };
+const testModule = { exports: {} };
 vm.runInNewContext(ts.transpileModule(read("src/lib/office/presence.ts"), {
   compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 },
-}).outputText, { module, exports: module.exports, Intl, Date, Array, Object });
-const { staffPresence, zonedMoment } = module.exports;
+}).outputText, { module: testModule, exports: testModule.exports, Intl, Date, Array, Object });
+const { staffPresence, zonedMoment } = testModule.exports;
 
 const id = "person-a";
 const ny = { user_id: id, timezone: "America/New_York", weekly_hours: { tue: ["09:00","17:00"] } };
