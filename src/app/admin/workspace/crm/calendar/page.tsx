@@ -36,7 +36,7 @@ export default async function CalendarPage({ searchParams }: { searchParams: Pro
   const to = new Date(now.getTime() + days * 86400000).toISOString();
   let tasks = supabase.from("crm_tasks").select("id,title,due_at,status,assignee_id").not("status", "in", "(done,cancelled)").gte("due_at", from).lte("due_at", to);
   let orders = supabase.from("crm_work_orders").select("id,sale_id,due_on,status,assignee_id,crm_departments(label),crm_clients(legal_name)").not("status", "in", "(delivered,cancelled)").gte("due_on", from.slice(0, 10)).lte("due_on", to.slice(0, 10));
-  let leads = supabase.from("crm_leads").select("id,company,follow_up_at,owner_id").eq("archived", false).gte("follow_up_at", from).lte("follow_up_at", to);
+  let leads = supabase.from("crm_leads").select("id,company,follow_up_at,owner_id,crm_stages!inner(kind)").eq("archived", false).eq("crm_stages.kind", "open").gte("follow_up_at", from).lte("follow_up_at", to);
   if (who) { tasks = tasks.eq("assignee_id", who); orders = orders.eq("assignee_id", who); leads = leads.eq("owner_id", who); }
   const [t, o, l, owners, calendarEvents, dayBanners, linkedClients, linkedLeads, purchasedSales] = await Promise.all([
     run<{ id: string; title: string; due_at: string; status: string; assignee_id: string }[]>(tasks.limit(300)),
@@ -49,6 +49,17 @@ export default async function CalendarPage({ searchParams }: { searchParams: Pro
     run<{ id: string; company: string }[]>(supabase.from("crm_leads").select("id,company").eq("archived", false).order("created_at", { ascending: false }).limit(150)),
     run<CalendarSale[]>(supabase.from("crm_sales").select("id,client_id,sale_number,sold_on,crm_clients(legal_name)").eq("status", "confirmed").order("sold_on", { ascending: false }).order("created_at", { ascending: false }).limit(500)),
   ]);
+  // The initial list covers recent purchases. Fetch older purchases only when linked
+  // appointments need them, so archived/historical customer tags open a real sale.
+  const recentCustomerIds = new Set((purchasedSales.data ?? []).map(sale => sale.client_id));
+  const historicalClientIds = [...new Set((calendarEvents.data ?? []).map(event => event.client_id).filter((id): id is string => Boolean(id)))]
+    .filter(id => !recentCustomerIds.has(id)).slice(0, 200);
+  const historicalSales = historicalClientIds.length ? await run<CalendarSale[]>(
+    supabase.from("crm_sales").select("id,client_id,sale_number,sold_on,crm_clients(legal_name)")
+      .eq("status", "confirmed").in("client_id", historicalClientIds)
+      .order("sold_on", { ascending: false }).limit(500)
+  ) : null;
+  const calendarSales = [...(purchasedSales.data ?? []), ...(historicalSales?.data ?? [])];
   const nowIso = now.toISOString();
   const items: Item[] = [
     ...(t.data ?? []).map(x => ({ key: `t${x.id}`, at: x.due_at, kind: "task" as const, title: x.title, href: `/admin/workspace/crm/tasks?task=${x.id}`, owner: x.assignee_id, status: x.status, overdue: x.due_at < nowIso })),
@@ -58,17 +69,17 @@ export default async function CalendarPage({ searchParams }: { searchParams: Pro
   const byDay = new Map<string, Item[]>();
   for (const item of items) byDay.set(item.at.slice(0, 10), [...(byDay.get(item.at.slice(0, 10)) ?? []), item]);
   const KIND: Record<Item["kind"], [string, string]> = { task: ["Tarea", "Task"], delivery: ["Entrega", "Delivery"], followup: ["Seguimiento", "Follow-up"] };
-  const failed = t.error ?? o.error;
+  const failed = t.error ?? o.error ?? l.error;
   const link = (params: Record<string, string>) => `?${new URLSearchParams({ ...(who === null ? { owner: "all" } : who !== userId ? { owner: who } : {}), ...(days === 60 ? { days: "60" } : {}), ...params })}`;
   return (
     <Suite active="crm">
       <CrmNavigation active="calendar" />
       <SharedCalendar events={calendarEvents.data ?? []} banners={dayBanners.data ?? []}
-        owners={owners.data ?? []} clients={linkedClients.data ?? []} leads={linkedLeads.data ?? []} sales={purchasedSales.data ?? []}
+        owners={owners.data ?? []} clients={linkedClients.data ?? []} leads={linkedLeads.data ?? []} sales={calendarSales}
         userId={userId} initialDate={focusDate} initialView={calendarView} lang={lang}
         dataError={calendarEvents.error || dayBanners.error ? pick(lang,
           "El calendario compartido no pudo cargar todos sus datos. Los registros operativos siguen disponibles abajo.",
-          "The shared calendar could not load all records. Operations due dates remain below.") : purchasedSales.error ? pick(lang,
+          "The shared calendar could not load all records. Operations due dates remain below.") : purchasedSales.error || historicalSales?.error ? pick(lang,
           "No se pudo cargar la lista de ventas confirmadas. Puedes seguir usando el calendario, pero no etiquetar nuevos clientes compradores.",
           "Confirmed sales could not load. You can still use the calendar but cannot tag new purchasing clients.") : undefined} />
       <details style={{ marginTop: 18 }}><summary style={{ cursor: "pointer", padding: "12px 4px", fontWeight: 700 }}>
@@ -86,8 +97,8 @@ export default async function CalendarPage({ searchParams }: { searchParams: Pro
           </div>
         </header>
         <OpsLinks lang={lang} />
-        {failed ? <p className={s.flash} data-tone="warn" role="status">{pick(lang, "La migración de ventas no está aplicada en este entorno: solo se muestran seguimientos de leads.", "The sales migration is not applied here: only lead follow-ups are shown.")}</p> : null}
-        {byDay.size === 0 ? <p className={s.empty}>{pick(lang, "Sin fechas en este periodo.", "No dates in this period.")}</p> :
+        {failed ? <p className={s.flash} data-tone="warn" role="status">{pick(lang, "La agenda está incompleta: no se pudieron cargar todas las tareas, entregas o oportunidades. Revisa las conexiones y los permisos antes de usarla para planificar.", "The agenda is incomplete: not all tasks, deliveries or opportunities loaded. Check connections and permissions before relying on it.")}</p> : null}
+        {byDay.size === 0 ? !failed && <p className={s.empty}>{pick(lang, "Sin fechas en este periodo.", "No dates in this period.")}</p> :
           <div className={s.grid}>{[...byDay.entries()].map(([day, list]) => <section key={day} className={s.card} aria-label={formatDate(lang, day)}>
             <h3>{formatDate(lang, day)}</h3>
             <ul className={s.list}>{list.map(i => <li key={i.key} className={s.notice} data-severity={i.overdue ? "urgent" : "normal"}>
