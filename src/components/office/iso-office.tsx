@@ -18,7 +18,7 @@ type Props = {
 };
 
 const S = 30; // px per world unit
-const W = 24, D = 16, H = 4.6;
+const W = 28, D = 18, H = 5.2;
 const K = 1.55; // character scale relative to furniture, for legibility (Sims-like proportions) // room size (x, y) and wall height
 const COS = 0.8660254, SIN = 0.5;
 const px = (x: number, y: number, z = 0): [number, number] => [(x - y) * COS * S, (x + y) * SIN * S - z * S];
@@ -102,6 +102,7 @@ function person(p: IsoPerson, x: number, y: number, selected: boolean, onSelect:
         <ellipse cx={fx} cy={fy} rx={52} ry={26} className={s.ring} />
         <g transform={`translate(${fx0} ${fy0}) scale(${K}) translate(${-fx0} ${-fy0})`}><g className={s.body}>
           <path d={`M ${bx - 17} ${by + 18} Q ${bx - 18} ${by - 16} ${bx} ${by - 18} Q ${bx + 18} ${by - 16} ${bx + 17} ${by + 18} Z`} fill={torso} />
+          <path className={s.arm} d={`M ${bx + 12} ${by - 8} Q ${bx + 28} ${by + 1} ${bx + 25} ${by + 12}`} fill="none" stroke={p.kind === "ai" ? "#a5a5da" : "#899db6"} strokeWidth={4.5} strokeLinecap="round" />
           <path d={`M ${bx - 5} ${by - 17} L ${bx} ${by - 6} L ${bx + 5} ${by - 17}`} fill="none" stroke={p.kind === "ai" ? "#e7e2ff" : "#bba88e"} strokeWidth={1.4} />
           <circle cx={hx} cy={hy0} r={13} fill={p.kind === "ai" ? `hsl(${p.hue ?? 250} 30% 24%)` : "#1b2236"} stroke={p.kind === "ai" ? `hsl(${p.hue ?? 250} 70% 75%)` : "#bba88e"} strokeWidth={1.4} />
           {p.photo
@@ -126,8 +127,8 @@ function person(p: IsoPerson, x: number, y: number, selected: boolean, onSelect:
 }
 
 /** Seats: humans in the executive / operations rows, AI managers in the front arc. Positions are seat centres. */
-const HUMAN_SEATS: [number, number][] = [[9.6, 4.4], [13.6, 4.4], [8.0, 8.4], [12.0, 8.4], [15.6, 10.6], [4.2, 9.6], [19.6, 11.0], [22.0, 14.2]];
-const AI_SEATS: [number, number][] = [[3.4, 14.2], [7.2, 13.2], [11.2, 12.8], [15.2, 13.6], [19.0, 14.8]];
+const HUMAN_SEATS: [number, number][] = [[9.8, 4.6], [14.2, 4.6], [8.1, 9.0], [13.1, 9.0], [18.3, 11.0], [4.5, 9.8], [23.8, 11.0], [24.2, 15.4]];
+const AI_SEATS: [number, number][] = [[3.6, 16.2], [8.4, 15.2], [13.1, 14.8], [18.1, 15.1], [23.4, 16.0]];
 
 export function IsoOffice({ people, selected, onSelect, lang, screen }: Props) {
   const t = useCallback((es: string, en: string) => (lang === "en" ? en : es), [lang]);
@@ -226,9 +227,14 @@ export function IsoOffice({ people, selected, onSelect, lang, screen }: Props) {
     list.push(box("sofa-a", 1.4, 1.5, 0, 5.2, 1.1, 0.45, FABRIC), box("sofa-a-back", 1.4, 1.2, 0.45, 5.2, 0.35, 0.5, FABRIC));
     list.push(box("sofa-b", 1.3, 2.7, 0, 1.1, 3.2, 0.45, FABRIC));
     list.push(box("table-l", 3.4, 3.4, 0.3, 2.4, 1.4, 0.1, CHAMP), box("table-l-base", 4.2, 3.9, 0, 0.8, 0.4, 0.3, TITAN));
-    list.push(plant("pl-1", 0.4, 0.4, 1.5), plant("pl-2", 8.4, 0.4, 1.2), plant("pl-3", 0.4, 7.4, 1.3), plant("pl-4", 0.4, 14.6, 1.4), plant("pl-5", 22.8, 14.8, 1.3), plant("pl-6", 15.2, 0.4, 1.1), plant("pl-7", 22.8, 9.6, 1.1));
+    list.push(plant("pl-1", 0.4, 0.4, 1.5), plant("pl-2", 8.4, 0.4, 1.2), plant("pl-3", 0.4, 7.4, 1.3), plant("pl-4", 0.4, 16.6, 1.4), plant("pl-5", 25.8, 16.6, 1.3), plant("pl-6", 15.2, 0.4, 1.1), plant("pl-7", 26.8, 9.6, 1.1), plant("pl-8", 26.8, 1.5, 1.4));
     // Meeting room (right): table + chairs; glass walls added on top with low opacity.
     list.push(box("m-table", 17.6, 3.0, 0.72, 4.6, 1.8, 0.09, WOOD), box("m-table-base", 19.4, 3.6, 0, 1.0, 0.6, 0.72, TITAN));
+    // Welcome desk and team studio enlarge the HQ without inventing staff.
+    list.push(box("welcome-counter", 1.8, 7.1, 0, 3.0, 0.9, 0.95, CHAMP));
+    list.push(box("welcome-display", 2.5, 7.45, 0.96, 1.2, 0.18, 0.25, { top: "#6de6f1", left: "#123a58", right: "#10304c" }));
+    list.push(box("studio-bench", 24.4, 2.4, 0, 2.0, 2.9, 0.42, FABRIC));
+    list.push(box("studio-console", 24.5, 2.6, 0.48, 1.75, 2.4, 0.16, { top: "#374666", left: "#1c2e4d", right: "#253552" }));
     for (let i = 0; i < 4; i++) { list.push(...chair(`mc-a${i}`, 17.8 + i * 1.1, 2.0), ...chair(`mc-b${i}`, 17.8 + i * 1.1, 5.0)); }
     list.push({ depth: 23.8 + 8 + 0.1, node: (
       <g key="glass" className={s.glass}>
@@ -302,14 +308,22 @@ export function IsoOffice({ people, selected, onSelect, lang, screen }: Props) {
         {[[12, 6], [12, 13], [23, 5], [4, 4]].map(([x, y], i) => { const [cx, cy] = px(x, y); return <ellipse key={`pool${i}`} cx={cx} cy={cy} rx={150} ry={75} fill="url(#iso-pool)" />; })}
         <polyline points={pts([0, D, 0], [W, D, 0], [W, 0, 0])} className={s.edge} />
 
+        {/* Ambient control island: purely decorative glow, not simulated live execution. */}
+        <g aria-hidden="true">
+          <ellipse cx={px(11, 7.0, 0)[0]} cy={px(11, 7.0, 0)[1]} rx={84} ry={43} className={s.floorHalo} />
+          <ellipse cx={px(11, 7.0, 0.65)[0]} cy={px(11, 7.0, 0.65)[1]} rx={29} ry={13} className={s.holoRing} />
+          <ellipse cx={px(11, 7.0, 0.78)[0]} cy={px(11, 7.0, 0.78)[1]} rx={19} ry={8} className={s.holoCore} />
+          <circle cx={px(11, 7.0, 1.04)[0]} cy={px(11, 7.0, 1.04)[1]} r={3} className={s.ambientLight} />
+        </g>
         {items.map(i => i.node)}
 
         {/* Zone labels on the floor plane. */}
-        {([[t("Lounge", "Lounge"), 4.4, 7.2], [t("Sala de reuniones", "Meeting room"), 20.2, 8.9], [t("Equipo", "Team"), 11.6, 2.2], [t("Managers de IA · virtuales", "AI managers · virtual"), 11.2, 16.2]] as [string, number, number][]).map(([label, x, y]) => {
+        {([[t("Recepción", "Reception"), 3.1, 8.5], [t("Lounge", "Lounge"), 4.4, 6.3], [t("Sala de reuniones", "Meeting room"), 20.2, 8.9], [t("Equipo", "Team"), 11.6, 2.2], [t("Estudio", "Studio"), 25.2, 6.5], [t("Managers virtuales", "Virtual managers"), 12.2, 17.7]] as [string, number, number][]).map(([label, x, y]) => {
           const [lx, ly] = px(x, y);
           return <text key={label} x={lx} y={ly} textAnchor="middle" className={s.zone}>{label}</text>;
         })}
       </svg>
+      <p className={s.gestureHint}>{t("Dos dedos para zoom · arrastra para recorrer · doble toque para acercar", "Pinch to zoom · drag to pan · double tap to zoom")}</p>
       <div className={s.controls} role="group" aria-label={t("Cámara", "Camera")}>
         <span className={s.zoomReadout} aria-live="off">{Math.round(camera.zoom * 100)}%</span>
         <button type="button" onClick={() => zoomBy(0.35)} aria-label={t("Acercar", "Zoom in")} disabled={camera.zoom >= OFFICE_MAX_ZOOM}>+</button>
