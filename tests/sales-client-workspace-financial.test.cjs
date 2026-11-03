@@ -186,15 +186,28 @@ async function renderFixture(saleRows, costRows) {
     assert.match(pageSource, /loadAllRows/, "Parent must read paginated finance rows");
     assert.match(pageSource, /crm_client_costs/, "Parent must include the expense ledger");
     assert.match(pageSource, /finance=\{finance\}/, "Parent must pass the complete summary to its child");
-    const pager = rows => (from, to) => Promise.resolve({
-      data: rows.slice(from, to + 1), error: null, count: rows.length,
-    });
+    // Simulate a PostgREST max-rows limit smaller than the requested range.
+    // 101/201 must require a second request starting at offsets 100/200;
+    // returning the server count does NOT mean the first response has all rows.
+    const salesOffsets = [], costOffsets = [];
+    const pager = (rows, maxRows, offsets) => (from, to) => {
+      offsets.push(from);
+      return Promise.resolve({
+        data: rows.slice(from, Math.min(to + 1, from + maxRows)),
+        error: null,
+        count: rows.length,
+      });
+    };
     finance = financeLib.summarizeClientFinance({
-      sales: await financeLib.loadAllRows(pager(saleRows)),
-      costs: await financeLib.loadAllRows(pager(costRows)),
+      sales: await financeLib.loadAllRows(pager(saleRows, 100, salesOffsets)),
+      costs: await financeLib.loadAllRows(pager(costRows, 200, costOffsets)),
     });
     assert.equal(finance.salesRead, saleRows.length, "No sale may be silently skipped");
     assert.equal(finance.costsRead, costRows.length, "No cost may be silently skipped");
+    assert.equal(salesOffsets.includes(100), saleRows.length > 100,
+      "Sales pagination must continue from 100 only when the 101st row exists");
+    assert.equal(costOffsets.includes(200), costRows.length > 200,
+      "Expense pagination must continue from 200 only when the 201st row exists");
   }
   const tree = await render({
     clientId, lang: "es", sales, supabase: syntheticDb(costRows),
