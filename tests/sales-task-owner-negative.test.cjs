@@ -56,15 +56,15 @@ function loadTaskActions({ authorized }) {
     },
     fileName: ACTIONS,
   }).outputText;
-  const module = { exports: {} };
+  const loadedModule = { exports: {} };
   vm.runInNewContext(code, {
-    module, exports: module.exports,
+    module: loadedModule, exports: loadedModule.exports,
     require: name => {
       assert.ok(Object.hasOwn(mocks, name), "Unexpected dependency: " + name);
       return mocks[name];
     },
   }, { filename: ACTIONS });
-  return { actions: module.exports, effects };
+  return { actions: loadedModule.exports, effects };
 }
 
 function formFor(operation) {
