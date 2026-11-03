@@ -5,8 +5,8 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
   BANNER_THEMES, CALENDAR_COLORS, EVENT_KINDS, dayInZone, eventOnDay,
-  hourInZone, isCalendarDay, leadCardHref, linkedLeadName, localInput, moveDay, moveMonth, visibleDays,
-  type CalendarEvent, type CalendarView, type DayBanner, type OwnerOption,
+  hourInZone, isCalendarDay, leadCardHref, linkedLeadName, linkedClientName, purchasedClientOptions, salesForCalendarClient, clientSalesCardHref, localInput, moveDay, moveMonth, visibleDays,
+  type CalendarEvent, type CalendarView, type DayBanner, type OwnerOption, type CalendarSale,
 } from "@/lib/crm/shared-calendar";
 import {
   cancelCalendarEvent, deleteCalendarBanner, saveCalendarBanner, saveCalendarEvent,
@@ -17,7 +17,7 @@ type Client = { id: string; legal_name: string };
 type Lead = { id: string; company: string; contact?: string | null };
 type Props = {
   events: CalendarEvent[]; banners: DayBanner[]; owners: OwnerOption[];
-  clients: Client[]; leads: Lead[]; userId: string;
+  clients: Client[]; leads: Lead[]; sales: CalendarSale[]; userId: string;
   initialDate: string; initialView: CalendarView; lang: "es" | "en";
   dataError?: string;
 };
@@ -68,7 +68,7 @@ function downloadIcs(event: CalendarEvent) {
   setTimeout(() => URL.revokeObjectURL(url), 2000);
 }
 
-export function SharedCalendar({ events, banners, owners, clients, leads, userId, initialDate, initialView, lang, dataError }: Props) {
+export function SharedCalendar({ events, banners, owners, clients, leads, sales, userId, initialDate, initialView, lang, dataError }: Props) {
   const router = useRouter();
   const [date, setDate] = useState(isCalendarDay(initialDate) ? initialDate : localToday());
   const [view, setView] = useState<CalendarView>(initialView);
@@ -84,6 +84,8 @@ export function SharedCalendar({ events, banners, owners, clients, leads, userId
   const [leadMatches, setLeadMatches] = useState<Lead[]>([]);
   const [leadSearchStatus, setLeadSearchStatus] = useState<"idle" | "loading" | "error">("idle");
   const [selectedLead, setSelectedLead] = useState<Lead | null>(null);
+  const [clientQuery, setClientQuery] = useState("");
+  const [selectedClient, setSelectedClient] = useState<Client | null>(null);
   const editingEvent = draft !== null;
   const t = (es: string, en: string) => lang === "es" ? es : en;
 
@@ -141,6 +143,11 @@ export function SharedCalendar({ events, banners, owners, clients, leads, userId
   const leadOptions = leadQuery.trim().length >= 2 ? leadMatches : leads.slice(0, 50);
   const pickerLeads = selectedLead && !leadOptions.some(lead => lead.id === selectedLead.id)
     ? [selectedLead, ...leadOptions] : leadOptions;
+  const purchasedClients = useMemo(() => purchasedClientOptions(sales), [sales]);
+  const filteredClients = purchasedClients.filter(client =>
+    client.legal_name.toLocaleLowerCase().includes(clientQuery.trim().toLocaleLowerCase())).slice(0, 75);
+  const pickerClients = selectedClient && !filteredClients.some(client => client.id === selectedClient.id)
+    ? [selectedClient, ...filteredClients] : filteredClients;
   const navigate = (target: string, mode: CalendarView = view) => {
     if (!isCalendarDay(target)) return;
     setDate(target); setSelected(target); setView(mode);
@@ -153,6 +160,7 @@ export function SharedCalendar({ events, banners, owners, clients, leads, userId
     const h = Math.min(Math.max(hour, 0), 23);
     setSelected(day); setModalError("");
     setLeadQuery(""); setLeadMatches([]); setSelectedLead(null);
+    setClientQuery(""); setSelectedClient(null);
     setDraft({
       title: "", owner_id: userId, attendee_ids: owners.map(o => o.user_id),
       kind: "meeting", color: CALENDAR_COLORS[0], all_day: false,
@@ -167,6 +175,10 @@ export function SharedCalendar({ events, banners, owners, clients, leads, userId
     setSelectedLead(event.lead_id ? (event.crm_leads?.company
       ? { id: event.lead_id, company: event.crm_leads.company }
       : leads.find(lead => lead.id === event.lead_id) || null) : null);
+    setClientQuery("");
+    setSelectedClient(event.client_id ? {
+      id: event.client_id, legal_name: linkedClientName(event, clients, sales) || (lang === "es" ? "Cliente vinculado" : "Linked client"),
+    } : null);
     const startDay = event.all_day ? event.starts_at.slice(0, 10) : dayInZone(event.starts_at, zone);
     setDraft({
       ...event, owner_id: event.owner_id, attendee_ids: event.attendee_ids || [],
