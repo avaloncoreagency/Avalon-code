@@ -34,7 +34,7 @@ async function setup() {
   for (let i = 0; i < segments.length; i++) {
     try { await db.exec(segments[i]); }
     catch (err) {
-      err.message = `Creative SQL segment ${i} (${segments[i].slice(0, 76).replace(/\s+/g, " ") }): ${err.message}`;
+      err.message = `Creative SQL segment ${i} (${segments[i].slice(0, 76).replace(/\s+/g, " ") }): ${err.message}; position=${err.position ?? "unknown"}; where=${String(err.where ?? "").slice(0, 1000)}`;
       throw err;
     }
   }
