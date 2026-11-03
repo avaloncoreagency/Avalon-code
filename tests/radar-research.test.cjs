@@ -153,7 +153,8 @@ test("server workflow is owner gated, cached, limited and does not turn reports 
   const ui = fs.readFileSync("src/components/crm/titan-radar.tsx", "utf8");
   assert.match(ui, /<RadarResearchPanel/);
   const safetySource = fs.readFileSync("src/lib/crm/radar-website-safety.ts", "utf8");
-  assert.match(safetySource, /lookup: \(_host, _options, callback\)/);
+  assert.match(safetySource, /lookup: pinnedDnsLookup\(address\)/);
+  assert.match(safetySource, /options\?\.all/);
   assert.match(safetySource, /sameBusinessHost/);
   assert.match(safetySource, /checkRobots/);
 });

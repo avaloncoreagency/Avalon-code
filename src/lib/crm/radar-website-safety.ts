@@ -72,6 +72,22 @@ function sameBusinessHost(a: string, b: string): boolean {
   return a.replace(/^www\./i, "").toLowerCase() === b.replace(/^www\./i, "").toLowerCase();
 }
 
+/**
+ * Node 20+ may request lookup({ all: true }) when autoSelectFamily is enabled.
+ * Returning a string to an all:true callback breaks every HTTPS request before
+ * a TCP connection starts. Always return ONLY the vetted, pinned IPv4.
+ */
+export function pinnedDnsLookup(address: string) {
+  return (
+    _host: string,
+    options: { all?: boolean },
+    callback: (error: Error | null, addresses: string | { address: string; family: number }[], family?: number) => void,
+  ) => {
+    if (options?.all) callback(null, [{ address, family: 4 }]);
+    else callback(null, address, 4);
+  };
+}
+
 /** Pinned, vetted IPv4 resolution prevents a second DNS lookup from rebinding to an internal IP. */
 async function publicIPv4(hostname: string): Promise<string> {
   let records: { address: string; family: number }[];
@@ -111,7 +127,7 @@ export async function fetchPublicPage(initial: URL, kind: "robots" | "html"): Pr
           "Accept-Encoding": "identity",
           "Cookie": "",
         },
-        lookup: (_host, _options, callback) => callback(null, address, 4),
+        lookup: pinnedDnsLookup(address),
       }, res => {
         const status = res.statusCode ?? 0;
         const length = Number(res.headers["content-length"] ?? 0);
@@ -204,7 +220,13 @@ export async function checkRobots(url: URL): Promise<{ allows: (path: string) =>
   const robots = new URL("/robots.txt", url);
   let page: FetchedPage;
   try { page = await fetchPublicPage(robots, "robots"); }
-  catch { throw new ResearchBlocked("robots_unavailable", "No pudimos comprobar robots.txt; por seguridad no investigamos el sitio."); }
+  catch (cause) {
+    const technical = cause instanceof ResearchBlocked ? cause.code : "network_error";
+    // Only expose our own known error code. Never expose hostnames or socket internals.
+    const code = /^[a-z_]{3,40}$/.test(technical) ? technical : "network_error";
+    throw new ResearchBlocked("robots_" + code,
+      "No pudimos comprobar robots.txt (" + code + "); por seguridad no investigamos el sitio.");
+  }
   if (page.status === 404 || page.status === 410) return { allows: () => true, warning: "robots.txt no publicado" };
   if (page.status !== 200 || !page.contentType.includes("text/plain"))
     throw new ResearchBlocked("robots_unavailable", "El permiso del sitio para bots no pudo comprobarse.");
