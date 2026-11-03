@@ -5,7 +5,6 @@
  * existing PUBLIC repository. Never reads CRM/customer records or pays an LLM.
  * Publishes aggregate evidence to one dedicated issue (#108).
  */
-const { test, run } = { }; // no external npm dependencies
 const REPO = "avaloncoreagency/Avalon-code";
 const LEDGER_ISSUE = 108;
 const MARKER = "<!-- AVALON_OFFICE_GITHUB_FREE_V1 -->";
@@ -71,7 +70,7 @@ function buildsReport({ pulls, runs, issues }, when, workflowRunId) {
   };
   return {
     schema_version:1, source:"github_actions_public_repo", observed_at:when.toISOString(),
-    run_id:String(workflowRunId ?? "").replace(/[^0-9]/g,"").slice(0,30)||"manual",
+    run_id:String(workflowRunId ?? "").replace(/[^0-9]/g,"").slice(0,30)||"0",
     window:{pull_requests:Math.min(100,pulls.length),issues:Math.min(100,issues.length),workflow_runs:Math.min(60,runs.length)},
     managers:results,
     note:"Ejecución real de comprobaciones de GitHub, no ejecución autónoma de código ni actividad de IA.",
