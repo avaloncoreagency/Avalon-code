@@ -28,7 +28,18 @@ async function main(){
    // A start-of-session brief must be based on a NEW remote GitHub read.
    // Without a token, cached state may be shown via status, never as verified
    // collaboration instructions for an agent to act upon.
-   if(!c.githubToken)throw Error('Live GitHub access required: configure GH_TOKEN or BRIDGE_GITHUB_TOKEN (never paste secrets in prompts).');
+   if(!c.githubToken) {
+     // Existing gh CLI auth can be used in Codex/Claude without exposing a
+     // personal token in any prompt, file, log, URL or process argument.
+     // This fallback only applies to the read-only agent briefing command.
+     try {
+       const token=cp.execFileSync('gh',['auth','token'],{
+         encoding:'utf8',timeout:4000,maxBuffer:4096,stdio:['ignore','pipe','ignore'],
+       }).trim();
+       if(token.length>=20) c.githubToken=token;
+     } catch { /* No configured gh CLI identity; fail closed below. */ }
+   }
+   if(!c.githubToken)throw Error('Live GitHub authorization needed: use an existing gh auth login or scoped GH_TOKEN. Do not paste secrets into prompts.');
    s=await bridge.sync(c,s,false);
    if(bridge.freshness(s.github).status!=='VERIFIED')throw Error('GitHub is UNKNOWN or STALE; no safe team brief can be generated.');
    if(!readonly)atomic(snapshotPath,s);
