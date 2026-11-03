@@ -5,6 +5,8 @@ on:
       - 'src/**/crm/**'
       - 'supabase/migrations/*crm*.sql'
       - 'tests/crm*'
+      - 'tests/radar-profile.database.cjs'
+      - 'supabase/migrations/*radar*.sql'
       - 'tests/qa/**'
       - '.github/workflows/crm.yml'
 permissions:
@@ -28,7 +30,7 @@ jobs:
       - run: npm run test:integration
       - run: npm run bridge:test
       - run: node tests/qa/node_modules/playwright/cli.js install --with-deps chromium
-      - run: node --test tests/crm.database.cjs tests/unified.database.cjs tests/sales.database.cjs tests/crm.integration.cjs tests/radar-server-scheduler.database.cjs
+      - run: node --test tests/crm.database.cjs tests/unified.database.cjs tests/sales.database.cjs tests/crm.integration.cjs tests/radar-server-scheduler.database.cjs tests/radar-profile.database.cjs
         env:
           NODE_PATH: ./tests/qa/node_modules
           CRM_BROWSER: '1'

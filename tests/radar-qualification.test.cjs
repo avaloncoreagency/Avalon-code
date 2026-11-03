@@ -64,6 +64,28 @@ test("unverified map records are not invented into leads", async () => {
   assert.deepEqual(events, []);
 });
 
+test("provisional 1-2 stars from a directory never become a pipeline lead without verified evidence", async () => {
+  for (const stars of [1, 2]) {
+    const { db, events } = fixture(record({
+      stars, stars_reasons: [
+        "0 necesidad(es) verificada(s)",
+        "Precalificación automática: ficha pública identificada con categoría y ubicación.",
+        "Sin necesidad comercial demostrada; puntuación provisional.",
+      ],
+    }));
+    assert.deepEqual(await qualifyRadarProspect(db, ID), { kind: "unrated", stars: null });
+    assert.deepEqual(events, [], "owner click cannot accidentally approve or convert a profile-only rating");
+  }
+  // A recorded owner override remains a deliberate, audited exception.
+  const { db, events } = fixture(record({
+    stars: 2, stars_override: 2,
+    stars_reasons: ["Precalificación automática: ficha pública identificada"],
+  }));
+  const accepted = await qualifyRadarProspect(db, ID);
+  assert.equal(accepted.kind, "pipeline");
+  assert.equal(events.filter(event => event.kind === "rpc").length, 1);
+});
+
 test("owner-confirmed evidence score creates one pipeline card and links its source", async () => {
   const { db, events } = fixture(record({ stars: 4 }));
   const result = await qualifyRadarProspect(db, ID);
