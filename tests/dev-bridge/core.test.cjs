@@ -88,3 +88,64 @@ test('GitHub adapter correlates Issues/PR/files/CI and ignores older incremental
  const data=await b.github({repo:'org/repo',githubToken:'opaque'},now(),s.github.data,api);
  assert.equal(data.issues[0].owner,'miguel');assert.equal(data.issues[0].title,'Demo');assert.equal(data.pulls[0].ci,'FAILED');assert.deepEqual(data.pulls[0].issues,[8]);assert.equal(data.pulls[0].behind,1);assert.deepEqual(data.migrations,['123']);
 });
+
+test('shared cooperation keeps unlabeled PRs visible without inventing owner identity',()=>{
+ const state=fixture();const g=state.github.data;
+ const original=g.pulls[0];original.updated_at='2026-11-03T18:00:00Z';
+ g.pulls.push({...original,number:87,title:'Higgsfield creative bridge draft',
+   branch:'feat/higgsfield',issues:[],updated_at:'2026-11-03T19:00:00Z',
+   files:['src/lib/auth/access.ts','docs/sql/creative-bridge-registration.sql']});
+ const view=b.collaboration(g);
+ assert.equal(view.total,2);
+ assert.deepEqual(view.assigned.miguel.map(x=>x.pr.number),[11]);
+ assert.equal(view.assigned.miguel[0].next_action,'Run focused tests');
+ assert.equal(view.assigned.samuel.length,0);
+ assert.deepEqual(view.unassigned.map(p=>p.number),[87]);
+ assert.equal(view.overlap_total,1);
+ assert.deepEqual(view.overlaps[0],{left:87,right:11,files:['src/lib/auth/access.ts']});
+ assert.deepEqual(view.creative.map(p=>p.number),[87]);
+ // More than one conflicting Issue owner makes the PR unassigned.
+ g.issues.push({...g.issues[0],number:9,id:'github:org/repo#9',owner:'samuel'});
+ g.pulls[0].issues=[8,9];
+ const ambiguous=b.collaboration(g);
+ assert.equal(ambiguous.assigned.miguel.length,0);
+ assert.equal(ambiguous.unassigned.length,2);
+ assert.equal(b.collaboration(null).total,0);
+});
+test('GitHub CI ignores Vercel deployment failures and keeps the deployment source separate',async()=>{
+ const calls=[];const s=fixture(),sha=s.github.data.pulls[0].head_sha;
+ const api={
+  pages:async path=>{
+   calls.push(path);
+   if(path.includes('/issues?'))return [];
+   if(path.includes('/pulls?'))return [{number:11}];
+   if(path.includes('/pulls/11/files'))return [{filename:'src/lib/dev-bridge/core.ts'}];
+   return [];
+  },
+  get:async path=>{
+   calls.push(path);
+   if(path.endsWith('/pulls/11'))return {title:'Live bridge',html_url:'https://github.com/org/repo/pull/11',
+     head:{sha,ref:'feat/bridge'},base:{sha:base,ref:'main'},body:'Refs #8',mergeable:true,
+     updated_at:'2026-11-03T19:00:00Z'};
+   if(path.includes('check-runs'))return {total_count:2,check_runs:[
+     {name:'Dev Bridge validate',conclusion:'success',app:{slug:'github-actions'}},
+     {name:'Vercel',conclusion:'failure',app:{slug:'vercel'}}]};
+   if(path.includes('/compare/'))return {ahead_by:0};
+   if(path.includes('/git/trees/'))return {tree:[]};
+   throw Error('Unexpected API call '+path);
+  }
+ };
+ const g=await b.github({repo:'org/repo',githubToken:'synthetic'},undefined,undefined,api);
+ assert.equal(g.pulls[0].ci,'PASSED');
+ assert.equal(g.pulls[0].updated_at,'2026-11-03T19:00:00Z');
+ assert.ok(!calls.some(p=>p.includes('/status?')),'Vercel commit status should not be mislabeled as CI');
+});
+test('Dev Bridge auto refresh is read-only and schedule is hourly',()=>{
+ const fs=require('node:fs');
+ const auto=fs.readFileSync('src/app/admin/dev-bridge/bridge-auto-refresh.tsx','utf8');
+ assert.match(auto,/document.visibilityState === 'visible'/);
+ assert.match(auto,/router.refresh\(\)/);
+ assert.doesNotMatch(auto,/fetch\(|POST|merge|writeFile/);
+ const workflow=fs.readFileSync('.github/workflows/dev-bridge-sync.yml','utf8');
+ assert.match(workflow,/cron: '17 \* \* \* \*'/);
+});
