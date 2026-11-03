@@ -34,7 +34,7 @@ export default async function NotificationsPage({ searchParams }: { searchParams
     </section>;
   };
   return <Suite active="crm"><div className={s.hud}>
-    <OpsHeader lang={lang} active="notifications" eyebrow="CRM / Avisos" title={pick(lang, "Notificaciones de Avalon Staff", "Avalon Staff notifications")}
+    <OpsHeader lang={lang} active="notifications" eyebrow="CRM / Avisos" title={pick(lang, "Avisos comerciales y operativos", "Commercial and operational notices")}
       lead={pick(lang, "Bandeja privada para tareas, calendario, mensajes, proyectos, ventas y seguimientos.", "Private inbox for tasks, calendar, messages, projects, sales and follow-ups.")}
       actions={<><Link className={s.button} href={all ? "?" : "?show=all"}>{all ? pick(lang, "Solo no leídos", "Unread only") : pick(lang, "Ver todos", "Show all")}</Link><form action={markRead}><button className={s.button}>{pick(lang, "Marcar todo como leído", "Mark all read")}</button></form></>} />
     <OkFlash lang={lang} code={q(p, "ok")} /><ErrorFlash lang={lang} code={q(p, "error")} />
