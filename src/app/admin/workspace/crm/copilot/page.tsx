@@ -18,7 +18,7 @@ const NAMES: Record<ServiceArea, [string, string]> = {
   marketing: ["Marketing", "Marketing"],
 };
 const clean = (value: unknown, limit: number) =>
-  typeof value === "string" ? value.replace(/[\u0000-\u001f\u007f]/g, " ").trim().slice(0, limit) : "";
+  typeof value === "string" ? value.replace(/[\u0000-\u001f\u007f-\u009f\u200b-\u200f\u202a-\u202e\u2060-\u206f\ufeff]/g, " ").trim().slice(0, limit) : "";
 
 /** Read-only page: owner session + Supabase RLS, no privileged client or AI provider. */
 export default async function SalesCopilotPage({ searchParams }: Props) {
