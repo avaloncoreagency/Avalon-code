@@ -206,6 +206,49 @@ test('Nova Restaurant through the real app: one form, three departments, no dupl
   assert.equal(await count("select count(*) n from crm_leads where company='Radar Café Sintético'"), 0, 'unapproved business never reaches the pipeline');
   await sam.unroute('**/admin/workspace/crm/radar/area?*');
 
+  // Duplicate across channels AND owners: Miguel already has this business as a lead; the radar found it for Samuel.
+  // Passing it to the pipeline must explain the conflict (not "No se pudo guardar"), create no duplicate, and let a
+  // human link the prospect to the existing lead.
+  await db.exec('reset role;');
+  await db.exec(`set request.jwt.claim.sub='${MIGUEL}'; set role authenticated;`);
+  const existingLead = (await db.query("insert into crm_leads(company,contact,email,source,owner_id) values('Café Existente Sintético','Rosa Prueba','cafe@radar.example.invalid','Manual',$1) returning id", [MIGUEL])).rows[0];
+  await db.exec('reset role;');
+  await db.exec(`set request.jwt.claim.sub='${SAMUEL}'; set role authenticated;`);
+  await db.query("update crm_prospects set email='Cafe@Radar.Example.invalid' where source_ref='osm:node/987654322'");
+  await db.exec('reset role;');
+  await sam.goto(origin + '/admin/workspace/crm/hunter');
+  await sam.getByRole('button', { name: 'Abrir Radar Café Sintético' }).click();
+  await sam.getByRole('button', { name: '✓ Aprobar' }).click();
+  await sam.locator('p[role="status"]', { hasText: /aprobado/ }).first().waitFor();
+  await sam.getByRole('button', { name: '→ Pasar al pipeline' }).click();
+  await sam.getByRole('alert').filter({ hasText: /ya está en el pipeline como «Café Existente Sintético»/ }).waitFor();
+  const dupBox = sam.getByTestId('radar-existing-lead');
+  await dupBox.getByRole('link', { name: 'Café Existente Sintético' }).waitFor();
+  assert.equal(await count("select count(*) n from crm_leads where lower(email)='cafe@radar.example.invalid'"), 1, 'no duplicate lead was created');
+  await dupBox.getByRole('button', { name: 'Vincular al lead existente' }).click();
+  await sam.getByText(/No se creó un lead duplicado/).waitFor();
+  const linkedProspect = (await db.query("select status, lead_id from crm_prospects where source_ref='osm:node/987654322'")).rows[0];
+  assert.deepEqual({ status: linkedProspect.status, lead_id: linkedProspect.lead_id }, { status: 'converted', lead_id: existingLead.id });
+  assert.equal(await count("select count(*) n from crm_leads where lower(email)='cafe@radar.example.invalid'"), 1);
+  // Same rule without e-mail (company + contact; the database only enforces it between e-mail-less records),
+  // through the Lead Hunter prospects table.
+  await db.exec(`set request.jwt.claim.sub='${MIGUEL}'; set role authenticated;`);
+  const noMailLead = (await db.query("insert into crm_leads(company,contact,source,owner_id) values('Pepe Sin Correo Sintético','Pepe Prueba','Manual',$1) returning id", [MIGUEL])).rows[0];
+  await db.exec(`set request.jwt.claim.sub='${SAMUEL}'; set role authenticated;`);
+  await db.query("insert into crm_prospects(company,contact,source,owner_id,acquired_at,status,opportunity) values('PEPE sin correo sintético','pepe prueba','CSV sintético',$1,now(),'approved','Duplicado sin correo')", [SAMUEL]);
+  await db.exec('reset role;');
+  await sam.goto(origin + '/admin/workspace/crm/hunter');
+  const dupCard = sam.locator('article', { hasText: 'Duplicado sin correo' });
+  await dupCard.getByRole('button', { name: 'Pasar al pipeline' }).click();
+  const tableDup = sam.getByTestId('existing-lead');
+  await tableDup.getByRole('link', { name: 'Pepe Sin Correo Sintético' }).waitFor();
+  assert.equal(await count("select count(*) n from crm_leads where lower(company)='pepe sin correo sintético'"), 1, 'no duplicate lead was created');
+  await tableDup.getByRole('button', { name: 'Vincular al lead existente' }).click();
+  await sam.getByText('Guardado correctamente.').waitFor();
+  const linkedByName = (await db.query("select status, lead_id from crm_prospects where opportunity='Duplicado sin correo'")).rows[0];
+  assert.deepEqual({ status: linkedByName.status, lead_id: linkedByName.lead_id }, { status: 'converted', lead_id: noMailLead.id });
+  assert.equal(await count("select count(*) n from crm_leads where lower(company)='pepe sin correo sintético'"), 1, 'still a single lead for that business');
+
   // Mobile-first smoke test: every high-frequency Avalon route is usable on a phone.
   const mobileRoutes = [
     ['/admin/dashboard', 'dashboard-mobile'],
@@ -297,8 +340,13 @@ test('Nova Restaurant through the real app: one form, three departments, no dupl
   // ── Pipedrive-style board: drag between stages, card history, note, file ──
   const card = page.locator('article', { has: page.getByLabel('Etapa de Orbit Dental Sintético') });
   const target = page.getByRole('region', { name: 'Negociación', exact: true });
-  await target.scrollIntoViewIfNeeded();
-  await card.dragTo(target, { sourcePosition: { x: 6, y: 6 }, targetPosition: { x: 40, y: 20 } });
+  // HTML5 drag events fired on the real handlers: independent of pointer geometry and the sticky top bar.
+  const dt = await page.evaluateHandle(() => new DataTransfer());
+  await card.dispatchEvent('dragstart', { dataTransfer: dt });
+  await target.dispatchEvent('dragenter', { dataTransfer: dt });
+  await target.dispatchEvent('dragover', { dataTransfer: dt });
+  await target.dispatchEvent('drop', { dataTransfer: dt });
+  await card.dispatchEvent('dragend', { dataTransfer: dt });
   await page.waitForTimeout(500);
   await page.reload();
   assert.equal(await page.getByLabel('Etapa de Orbit Dental Sintético').inputValue(), 'negotiation', 'drag & drop moved the lead');

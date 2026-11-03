@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getOwnerSession } from "@/lib/auth/session";
+import { duplicateConflict, linkProspectToExistingLead } from "@/lib/crm/prospect-link";
 import { isValidRadarEmail } from "@/lib/crm/radar";
 
 export const dynamic = "force-dynamic";
@@ -89,7 +90,17 @@ export async function POST(request: NextRequest) {
     case "pipeline": {
       // The existing audited conversion: requires prior human approval, idempotent per prospect.
       const { data, error } = await db.rpc("crm_convert_prospect", { prospect_id: id });
+      if (error?.code === "23505") {
+        // Same e-mail / company+contact already in the pipeline: say which lead instead of a generic failure.
+        const dup = await duplicateConflict(db, id);
+        if (dup) return reply(dup.body, dup.status);
+      }
       return error ? fail(error, "No se pudo pasar al pipeline.") : reply({ ok: true, lead_id: data });
+    }
+    case "link": {
+      // Explicit human choice after a duplicate was reported: link to the existing lead, create nothing.
+      const out = await linkProspectToExistingLead(db, id);
+      return out.ok ? reply({ ok: true, lead_id: out.leadId }) : reply({ error: out.error }, out.status);
     }
     default: return reply({ error: "Operación desconocida" }, 400);
   }
