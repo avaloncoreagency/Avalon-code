@@ -2,7 +2,7 @@ import Link from "next/link";
 import { Suite } from "@/components/suite/suite";
 import { SharedCalendar } from "@/components/crm/shared-calendar";
 import { CrmNavigation } from "@/components/crm/navigation";
-import { isCalendarDay, moveDay, moveMonth, type CalendarEvent, type DayBanner, type CalendarView } from "@/lib/crm/shared-calendar";
+import { isCalendarDay, moveDay, moveMonth, type CalendarEvent, type DayBanner, type CalendarView, type CalendarSale } from "@/lib/crm/shared-calendar";
 import { OpsLinks, Tag, ownerName, q, UUID_RE, type Query } from "@/components/sales/ui";
 import { requireOwner } from "@/lib/auth/session";
 import { getLang } from "@/lib/i18n-server";
@@ -38,15 +38,16 @@ export default async function CalendarPage({ searchParams }: { searchParams: Pro
   let orders = supabase.from("crm_work_orders").select("id,sale_id,due_on,status,assignee_id,crm_departments(label),crm_clients(legal_name)").not("status", "in", "(delivered,cancelled)").gte("due_on", from.slice(0, 10)).lte("due_on", to.slice(0, 10));
   let leads = supabase.from("crm_leads").select("id,company,follow_up_at,owner_id").eq("archived", false).gte("follow_up_at", from).lte("follow_up_at", to);
   if (who) { tasks = tasks.eq("assignee_id", who); orders = orders.eq("assignee_id", who); leads = leads.eq("owner_id", who); }
-  const [t, o, l, owners, calendarEvents, dayBanners, linkedClients, linkedLeads] = await Promise.all([
+  const [t, o, l, owners, calendarEvents, dayBanners, linkedClients, linkedLeads, purchasedSales] = await Promise.all([
     run<{ id: string; title: string; due_at: string; status: string; assignee_id: string }[]>(tasks.limit(300)),
     run<{ id: string; sale_id: string; due_on: string; status: string; assignee_id: string; crm_departments: { label: string } | null; crm_clients: { legal_name: string } | null }[]>(orders.limit(200)),
     run<{ id: string; company: string; follow_up_at: string; owner_id: string }[]>(leads.limit(200)),
     run<{ user_id: string; email: string }[]>(supabase.rpc("crm_owner_directory")),
-    run<CalendarEvent[]>(supabase.from("crm_events").select("id,title,owner_id,attendee_ids,starts_at,ends_at,timezone,all_day,kind,status,color,description,location,meeting_url,participants,lead_id,client_id,version,crm_leads(company)").neq("status", "cancelled").lt("starts_at", rangeTo + "T00:00:00Z").gt("ends_at", rangeFrom + "T00:00:00Z").order("starts_at").limit(600)),
+    run<CalendarEvent[]>(supabase.from("crm_events").select("id,title,owner_id,attendee_ids,starts_at,ends_at,timezone,all_day,kind,status,color,description,location,meeting_url,participants,lead_id,client_id,version,crm_leads(company),crm_clients(legal_name)").neq("status", "cancelled").lt("starts_at", rangeTo + "T00:00:00Z").gt("ends_at", rangeFrom + "T00:00:00Z").order("starts_at").limit(600)),
     run<DayBanner[]>(supabase.from("crm_calendar_banners").select("id,day,title,subtitle,emoji,theme,version").gte("day", rangeFrom).lt("day", rangeTo).order("day").limit(180)),
     run<{ id: string; legal_name: string }[]>(supabase.from("crm_clients").select("id,legal_name").neq("status", "archived").order("legal_name").limit(150)),
     run<{ id: string; company: string }[]>(supabase.from("crm_leads").select("id,company").eq("archived", false).order("created_at", { ascending: false }).limit(150)),
+    run<CalendarSale[]>(supabase.from("crm_sales").select("id,client_id,sale_number,sold_on,crm_clients(legal_name)").eq("status", "confirmed").order("sold_on", { ascending: false }).order("created_at", { ascending: false }).limit(500)),
   ]);
   const nowIso = now.toISOString();
   const items: Item[] = [
@@ -63,11 +64,13 @@ export default async function CalendarPage({ searchParams }: { searchParams: Pro
     <Suite active="crm">
       <CrmNavigation active="calendar" />
       <SharedCalendar events={calendarEvents.data ?? []} banners={dayBanners.data ?? []}
-        owners={owners.data ?? []} clients={linkedClients.data ?? []} leads={linkedLeads.data ?? []}
+        owners={owners.data ?? []} clients={linkedClients.data ?? []} leads={linkedLeads.data ?? []} sales={purchasedSales.data ?? []}
         userId={userId} initialDate={focusDate} initialView={calendarView} lang={lang}
         dataError={calendarEvents.error || dayBanners.error ? pick(lang,
-          "El calendario compartido requiere la migración de base de datos de este módulo. Los registros operativos siguen disponibles abajo.",
-          "The shared calendar needs its database migration. Operations due dates remain below.") : undefined} />
+          "El calendario compartido no pudo cargar todos sus datos. Los registros operativos siguen disponibles abajo.",
+          "The shared calendar could not load all records. Operations due dates remain below.") : purchasedSales.error ? pick(lang,
+          "No se pudo cargar la lista de ventas confirmadas. Puedes seguir usando el calendario, pero no etiquetar nuevos clientes compradores.",
+          "Confirmed sales could not load. You can still use the calendar but cannot tag new purchasing clients.") : undefined} />
       <details style={{ marginTop: 18 }}><summary style={{ cursor: "pointer", padding: "12px 4px", fontWeight: 700 }}>
         {pick(lang, "📋 Mostrar vencimientos, entregas y seguimientos del CRM", "📋 Show CRM due dates, deliveries and follow-ups")}
       </summary>
