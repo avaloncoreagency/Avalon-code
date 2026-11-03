@@ -179,7 +179,7 @@ export function SuiteChrome({ lang, collapsed: initialCollapsed, section, user, 
                       {staffNotices.map(n => <li key={n.id} className={s.alertItem} data-tone={n.severity === "urgent" ? "danger" : "info"}>
                         <div className={s.alertItemHead}>
                           <span className={s.alertCategory}>{n.category === "task" ? (es ? "Tarea" : "Task") : n.category === "calendar" ? (es ? "Calendario" : "Calendar") : n.category === "message" ? (es ? "Mensaje" : "Message") : n.category === "project" ? (es ? "Proyecto" : "Project") : n.category}</span>
-                          <time className={s.alertTimestamp} dateTime={n.created_at}>{new Date(n.created_at).toLocaleDateString(es ? "es" : "en", {day:"numeric",month:"short"})}</time>
+                          <time className={s.alertTimestamp} dateTime={n.created_at}>{new Date(n.created_at).toLocaleDateString(es ? "es" : "en", {day:"numeric",month:"short",timeZone:"UTC"})}</time>
                         </div>
                         <Link className={s.alertTitle} href={n.link || "/admin/workspace/crm/notifications"} onClick={() => { void markNotice(n.id); }}>{n.title}</Link>
                         {n.body && <p className={s.alertDescription}>{n.body}</p>}
