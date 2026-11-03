@@ -1,7 +1,6 @@
 const { test } = require("node:test");
 const assert = require("node:assert/strict");
 const fs = require("node:fs");
-const crypto = require("node:crypto");
 const ts = require("typescript");
 
 function load() {
@@ -55,11 +54,11 @@ test("signed synthetic delivery accepts only the configured agent key", () => {
 });
 
 test("payload strictly routes 3 product types and cannot set prices, stages or contacts", () => {
-  for (const module of ["website","ecommerce","crm_creator"]) {
-    assert.equal(api.parseCreativeDelivery({...handoff, module}).module, module);
+  for (const kind of ["website","ecommerce","crm_creator"]) {
+    assert.equal(api.parseCreativeDelivery({...handoff, module: kind}).module, kind);
   }
-  for (const module of ["marketing","sales","admin","hacker"]) {
-    assert.throws(() => api.parseCreativeDelivery({...handoff, module}), /invalid/);
+  for (const kind of ["marketing","sales","admin","hacker"]) {
+    assert.throws(() => api.parseCreativeDelivery({...handoff, module: kind}), /invalid/);
   }
   for (const extra of ["sale_id","stage_id","email","phone","owner_id","service_role","notes"]) {
     assert.throws(() => api.parseCreativeDelivery({...handoff, [extra]:"attack"}), /invalid/);
