@@ -32,3 +32,57 @@ The first PR adds code-only kinetic accents in the existing protected HUD shell:
 
 ## Future asset bridge (not implemented by this document)
 A full automated transfer from Higgsfield to Avalon requires authenticated asset retrieval, durable storage, deduplication, per-client permissions, media transformations, and an approved spend/cost policy. Treat it as a separate scoped project. Do not assume a Higgsfield connection available to ChatGPT is automatically available to Codex, Claude Code, Vercel or the production app.
+
+
+## Client products: Codex / Claude Code -> Higgsfield -> Avalon libraries
+
+### Classification, never guessed from product name
+| Delivered kind | Existing Avalon module | Library route |
+| --- | --- | --- |
+| Client website / landing page | `website` | `/admin/workspace/website-designer` |
+| Online store | `ecommerce` | `/admin/workspace/ecommerce-designer` |
+| Customer CRM | `crm_creator` | `/admin/workspace/crm-creator` |
+| Marketing creative only | `marketing` | `/admin/workspace/marketing-hub` |
+
+**Existing linkage**: `os_projects.settings.operations.client_lead_id` identifies a real `crm_leads.id`. The company HUD `/admin/workspace/clients/{leadId}` lists these products. The pipeline card now links to that HUD. When a commercial sale creates `crm_clients`, its Client 360º view also reads legacy products linked by the originating lead ID. This does not invent an actual sale or payment.
+
+### Owner-authenticated registration (first working increment)
+The existing module-library "Register client project" form now accepts:
+- `module`: exact destination above.
+- `name`, `description`: the actual deliverable, not a speculative promise.
+- `client_lead_id`: prefer a verified existing CRM lead ID; or `company_name`: exact explicitly provided company name. A unique name match reuses the existing nonarchived lead; ambiguous matches fail closed; no match creates a lead at the `new` stage with blank contact and value 0. Nothing is considered sold or qualified automatically.
+- `higgsfield_ref`: stable, real website/job ID (optional for manually created projects). When set, require an authenticated company and a real HTTPS `url` or `repository` reference in the operations record. An application-side lookup attempts to reuse an existing project with the same module + Higgsfield source ID. Status is deliberately `reference_only`, never "published and verified".
+- `operations.url` / `repository`: URL of the website Preview/live website or authorized source repository. If the deliverable only has an expiring link, do not register it as a stable asset.
+
+**Agent completion steps**: build the requested creative/website in Higgsfield using the authorized account; obtain an actual completed website/job ID and usable deploy URL or git repository; verify the result; open the matching library in a **trusted authenticated owner browser**; register the project with the exact company identity; verify project HUD and its link from the pipeline; record the IDs and Preview evidence. Never script user cookies, copy session tokens to CLI, or use a service-role secret.
+
+If Codex or Claude Code has no owner-authenticated browser or other explicitly permitted application identity, it must stop after producing a handoff containing all fields below. The delivery remains **PENDING REGISTRATION**, not DONE. A connection to Higgsfield from ChatGPT does not grant those agents permissions inside Avalon.
+
+### Minimal agent handoff contract
+```json
+{
+  "provider": "higgsfield",
+  "source_ref": "real-higgsfield-job-or-website-id",
+  "kind": "website",
+  "product_name": "Client X web",
+  "company_name": "Client X",
+  "existing_lead_id": null,
+  "description": "What was actually implemented",
+  "project_url": "https://verified-deployment.example",
+  "repository_url": "https://github.com/authorized/project",
+  "state": "verified_preview",
+  "verification": {
+    "commit_sha": "actual-source-SHA",
+    "desktop": "verified or blocked",
+    "mobile": "verified or blocked",
+    "accessibility": "verified or blocked"
+  }
+}
+```
+
+Unverified or missing fields are always explicit, never invented. The agent may omit fields with unavailable evidence, but cannot mark a delivery complete without its tested artifact. Do not commit customer secrets, sensitive business data, signed CDN tokens or real client records to a public GitHub repository.
+
+### Full autonomous handback — NOT yet implemented
+A background agent-to-Avalon bridge requires a separately approved machine identity and narrow scoped authentication, a receiving endpoint, idempotency backed by a database UNIQUE constraint and transactional creation/linking, HTTPS provenance and webhook validation, stable asset storage, an asynchronous reconciliation queue, and staging tests that prove no unauthorized client/lead creation. The current form-driven owner workflow does not supply these things and must not be advertised as automatic registration after a model job.
+
+This first increment is a reversible **PR only**, uses existing tables and server owner checks, and adds no migrations or external billing. Simultaneous project registrations with the same Higgsfield ID and a failed project insert after creating a new lead are remaining non-atomic edge cases; owner-verified isolated staging is required before production acceptance.
