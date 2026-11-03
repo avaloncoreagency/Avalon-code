@@ -32,8 +32,8 @@ export async function ClientWorkspace({ supabase, clientId, lang, sales }: {
   const lines = salesIds.length
     ? await run<Line[]>(supabase.from("crm_sale_lines").select("id,description,billing_type,quantity,line_total,crm_service_catalog(name)").in("sale_id",salesIds).limit(150))
     : { data: [] as Line[], error: null };
-  const pending = [workspace,journal,costs,revisions,detailRevisions].some(x=>x.error?.code==="schema_pending");
-  const failed = [workspace,journal,costs,revisions,detailRevisions].some(x=>!!x.error && x.error.code!=="schema_pending");
+  const pending = [workspace,journal,costs,revisions,detailRevisions].some(x=>x.error==="schema_pending");
+  const failed = [workspace,journal,costs,revisions,detailRevisions].some(x=>!!x.error && x.error!=="schema_pending");
   const revenue = new Map<string,{ contracted:number; collected:number; recurring:number; expenses:number }>();
   const ledger = (currency: string) => {
     const v = revenue.get(currency) ?? {contracted:0,collected:0,recurring:0,expenses:0};
