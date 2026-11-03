@@ -15,7 +15,7 @@ export type IsoPerson = {
 type WorkerRun = { display_status: string; started_at: string; lease_until: string };
 type WorkerHistory = { last: Record<string, WorkerRun>; observedAt: string };
 type HistoryConnection = "checking" | "available" | "unavailable" | "not_installed";
-const HISTORY_API = "/admin/workspace/crm/office/manager-work/history/api";
+const HISTORY_API = "/admin/workspace/crm/office/manager-work/github-history/api";
 const MANAGER_IDS = ["ren", "shin", "haru", "sora", "kenji"] as const;
 
 type Props = {
@@ -144,9 +144,9 @@ export function IsoOffice({ people, selected, onSelect, lang, screen }: Props) {
   const [historyConnection, setHistoryConnection] = useState<HistoryConnection>("checking");
   const [checkedAt, setCheckedAt] = useState<string | null>(null);
 
-  // Connected to the authenticated, owner-only history endpoint introduced by PR #102.
+  // Connected to the authenticated, owner-only GitHub-history endpoint introduced by PR #102.
   // It is not available in main yet: 404 shows "pending" rather than inventing worker activity.
-  // 20 s polling only while this tab is visible; it never triggers jobs or calls a model.
+  // 20 s polling only while this tab is visible; hourly GitHub reports are not continuous AI work.
   useEffect(() => {
     let mounted = true;
     let missingEndpoint = false;
@@ -220,6 +220,7 @@ export function IsoOffice({ people, selected, onSelect, lang, screen }: Props) {
     return { ...person, subtitle: description, offline: !running };
   }), [agents, workerHistory, lang]);
   const activeWorkers = managerPeople.filter(p => !p.offline).length;
+  const recentChecks = MANAGER_IDS.filter(code => workerHistory?.last[code]?.display_status === "completed").length;
   const hour = new Date().getHours();
   const night = hour >= 19 || hour < 7;
 
@@ -410,15 +411,15 @@ export function IsoOffice({ people, selected, onSelect, lang, screen }: Props) {
         })}
       </svg>
       <div className={s.runtimeStatus} role="status" aria-live="polite">
-        <span className={s.runtimeDot} data-active={activeWorkers > 0 && historyConnection === "available"} />
+        <span className={s.runtimeDot} data-recent={recentChecks === 5 && historyConnection === "available"} />
         <strong>{t("Managers · ejecuciones reales", "Managers · verified runs")}</strong>
         <span>{historyConnection === "available"
-          ? `${activeWorkers}/5 ${t("ejecutando comprobaciones", "running checks")} · ${t("última lectura", "last read")} ${checkedAt ? new Date(checkedAt).toLocaleTimeString(lang === "en" ? "en-US" : "es-US", { hour: "2-digit", minute: "2-digit" }) : "—"}`
+          ? `${recentChecks}/5 ${t("reportes recientes", "recent reports")} · ${activeWorkers} ${t("ejecutando ahora", "running now")} · ${t("última lectura", "last read")} ${checkedAt ? new Date(checkedAt).toLocaleTimeString(lang === "en" ? "en-US" : "es-US", { hour: "2-digit", minute: "2-digit" }) : "—"}`
           : historyConnection === "checking" ? t("Comprobando historial…", "Checking history…")
           : historyConnection === "not_installed" ? t("El ejecutor aún no está instalado", "Worker not installed yet")
-          : t("Historial no disponible · sin actividad verificada", "History unavailable · no verified activity")}</span>
-        <small>{t("Actualización cada 20 s con la Oficina abierta. Las animaciones son decorativas.",
-          "Refresh every 20 s while the Office is open. Animations are decorative.")}</small>
+          : t("Historial no disponible · sin reportes verificados", "History unavailable · no verified reports")}</span>
+        <small>{t("GitHub comprueba cada hora si el workflow está activo. Esta pantalla consulta cada 20 s; animaciones decorativas.",
+          "GitHub checks hourly when its workflow is enabled. This screen reads every 20 s; motion is decorative.")}</small>
       </div>
       <p className={s.gestureHint}>{t("Dos dedos para zoom · arrastra para recorrer · doble toque para acercar", "Pinch to zoom · drag to pan · double tap to zoom")}</p>
       <div className={s.controls} role="group" aria-label={t("Cámara", "Camera")}>
