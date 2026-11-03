@@ -1,0 +1,17 @@
+.wrap { display:inline-grid; position:relative; flex:none; place-items:center; vertical-align:middle; }
+.dot {
+  position:absolute;
+  box-sizing:border-box;
+  width:clamp(12px,32%,17px);
+  height:clamp(12px,32%,17px);
+  right:-2px;
+  bottom:-1px;
+  border-radius:50%;
+  border:2.5px solid #111827;
+  background:#ff687f;
+  box-shadow:0 1px 8px rgba(0,0,0,.32);
+  pointer-events:auto;
+}
+.dot[data-presence="active"] { background:#42e4ad; box-shadow:0 0 0 1px rgba(66,228,173,.22),0 0 10px rgba(66,228,173,.35); }
+.dot[data-presence="busy"] { background:#ffc24e; box-shadow:0 0 0 1px rgba(255,194,78,.2),0 0 10px rgba(255,194,78,.32); }
+.dot[data-presence="inactive"] { background:#ff687f; }
