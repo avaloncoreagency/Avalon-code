@@ -20,6 +20,20 @@ test('delivery summary preserves existing statuses and only counts open overdue 
   const result = summarizeDelivery(orders, [], '2026-11-03');
   assert.deepEqual([result.active, result.blocked, result.overdue, result.delivered, result.cancelled], [3, 1, 1, 1, 1]);
   assert.deepEqual(result.overdueIds, ['one']);
+  assert.equal(result.attention, 2);
+  assert.deepEqual(new Set(result.attentionIds), new Set(['one', 'two']));
+});
+
+test('a blocked and overdue order is counted once, while closed overdue orders are ignored', () => {
+  const result = summarizeDelivery([
+    { id: 'a', status: 'blocked', due_on: '2026-10-01' },
+    { id: 'b', status: 'delivered', due_on: '2026-10-01' },
+    { id: 'c', status: 'cancelled', due_on: '2026-10-01' },
+  ], [], '2026-11-03');
+  assert.equal(result.blocked, 1);
+  assert.equal(result.overdue, 1);
+  assert.equal(result.attention, 1);
+  assert.deepEqual(result.attentionIds, ['a']);
 });
 
 test('task progress excludes cancelled tasks, unrelated orders and preserves zero as no work', () => {
@@ -40,6 +54,8 @@ test('the delivery view is owner-only, read-only and links to canonical sales/ta
   assert.match(page, /crm_work_orders/);
   assert.match(page, /crm_tasks/);
   assert.match(page, /crm_sales/);
+  assert.match(page, /view === "attention"/);
+  assert.match(page, /summary.attention/);
   assert.match(page, /\/admin\/workspace\/crm\/sales\//);
   assert.match(page, /\/admin\/workspace\/crm\/tasks\?/);
   assert.doesNotMatch(page, /\.insert\(|\.update\(|\.delete\(|service_role|NEXT_PUBLIC_.*SECRET/);
