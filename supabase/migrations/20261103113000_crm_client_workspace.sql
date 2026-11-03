@@ -17,13 +17,13 @@ select u.id from auth.users u join public.agency_memberships m on m.user_id = u.
 where lower(u.email) = 'avaloncoreagencysm@gmail.com' and m.role = 'owner';
 
 create function crm_private.can_view_client_finances() returns boolean
-language sql stable security definer set search_path = '' as $
+language sql stable security definer set search_path = '' as $finance$
   select (select auth.uid()) is not null and exists (
     select 1 from crm_private.finance_access fa
     join public.agency_memberships m on m.user_id = fa.user_id
     where fa.user_id = (select auth.uid()) and m.role = 'owner'
   );
-$;
+$finance$;
 revoke all on function crm_private.can_view_client_finances() from public, anon;
 grant execute on function crm_private.can_view_client_finances() to authenticated;
 
