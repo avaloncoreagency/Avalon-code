@@ -20,7 +20,7 @@ test("Deno radar worker has a guarded secret, daily cap, lease and no outbound s
   assert.match(edge, /Number\(row\.stars\) >= 4 && row\.confidence === "high"/);
   assert.doesNotMatch(edge, /sendEmail|twilio|resend\.emails|sendSms/);
   assert.match(migration, /security invoker/);
-  assert.match(migration, /current_setting\('request\.jwt\.claim\.role', true\)/);
+  assert.match(migration, /current_user <> 'service_role'/);
   assert.match(migration, /strong_services < 2/);
   assert.match(migration, /revoke all on function public\.crm_radar_worker_convert_verified/);
   const transpiled = ts.transpileModule(edge, {
