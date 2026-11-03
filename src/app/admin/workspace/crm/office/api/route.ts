@@ -25,11 +25,56 @@ export async function GET(request: NextRequest) {
   const member = p.get("member");
   if (member) {
     if (!UUID.test(member)) return reply({ error: "Miembro inválido" }, 400);
-    const [activity, open] = await Promise.all([
+    const [activity, open, workOrders, assignedTasks] = await Promise.all([
       db.from("crm_timeline").select("id,event_type,module,entity,detail,result,created_at").eq("actor_id", member).order("created_at", { ascending: false }).limit(15),
       db.from("crm_tasks").select("id,title,priority,status,due_at").eq("assignee_id", member).in("status", ["todo", "in_progress", "blocked"]).order("due_at", { ascending: true, nullsFirst: false }).limit(20),
+      db.from("crm_work_orders").select("project_id,client_id,status").eq("assignee_id", member).limit(500),
+      db.from("crm_tasks").select("project_id,client_id,status").eq("assignee_id", member).limit(1000),
     ]);
-    return reply({ activity: activity.data ?? [], tasks: open.data ?? [], activityUnavailable: !!activity.error });
+    // A project is associated with a member only through an actual assigned work order or task.
+    // Never infer assignments from the client name or expose all projects as "assigned".
+    type Assignment = { project_id: string | null; client_id: string | null; work_orders: number; open_tasks: number };
+    const assigned = new Map<string, Assignment>();
+    const add = (r: { project_id: string | null; client_id: string | null }, source: "order" | "task", status: string) => {
+      if (!r.project_id && !r.client_id) return;
+      const key = r.project_id ? `project:${r.project_id}` : `client:${r.client_id}`;
+      const current = assigned.get(key) ?? { project_id: r.project_id, client_id: r.client_id, work_orders: 0, open_tasks: 0 };
+      if (!current.client_id) current.client_id = r.client_id;
+      if (source === "order") current.work_orders += 1;
+      if (source === "task" && ["todo", "in_progress", "blocked"].includes(status)) current.open_tasks += 1;
+      assigned.set(key, current);
+    };
+    for (const r of workOrders.data ?? []) add(r, "order", r.status);
+    for (const r of assignedTasks.data ?? []) add(r, "task", r.status);
+    const items = [...assigned.values()];
+    const projectIds = [...new Set(items.map(r => r.project_id).filter((id): id is string => !!id))];
+    const clientIds = [...new Set(items.map(r => r.client_id).filter((id): id is string => !!id))];
+    const [projectMeta, clientMeta] = await Promise.all([
+      projectIds.length ? db.from("os_projects").select("id,name,module,status,client_id").in("id", projectIds).limit(500) : Promise.resolve({ data: [] as { id: string; name: string; module: string; status: string; client_id: string | null }[], error: null }),
+      clientIds.length ? db.from("crm_clients").select("id,legal_name").in("id", clientIds).limit(500) : Promise.resolve({ data: [] as { id: string; legal_name: string }[], error: null }),
+    ]);
+    const projectById = new Map((projectMeta.data ?? []).map(r => [r.id, r]));
+    const clientById = new Map((clientMeta.data ?? []).map(r => [r.id, r.legal_name]));
+    // Some older projects carry the client link only on os_projects.
+    const linkedClientIds = [...new Set((projectMeta.data ?? []).map(r => r.client_id).filter((id): id is string => !!id && !clientById.has(id)))];
+    const linkedClients = linkedClientIds.length ? await db.from("crm_clients").select("id,legal_name").in("id", linkedClientIds).limit(500) : { data: [] as { id: string; legal_name: string }[], error: null };
+    for (const r of linkedClients.data ?? []) clientById.set(r.id, r.legal_name);
+    const projects = items.flatMap(item => {
+      const p = item.project_id ? projectById.get(item.project_id) : null;
+      const clientId = p?.client_id ?? item.client_id;
+      if ((!p && item.project_id) || (!p && !clientId) || (clientId && !clientById.has(clientId))) return [];
+      return [{
+        id: p?.id ?? null, name: p?.name ?? clientById.get(clientId!) ?? "",
+        module: p?.module ?? null, status: p?.status ?? null,
+        client_id: clientId, client_name: clientId ? clientById.get(clientId) ?? null : null,
+        work_orders: item.work_orders, open_tasks: item.open_tasks,
+      }];
+    }).sort((a, b) => a.name.localeCompare(b.name));
+    return reply({
+      activity: activity.data ?? [], tasks: open.data ?? [], projects,
+      activityUnavailable: !!activity.error,
+      projectsUnavailable: !!(workOrders.error || assignedTasks.error || projectMeta.error || clientMeta.error || linkedClients.error),
+    });
   }
 
   const thread = p.get("thread");
