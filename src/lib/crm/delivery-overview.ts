@@ -11,10 +11,12 @@ export type DeliverySummary = {
   active: number;
   blocked: number;
   overdue: number;
+  attention: number;
   delivered: number;
   cancelled: number;
   progress: Record<string, TaskProgress>;
   overdueIds: string[];
+  attentionIds: string[];
 };
 
 /** Due dates are DATE fields. An order is overdue only before today's UTC date. */
@@ -47,5 +49,8 @@ export function summarizeDelivery(
       overdueIds.push(order.id);
     }
   }
-  return { active, blocked, overdue: overdueIds.length, delivered, cancelled, progress, overdueIds };
+  // A blocked and overdue order needs attention only once; closed work is excluded.
+  const attentionIds = [...new Set([...overdueIds, ...orders.filter(order => order.status === "blocked").map(order => order.id)])];
+  return { active, blocked, overdue: overdueIds.length, attention: attentionIds.length,
+    delivered, cancelled, progress, overdueIds, attentionIds };
 }
