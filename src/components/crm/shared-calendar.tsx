@@ -1,11 +1,12 @@
 "use client";
 
 import { useEffect, useMemo, useState, type CSSProperties, type FormEvent } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
-  BANNER_THEMES, CALENDAR_COLORS, EVENT_KINDS, dayInZone, eventOnDay,
-  hourInZone, isCalendarDay, localInput, moveDay, moveMonth, visibleDays,
-  type CalendarEvent, type CalendarView, type DayBanner, type OwnerOption,
+  BANNER_THEMES, CALENDAR_COLORS, EVENT_KINDS, EVENT_KIND_ICONS, colorForEventKind, matchesCalendarFilters, dayInZone, eventOnDay,
+  hourInZone, isCalendarDay, leadCardHref, linkedLeadName, linkedClientName, purchasedClientOptions, salesForCalendarClient, clientSalesCardHref, localInput, moveDay, moveMonth, visibleDays,
+  type CalendarEvent, type CalendarView, type DayBanner, type OwnerOption, type CalendarSale,
 } from "@/lib/crm/shared-calendar";
 import {
   cancelCalendarEvent, deleteCalendarBanner, saveCalendarBanner, saveCalendarEvent,
@@ -13,10 +14,10 @@ import {
 import s from "./shared-calendar.module.css";
 
 type Client = { id: string; legal_name: string };
-type Lead = { id: string; company: string };
+type Lead = { id: string; company: string; contact?: string | null };
 type Props = {
   events: CalendarEvent[]; banners: DayBanner[]; owners: OwnerOption[];
-  clients: Client[]; leads: Lead[]; userId: string;
+  clients: Client[]; leads: Lead[]; sales: CalendarSale[]; userId: string;
   initialDate: string; initialView: CalendarView; lang: "es" | "en";
   dataError?: string;
 };
@@ -67,21 +68,54 @@ function downloadIcs(event: CalendarEvent) {
   setTimeout(() => URL.revokeObjectURL(url), 2000);
 }
 
-export function SharedCalendar({ events, banners, owners, clients, leads, userId, initialDate, initialView, lang, dataError }: Props) {
+export function SharedCalendar({ events, banners, owners, clients, leads, sales, userId, initialDate, initialView, lang, dataError }: Props) {
   const router = useRouter();
   const [date, setDate] = useState(isCalendarDay(initialDate) ? initialDate : localToday());
   const [view, setView] = useState<CalendarView>(initialView);
   const [selected, setSelected] = useState(isCalendarDay(initialDate) ? initialDate : localToday());
   const [filter, setFilter] = useState("all");
+  const [kindFilter, setKindFilter] = useState("all");
   const [zone, setZone] = useState("America/New_York");
   const [draft, setDraft] = useState<DraftEvent | null>(null);
   const [bannerDraft, setBannerDraft] = useState<DayBanner | null>(null);
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState("");
   const [modalError, setModalError] = useState("");
+  const [leadQuery, setLeadQuery] = useState("");
+  const [leadMatches, setLeadMatches] = useState<Lead[]>([]);
+  const [leadSearchStatus, setLeadSearchStatus] = useState<"idle" | "loading" | "error">("idle");
+  const [selectedLead, setSelectedLead] = useState<Lead | null>(null);
+  const [clientQuery, setClientQuery] = useState("");
+  const [selectedClient, setSelectedClient] = useState<Client | null>(null);
+  const editingEvent = draft !== null;
   const t = (es: string, en: string) => lang === "es" ? es : en;
 
   useEffect(() => { setZone(Intl.DateTimeFormat().resolvedOptions().timeZone || "America/New_York"); }, []);
+  // Search the existing owner-protected CRM endpoint; never expose lead data to a public provider.
+  useEffect(() => {
+    const term = leadQuery.trim();
+    if (!editingEvent || term.length < 2) {
+      setLeadMatches([]);
+      setLeadSearchStatus("idle");
+      return;
+    }
+    const controller = new AbortController();
+    setLeadSearchStatus("loading");
+    const timer = window.setTimeout(async () => {
+      try {
+        const response = await fetch("/admin/workspace/crm/api?entity=leads&page=0&q=" + encodeURIComponent(term), { signal: controller.signal });
+        const data = await response.json();
+        if (!response.ok || !Array.isArray(data.rows)) throw new Error("Lead search unavailable");
+        if (!controller.signal.aborted) {
+          setLeadMatches((data.rows as Lead[]).filter(row => typeof row.id === "string" && typeof row.company === "string"));
+          setLeadSearchStatus("idle");
+        }
+      } catch {
+        if (!controller.signal.aborted) { setLeadMatches([]); setLeadSearchStatus("error"); }
+      }
+    }, 300);
+    return () => { window.clearTimeout(timer); controller.abort(); };
+  }, [leadQuery, editingEvent]);
   // Two open owner sessions see each other's changes without an external paid service.
   useEffect(() => {
     const timer = window.setInterval(() => { if (!document.hidden && !draft && !bannerDraft) router.refresh(); }, 120000);
@@ -89,9 +123,9 @@ export function SharedCalendar({ events, banners, owners, clients, leads, userId
   }, [router, draft, bannerDraft]);
 
   const ownerName = (id: string) => owners.find(o => o.user_id === id)?.email.split("@")[0] || t("Propietario", "Owner");
-  const filtered = useMemo(() => events.filter(e =>
-    e.status !== "cancelled" && (filter === "all" || e.owner_id === filter || (e.attendee_ids || []).includes(filter))
-  ), [events, filter]);
+  const filtered = useMemo(() => events.filter(e => matchesCalendarFilters(e, filter, kindFilter)),
+    [events, filter, kindFilter]);
+  const countForKind = (kind: string) => events.filter(e => matchesCalendarFilters(e, filter, kind)).length;
   const days = useMemo(() => visibleDays(date, view), [date, view]);
   const dayEvents = (day: string) => filtered.filter(e => eventOnDay(e, day, zone))
     .sort((a, b) => a.starts_at.localeCompare(b.starts_at));
@@ -107,6 +141,14 @@ export function SharedCalendar({ events, banners, owners, clients, leads, userId
     return fmt.format(new Date(event.starts_at)) + " – " + fmt.format(new Date(event.ends_at));
   };
   const bannerFor = (day: string) => banners.find(b => b.day === day);
+  const leadOptions = leadQuery.trim().length >= 2 ? leadMatches : leads.slice(0, 50);
+  const pickerLeads = selectedLead && !leadOptions.some(lead => lead.id === selectedLead.id)
+    ? [selectedLead, ...leadOptions] : leadOptions;
+  const purchasedClients = useMemo(() => purchasedClientOptions(sales), [sales]);
+  const filteredClients = purchasedClients.filter(client =>
+    client.legal_name.toLocaleLowerCase().includes(clientQuery.trim().toLocaleLowerCase())).slice(0, 75);
+  const pickerClients = selectedClient && !filteredClients.some(client => client.id === selectedClient.id)
+    ? [selectedClient, ...filteredClients] : filteredClients;
   const navigate = (target: string, mode: CalendarView = view) => {
     if (!isCalendarDay(target)) return;
     setDate(target); setSelected(target); setView(mode);
@@ -118,9 +160,11 @@ export function SharedCalendar({ events, banners, owners, clients, leads, userId
   const newEvent = (day = selected, hour = 9) => {
     const h = Math.min(Math.max(hour, 0), 23);
     setSelected(day); setModalError("");
+    setLeadQuery(""); setLeadMatches([]); setSelectedLead(null);
+    setClientQuery(""); setSelectedClient(null);
     setDraft({
       title: "", owner_id: userId, attendee_ids: owners.map(o => o.user_id),
-      kind: "meeting", color: CALENDAR_COLORS[0], all_day: false,
+      kind: "meeting", color: colorForEventKind("meeting"), all_day: false,
       start_local: day + "T" + pad(h) + ":00",
       end_local: (h === 23 ? moveDay(day, 1) : day) + "T" + pad((h + 1) % 24) + ":00",
       start_day: day, end_day: day,
@@ -128,7 +172,14 @@ export function SharedCalendar({ events, banners, owners, clients, leads, userId
     });
   };
   const editEvent = (event: CalendarEvent) => {
-    setModalError("");
+    setModalError(""); setLeadQuery(""); setLeadMatches([]);
+    setSelectedLead(event.lead_id ? (event.crm_leads?.company
+      ? { id: event.lead_id, company: event.crm_leads.company }
+      : leads.find(lead => lead.id === event.lead_id) || null) : null);
+    setClientQuery("");
+    setSelectedClient(event.client_id ? {
+      id: event.client_id, legal_name: linkedClientName(event, clients, sales) || (lang === "es" ? "Cliente vinculado" : "Linked client"),
+    } : null);
     const startDay = event.all_day ? event.starts_at.slice(0, 10) : dayInZone(event.starts_at, zone);
     setDraft({
       ...event, owner_id: event.owner_id, attendee_ids: event.attendee_ids || [],
@@ -194,12 +245,23 @@ export function SharedCalendar({ events, banners, owners, clients, leads, userId
     } catch { setModalError(t("No se pudo eliminar.", "Could not remove.")); }
     finally { setBusy(false); }
   };
-  const chip = (event: CalendarEvent) => (
-    <button key={event.id} className={s.eventChip} style={colorStyle(event.color)} type="button"
-      onClick={() => editEvent(event)} title={event.title + " · " + timeLabel(event)}>
-      {event.all_day ? "★ " : ""}{event.title}
-    </button>
-  );
+  const chip = (event: CalendarEvent) => {
+    const name = linkedLeadName(event, leads), href = leadCardHref(event.lead_id);
+    const customer = linkedClientName(event, clients, sales), saleHref = clientSalesCardHref(event.client_id, sales);
+    return <div className={s.eventStack} key={event.id}>
+      <button className={s.eventChip} style={colorStyle(event.color)} type="button"
+        onClick={() => editEvent(event)} title={event.title + " · " + timeLabel(event)}>
+        <span className={s.eventTypeIcon} aria-hidden="true">{event.all_day ? "★" : EVENT_KIND_ICONS[event.kind as keyof typeof EVENT_KIND_ICONS] ?? "◆"}</span>
+        <span className={s.eventTitle}>{event.title}</span>
+      </button>
+      {name && href && <Link className={s.leadChip} href={href} title={t("Abrir ficha del lead", "Open lead card")}>
+        🏷 {name}
+      </Link>}
+      {customer && saleHref && <Link className={s.leadChip} href={saleHref} title={t("Abrir la venta o historial del cliente", "Open customer sale or history")}>
+        💼 {customer}
+      </Link>}
+    </div>;
+  };
 
   return <section className={s.shell} aria-label={t("Calendario compartido", "Shared calendar")}>
     <header className={s.header}>
@@ -232,10 +294,24 @@ export function SharedCalendar({ events, banners, owners, clients, leads, userId
         )}
       </div>
     </div>
-    <div className={s.summary}>
-      <span className={s.pill}>{filtered.length} {t("eventos en el periodo cargado", "events in loaded period")}</span>
+    <div className={s.summary} aria-live="polite">
+      <span className={s.pill}>{filtered.length} {t("eventos visibles", "visible events")}</span>
       <span className={s.pill}>{owners.length} {t("propietarios autorizados", "authorized owners")}</span>
       <span className={s.pill}>{zone}</span>
+    </div>
+    <div className={s.typeFilters} role="group" aria-label={t("Filtrar eventos por tipo", "Filter events by type")}>
+      <button type="button" className={s.typePill + (kindFilter === "all" ? " " + s.typePillActive : "")}
+        aria-pressed={kindFilter === "all"} onClick={() => setKindFilter("all")}>
+        <span className={s.typeCount}>{countForKind("all")}</span> {t("Todos los tipos", "All types")}
+      </button>
+      {EVENT_KINDS.map(kind => <button type="button" key={kind}
+        className={s.typePill + (kindFilter === kind ? " " + s.typePillActive : "")}
+        aria-pressed={kindFilter === kind} style={colorStyle(colorForEventKind(kind))}
+        onClick={() => setKindFilter(current => current === kind ? "all" : kind)}>
+        <span className={s.typeDot} aria-hidden="true" />
+        <span>{TYPE[kind]?.[lang === "es" ? 0 : 1] || kind}</span>
+        <span className={s.typeCount}>{countForKind(kind)}</span>
+      </button>)}
     </div>
     <div className={s.split}>
       <div className={s.board}>
@@ -245,10 +321,11 @@ export function SharedCalendar({ events, banners, owners, clients, leads, userId
               .map(name => <div key={name} className={s.weekHeader} role="columnheader">{name}</div>)}
             {days.map(day => {
               const list = dayEvents(day), banner = bannerFor(day);
-              return <div key={day} className={s.dayCell + (day.slice(0, 7) !== date.slice(0, 7) ? " " + s.outside : "") + (day === today ? " " + s.today : "")}
-                role="gridcell" aria-label={dateLabel(day)}>
+              return <div key={day} className={s.dayCell + (day.slice(0, 7) !== date.slice(0, 7) ? " " + s.outside : "") + (day === today ? " " + s.today : "") + (day === selected ? " " + s.selectedDay : "")}
+                role="gridcell" aria-selected={day === selected} aria-label={dateLabel(day)}>
                 <div className={s.dayTitle}>
-                  <button type="button" className={s.daySelect} onClick={() => setSelected(day)} aria-label={t("Ver", "View") + " " + dateLabel(day)}>{Number(day.slice(-2))}</button>
+                  <button type="button" className={s.daySelect} onClick={() => setSelected(day)} aria-pressed={day === selected} aria-label={t("Ver", "View") + " " + dateLabel(day)}>{Number(day.slice(-2))}</button>
+                  {list.length > 0 && <span className={s.dayCount} title={list.length + " " + t("eventos", "events")}>{list.length}</span>}
                   <button type="button" className={s.dayAdd} onClick={() => newEvent(day)} aria-label={t("Crear evento", "Create event") + " " + dateLabel(day)}>+</button>
                 </div>
                 {banner && <button type="button" className={s.banner} data-theme={banner.theme} onClick={() => openBanner(day)} title={banner.title}>
@@ -263,7 +340,8 @@ export function SharedCalendar({ events, banners, owners, clients, leads, userId
           <div className={s.timeGrid} style={{ "--cal-days": days.length, "--cal-min-width": (days.length * 132 + 58) + "px" } as CSSProperties}>
             <div className={s.timeHeader}>{t("Hora", "Time")}</div>
             {days.map(day => <div key={day} className={s.timeHeader}>
-              <button type="button" className={s.button} onClick={() => setSelected(day)}>{dateLabel(day)}</button>
+              <button type="button" className={s.button + (day === selected ? " " + s.active : "")} aria-pressed={day === selected}
+                onClick={() => setSelected(day)}>{dateLabel(day)}</button>
               {bannerFor(day) && <button type="button" className={s.banner} data-theme={bannerFor(day)?.theme} onClick={() => openBanner(day)}>
                 <span>{bannerFor(day)?.emoji} {bannerFor(day)?.title}</span></button>}
               {dayEvents(day).filter(e => e.all_day).map(chip)}
@@ -283,12 +361,30 @@ export function SharedCalendar({ events, banners, owners, clients, leads, userId
         {bannerFor(selected) && <button type="button" className={s.banner} data-theme={bannerFor(selected)?.theme}
           onClick={() => openBanner(selected)}><span>{bannerFor(selected)?.emoji} {bannerFor(selected)?.title}
           {bannerFor(selected)?.subtitle && " · " + bannerFor(selected)?.subtitle}</span></button>}
-        <h2 className={s.sideTitle}>{dateLabel(selected)}</h2>
-        {onDay.length === 0 ? <p className={s.empty}>{t("Sin eventos. Puedes programar una reunión o marcar este día como especial.", "No events. Schedule a meeting or mark this day as special.")}</p> :
+        <h2 className={s.sideTitle}>{dateLabel(selected)} <span className={s.dayAgendaCount}>{onDay.length}</span></h2>
+        {onDay.length === 0 ? <p className={s.empty}>
+          {kindFilter !== "all" || filter !== "all"
+            ? t("No hay citas con estos filtros para el día. Cambia el tipo o responsable.", "No appointments match these filters for this day. Change the type or owner.")
+            : t("Sin eventos. Puedes programar una reunión o marcar este día como especial.", "No events. Schedule a meeting or mark this day as special.")}
+        </p> :
           <ul className={s.sideList}>{onDay.map(event => <li className={s.sideItem} style={colorStyle(event.color)} key={event.id}>
             <button type="button" onClick={() => editEvent(event)}>{event.title}</button>
             <span className={s.sideMeta}>{timeLabel(event)} · {ownerName(event.owner_id)}</span>
             <span className={s.sideMeta}>{TYPE[event.kind]?.[lang === "es" ? 0 : 1] || event.kind}</span>
+            {linkedLeadName(event, leads) && leadCardHref(event.lead_id) && <Link href={leadCardHref(event.lead_id)!} className={s.leadLink}>
+              🏷 {linkedLeadName(event, leads)} · {t("Ver ficha del lead", "Open lead card")}
+            </Link>}
+            {linkedClientName(event, clients, sales) && clientSalesCardHref(event.client_id, sales) && <Link href={clientSalesCardHref(event.client_id, sales)!} className={s.leadLink}>
+              💼 {linkedClientName(event, clients, sales)} · {t("Ver venta", "Open sale")}
+            </Link>}
+            {salesForCalendarClient(event.client_id, sales).length > 1 &&
+              <div className={s.saleLinks} aria-label={t("Otras ventas del cliente", "Other customer sales")}>
+                {salesForCalendarClient(event.client_id, sales).slice(1, 4).map(sale =>
+                  <Link href={"/admin/workspace/crm/sales/" + sale.id} key={sale.id}>
+                    {sale.sale_number}
+                  </Link>)}
+                {event.client_id && <Link href={"/admin/workspace/crm/clients/" + event.client_id}>{t("Historial 360°", "360° history")}</Link>}
+              </div>}
             {event.location && <span className={s.sideMeta}>📍 {event.location}</span>}
             {event.meeting_url && <a href={event.meeting_url} target="_blank" rel="noopener noreferrer" className={s.sideMeta}>{t("Abrir enlace de reunión", "Open meeting link")}</a>}
           </li>)}</ul>}
@@ -313,7 +409,12 @@ export function SharedCalendar({ events, banners, owners, clients, leads, userId
             <input autoFocus className={s.input} name="title" maxLength={200} required defaultValue={draft.title} placeholder={t("Reunión con cliente", "Client meeting")} /></label>
           <div className={s.formGrid}>
             <label className={s.label}>{t("Tipo", "Type")}
-              <select className={s.select} name="kind" defaultValue={draft.kind}>
+              <select className={s.select} name="kind" value={draft.kind}
+                onChange={e => {
+                  const nextKind = e.target.value;
+                  const color = draft.color === colorForEventKind(draft.kind) ? colorForEventKind(nextKind) : draft.color;
+                  setDraft({ ...draft, kind: nextKind, color });
+                }}>
                 {EVENT_KINDS.map(k => <option value={k} key={k}>{TYPE[k]?.[lang === "es" ? 0 : 1] || k}</option>)}
               </select></label>
             <label className={s.label}>{t("Responsable", "Owner")}
@@ -350,12 +451,55 @@ export function SharedCalendar({ events, banners, owners, clients, leads, userId
           <label className={s.label}>{t("Invitados externos (notas; no envía invitaciones)", "External guests (notes; no invitations sent)")}
             <input className={s.input} name="participants" maxLength={1000} defaultValue={draft.participants} /></label>
           <div className={s.formGrid}>
-            <label className={s.label}>{t("Relacionar con lead", "Related lead")}
-              <select className={s.select} name="lead_id" defaultValue={draft.lead_id}><option value="">{t("Sin vincular", "Not linked")}</option>
-                {leads.map(l => <option value={l.id} key={l.id}>{l.company}</option>)}</select></label>
-            <label className={s.label}>{t("Relacionar con cliente", "Related client")}
-              <select className={s.select} name="client_id" defaultValue={draft.client_id}><option value="">{t("Sin vincular", "Not linked")}</option>
-                {clients.map(c => <option value={c.id} key={c.id}>{c.legal_name}</option>)}</select></label>
+            <div className={s.label}>
+              <label htmlFor="cal-lead-search">{t("Etiquetar lead del pipeline", "Tag a pipeline lead")}</label>
+              <input id="cal-lead-search" className={s.input} type="search" autoComplete="off"
+                value={leadQuery} onChange={e => setLeadQuery(e.target.value)}
+                placeholder={t("Buscar empresa o contacto...", "Search company or contact...")} />
+              <label htmlFor="cal-lead-select">{t("Lead asociado", "Linked lead")}</label>
+              <select id="cal-lead-select" className={s.select} name="lead_id" value={draft.lead_id}
+                onChange={e => {
+                  const id = e.target.value;
+                  setDraft({ ...draft, lead_id: id });
+                  setSelectedLead(id ? pickerLeads.find(lead => lead.id === id) || null : null);
+                }}>
+                <option value="">{t("Sin vincular", "Not linked")}</option>
+                {pickerLeads.map(lead => <option value={lead.id} key={lead.id}>
+                  {lead.company}{lead.contact ? " · " + lead.contact : ""}
+                </option>)}
+              </select>
+              {leadSearchStatus === "loading" && <span className={s.helper}>{t("Buscando en el pipeline...", "Searching pipeline...")}</span>}
+              {leadSearchStatus === "error" && <span className={s.helper} role="alert">{t("No se pudo buscar. Reintenta.", "Could not search. Try again.")}</span>}
+              {leadQuery.trim().length >= 2 && leadSearchStatus === "idle" && pickerLeads.length === 0 &&
+                <span className={s.helper}>{t("No se encontraron leads activos.", "No active leads found.")}</span>}
+              {draft.lead_id && leadCardHref(draft.lead_id) &&
+                <Link href={leadCardHref(draft.lead_id)!} className={s.leadLink}>
+                  🏷 {selectedLead?.company || leads.find(lead => lead.id === draft.lead_id)?.company || t("Lead seleccionado", "Selected lead")} · {t("Abrir ficha", "Open card")}
+                </Link>}
+            </div>
+            <div className={s.label}>
+              <label htmlFor="cal-client-search">{t("Etiquetar cliente que ya compró", "Tag a purchasing customer")}</label>
+              <input id="cal-client-search" type="search" className={s.input} value={clientQuery}
+                onChange={e => setClientQuery(e.target.value)}
+                placeholder={t("Buscar por nombre del cliente...", "Search for customer name...")} />
+              <label htmlFor="cal-client-select">{t("Cliente de Ventas", "Sales customer")}</label>
+              <select id="cal-client-select" className={s.select} name="client_id" value={draft.client_id}
+                onChange={e => {
+                  const id = e.target.value;
+                  setDraft({ ...draft, client_id: id });
+                  setSelectedClient(id ? pickerClients.find(client => client.id === id) || null : null);
+                }}>
+                <option value="">{t("Sin vincular", "Not linked")}</option>
+                {pickerClients.map(client => <option key={client.id} value={client.id}>{client.legal_name}</option>)}
+              </select>
+              {clientQuery.trim() && filteredClients.length === 0 &&
+                <span className={s.helper}>{t("No hay compras confirmadas de ese cliente en las ventas cargadas.", "No confirmed purchase found for that customer in loaded sales.")}</span>}
+              {sales.length >= 500 && <span className={s.helper}>{t("Se muestran las 500 ventas más recientes. Para compras anteriores consulta Clientes 360°.", "The 500 most recent sales are shown. See Clients 360° for older purchases.")}</span>}
+              {draft.client_id && clientSalesCardHref(draft.client_id, sales) &&
+                <Link href={clientSalesCardHref(draft.client_id, sales)!} className={s.leadLink}>
+                  💼 {selectedClient?.legal_name || purchasedClients.find(client => client.id === draft.client_id)?.legal_name || t("Cliente vinculado", "Linked customer")} · {t("Ver venta o historial", "Open sale or history")}
+                </Link>}
+            </div>
           </div>
           {modalError && <p className={s.notice + " " + s.warning} role="alert">{modalError}</p>}
           <div className={s.modalActions}>

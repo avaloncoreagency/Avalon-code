@@ -13,7 +13,8 @@ const mod = new Module(filename, module);
 mod.filename = filename;
 mod._compile(compiled, filename);
 const { visibleDays, isCalendarDay, moveDay, moveMonth, dayInZone, eventOnDay, hourInZone,
-  CALENDAR_COLORS, BANNER_THEMES, EVENT_KINDS } = mod.exports;
+  CALENDAR_COLORS, BANNER_THEMES, EVENT_KINDS, EVENT_KIND_COLORS, EVENT_KIND_ICONS,
+  colorForEventKind, matchesCalendarFilters, leadCardHref, linkedLeadName } = mod.exports;
 
 test("calendar offers correct month, week and day views including leap years", () => {
   const month = visibleDays("2028-02-17", "month");
@@ -89,4 +90,43 @@ test("migration preserves CRM events, protects attendance conflicts, and RLS-sco
   const ui = fs.readFileSync("src/components/crm/shared-calendar.tsx", "utf8");
   for (const feature of ["downloadIcs", "saveCalendarEvent", "saveCalendarBanner", "month", "week", "day", "meeting_url", "attendee_ids"])
     assert.ok(ui.includes(feature), "missing shared calendar capability: " + feature);
+});
+
+
+test("event lead tags use the private pipeline deep link and reject invalid identifiers", () => {
+  const id = "11111111-1111-4111-8111-111111111111";
+  assert.equal(leadCardHref(id), "/admin/workspace/crm/leads?lead=" + id);
+  for (const invalid of ["", null, "../external", "https://example.com", "x".repeat(256)]) {
+    assert.equal(leadCardHref(invalid), null);
+  }
+});
+
+test("calendar lead label comes from the authorized relationship even outside recent picker", () => {
+  const id = "11111111-1111-4111-8111-111111111111";
+  assert.equal(linkedLeadName({ lead_id: id, crm_leads: { company: "Synthetic Older Lead" } }, []), "Synthetic Older Lead");
+  assert.equal(linkedLeadName({ lead_id: id, crm_leads: null }, [{ id, company: "Synthetic Recent Lead" }]), "Synthetic Recent Lead");
+  assert.equal(linkedLeadName({ lead_id: null, crm_leads: null }, [{ id, company: "Synthetic Recent Lead" }]), null);
+});
+
+test("shared calendar lets owners search the existing protected CRM and tag meetings", () => {
+  const ui = fs.readFileSync("src/components/crm/shared-calendar.tsx", "utf8");
+  const page = fs.readFileSync("src/app/admin/workspace/crm/calendar/page.tsx", "utf8");
+  assert.match(ui, /fetch\("\/admin\/workspace\/crm\/api\?entity=leads&page=0&q="/);
+  assert.match(ui, /name="lead_id" value=\{draft\.lead_id\}/);
+  assert.match(ui, /leadCardHref\(event\.lead_id\)/);
+  assert.match(ui, /linkedLeadName\(event, leads\)/);
+  assert.match(ui, /href=\{leadCardHref\(draft\.lead_id\)!\}/);
+  assert.match(page, /crm_leads\(company\)/);
+  assert.match(page, /requireOwner\(\)/);
+});
+
+test("calendar deep links open the current Office-era lead timeline including archived records", () => {
+  const crm = fs.readFileSync("src/components/crm/crm.tsx", "utf8");
+  const timeline = fs.readFileSync("src/components/crm/lead-timeline.tsx", "utf8");
+  for (const label of ["Ficha del lead", "Etapa del pipeline", "Persona de contacto", "Próximo seguimiento", "Correo", "Teléfono", "Valor estimado", "Prioridad", "Historial"]) {
+    assert.ok(timeline.includes(label), "missing card information: " + label);
+  }
+  assert.match(crm, /fetchLead\(false\)/);
+  assert.match(crm, /fetchLead\(true\)/);
+  assert.match(crm, /entity=leads&id=/);
 });
