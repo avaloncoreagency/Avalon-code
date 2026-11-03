@@ -516,10 +516,23 @@ export function Crm({ section = "leads" }: { section?: CrmSection }) {
             )}
             {section === "leads" && <LeadLink onOpen={setDetail} />}
             {detail && (
-              <section className={s.panel}>
-                <h2>{String(detail.company)} · Notas e historial</h2>
-                <p>Lead ID: {String(detail.id)}</p>
+              <section className={s.panel} aria-label={"Ficha del lead " + String(detail.company)}>
+                <h2>{String(detail.company)} · Ficha del lead</h2>
+                <dl className={s.leadProfile}>
+                  <div><dt>Etapa del pipeline</dt><dd>{stages.find(stage => stage.id === detail.stage_id)?.label ?? "Sin etapa disponible"}</dd></div>
+                  <div><dt>Persona de contacto</dt><dd>{String(detail.contact || "—")}</dd></div>
+                  <div><dt>Correo</dt><dd>{detail.email ? <a href={"mailto:" + String(detail.email)}>{String(detail.email)}</a> : "—"}</dd></div>
+                  <div><dt>Teléfono</dt><dd>{detail.phone ? <a href={"tel:" + String(detail.phone).replace(/[^0-9+]/g, "")}>{String(detail.phone)}</a> : "—"}</dd></div>
+                  <div><dt>Próximo seguimiento</dt><dd>{stamp(detail.follow_up_at)}</dd></div>
+                  <div><dt>Fuente</dt><dd>{String(detail.source || "—")}</dd></div>
+                  <div><dt>Valor estimado</dt><dd>{money(detail.value)}</dd></div>
+                  <div><dt>Probabilidad</dt><dd>{String(detail.probability ?? 0)}%</dd></div>
+                  <div><dt>Prioridad</dt><dd>{String(detail.priority || "—")}</dd></div>
+                  {detail.loss_reason && <div><dt>Motivo de pérdida</dt><dd>{String(detail.loss_reason)}</dd></div>}
+                  {detail.archived && <div><dt>Estado</dt><dd>Archivado</dd></div>}
+                </dl>
                 <div className={s.actions}>
+                  <button onClick={() => edit(detail)}>Editar lead</button>
                   <button
                     onClick={() => edit({ lead_id: detail.id }, "activities")}
                   >
