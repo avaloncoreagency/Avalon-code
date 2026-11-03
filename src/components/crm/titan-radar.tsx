@@ -6,6 +6,7 @@ import type { Map as LeafletMap, LayerGroup, Circle } from "leaflet";
 import { INDUSTRIES, PUBLIC_MAX_RADIUS_M, RADIUS_PRESETS_MI, tierStyle, type IndustryId } from "@/lib/crm/radar";
 import s from "./titan.module.css";
 import { RadarResearchPanel } from "./radar-research-panel";
+import { RadarAutoResearch } from "./radar-auto-research";
 import { resolveRadarMapTiles, geoapifyFreeTileUrl, GEOAPIFY_FREE_TILE_ATTRIBUTION } from "@/lib/crm/radar-map-tiles";
 
 type Need = { service: string; state: string; evidence_url: string; method: string; note: string; confidence: string; verified_at: string | null };
@@ -356,6 +357,8 @@ export function TitanRadar({ onChanged }: { onChanged?: () => void }) {
       </p>}
       {error && <p className={s.error} role="alert">{error}</p>}
       {notice && <div className={s.ok} role="status">{notice}{createdLeadId && <>{" "}<Link href={`/admin/workspace/crm/leads?lead=${createdLeadId}`}>Abrir tarjeta en pipeline</Link></>}</div>}
+
+      <RadarAutoResearch revision={lastSearch?.at ?? ""} onChanged={() => { void load(); onChanged?.(); }} />
 
       <details className={s.ratingGuide} id="radar-calificacion">
         <summary>
