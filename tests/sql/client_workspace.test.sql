@@ -28,6 +28,34 @@ begin
   assert ok,'journal audit history must be immutable';
 end $$;
 reset role;
+-- A different agency owner sees the SAME client record, can revise it and preserves the first editor's version.
+set role authenticated;
+select set_config('request.jwt.claim.sub','00000000-0000-4000-8000-0000000000a2',false);
+do $
+declare c uuid; j uuid;
+begin
+  select id into c from public.crm_clients where legal_name='Acme QA';
+  assert (select package_name from public.crm_client_workspace where client_id=c)='Growth Pro', 'second owner sees shared dossier';
+  select id into j from public.crm_client_journal where client_id=c and title='Kickoff';
+  assert j is not null, 'second owner sees same journal';
+  update public.crm_client_workspace set next_step='Aprobación del segundo propietario' where client_id=c;
+  update public.crm_client_journal set body='Validación del segundo propietario' where id=j;
+  assert (select version from public.crm_client_workspace where client_id=c)=3, 'second owner advances shared workspace version';
+  assert (select version from public.crm_client_journal where id=j)=3, 'second owner advances shared journal version';
+  assert (select count(*) from public.crm_client_workspace_revisions where client_id=c)=3, 'all workspace revisions retained';
+  assert (select count(*) from public.crm_client_journal_revisions where entry_id=j)=3, 'all journal revisions retained';
+  assert (select sum(amount) from public.crm_client_costs where client_id=c)=100, 'second owner sees same cost ledger';
+end $;
+reset role;
+set role authenticated;
+select set_config('request.jwt.claim.sub','00000000-0000-4000-8000-0000000000a1',false);
+do $
+declare c uuid;
+begin
+  select id into c from public.crm_clients where legal_name='Acme QA';
+  assert (select next_step from public.crm_client_workspace where client_id=c)='Aprobación del segundo propietario', 'first owner sees second owner changes';
+end $;
+reset role;
 set role authenticated;
 select set_config('request.jwt.claim.sub','00000000-0000-4000-8000-0000000000a3',false);
 do $$ declare ok boolean; begin
