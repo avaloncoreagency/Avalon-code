@@ -2,7 +2,6 @@
 // Read-only GitHub PR handoff preflight. Does not assign ownership, merge,
 // comment or grant access. Missing metadata produces warnings, not fake proof.
 const fs=require("node:fs");
-const crypto=require("node:crypto");
 const ISSUE_REF=/(?:close[sd]?|fix(?:e[sd])?|resolve[sd]?|refs?)\s+#(\d+)/gi;
 const OWNER_LABELS=new Set(["owner:miguel","owner:samuel"]);
 const SHARED=/^(?:supabase\/migrations\/|src\/lib\/(?:auth|supabase)\/|src\/components\/suite\/|\.github\/|src\/app\/admin\/password)/;
