@@ -28,7 +28,7 @@ jobs:
       - run: npm run test:integration
       - run: npm run bridge:test
       - run: node tests/qa/node_modules/playwright/cli.js install --with-deps chromium
-      - run: node --test tests/crm.database.cjs tests/unified.database.cjs tests/sales.database.cjs tests/crm.integration.cjs
+      - run: node --test tests/crm.database.cjs tests/unified.database.cjs tests/sales.database.cjs tests/crm.integration.cjs tests/radar-server-scheduler.database.cjs
         env:
           NODE_PATH: ./tests/qa/node_modules
           CRM_BROWSER: '1'

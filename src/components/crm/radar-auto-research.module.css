@@ -17,3 +17,8 @@
 .note { color:#a9bdcf; }
 @keyframes workerPulse { 50% { opacity:.35; transform:scale(.8); } }
 @media (prefers-reduced-motion:reduce) { .led { animation:none !important; } }
+
+.serverJob { display:grid; gap:4px; padding:9px 11px; border-left:3px solid #67e8f9;
+  background:#061728c7; border-radius:8px; }
+.serverJob strong { font-size:12px; color:#cbf7ff; }
+.serverJob span { font-size:11px; color:#aacadd; line-height:1.5; }
