@@ -12,7 +12,7 @@ Date: 2026-11-02. Stage this PR and PR #56 first; do not bypass Supabase Preview
 Official provider: https://www.geoapify.com/pricing/ and https://apidocs.geoapify.com/docs/places/
 
 - Geoapify Free: **3,000 credits per day**, up to **5 requests/second**, **no credit card required**. Commercial use allowed with attribution to Geoapify and OSM, within its terms and applicable restrictions. Shared daily credits cover maps, Places, geocoding. Geoapify's terms reserve the right to suspend or charge for excess usage: **monitor quota** in MyProjects. Do not assume unlimited use, zero cloud egress or SLA.
-- Places API: **1 credit per up to 20 results**. Avalon explicitly clamps **60 results max (~3 Places credits)** per manual/saved campaign run and **5 km max radius** for Geoapify Free. Its geocoding uses a single query with cache and a 1.1 s minimum interval per app instance. Manual search throttled to once per owner per 30 seconds per app instance; campaigns de-duplicated hourly. These per-instance limits do not guarantee a strict daily hard ceiling across Vercel serverless replicas. No scheduler/bulk search is enabled.
+- Places API: **1 credit per up to 20 results**. Avalon explicitly clamps **60 results max (~3 Places credits)** per manual/saved campaign run and **5 km max radius** for Geoapify Free. Geocoding uses a cached Geoapify request with a 1.1 s minimum interval per app instance. Without a Geoapify key there is no automatic public Nominatim or Overpass fallback. Manual search throttled to once per owner per 30 seconds per app instance; campaigns de-duplicated hourly. These per-instance limits do not guarantee a strict daily hard ceiling across Vercel serverless replicas. No scheduler/bulk search is enabled.
 - OSM data ODbL means we must keep attribution and respect public-business-data use. Missing web/phone/email does NOT imply absence of a website, nor prove a need for our services. Owner approval is mandatory before CRM pipeline conversion.
 - Do not use Stadia Maps Free, MapTiler Free, or OSM US public tiles to operate a **commercial** agency: those free offerings have non-commercial limits (or require written permission). Do not rely on public Overpass for regular commercial lead hunting.
 
@@ -31,7 +31,7 @@ Official provider: https://www.geoapify.com/pricing/ and https://apidocs.geoapif
 
 ## If key is not configured or the free tier is exhausted
 
-- No silent fallback to commercial use of volunteer OSM tiles/Overpass.
+- No automatic fallback to volunteer OSM tiles, Nominatim or Overpass in ANY environment; missing Geoapify key blocks geocoding and new business search with an actionable error.
 - Visual radar grid, saved leads, existing CRM stages and human approval remain usable.
 - Provider diagnostic is shown in the Radar instead of a fake count.
 - Error 401/403 shows provider-key restrictions; 429 shows quota without automatic re-requests.
