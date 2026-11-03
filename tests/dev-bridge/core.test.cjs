@@ -149,3 +149,49 @@ test('Dev Bridge auto refresh is read-only and schedule is hourly',()=>{
  const workflow=fs.readFileSync('.github/workflows/dev-bridge-sync.yml','utf8');
  assert.match(workflow,/cron: '17 \* \* \* \*'/);
 });
+
+test('real GitHub PR list avoids redundant detail/history calls and preserves UNKNOWN mergeability',async()=>{
+ const sha='a'.repeat(40), base='b'.repeat(40), paths=[];
+ const api={
+  pages:async path=>{
+   paths.push(path);
+   if(path.includes('/issues?'))return [
+     {number:8,state:'closed',title:'Completed work',comments:0,labels:[{name:'owner:miguel'}],
+       body:'Next action: outdated',updated_at:now(),html_url:'https://github.com/org/repo/issues/8'},
+     {number:95,state:'open',title:'Current teamwork',comments:0,
+       labels:[{name:'owner:miguel'},{name:'module:dashboard'}],
+       body:'Next action: Verify exact SHA',updated_at:now(),
+       html_url:'https://github.com/org/repo/issues/95'}];
+   if(path.includes('/pulls?'))return [{number:96,title:'Cooperate',body:'Refs #95',
+     html_url:'https://github.com/org/repo/pull/96',updated_at:now(),
+     head:{sha,ref:'feat/bridge'},base:{sha:base,ref:'main'}}];
+   if(path.includes('/branches'))return [{name:'main',commit:{sha:base}}];
+   if(path.includes('/commits?'))return [];
+   if(path.includes('/pulls/96/files'))return [{filename:'src/lib/dev-bridge/core.ts'}];
+   if(path.includes('/pulls/96/reviews'))return [];
+   throw Error('Unexpected page '+path);
+  },
+  get:async path=>{
+   paths.push(path);
+   if(path.includes('/check-runs'))return {total_count:1,check_runs:[{
+     app:{slug:'github-actions'},name:'Dev Bridge validate',conclusion:'success'}]};
+   if(path.includes('/compare/'))return {ahead_by:2};
+   if(path.includes('/git/trees/'))return {tree:[]};
+   throw Error('Unexpected request '+path);
+  }
+ };
+ const g=await b.github({repo:'org/repo',githubToken:'synthetic'},undefined,undefined,api);
+ assert.equal(g.pulls[0].ci,'PASSED');
+ assert.equal(g.pulls[0].conflict,null, 'list endpoint does not prove mergeability');
+ assert.equal(g.pulls[0].behind,2);
+ assert.equal(g.issues.find(i=>i.number===8).open,false);
+ assert.equal(g.issues.find(i=>i.number===95).open,true);
+ assert.ok(!paths.some(p=>/\/pulls\/96(?:\?|$)|\/pulls\/96\/commits|\/issues\/8\/comments|\/issues\/95\/comments/.test(p)),
+   'do not duplicate PR details/commits or fetch known-empty Issue comments');
+ const snapshot=fixture();snapshot.github.data=g;
+ assert.equal(b.collaboration(g).assigned.miguel[0].issue.number,95);
+ assert.equal(b.findings(snapshot).some(f=>f.id==='owner:8'),false);
+ assert.throws(()=>b.resume(snapshot,8,'samuel','org/repo',sha),/active issue/);
+ const pkg=b.resume(snapshot,95,'samuel','org/repo',sha);
+ assert.ok(validate(pkg),JSON.stringify(validate.errors));
+});
