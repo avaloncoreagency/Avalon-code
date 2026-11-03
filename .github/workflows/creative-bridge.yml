@@ -30,3 +30,7 @@ jobs:
           NODE_PATH: ./tests/qa/node_modules
       - name: Signed protocol and module workflow
         run: node --test tests/creative-bridge.test.cjs tests/higgsfield-handoff.test.cjs
+      - name: Actual signed POST on Next.js with synthetic Supabase Auth and RPC
+        run: node --test tests/creative-bridge.http.cjs
+        env:
+          NEXT_TELEMETRY_DISABLED: '1'
