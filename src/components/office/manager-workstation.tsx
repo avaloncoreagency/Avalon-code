@@ -32,7 +32,7 @@ export function ManagerWorkstation({ lang }: { lang: string }) {
   const [queuing, setQueuing] = useState<ManagerCode | null>(null);
   const refreshHistory = async () => {
     try {
-      const res = await fetch("/admin/workspace/crm/office/manager-work/history/api", {
+      const res = await fetch("/admin/workspace/crm/office/manager-work/github-history/api", {
         credentials: "same-origin", cache: "no-store",
       });
       if (!res.ok) throw new Error("no_history");
