@@ -66,17 +66,22 @@ export function TitanRadar({ onChanged }: { onChanged?: () => void }) {
   type Campaign = { id: string; name: string; radius_m: number; place_label: string; categories: string[]; frequency: string; status: string; last_run_at: string | null; crm_radar_runs: { status: string; found: number; inserted: number; started_at: string }[] };
   const [campaigns, setCampaigns] = useState<Campaign[]>([]);
   const [placesProvider, setPlacesProvider] = useState<"geoapify" | "overpass" | "missing" | "unknown">("unknown");
+  // Searches recorded today vs the daily cap; credits are an upper bound computed from our own records.
+  // Set when "Pasar al pipeline" finds the business already exists as a lead (same e-mail / company + contact).
+  const [existingLead, setExistingLead] = useState<{ prospectId: string; id: string; company: string } | null>(null);
+  const [quota, setQuota] = useState<{ searchesToday: number; limit: number; remaining: number; blocked: boolean; maxCreditsUsed: number; sharedDailyCredits: number } | null>(null);
   const [scheduler, setScheduler] = useState("");
   const loadCampaigns = useCallback(async () => {
     try {
       const res = await fetch("/admin/workspace/crm/radar/campaigns", { cache: "no-store" });
       if (!res.ok) throw new Error("campaigns unavailable");
       const body = await res.json() as {
-        campaigns?: Campaign[]; scheduler?: { reason: string };
+        campaigns?: Campaign[]; scheduler?: { reason: string }; quota?: typeof quota;
         provider?: { kind: "geoapify" | "overpass" | "missing"; ready: boolean };
       };
       setCampaigns(body.campaigns ?? []);
       setPlacesProvider(body.provider?.kind ?? "unknown");
+      setQuota(body.quota ?? null);
       setScheduler(body.scheduler?.reason ?? "");
     } catch {
       setScheduler("No se pudieron cargar las campañas. Revisa tu conexión e inténtalo nuevamente.");
@@ -266,18 +271,22 @@ export function TitanRadar({ onChanged }: { onChanged?: () => void }) {
       setLastSearch({ at: body.searchedAt ?? new Date().toISOString(), found: body.run?.found ?? 0, inserted: body.run?.inserted ?? 0, updated: body.run?.updated ?? 0 });
       setView("all"); setOnlyZone(true);
       await load();
+      void loadCampaigns();
       onChanged?.();
-    } catch (cause) { setError(cause instanceof Error ? cause.message : "Búsqueda no disponible"); }
+    } catch (cause) { setError(cause instanceof Error ? cause.message : "Búsqueda no disponible"); void loadCampaigns(); }
     finally { setSearching(false); }
   }
 
   async function act(id: string, payload: Record<string, unknown>, ok: string) {
     if (busy) return;
-    setBusy(true); setError(""); setNotice("");
+    setBusy(true); setError(""); setNotice(""); setExistingLead(null);
     try {
       const res = await fetch("/admin/workspace/crm/radar/places", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ id, ...payload }) });
-      const body = await res.json() as { error?: string; lead_id?: string };
-      if (!res.ok) throw new Error(body.error ?? "No se pudo guardar");
+      const body = await res.json() as { error?: string; lead_id?: string; code?: string; lead?: { id: string; company: string } };
+      if (!res.ok) {
+        if (body.code === "lead_exists" && body.lead) setExistingLead({ prospectId: id, id: body.lead.id, company: body.lead.company });
+        throw new Error(body.error ?? "No se pudo guardar");
+      }
       setNotice(ok);
       await load();
       onChanged?.();
@@ -328,12 +337,17 @@ export function TitanRadar({ onChanged }: { onChanged?: () => void }) {
           : placesProvider === "overpass"
             ? "OpenStreetMap (Overpass autorizado)"
             : placesProvider === "missing" ? "NO CONFIGURADA" : "verificando…"}</span>
+        {quota && <span data-testid="radar-quota" data-blocked={quota.blocked || undefined}>Cuota de hoy: {quota.searchesToday} de {quota.limit} búsquedas · hasta {quota.maxCreditsUsed} de {quota.sharedDailyCredits.toLocaleString("es")} créditos Geoapify (estimación máxima, compartida con mapa y ciudades)</span>}
         <span>Mapa base: {tileStatus === "ready" ? "conectado" : tileStatus === "loading" ? "cargando" : "modo radar sin cartografía"}</span>
       </div>
       {placesProvider === "missing" && <p className={s.hint} role="status">
         Para descubrir nuevos negocios hace falta conectar Geoapify Free en Vercel (AVALON_GEOAPIFY_PLACES_KEY). La bandeja y los leads existentes siguen disponibles.
       </p>}
       {error && <p className={s.error} role="alert">{error}</p>}
+      {existingLead && <p className={s.hint} role="status" data-testid="radar-existing-lead">
+        Lead existente: <a href={`/admin/workspace/crm/leads?lead=${existingLead.id}`}>{existingLead.company}</a>{" "}
+        <button type="button" disabled={busy} onClick={() => void act(existingLead.prospectId, { op: "link" }, `Vinculado a «${existingLead.company}». No se creó un lead duplicado.`)}>Vincular al lead existente</button>
+      </p>}
       {notice && <p className={s.ok} role="status">{notice}</p>}
 
       <div className={s.stage}>

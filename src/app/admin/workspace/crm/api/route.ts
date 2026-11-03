@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { getOwnerSession } from "@/lib/auth/session";
+import { duplicateConflict, linkProspectToExistingLead } from "@/lib/crm/prospect-link";
 import {
   tables,
   validate,
@@ -250,7 +251,17 @@ export async function POST(request: NextRequest) {
       const { data, error } = await client.rpc("crm_convert_prospect", {
         prospect_id: body.id,
       });
+      if (error?.code === "23505") {
+        const dup = await duplicateConflict(client, body.id);
+        if (dup) return json(dup.body, dup.status);
+      }
       return error ? failure(error) : json({ id: data });
+    }
+    if (body.action === "link_existing") {
+      if (typeof body.id !== "string" || !uuid.test(body.id))
+        return json({ error: "Prospecto inválido" }, 400);
+      const out = await linkProspectToExistingLead(client, body.id);
+      return out.ok ? json({ id: out.leadId }) : json({ error: out.error }, out.status);
     }
     if (body.action === "import") {
       let rows: Row[];

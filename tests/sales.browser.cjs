@@ -144,6 +144,37 @@ test('Nova Restaurant through the real app: one form, three departments, no dupl
   for (const name of ['Nova Restaurant — Desarrollo web', 'Nova Restaurant — Recepcionista de IA', 'Nova Restaurant — Marketing mensual', 'AV-2026-']) assert.ok(hub.includes(name), `client hub shows ${name}`);
   await page.screenshot({ path: `${EVIDENCE}/client-360.png`, fullPage: true });
 
+  // Module → shared spine: the project of each service reaches the same client, sale, work order and tasks.
+  const novaProjects = (await db.query("select p.id, p.module, p.client_id from os_projects p order by p.module")).rows;
+  assert.equal(novaProjects.length, 3, 'one project per module service');
+  for (const proj of novaProjects) assert.equal(proj.client_id, clientId, 'every module project points at the same client');
+  const websiteProject = novaProjects.find(r => r.module === 'website');
+  const saleRow = (await db.query('select s.id, s.sale_number from crm_sales s')).rows[0];
+  const websiteTasks = Number((await db.query('select count(*) n from crm_tasks where project_id=$1', [websiteProject.id])).rows[0].n);
+  assert.ok(websiteTasks >= 1, 'the sale generated tasks for the website project');
+  await page.goto(`${origin}/admin/workspace/products/${websiteProject.id}`);
+  const ctx = page.getByTestId('project-context');
+  await ctx.getByRole('heading', { name: 'Contexto comercial' }).waitFor();
+  await ctx.getByRole('link', { name: /Nova Restaurant · CLI-/ }).waitFor();
+  assert.match(await page.locator('header').filter({ hasText: 'Nova Restaurant' }).first().innerText(), /Nova Restaurant/, 'header names the real client, not "sin empresa vinculada"');
+  assert.doesNotMatch(await page.locator('#main').innerText(), /Sin empresa vinculada/);
+  await ctx.getByRole('link', { name: saleRow.sale_number }).waitFor();
+  assert.match(await ctx.innerText(), new RegExp(`${websiteTasks} abiertas|abiertas`), 'task counters shown');
+  await page.screenshot({ path: `${EVIDENCE}/project-context.png`, fullPage: false });
+  await ctx.getByRole('link', { name: /Nova Restaurant · CLI-/ }).click();
+  await page.waitForURL(`${origin}/admin/workspace/crm/clients/${clientId}`);
+  await page.goto(`${origin}/admin/workspace/products/${websiteProject.id}`);
+  await page.getByTestId('project-context').getByRole('link', { name: saleRow.sale_number }).click();
+  await page.waitForURL(new RegExp('/admin/workspace/crm/sales/' + saleRow.id));
+  await page.goto(`${origin}/admin/workspace/products/${websiteProject.id}`);
+  await page.getByTestId('project-context').getByRole('link', { name: /Ver y crear tareas de esta orden/ }).click();
+  await page.waitForURL(/\/admin\/workspace\/crm\/tasks\?work_order=/);
+  // A manually created project has no client or sale: the panel says so instead of inventing context.
+  const manual = (await db.query("insert into os_projects(module,name,created_by) values('website','Proyecto manual sintético',$1) returning id", [MIGUEL])).rows[0];
+  await page.goto(`${origin}/admin/workspace/products/${manual.id}`);
+  await page.getByTestId('project-context').getByText(/creó a mano/).waitFor();
+  await db.exec('reset role;');
+
   // Record a real payment: collected moves, contracted stays.
   await page.goto(saleUrl.split('?')[0]);
   await page.getByLabel(/^Importe/).fill('1750');
@@ -205,6 +236,49 @@ test('Nova Restaurant through the real app: one form, three departments, no dupl
   assert.equal(await count("select count(*) n from crm_leads where company='Radar Dental Sintético'"), 1);
   assert.equal(await count("select count(*) n from crm_leads where company='Radar Café Sintético'"), 0, 'unapproved business never reaches the pipeline');
   await sam.unroute('**/admin/workspace/crm/radar/area?*');
+
+  // Duplicate across channels AND owners: Miguel already has this business as a lead; the radar found it for Samuel.
+  // Passing it to the pipeline must explain the conflict (not "No se pudo guardar"), create no duplicate, and let a
+  // human link the prospect to the existing lead.
+  await db.exec('reset role;');
+  await db.exec(`set request.jwt.claim.sub='${MIGUEL}'; set role authenticated;`);
+  const existingLead = (await db.query("insert into crm_leads(company,contact,email,source,owner_id) values('Café Existente Sintético','Rosa Prueba','cafe@radar.example.invalid','Manual',$1) returning id", [MIGUEL])).rows[0];
+  await db.exec('reset role;');
+  await db.exec(`set request.jwt.claim.sub='${SAMUEL}'; set role authenticated;`);
+  await db.query("update crm_prospects set email='Cafe@Radar.Example.invalid' where source_ref='osm:node/987654322'");
+  await db.exec('reset role;');
+  await sam.goto(origin + '/admin/workspace/crm/hunter');
+  await sam.getByRole('button', { name: 'Abrir Radar Café Sintético' }).click();
+  await sam.getByRole('button', { name: '✓ Aprobar' }).click();
+  await sam.locator('p[role="status"]', { hasText: /aprobado/ }).first().waitFor();
+  await sam.getByRole('button', { name: '→ Pasar al pipeline' }).click();
+  await sam.getByRole('alert').filter({ hasText: /ya está en el pipeline como «Café Existente Sintético»/ }).waitFor();
+  const dupBox = sam.getByTestId('radar-existing-lead');
+  await dupBox.getByRole('link', { name: 'Café Existente Sintético' }).waitFor();
+  assert.equal(await count("select count(*) n from crm_leads where lower(email)='cafe@radar.example.invalid'"), 1, 'no duplicate lead was created');
+  await dupBox.getByRole('button', { name: 'Vincular al lead existente' }).click();
+  await sam.getByText(/No se creó un lead duplicado/).waitFor();
+  const linkedProspect = (await db.query("select status, lead_id from crm_prospects where source_ref='osm:node/987654322'")).rows[0];
+  assert.deepEqual({ status: linkedProspect.status, lead_id: linkedProspect.lead_id }, { status: 'converted', lead_id: existingLead.id });
+  assert.equal(await count("select count(*) n from crm_leads where lower(email)='cafe@radar.example.invalid'"), 1);
+  // Same rule without e-mail (company + contact; the database only enforces it between e-mail-less records),
+  // through the Lead Hunter prospects table.
+  await db.exec(`set request.jwt.claim.sub='${MIGUEL}'; set role authenticated;`);
+  const noMailLead = (await db.query("insert into crm_leads(company,contact,source,owner_id) values('Pepe Sin Correo Sintético','Pepe Prueba','Manual',$1) returning id", [MIGUEL])).rows[0];
+  await db.exec(`set request.jwt.claim.sub='${SAMUEL}'; set role authenticated;`);
+  await db.query("insert into crm_prospects(company,contact,source,owner_id,acquired_at,status,opportunity) values('PEPE sin correo sintético','pepe prueba','CSV sintético',$1,now(),'approved','Duplicado sin correo')", [SAMUEL]);
+  await db.exec('reset role;');
+  await sam.goto(origin + '/admin/workspace/crm/hunter');
+  const dupCard = sam.locator('article', { hasText: 'Duplicado sin correo' });
+  await dupCard.getByRole('button', { name: 'Pasar al pipeline' }).click();
+  const tableDup = sam.getByTestId('existing-lead');
+  await tableDup.getByRole('link', { name: 'Pepe Sin Correo Sintético' }).waitFor();
+  assert.equal(await count("select count(*) n from crm_leads where lower(company)='pepe sin correo sintético'"), 1, 'no duplicate lead was created');
+  await tableDup.getByRole('button', { name: 'Vincular al lead existente' }).click();
+  await sam.getByText('Guardado correctamente.').waitFor();
+  const linkedByName = (await db.query("select status, lead_id from crm_prospects where opportunity='Duplicado sin correo'")).rows[0];
+  assert.deepEqual({ status: linkedByName.status, lead_id: linkedByName.lead_id }, { status: 'converted', lead_id: noMailLead.id });
+  assert.equal(await count("select count(*) n from crm_leads where lower(company)='pepe sin correo sintético'"), 1, 'still a single lead for that business');
 
   // Mobile-first smoke test: every high-frequency Avalon route is usable on a phone.
   const mobileRoutes = [
@@ -297,8 +371,13 @@ test('Nova Restaurant through the real app: one form, three departments, no dupl
   // ── Pipedrive-style board: drag between stages, card history, note, file ──
   const card = page.locator('article', { has: page.getByLabel('Etapa de Orbit Dental Sintético') });
   const target = page.getByRole('region', { name: 'Negociación', exact: true });
-  await target.scrollIntoViewIfNeeded();
-  await card.dragTo(target, { sourcePosition: { x: 6, y: 6 }, targetPosition: { x: 40, y: 20 } });
+  // HTML5 drag events fired on the real handlers: independent of pointer geometry and the sticky top bar.
+  const dt = await page.evaluateHandle(() => new DataTransfer());
+  await card.dispatchEvent('dragstart', { dataTransfer: dt });
+  await target.dispatchEvent('dragenter', { dataTransfer: dt });
+  await target.dispatchEvent('dragover', { dataTransfer: dt });
+  await target.dispatchEvent('drop', { dataTransfer: dt });
+  await card.dispatchEvent('dragend', { dataTransfer: dt });
   await page.waitForTimeout(500);
   await page.reload();
   assert.equal(await page.getByLabel('Etapa de Orbit Dental Sintético').inputValue(), 'negotiation', 'drag & drop moved the lead');
@@ -512,6 +591,17 @@ test('Nova Restaurant through the real app: one form, three departments, no dupl
   assert.equal(Number((await one("select count(*) n from crm_leads where company='Visitante Sintético LLC'")).n), 0);
   await pub.goto(origin + '/?lang=en');
   await pub.getByRole('heading', { name: 'Technology that grows your business.' }).waitFor();
+  assert.match(await pub.title(), /AI, websites, CRM and automation/, 'English page has an English title');
+  assert.equal(await pub.locator('link[rel="canonical"]').count(), 0, 'no canonical that would mark the English page as a duplicate of the Spanish one');
+  // Search-engine surface: robots.txt keeps the private OS out, sitemap lists only public pages.
+  const robotsTxt = await (await fetch(origin + '/robots.txt')).text();
+  assert.match(robotsTxt, /Disallow: \/admin/);
+  assert.match(robotsTxt, /Disallow: \/api/);
+  assert.match(robotsTxt, /Sitemap: https:\/\/avaloncoreagency\.com\/sitemap\.xml/);
+  const sitemapXml = await (await fetch(origin + '/sitemap.xml')).text();
+  assert.match(sitemapXml, /<loc>https:\/\/avaloncoreagency\.com\/<\/loc>/);
+  assert.match(sitemapXml, /hreflang="en" href="https:\/\/avaloncoreagency\.com\/\?lang=en"/, 'hreflang declared in the sitemap with full URLs');
+  assert.doesNotMatch(sitemapXml, /admin|login/);
   await visitor.close();
 
   assert.deepEqual(errors.filter(e => e.startsWith('pageerror')), [], 'no client-side errors');

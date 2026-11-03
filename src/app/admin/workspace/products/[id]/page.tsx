@@ -6,6 +6,8 @@ import { clientId, isService, validId, SERVICES, type CompanyRecord } from '@/li
 import { run, PROJECT_COLUMNS, type ProjectRow, type AuditRow } from '@/lib/os/data';
 import { productMetrics } from '@/lib/os/client-hud-data';
 import { DbNotice } from '@/components/os/ui';
+import { ProjectContextPanel } from '@/components/os/project-context';
+import { loadProjectContext } from '@/lib/os/project-context';
 import { ProductHud } from '@/components/os/product-hud';
 export const dynamic = 'force-dynamic';
 export default async function ProductPage({params,searchParams}:{params:Promise<{id:string}>;searchParams:Promise<Record<string,string|string[]|undefined>>}) {
@@ -19,10 +21,12 @@ export default async function ProductPage({params,searchParams}:{params:Promise<
   if (!result.data || !isService(result.data.module)) notFound();
   const project=result.data;
   const companyId=clientId(project.settings);
-  const [company,metrics,audit]=await Promise.all([
+  const [company,metrics,audit,context,owners]=await Promise.all([
     companyId?run<CompanyRecord|null>(supabase.from('crm_leads').select('id,company,contact,email,phone,source').eq('id',companyId).maybeSingle()):null,
     productMetrics(supabase,project),
     run<AuditRow[]>(supabase.from('os_audit').select('id,table_name,record_id,project_id,operation,actor_id,summary,created_at').eq('project_id',id).order('created_at',{ascending:false}).limit(20)),
+    loadProjectContext(supabase,id),
+    run<{user_id:string;email:string}[]>(supabase.rpc('crm_owner_directory')),
   ]);
-  return <Suite active={SERVICES[project.module].slug}><ProductHud lang={lang} project={project} company={company?.data??null} metrics={metrics} audit={audit} error={typeof p.error==='string'?p.error:undefined} ok={typeof p.ok==='string'?p.ok:undefined}/></Suite>;
+  return <Suite active={SERVICES[project.module].slug}><ProductHud lang={lang} project={project} company={company?.data??(context?.client?{id:context.client.id,company:context.client.legal_name}:null)} metrics={metrics} audit={audit} context={<ProjectContextPanel lang={lang} context={context} owners={owners.data??[]}/>} error={typeof p.error==='string'?p.error:undefined} ok={typeof p.ok==='string'?p.ok:undefined}/></Suite>;
 }

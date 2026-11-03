@@ -5,6 +5,7 @@ import type { ProjectRow, AuditRow, Loaded } from '@/lib/os/data';
 import type { ProductMetric } from '@/lib/os/client-hud-data';
 import { saveProductOperation } from '@/app/admin/workspace/products/actions';
 import { DbNotice, Flash, statusLabel } from './ui';
+import type { ReactNode } from 'react';
 import s from './client-hud.module.css';
 
 const STATUS: Record<RequestState,[string,string]> = {
@@ -15,7 +16,7 @@ function validLink(value:unknown) {try{return safeLink(value);}catch{return '';}
 function Fields({project,operation}:{project:ProjectRow;operation:string}) {
   return <><input type="hidden" name="id" value={project.id}/><input type="hidden" name="version" value={project.version}/><input type="hidden" name="operation" value={operation}/></>;
 }
-export function ProductHud({lang,project,company,metrics,audit,ok,error}:{lang:Lang;project:ProjectRow;company:CompanyRecord|null;metrics:ProductMetric[];audit:Loaded<AuditRow[]>;ok?:string;error?:string}) {
+export function ProductHud({lang,project,company,metrics,audit,ok,error,context}:{lang:Lang;project:ProjectRow;company:CompanyRecord|null;metrics:ProductMetric[];audit:Loaded<AuditRow[]>;ok?:string;error?:string;context?:ReactNode}) {
   let valid = true;
   let state;
   try { state = readProductState(project.settings.client_hud); } catch { valid=false; state=readProductState(undefined); }
@@ -38,6 +39,7 @@ export function ProductHud({lang,project,company,metrics,audit,ok,error}:{lang:L
     <Flash lang={lang} ok={ok} error={error}/>
     {!valid&&<p role="alert" className={s.notice}>{pick(lang,'Los datos operativos guardados necesitan revisi\u00f3n. La edici\u00f3n est\u00e1 bloqueada para no sobrescribirlos.','Saved operations data needs review. Editing is blocked to prevent overwriting it.')}</p>}
     {project.status==='archived'&&<p className={s.notice}>{pick(lang,'Proyecto archivado: consulta disponible, cambios bloqueados.','Archived project: read-only, changes disabled.')}</p>}
+    {context}
     <nav className={s.tabs} aria-label={pick(lang,'Secciones del producto','Product sections')}>{[['overview','Resumen','Overview'],['monitor','Monitoreo','Monitoring'],['checks','Pruebas','Tests'],['requests','Cambios y mejoras','Changes and improvements'],['resources','Conexiones y archivos','Connections and files'],['history','Historial','History']].map(([id,es,en])=><a className={s.button} key={id} href={`#${id}`}>{pick(lang,es,en)}</a>)}</nav>
     <div className={s.stats}>{metrics.map(m=><div className={s.stat} key={m.en}>{pick(lang,m.es,m.en)}<strong>{m.value??'\u2014'}</strong></div>)}<div className={s.stat}>{pick(lang,'Solicitudes abiertas','Open requests')}<strong>{valid?pending.length:'\u2014'}</strong></div><div className={s.stat}>{pick(lang,'Pruebas manuales fallidas','Failed manual checks')}<strong>{valid?failures.length:'\u2014'}</strong></div></div>
     <p className={s.muted}>{pick(lang,'Las cifras reflejan registros de Avalon. No son ventas cobradas, visitas web, uptime ni actividad en vivo de proveedores. Un guion significa que el dato no pudo verificarse.','Figures reflect Avalon records, not collected revenue, website visits, uptime or live provider activity. A dash means the data could not be verified.')}</p>
