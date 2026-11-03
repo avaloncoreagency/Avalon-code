@@ -74,7 +74,7 @@ test("office scene implements two-pointer pinch, resets and touch navigation wit
 
 test("scene only displays verified manager runs; it does not activate agents", () => {
   const scene = fs.readFileSync("src/components/office/iso-office.tsx", "utf8");
-  assert.match(scene, /office\/manager-work\/history\/api/);
+  assert.match(scene, /office\/manager-work\/github-history\/api/);
   assert.match(scene, /credentials: "same-origin"/);
   assert.match(scene, /cache: "no-store"/);
   assert.match(scene, /response\.status === 404/);
@@ -84,6 +84,8 @@ test("scene only displays verified manager runs; it does not activate agents", (
   assert.match(scene, /clearInterval\(interval\)/);
   assert.match(scene, /run\?\.display_status === "running"/);
   assert.match(scene, /Date\.parse\(run\.lease_until\) > Date\.now\(\)/);
-  assert.match(scene, /Animaciones son decorativas|animaciones son decorativas/i);
+  assert.match(scene, /animaciones decorativas|motion is decorative/i);
+  assert.match(scene, /recentChecks/);
+  assert.match(scene, /reportes recientes/);
   assert.doesNotMatch(scene, /method: "POST"|service_role|SUPABASE_SERVICE_ROLE_KEY/);
 });
