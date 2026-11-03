@@ -81,6 +81,11 @@ test("machine creates exactly one synthetic lead and product, with real audit ac
   const audit = await one("select actor_id, operation from crm_audit where record_id=$1", [result.lead_id]);
   assert.equal(audit.actor_id,MACHINE);
   assert.equal(audit.operation,"INSERT");
+  const activities = (await db.query("select id,kind,status from crm_activities where lead_id=$1", [result.lead_id])).rows;
+  assert.equal(activities.length, 1, "existing stage follow-up must still run exactly once");
+  assert.equal(activities[0].kind, "system");
+  const activityAudit = await one("select actor_id from crm_audit where record_id=$1", [activities[0].id]);
+  assert.equal(activityAudit.actor_id, MACHINE);
   const project = await one("select module,status,settings,created_by from os_projects where id=$1", [result.project_id]);
   assert.equal(project.module,"website");
   assert.equal(project.status,"draft");
@@ -113,6 +118,8 @@ test("outsiders and owners cannot call the machine-only RPC, nor can machine wri
     values ('Original','Manual',$1::uuid) returning id`, [OWNER])).rows[0].id;
   await as(MACHINE);
   await db.query("update crm_leads set company='Forgery' where id=$1", [seed]);
+  await assert.rejects(db.query(`insert into crm_activities(lead_id,body,kind,status)
+    values ($1::uuid,'Direct bypass','system','pending')`, [seed]), /forbidden|policy|permission denied/i);
   await assert.rejects(db.query(`select * from os_private.creative_bridge_identities`), /permission denied/i);
   await db.exec("reset role;");
   const untouched = (await db.query("select company from crm_leads where id=$1", [seed])).rows[0];
