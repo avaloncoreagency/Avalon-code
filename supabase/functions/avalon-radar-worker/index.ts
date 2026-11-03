@@ -143,15 +143,31 @@ async function processBatch(db: SupabaseClient, owner: string, now: number) {
     if (scoring.error || !scoring.data) { failures++; continue; }
     const row = scoring.data;
     if (typeof row.stars === "number") rated++;
-    if (row.status === "pending" && !row.do_not_contact &&
-        row.stars_override == null && Number(row.stars) >= 4 && row.confidence === "high") {
-      const result = await db.rpc("crm_radar_worker_convert_verified", { prospect_id: prospect.id });
-      if (result.error) failures++;
-      else if (result.data) converted++;
+  }
+
+  // Conversion is independent of whether a website was crawled *in this hour*.
+  // Previously qualified prospects, including those approved by an owner or
+  // whose sites were researched on an earlier day, also enter New lead.
+  // The SQL RPC rechecks every criterion under a row lock and prevents clones.
+  const promotion = await db.from("crm_prospects")
+    .select("id,stars,stars_override,confidence,status")
+    .not("source_ref", "is", null)
+    .in("status", ["pending", "approved"])
+    .eq("do_not_contact", false)
+    .eq("confidence", "high")
+    .order("updated_at", { ascending: false }).limit(80);
+  if (promotion.error) failures++;
+  else {
+    const ready = (promotion.data ?? []).filter(p =>
+      p.stars_override == null && Number(p.stars) >= 4).slice(0, 4);
+    for (const p of ready) {
+      const out = await db.rpc("crm_radar_worker_convert_verified", { prospect_id: p.id });
+      if (out.error) failures++;
+      else if (out.data) converted++;
     }
   }
   return { checked, rated, converted, blocked, failures, daily_remaining: dailyRemaining,
-    pending: eligible.length - checked };
+    pending: Math.max(0, eligible.length - checked) };
 }
 
 Deno.serve(async (request: Request) => {
