@@ -16,6 +16,7 @@ type QualifiedProspect = {
   do_not_contact: boolean;
   stars: number | null;
   stars_override: number | null;
+  stars_reasons?: string[];
   lead_id: string | null;
 };
 
@@ -30,7 +31,7 @@ const validStars = (n: unknown): n is number =>
 
 export async function qualifyRadarProspect(db: SupabaseClient, id: string): Promise<RadarQualification> {
   const { data, error: readError } = await db.from("crm_prospects")
-    .select("id,source_ref,status,do_not_contact,stars,stars_override,lead_id")
+    .select("id,source_ref,status,do_not_contact,stars,stars_override,stars_reasons,lead_id")
     .eq("id", id).maybeSingle();
   if (readError) return { kind: "failed", stars: null, status: 503, code: "database", message: "No se pudo verificar la calificación." };
   const p = data as QualifiedProspect | null;
@@ -46,6 +47,12 @@ export async function qualifyRadarProspect(db: SupabaseClient, id: string): Prom
     return { kind: "pipeline", stars, leadId: p.lead_id, created: false, linkWarning: false };
   }
   if (stars === null) return { kind: "unrated", stars: null };
+  // A map-provider directory entry is NOT a verified sales opportunity.
+  // Preliminary 1-2 star business profiles must never be promoted merely
+  // because an owner clicked the regular qualification button.
+  if (p.stars_override == null && p.stars_reasons?.some(reason =>
+      reason.startsWith("Precalificación automática:")))
+    return { kind: "unrated", stars: null };
   if (!["pending", "approved"].includes(p.status))
     return { kind: "blocked", stars, status: 409, message: "El negocio no puede pasar al pipeline en su estado actual." };
 
