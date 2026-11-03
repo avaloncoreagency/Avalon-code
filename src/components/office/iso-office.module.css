@@ -98,3 +98,24 @@
   .city .window, .screenTitle, .holoRing, .ambientLight, .person .arm { animation: none !important; }
   .controls button { transition: none !important; }
 }
+
+/* Authenticated history indicator. Green is allowed only for a verified running lease. */
+.runtimeStatus { position: absolute; top: 14px; left: 14px; z-index: 2; max-width: min(370px, calc(100% - 28px));
+  display: grid; grid-template-columns: 8px minmax(0, 1fr); column-gap: 10px; row-gap: 5px;
+  padding: 12px 15px; box-sizing: border-box; border: 1px solid rgba(180,215,245,.24);
+  border-radius: 14px; color: #eaf5ff; background: rgba(8,16,30,.88); backdrop-filter: blur(12px);
+  box-shadow: 0 10px 35px rgba(0,0,0,.25); pointer-events: none; }
+.runtimeStatus strong { font: 650 12px/1.4 system-ui, sans-serif; letter-spacing: .02em; }
+.runtimeStatus span:not(.runtimeDot), .runtimeStatus small { grid-column: 2; font: 400 11px/1.4 system-ui, sans-serif;
+  color: #bed2e9; overflow-wrap: anywhere; }
+.runtimeStatus small { color: #9cacbf; }
+.runtimeDot { width: 8px; height: 8px; margin-top: 4px; border-radius: 50%; background: #7a879b;
+  box-shadow: 0 0 0 3px rgba(133,150,175,.1); }
+.runtimeDot[data-active="true"] { background: #7fe0b8; box-shadow: 0 0 9px rgba(127,224,184,.8);
+  animation: statusPulse 2.2s ease-in-out infinite; }
+@keyframes statusPulse { 0%,100% { opacity: .85; } 50% { opacity: 1; } }
+@media (max-width: 700px) {
+ .runtimeStatus { top: 9px; left: 9px; width: min(340px, calc(100% - 18px)); padding: 9px 11px; }
+ .runtimeStatus small { display: none; }
+}
+@media (prefers-reduced-motion: reduce) { .runtimeDot[data-active="true"] { animation: none !important; } }
