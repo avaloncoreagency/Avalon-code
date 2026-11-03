@@ -14,6 +14,7 @@ export type CalendarEvent = {
   location: string; meeting_url: string; participants: string;
   lead_id: string | null; client_id: string | null; version: number;
   crm_leads?: { company: string } | null;
+  crm_clients?: { legal_name: string } | null;
 };
 export type DayBanner = {
   id: string; day: string; title: string; subtitle: string;
@@ -90,4 +91,32 @@ export function leadCardHref(id: string | null | undefined): string | null {
 export function linkedLeadName(event: CalendarEvent, leads: { id: string; company: string }[]): string | null {
   if (!event.lead_id) return null;
   return event.crm_leads?.company || leads.find(lead => lead.id === event.lead_id)?.company || null;
+}
+
+/** Confirmed-sale metadata loaded under owner RLS; ordered newest first by the server. */
+export type CalendarSale = { id: string; client_id: string; sale_number: string; sold_on: string; crm_clients: { legal_name: string } | null };
+export type CalendarClient = { id: string; legal_name: string };
+const SALE_ID_RE = /^[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}$/i;
+
+export function linkedClientName(event: CalendarEvent, clients: CalendarClient[], sales: CalendarSale[]): string | null {
+  if (!event.client_id) return null;
+  return event.crm_clients?.legal_name || clients.find(client => client.id === event.client_id)?.legal_name || sales.find(sale => sale.client_id === event.client_id)?.crm_clients?.legal_name || null;
+}
+export function purchasedClientOptions(sales: CalendarSale[]): CalendarClient[] {
+  const seen = new Set<string>();
+  return sales.flatMap(sale => {
+    if (!SALE_ID_RE.test(sale.client_id) || !sale.crm_clients?.legal_name || seen.has(sale.client_id)) return [];
+    seen.add(sale.client_id);
+    return [{ id: sale.client_id, legal_name: sale.crm_clients.legal_name }];
+  }).sort((a, b) => a.legal_name.localeCompare(b.legal_name));
+}
+export function salesForCalendarClient(clientId: string | null | undefined, sales: CalendarSale[]): CalendarSale[] {
+  if (!clientId || !SALE_ID_RE.test(clientId)) return [];
+  return sales.filter(sale => sale.client_id === clientId && SALE_ID_RE.test(sale.id));
+}
+/** Customer label opens a confirmed sale; client 360 is the fallback for older purchases. */
+export function clientSalesCardHref(clientId: string | null | undefined, sales: CalendarSale[]): string | null {
+  if (!clientId || !SALE_ID_RE.test(clientId)) return null;
+  const first = salesForCalendarClient(clientId, sales)[0];
+  return first ? "/admin/workspace/crm/sales/" + encodeURIComponent(first.id) : "/admin/workspace/crm/clients/" + encodeURIComponent(clientId);
 }
