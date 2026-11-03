@@ -51,7 +51,9 @@ export function parseCreativeDelivery(value: unknown): CreativeDelivery {
       !["website", "ecommerce", "crm_creator"].includes(String(item.module))) throw new Error("invalid");
   const source_ref = string(item.source_ref, 120, true);
   if (!REF.test(source_ref)) throw new Error("invalid");
-  const company_name = string(item.company_name, 200, true).replace(/\s+/g, " ");
+  const rawCompany = string(item.company_name, 200, true);
+  if (/[\u0000-\u001f\u007f]/.test(rawCompany)) throw new Error("invalid");
+  const company_name = rawCompany.replace(/\s+/g, " ");
   if (company_name.includes("@")) throw new Error("invalid"); // No contact addresses in company metadata.
   const existing_lead_id = item.existing_lead_id == null || item.existing_lead_id === ""
     ? null : string(item.existing_lead_id, 36, true);
