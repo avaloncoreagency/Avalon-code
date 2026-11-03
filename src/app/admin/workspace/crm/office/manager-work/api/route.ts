@@ -24,7 +24,7 @@ export async function POST(request: NextRequest) {
 
   const result = await executeManagerCheck(manager, async spec => {
     // HEAD queries with exact counts avoid row limits and fetching client details.
-    let query = session.supabase.from(spec.table).select("id", { count: "exact", head: true });
+    let query = session.supabase.from(spec.table).select(spec.table === "agency_memberships" ? "user_id" : "id", { count: "exact", head: true });
     for (const filter of spec.filters) {
       if (filter.op === "eq") query = query.eq(filter.column, String(filter.value));
       else if (filter.op === "lt") query = query.lt(filter.column, String(filter.value));
