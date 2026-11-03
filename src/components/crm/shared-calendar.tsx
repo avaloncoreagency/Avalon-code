@@ -450,9 +450,29 @@ export function SharedCalendar({ events, banners, owners, clients, leads, sales,
                   🏷 {selectedLead?.company || leads.find(lead => lead.id === draft.lead_id)?.company || t("Lead seleccionado", "Selected lead")} · {t("Abrir ficha", "Open card")}
                 </Link>}
             </div>
-            <label className={s.label}>{t("Relacionar con cliente", "Related client")}
-              <select className={s.select} name="client_id" defaultValue={draft.client_id}><option value="">{t("Sin vincular", "Not linked")}</option>
-                {clients.map(c => <option value={c.id} key={c.id}>{c.legal_name}</option>)}</select></label>
+            <div className={s.label}>
+              <label htmlFor="cal-client-search">{t("Etiquetar cliente que ya compró", "Tag a purchasing customer")}</label>
+              <input id="cal-client-search" type="search" className={s.input} value={clientQuery}
+                onChange={e => setClientQuery(e.target.value)}
+                placeholder={t("Buscar por nombre del cliente...", "Search for customer name...")} />
+              <label htmlFor="cal-client-select">{t("Cliente de Ventas", "Sales customer")}</label>
+              <select id="cal-client-select" className={s.select} name="client_id" value={draft.client_id}
+                onChange={e => {
+                  const id = e.target.value;
+                  setDraft({ ...draft, client_id: id });
+                  setSelectedClient(id ? pickerClients.find(client => client.id === id) || null : null);
+                }}>
+                <option value="">{t("Sin vincular", "Not linked")}</option>
+                {pickerClients.map(client => <option key={client.id} value={client.id}>{client.legal_name}</option>)}
+              </select>
+              {clientQuery.trim() && filteredClients.length === 0 &&
+                <span className={s.helper}>{t("No hay compras confirmadas de ese cliente en las ventas cargadas.", "No confirmed purchase found for that customer in loaded sales.")}</span>}
+              {sales.length >= 500 && <span className={s.helper}>{t("Se muestran las 500 ventas más recientes. Para compras anteriores consulta Clientes 360°.", "The 500 most recent sales are shown. See Clients 360° for older purchases.")}</span>}
+              {draft.client_id && clientSalesCardHref(draft.client_id, sales) &&
+                <Link href={clientSalesCardHref(draft.client_id, sales)!} className={s.leadLink}>
+                  💼 {selectedClient?.legal_name || purchasedClients.find(client => client.id === draft.client_id)?.legal_name || t("Cliente vinculado", "Linked customer")} · {t("Ver venta o historial", "Open sale or history")}
+                </Link>}
+            </div>
           </div>
           {modalError && <p className={s.notice + " " + s.warning} role="alert">{modalError}</p>}
           <div className={s.modalActions}>
