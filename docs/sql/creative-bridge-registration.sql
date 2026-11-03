@@ -11,11 +11,92 @@ create table if not exists os_private.creative_bridge_identities (
   user_id uuid primary key references auth.users(id) on delete cascade,
   owner_id uuid not null references public.agency_memberships(user_id),
   enabled boolean not null default false,
+  context_token uuid not null default gen_random_uuid(), -- secret DB-only transaction capability
   label text not null default '' check (length(label) <= 80),
   created_at timestamptz not null default now()
 );
 alter table os_private.creative_bridge_identities enable row level security;
 revoke all on table os_private.creative_bridge_identities from public, anon, authenticated;
+
+-- Existing CRM triggers require an owner on every write. This strictly
+-- preserves the owner path and permits ONLY crm_leads INSERT when the private
+-- database capability was set in the same RPC transaction by the allowlisted
+-- machine identity. JWT-only impersonation or direct REST writes are denied.
+-- Audit actors remain the actual machine UUID; no owner session is forged.
+create or replace function crm_private.stamp() returns trigger
+language plpgsql security invoker set search_path = '' as $
+declare v_approved_machine boolean;
+begin
+  if not crm_private.is_owner() then
+    select (
+      TG_TABLE_NAME = 'crm_leads' and TG_OP = 'INSERT'
+      and exists (
+        select 1 from os_private.creative_bridge_identities ci
+        where ci.user_id = auth.uid() and ci.enabled
+          and pg_catalog.current_setting('avalon.creative_bridge_token', true) = ci.context_token::text
+      )
+    ) into v_approved_machine;
+    if not coalesce(v_approved_machine, false) then
+      raise exception 'CRM forbidden' using errcode = '42501';
+    end if;
+  end if;
+  if TG_OP = 'INSERT' then
+    new.created_by := auth.uid(); new.created_at := now(); new.version := 1;
+  else
+    new.id := old.id; new.agency_key := old.agency_key;
+    new.created_by := old.created_by; new.created_at := old.created_at;
+    new.version := old.version + 1;
+  end if;
+  new.updated_at := clock_timestamp();
+  if TG_TABLE_NAME = 'crm_leads' then
+    if (select kind from public.crm_stages where id = new.stage_id) = 'lost'
+      and length(trim(new.loss_reason)) = 0 then
+      raise exception 'Motivo de pérdida requerido' using errcode = '23514';
+    end if;
+  end if;
+  if TG_TABLE_NAME = 'crm_prospects' then
+    if TG_OP = 'UPDATE' and old.status = 'converted' then
+      raise exception 'Converted prospect is immutable' using errcode = '23514';
+    end if;
+    if new.status = 'converted' then
+      if TG_OP = 'INSERT' then
+        raise exception 'Approve before conversion' using errcode = '23514';
+      end if;
+      if old.status <> 'approved' then
+        raise exception 'Approve before conversion' using errcode = '23514';
+      end if;
+    end if;
+  end if;
+  return new;
+end;
+$;
+
+create or replace function crm_private.audit() returns trigger
+language plpgsql security definer set search_path = '' as $
+begin
+  if auth.uid() is null or not (
+    exists (select 1 from public.agency_memberships
+      where user_id = auth.uid() and role = 'owner')
+    or (
+      TG_TABLE_NAME = 'crm_leads' and TG_OP = 'INSERT'
+      and exists (
+        select 1 from os_private.creative_bridge_identities ci
+        where ci.user_id = auth.uid() and ci.enabled
+          and pg_catalog.current_setting('avalon.creative_bridge_token', true) = ci.context_token::text
+      )
+    )
+  ) then
+    raise exception 'CRM forbidden' using errcode = '42501';
+  end if;
+  insert into public.crm_audit(entity, record_id, actor_id, operation, before_data, after_data)
+  values (TG_TABLE_NAME, new.id, auth.uid(), TG_OP,
+    case when TG_OP = 'UPDATE' then to_jsonb(old) else null end, to_jsonb(new));
+  return new;
+end;
+$;
+-- Preserve the original revocations; no public direct trigger functions.
+revoke all on function crm_private.stamp() from public, anon, authenticated;
+revoke all on function crm_private.audit() from public, anon, authenticated;
 
 -- Atomic, cross-request replay guard, scoped by module and completed source ID.
 -- FIRST audit existing rows for duplicates; CREATE UNIQUE INDEX will refuse them.
@@ -44,6 +125,7 @@ as $function$
 declare
   v_machine_id uuid;
   v_allowed_owner uuid;
+  v_context_token uuid;
   v_project record;
   v_project_id uuid;
   v_lead_id uuid;
@@ -54,7 +136,7 @@ declare
   v_settings jsonb;
 begin
   v_machine_id := auth.uid();
-  select owner_id into v_allowed_owner
+  select owner_id, context_token into v_allowed_owner, v_context_token
     from os_private.creative_bridge_identities
     where user_id = v_machine_id and enabled = true;
   if v_machine_id is null or v_allowed_owner is null or v_allowed_owner is distinct from p_owner_id then
@@ -82,6 +164,10 @@ begin
   ) then
     raise exception 'unknown delivery owner' using errcode = '42501';
   end if;
+
+  -- A DB-only random capability unlocks the CRM stamp/audit INSERT triggers
+  -- only for this single request/transaction and this allowlisted Auth user.
+  perform pg_catalog.set_config('avalon.creative_bridge_token', v_context_token::text, true);
 
   -- The duplicate check is serialized even if two agents submit concurrently.
   perform pg_catalog.pg_advisory_xact_lock(
