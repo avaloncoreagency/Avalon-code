@@ -229,13 +229,13 @@ begin
       -- These fields are deliberately blank: no invented person, email or sale.
       -- created_by assigns ownership on behalf of the signed agent integration;
       -- the creative source fields below preserve integration attribution.
+      v_lead_id := gen_random_uuid();
       insert into public.crm_leads
-        (company, contact, email, phone, source, owner_id, created_by,
+        (id, company, contact, email, phone, source, owner_id, created_by,
          stage_id, value, probability, priority)
       values
-        (btrim(p_company_name), '', null, '', 'Avalon OS - Higgsfield agent',
-         p_owner_id, p_owner_id, 'new', 0, 0, 'normal')
-      returning id into v_lead_id;
+        (v_lead_id, btrim(p_company_name), '', null, '', 'Avalon OS - Higgsfield agent',
+         p_owner_id, p_owner_id, 'new', 0, 0, 'normal');
       v_lead_created := true;
     end if;
   end if;
@@ -276,10 +276,11 @@ begin
       'state', 'reference_only', 'added_at', now()
     )
   );
+  v_project_id := gen_random_uuid();
   insert into public.os_projects
-    (module, name, description, status, settings, created_by, client_id)
-  values (p_module, btrim(p_product_name), p_description, 'draft', v_settings, p_owner_id, v_client_id)
-  returning id into v_project_id;
+    (id, module, name, description, status, settings, created_by, client_id)
+  values (v_project_id, p_module, btrim(p_product_name), p_description,
+    'draft', v_settings, p_owner_id, v_client_id);
 
   return jsonb_build_object('project_id', v_project_id, 'lead_id', v_lead_id,
     'created', true, 'lead_created', v_lead_created);
