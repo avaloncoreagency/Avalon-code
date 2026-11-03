@@ -2,7 +2,7 @@ import { createClient } from "@supabase/supabase-js";
 import { timingSafeEqual } from "node:crypto";
 import { NextRequest, NextResponse } from "next/server";
 import { executeWorkerRun, SAFE_OFFICE_COMMAND, type RunStore } from "@/lib/office/manager-worker";
-import { executeManagerCheck, isManagerCode, type CountReader } from "@/lib/office/manager-work";
+import { isManagerCode, type CountReader } from "@/lib/office/manager-work";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 60;
