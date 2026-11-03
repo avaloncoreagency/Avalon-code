@@ -76,32 +76,16 @@ function mayScan(previous: StoredReport | undefined, now: number): boolean {
   return brokenRobots && age >= WAIT_AFTER_BROKEN_ROBOTS_HOURS * 3600_000;
 }
 
-async function recordEvidence(db: SupabaseClient, owner: string, prospect: Prospect, report: ResearchReport): Promise<boolean> {
+async function recordEvidence(db: SupabaseClient, prospect: Prospect, report: ResearchReport): Promise<boolean> {
   if (!report.identity_matched || !report.suggested_needs.length || prospect.status === "converted")
     return false;
-  const suggestion = report.suggested_needs.find(n => n.service === "website");
-  if (!suggestion) return false;
-  const { data: existing, error: checkError } = await db.from("crm_prospect_needs")
-    .select("id,method,state,note").eq("prospect_id", prospect.id)
-    .eq("service", "website").maybeSingle();
-  if (checkError) return false;
-  if (!existing) {
-    const inserted = await db.from("crm_prospect_needs").insert({
-      prospect_id: prospect.id, created_by: owner, ...suggestion,
-    });
-    return !inserted.error;
-  }
-  // A reviewer-entered conclusion always wins over a website scan.
-  if (suggestion.state === "opportunity_to_improve" &&
-      existing.state === "verified_present" &&
-      existing.method === "website_review" &&
-      typeof existing.note === "string" &&
-      existing.note.startsWith("Web oficial accesible por HTTPS")) {
-    const changed = await db.from("crm_prospect_needs").update(suggestion)
-      .eq("id", existing.id).eq("state", "verified_present");
-    return !changed.error;
-  }
-  return false;
+  // Only the verified, stored report may become CRM evidence. The narrow
+  // server-only RPC sets the correct owner claim inside its own transaction
+  // to satisfy the existing owner-only CRM stamp and audit triggers.
+  const { data, error } = await db.rpc("crm_radar_worker_record_website_need", {
+    prospect_id: prospect.id,
+  });
+  return !error && data === true;
 }
 
 async function processBatch(db: SupabaseClient, owner: string, now: number) {
@@ -149,7 +133,7 @@ async function processBatch(db: SupabaseClient, owner: string, now: number) {
     checked++;
     dailyRemaining--;
     if (report.status === "blocked") blocked++;
-    await recordEvidence(db, owner, prospect, report);
+    await recordEvidence(db, prospect, report);
     // The existing trigger recalculates evidence-based stars. Commercial
     // high-confidence needs must come from multiple independently corroborated
     // services before a job can create a lead card.
