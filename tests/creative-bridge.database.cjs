@@ -29,7 +29,15 @@ async function setup() {
     }
   }
   // Never apply this proposed SQL to a real Supabase project.
-  await db.exec(fs.readFileSync("docs/sql/creative-bridge-registration.sql", "utf8"));
+  const proposal = fs.readFileSync("docs/sql/creative-bridge-registration.sql", "utf8");
+  const segments = proposal.split(/(?=^create or replace function (?:crm_private|os_private|public)\.)/m);
+  for (let i = 0; i < segments.length; i++) {
+    try { await db.exec(segments[i]); }
+    catch (err) {
+      err.message = `Creative SQL segment ${i} (${segments[i].slice(0, 76).replace(/\s+/g, " ") }): ${err.message}`;
+      throw err;
+    }
+  }
   await db.query(`insert into os_private.creative_bridge_identities (user_id,owner_id,enabled,label)
     values ($1::uuid,$2::uuid,true,'synthetic-bridge')`, [MACHINE, OWNER]);
   const as = async id => db.exec(`reset role; set request.jwt.claim.sub='${id}'; set role authenticated;`);
