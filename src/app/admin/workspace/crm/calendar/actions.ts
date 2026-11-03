@@ -86,6 +86,23 @@ export async function saveCalendarEvent(form: FormData): Promise<CalendarResult>
   };
   const idRaw = field(form, "id"), id = uuidField(form, "id");
   if (idRaw && !id) return invalid();
+  if (clientId) {
+    // An event can only gain a customer tag backed by a confirmed CRM sale.
+    // Verify against owner-RLS sales, not a client name or client_id supplied by the browser.
+    const { data: purchases, error: purchaseError } = await supabase.from("crm_sales")
+      .select("id").eq("client_id", clientId).eq("status", "confirmed").limit(1);
+    if (purchaseError) return dbError(purchaseError);
+    if (!purchases?.length) {
+      // Historical events can retain an unchanged client association when edited.
+      // Do not allow creating or switching to a non-purchasing client.
+      if (!id) return invalid("Solo puedes etiquetar clientes que tengan una compra confirmada.");
+      const { data: existing, error: existingError } = await supabase.from("crm_events")
+        .select("client_id").eq("id", id).maybeSingle();
+      if (existingError) return dbError(existingError);
+      if (!existing || existing.client_id !== clientId)
+        return invalid("Solo puedes etiquetar clientes que tengan una compra confirmada.");
+    }
+  }
   if (id) {
     const version = versionOf(form);
     if (!version) return invalid("Actualiza la pantalla e inténtalo de nuevo.");
