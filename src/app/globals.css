@@ -35,6 +35,23 @@
   --radius-lg: 20px;
   --shadow: 0 18px 50px rgba(0, 0, 0, 0.35);
   --focus: 0 0 0 2px var(--bg), 0 0 0 4px var(--cyan);
+  /* One Avalon CRM HUD contract across Pipeline, Sales, Calendar and Radar.
+     Event color swatches and semantic warnings remain intentionally independent. */
+  --crm-hud-bg:
+    radial-gradient(1000px 400px at 87% -9%, rgba(138, 108, 255, 0.14), transparent 62%),
+    radial-gradient(800px 420px at -9% 105%, rgba(34, 227, 255, 0.07), transparent 66%),
+    #070d1c;
+  --crm-panel-bg: linear-gradient(145deg, rgba(21, 31, 60, 0.92), rgba(10, 16, 35, 0.94));
+  --crm-nav-bg: rgba(9, 15, 34, 0.8);
+  --crm-active-bg: linear-gradient(115deg, rgba(109, 91, 255, 0.28), rgba(34, 227, 255, 0.11));
+  --crm-cta-bg: linear-gradient(118deg, rgba(34, 115, 169, 0.64), rgba(109, 91, 255, 0.38));
+  --crm-control-bg: #111e39;
+  --crm-control-border: #3f5679;
+  --crm-border: var(--line-strong);
+  --crm-radius: var(--radius-lg);
+  --crm-ink: var(--text);
+  --crm-muted: var(--text-muted);
+
   --sidebar: 264px;
   --sidebar-collapsed: 76px;
   --topbar: 64px;

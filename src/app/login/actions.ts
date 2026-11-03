@@ -20,11 +20,41 @@ export async function signIn(formData: FormData) {
   const accountKey = hashKey("login-account", email);
   if (!authLimiter.hit(hashKey("login-ip", ip), AUTH_RULES.loginPerIp).allowed ||
       !authLimiter.hit(accountKey, AUTH_RULES.loginPerAccount).allowed) redirect("/admin/login?error=throttled");
-  const supabase = await createClient();
-  const { error } = await supabase.auth.signInWithPassword({ email, password });
-  if (error) redirect("/admin/login?error=invalid");
+  // A network outage, bad configuration or API failure must NEVER be
+  // misreported as Samuel/Miguel typing an incorrect password.
+  let supabase: Awaited<ReturnType<typeof createClient>>;
+  let authError: { code?: string; status?: number; message?: string } | null;
+  try {
+    supabase = await createClient();
+    const result = await supabase.auth.signInWithPassword({ email, password });
+    authError = result.error;
+  } catch {
+    redirect("/admin/login?error=unavailable");
+  }
+  if (authError) {
+    const code = authError.code;
+    if (code === "invalid_credentials" || code === "email_not_confirmed" ||
+      (authError.status === 400 &&
+        /^(invalid_credentials|invalid login credentials)$/i.test((authError.message ?? "").trim()))) {
+      redirect("/admin/login?error=invalid");
+    }
+    if (authError.status === 429 || code === "over_request_rate_limit") {
+      redirect("/admin/login?error=throttled");
+    }
+    // Safe operational diagnostics. Never log email, password, IP or tokens.
+    console.error("[avalon-auth] Supabase sign-in unavailable", {
+      code: typeof code === "string" ? code.slice(0, 60) : "unknown",
+      status: authError.status ?? 0,
+    });
+    redirect("/admin/login?error=unavailable");
+  }
   authLimiter.reset(accountKey);
-  const owner = await getOwnerState(supabase);
+  let owner: Awaited<ReturnType<typeof getOwnerState>>;
+  try {
+    owner = await getOwnerState(supabase);
+  } catch {
+    redirect("/admin/login?error=unavailable");
+  }
   if (owner.state === "mfa") redirect("/admin/mfa");
   if (owner.state !== "ok") {
     await supabase.auth.signOut({ scope: "local" });

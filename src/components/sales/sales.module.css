@@ -1,7 +1,7 @@
 /* Avalon OS · sales/operations surfaces. Same tokens as the client HUD: deep navy,
    glass panels, cyan/violet/magenta neon accents. Motion is minimal and optional. */
-.hud { --accent:#6fe3ff; --violet:#b39bff; --magenta:#ff7ad9; --ok:#6ff0c2; --warn:#ffd27a; --danger:#ff8fa3;
-  --line:#26395c; --panel:linear-gradient(140deg,#14213acc,#0b1426e6); --text:#e8efff; --muted:#a6b6d0;
+.hud { --accent:var(--cyan); --violet:#8a6cff; --magenta:#f45cff; --ok:#3ef0b0; --warn:#ffcf6b; --danger:#ff6b9a;
+  --line:var(--crm-border); --panel:var(--crm-panel-bg); --text:var(--crm-ink); --muted:var(--crm-muted);
   color:var(--text); background:radial-gradient(1200px 500px at 85% -10%,#1b2d5a55,transparent 60%),radial-gradient(800px 400px at -10% 110%,#3a1d5a44,transparent 60%),#070d1b;
   border:1px solid var(--line); border-radius:22px; padding:clamp(16px,3vw,32px); display:grid; gap:22px; min-width:0; }
 .hud a { color:var(--accent); text-underline-offset:4px; }
@@ -182,3 +182,26 @@ a.stat span, a.stat small { color:var(--muted); }
   .hud { padding: 10px; }
   .subnav a { font-size: 12px; padding-inline: 9px; }
 }
+
+/* Avalon OS operations HUD parity — shared neon focus, tabs and panels. */
+.hud { border-color: var(--crm-border); border-radius:var(--crm-radius);
+  padding:clamp(16px,2.6vw,28px); background:var(--crm-hud-bg); }
+.header h1 { font-family: var(--display); background-image: var(--gradient); }
+.subnav { background:var(--crm-nav-bg); border-color:var(--crm-border); }
+.subnav a[aria-current="page"] {
+  background:var(--crm-active-bg);
+  box-shadow: inset 0 0 0 1px rgba(138,108,255,.46);
+  color: var(--text)!important;
+}
+.button { border-color:var(--crm-control-border); background:var(--crm-control-bg); }
+.button:hover,.button:focus-visible { border-color: var(--accent); }
+.primary {
+  border-color: rgba(34,227,255,.53);
+  background:var(--crm-cta-bg);
+  box-shadow: 0 0 0 1px rgba(34,227,255,.16), 0 0 25px rgba(138,108,255,.13);
+}
+.stat,.panel,.card { border-color: var(--line); background: var(--panel); }
+.card:hover { border-color: var(--accent); }
+.hud .field input:focus-visible,.hud .field select:focus-visible,
+.hud .field textarea:focus-visible { border-color: var(--accent); }
+@media(prefers-reduced-motion:reduce) { .card,.button,.primary{transition:none; transform:none;} }
