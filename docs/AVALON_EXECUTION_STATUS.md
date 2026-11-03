@@ -142,9 +142,14 @@ on the page, `getOwnerSession` on every route, same-origin check on writes).
 Not built (honest): AI execution backend (managers cannot run anything), presence/availability source,
 push/e-mail notifications for messages, "incidents" (no incident entity exists yet).
 
-Migration `20261103100000_office.sql`: **not applied anywhere**. Until applied, the Office shows owners
-(from `crm_owner_directory`), stats and activity; profiles, photos, messages and manager requests show
-"migración pendiente".
+**Production migration (owner-approved 2026-11-03):** `20261102210000_pipeline_board` and
+`20261103100000_office` were first rehearsed on the PR's isolated Supabase preview DB (`jasgumggzgoqbemtcmno`),
+then applied to production `ltbwzcrxeuczdhhtbqgm`, each in one transaction, from the repo files (md5
+`5d1fb241…`, `4facdd1c…`). A catalog fingerprint of the 94 created objects (functions, policies,
+constraints, table/column grants, triggers) is identical on local PostgreSQL 16, the preview DB and
+production (`34eb66da…`). Ledger versions match the repo. Purely additive (new tables/functions + one
+trigger on `crm_leads`; 0 leads existed, so the history backfill inserted 0 rows). Advisors: only the
+expected owner-checked SECURITY DEFINER warnings (+ pre-existing "leaked password protection" setting).
 
 Higgsfield (checked 2026-11-03, read-only): MCP reachable from Claude Code; balance 2,000 credits, team
 plan; candidate models `soul_location` (environments) and `soul_cast` (consistent characters). Per-image
