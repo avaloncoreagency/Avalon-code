@@ -9,7 +9,7 @@ import s from "./iso-office.module.css";
  */
 export type IsoPerson = {
   id: string; kind: "human" | "ai"; name: string; initials: string; subtitle: string; hue?: number;
-  photo?: string | null; open: number; overdue: number; unread: number; recentMinutes: number | null; offline?: boolean;
+  photo?: string | null; open: number; overdue: number; unread: number; recentMinutes: number | null; offline?: boolean; presence?: "active" | "busy" | "inactive";
 };
 type Props = {
   people: IsoPerson[]; selected: string | null; onSelect: (id: string) => void; lang: "es" | "en";
@@ -88,11 +88,12 @@ function person(p: IsoPerson, x: number, y: number, selected: boolean, onSelect:
   const [bx, by] = px(x, y, 1.1);
   const [fx, fy] = px(x, y, 0);
   const torso = p.kind === "ai" ? `hsl(${p.hue ?? 250} 38% ${p.offline ? 30 : 42}%)` : "#26324a";
-  const label = `${p.name} · ${p.subtitle}${p.kind === "ai" ? (lang === "en" ? " · virtual AI manager" : " · manager virtual de IA") : ""} · ${p.open} ${p.kind === "ai" ? (lang === "en" ? "logged requests" : "solicitudes registradas") : (lang === "en" ? "open tasks" : "tareas abiertas")}${p.unread ? ` · ${p.unread} ${lang === "en" ? "unread" : "sin leer"}` : ""}`;
+  const stateText = p.presence === "active" ? (lang === "en" ? "Active" : "Activo") : p.presence === "busy" ? (lang === "en" ? "Busy" : "Ocupado") : (lang === "en" ? "Inactive" : "Inactivo");
+  const label = `${p.name} · ${p.subtitle}${p.kind === "human" ? ` · ${stateText} (horario/calendario)` : ""}${p.kind === "ai" ? (lang === "en" ? " · virtual AI manager" : " · manager virtual de IA") : ""} · ${p.open} ${p.kind === "ai" ? (lang === "en" ? "logged requests" : "solicitudes registradas") : (lang === "en" ? "open tasks" : "tareas abiertas")}${p.unread ? ` · ${p.unread} ${lang === "en" ? "unread" : "sin leer"}` : ""}`;
   const key = (e: KeyboardEvent) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); onSelect(p.id); } };
   const tagLabel = p.name + (p.kind === "ai" ? " · IA" : "");
   const half = Math.max(36, tagLabel.length * 3.7 + 18);
-  const active = p.kind === "human" && p.recentMinutes !== null && p.recentMinutes <= 60;
+  const humanLamp = p.presence === "active" ? s.lampOn : p.presence === "busy" ? s.lampBusy : s.lampInactive;
   return {
     depth: x + y + 0.9,
     node: (
@@ -110,7 +111,7 @@ function person(p: IsoPerson, x: number, y: number, selected: boolean, onSelect:
         <g className={s.tag} transform={`translate(${hx} ${hy - 36})`}>
           <rect x={-half} y={-12} width={half * 2} height={23} rx={11.5} className={s.tagBg} />
           {p.kind === "ai" && <circle cx={-half + 10} cy={-1} r={3.5} className={p.offline ? s.lampOff : s.lampOn} />}
-          {p.kind === "human" && <circle cx={-half + 10} cy={-1} r={3.5} className={active ? s.lampOn : s.lampIdle} />}
+          {p.kind === "human" && <circle cx={-half + 10} cy={-1} r={3.5} className={humanLamp} />}
           <text x={5} y={3.5} textAnchor="middle" className={s.tagText}>{tagLabel}</text>
           {(p.unread > 0 || p.overdue > 0) && (
             <g transform={`translate(${half + 4} -10)`}>

@@ -206,3 +206,13 @@ img.avatar { background: var(--navy); }
 .drawer .tabs button[aria-selected="true"] { color: #eef9ff; background: linear-gradient(115deg,rgba(89,173,212,.24),rgba(120,98,225,.24)); box-shadow: inset 0 0 0 1px rgba(151,202,244,.22); }
 .drawer .tabs button:hover { color: #eaf5ff; }
 @media (prefers-reduced-motion:reduce) { .drawer .tabs button { transition: none; } }
+
+/* Staff traffic-light availability: never present the colors without a text label. */
+.presenceChip { display:inline-flex;align-items:center;gap:7px;border-color:rgba(141,183,223,.22)!important;color:#d2dce8!important; }
+.presenceChip::before { content:"";width:7px;height:7px;flex:none;border-radius:50%;background:#ff687f; }
+.presenceChip[data-presence="active"]::before { background:#42e4ad;box-shadow:0 0 8px rgba(66,228,173,.4); }
+.presenceChip[data-presence="busy"]::before { background:#ffc24e;box-shadow:0 0 8px rgba(255,194,78,.3); }
+.presenceDrawerLabel {margin:6px 0 0!important;font-size:12px!important;line-height:1.4;color:#b8c6d9;}
+.presenceDrawerLabel[data-presence="active"] { color:#9defcb; }
+.presenceDrawerLabel[data-presence="busy"] { color:#ffd788; }
+.presenceDrawerLabel[data-presence="inactive"] { color:#ffa8b7; }

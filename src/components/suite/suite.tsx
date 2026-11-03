@@ -9,6 +9,8 @@ import { signOut } from "@/app/dashboard/actions";
 import { modules } from "./modules";
 import { Icon } from "./icons";
 import { SuiteChrome, type ChromeNotification, type StaffNotice } from "./chrome";
+import { loadStaffPresence } from "@/lib/office/presence-query";
+import { INACTIVE } from "@/lib/office/presence";
 import s from "./suite.module.css";
 
 const sectionNames: Record<string, { es: string; en: string }> = {
@@ -38,10 +40,11 @@ export async function Suite({ children, active = "dashboard" }: { children: Reac
     notifications.push({ tone: "danger", text: pick(lang, `${overdue.count} contenido(s) de marketing con fecha vencida.`, `${overdue.count} marketing item(s) past their planned date.`), href: "/admin/workspace/marketing-hub" });
   }
 
-  const [office, inbox] = await Promise.all([
+  const [office, inbox, presence] = await Promise.all([
     session.supabase.from("office_profiles").select("display_name,title,photo_sha256").eq("user_id",session.user.id).maybeSingle(),
     session.supabase.from("crm_notifications").select("id,severity,category,title,body,link,created_at", { count:"exact" })
       .eq("recipient_id",session.user.id).is("read_at",null).order("created_at",{ascending:false}).limit(20),
+    loadStaffPresence(session.supabase, [session.user.id]),
   ]);
   const name = office.data?.display_name || displayName(session.user);
   const photoHash = office.data?.photo_sha256 ?? null;
@@ -94,6 +97,7 @@ export async function Suite({ children, active = "dashboard" }: { children: Reac
       notifications={notifications}
       initialStaffNotices={staffNotices}
       initialUnread={unread}
+      initialPresence={presence.byUser[session.user.id] ?? INACTIVE}
       schemaReady={overdue.error !== "schema_pending"}
       nav={nav}
       logout={logout}
