@@ -1,0 +1,38 @@
+name: Creative continuity acceptance
+on:
+  pull_request:
+    paths:
+      - 'src/lib/creative-bridge/**'
+      - 'schemas/creative-bridge/**'
+      - 'scripts/creative-bridge/checkpoint.cjs'
+      - 'scripts/creative-bridge/continuity-loader.cjs'
+      - 'tests/creative-continuity*'
+      - '.github/workflows/creative-continuity.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: creative-continuity-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with:
+          node-version: '22'
+          cache: npm
+      - run: npm ci --no-audit --no-fund
+      - run: npm ci --prefix tests/qa --no-audit --no-fund
+      - run: npm run lint
+      - run: npm run typecheck
+      - run: npm test
+      - run: node --test tests/creative-bridge.database.cjs tests/creative-continuity.database.cjs
+        env:
+          NODE_PATH: ./tests/qa/node_modules
+      - name: Build and actual signed HTTP route with synthetic Auth/RPC
+        run: node --test tests/creative-bridge.http.cjs
