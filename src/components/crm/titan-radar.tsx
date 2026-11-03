@@ -66,6 +66,7 @@ export function TitanRadar({ onChanged }: { onChanged?: () => void }) {
   const [lastSearch, setLastSearch] = useState<{ at: string; found: number; inserted: number; updated: number } | null>(null);
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
+  const [createdLeadId, setCreatedLeadId] = useState<string | null>(null);
   const [sweep, setSweep] = useState(true);
   const [tileStatus, setTileStatus] = useState<"loading" | "ready" | "unconfigured" | "failed">(MAP_TILE_URL ? "loading" : "unconfigured");
   const [mapRevision, setMapRevision] = useState(0);
@@ -287,11 +288,12 @@ export function TitanRadar({ onChanged }: { onChanged?: () => void }) {
 
   async function act(id: string, payload: Record<string, unknown>, ok: string) {
     if (busy) return;
-    setBusy(true); setError(""); setNotice("");
+    setBusy(true); setError(""); setNotice(""); setCreatedLeadId(null);
     try {
       const res = await fetch("/admin/workspace/crm/radar/places", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ id, ...payload }) });
       const body = await res.json() as { error?: string; lead_id?: string; stars?: number | null; qualified?: boolean; created?: boolean; link_warning?: boolean };
       if (!res.ok) throw new Error(body.error ?? "No se pudo guardar");
+      if (body.lead_id) setCreatedLeadId(body.lead_id);
       if (body.lead_id)
         setNotice(`${ok} ${body.created === false ? "La tarjeta ya existía" : "Tarjeta creada automáticamente"} en Nuevo lead.${body.link_warning ? " Revisa la vinculación con el prospecto." : ""}`);
       else if (payload.op === "need" && body.qualified)
@@ -352,7 +354,7 @@ export function TitanRadar({ onChanged }: { onChanged?: () => void }) {
         Para descubrir nuevos negocios hace falta conectar Geoapify Free en Vercel (AVALON_GEOAPIFY_PLACES_KEY). La bandeja y los leads existentes siguen disponibles.
       </p>}
       {error && <p className={s.error} role="alert">{error}</p>}
-      {notice && <p className={s.ok} role="status">{notice}</p>}
+      {notice && <div className={s.ok} role="status">{notice}{createdLeadId && <>{" "}<Link href={`/admin/workspace/crm/leads?lead=${createdLeadId}`}>Abrir tarjeta en pipeline</Link></>}</div>}
 
       <details className={s.ratingGuide} id="radar-calificacion">
         <summary>
