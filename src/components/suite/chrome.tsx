@@ -1,5 +1,7 @@
 "use client";
 import Link from "next/link";
+import { PresenceAvatar, presenceName } from "@/components/office/presence-avatar";
+import type { StaffPresence } from "@/lib/office/presence";
 import { usePathname } from "next/navigation";
 import { useEffect, useId, useRef, useState, type ReactNode } from "react";
 import type { Lang } from "@/lib/i18n";
@@ -24,8 +26,8 @@ function useDismiss(open: boolean, close: () => void) {
   return ref;
 }
 
-export function SuiteChrome({ lang, collapsed: initialCollapsed, section, user, notifications, initialStaffNotices, initialUnread, schemaReady, nav, logout, children }: {
-  lang: Lang; collapsed: boolean; section: string; user: User; notifications: ChromeNotification[]; initialStaffNotices: StaffNotice[]; initialUnread: number; schemaReady: boolean;
+export function SuiteChrome({ lang, collapsed: initialCollapsed, section, user, notifications, initialStaffNotices, initialUnread, initialPresence, schemaReady, nav, logout, children }: {
+  lang: Lang; collapsed: boolean; section: string; user: User; notifications: ChromeNotification[]; initialStaffNotices: StaffNotice[]; initialUnread: number; initialPresence: StaffPresence; schemaReady: boolean;
   nav: ReactNode; logout: ReactNode; children: ReactNode;
 }) {
   const es = lang === "es";
@@ -35,6 +37,7 @@ export function SuiteChrome({ lang, collapsed: initialCollapsed, section, user, 
   const [staffNotices, setStaffNotices] = useState<StaffNotice[]>(initialStaffNotices);
   const [unread, setUnread] = useState(initialUnread);
   const [noticeError, setNoticeError] = useState(false);
+  const [myPresence, setMyPresence] = useState<StaffPresence>(initialPresence);
   const pathname = usePathname();
   const menuId = useId();
   const searchRef = useRef<HTMLInputElement>(null);
@@ -73,6 +76,25 @@ export function SuiteChrome({ lang, collapsed: initialCollapsed, section, user, 
     const onFocus = () => { void refresh(); };
     window.addEventListener("focus", onFocus);
     return () => { alive = false; window.clearInterval(interval); window.removeEventListener("focus", onFocus); };
+  }, [pathname]);
+
+  // Synchronized with Office every 30s. Shows schedule-based availability, not a login signal.
+  useEffect(() => {
+    let active = true;
+    const update = async () => {
+      try {
+        const response = await fetch("/admin/api/staff-presence", { cache: "no-store" });
+        if (!response.ok) return;
+        const info = await response.json() as { presence?: StaffPresence };
+        if (active && info.presence) setMyPresence(info.presence);
+      } catch { /* Keep last known status on a transient connectivity failure. */ }
+    };
+    void update();
+    const timer = window.setInterval(() => {
+      if (document.visibilityState === "visible") void update();
+    }, 30000);
+    window.addEventListener("focus", update);
+    return () => { active = false; window.clearInterval(timer); window.removeEventListener("focus", update); };
   }, [pathname]);
 
   const markNotice = async (id: string) => {
@@ -199,9 +221,11 @@ export function SuiteChrome({ lang, collapsed: initialCollapsed, section, user, 
             <div className={s.popoverWrap} ref={profileRef}>
               <button type="button" className={s.profileButton} aria-expanded={menu === "profile"} aria-controls={menuId} onClick={() => setMenu(menu === "profile" ? null : "profile")}
                 aria-label={es ? `Menú de ${user.name}` : `${user.name} menu`}>
-                {user.photoUrl ? <img className={s.avatar} src={user.photoUrl} alt="" width={34} height={34} style={{objectFit:"cover",borderRadius:"50%"}}/> :
-                  <span className={s.avatar} aria-hidden="true">{user.initial}</span>}
-                <span className={s.profileText}><strong>{user.name}</strong><small data-role={user.role}>{user.title || (es ? "Miembro del staff" : "Staff member")} · {user.role}</small></span>
+                <PresenceAvatar presence={myPresence} size={34} lang={lang}>
+                  {user.photoUrl ? <img className={s.avatar} src={user.photoUrl} alt="" width={34} height={34} style={{objectFit:"cover",borderRadius:"50%"}}/> :
+                    <span className={s.avatar} aria-hidden="true">{user.initial}</span>}
+                </PresenceAvatar>
+                <span className={s.profileText}><strong>{user.name}</strong><small data-role={user.role}>{user.title || (es ? "Miembro del staff" : "Staff member")} · {presenceName(myPresence.state, lang)}</small></span>
               </button>
               {menu === "profile" && (
                 <div className={s.popover} id={menuId}>
