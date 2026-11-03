@@ -383,7 +383,7 @@ export function TitanRadar({ onChanged }: { onChanged?: () => void }) {
               <span>{item.rule}</span>
             </li>)}
           </ul>
-          <p className={s.ratingWarning}><strong>Regla de evidencia:</strong> las estrellas preliminares indican prioridad para investigar, no carencias de servicios. Que una ficha no muestre página web, correo o teléfono NO prueba que el negocio carezca de ellos. «Confianza» mide por separado la solidez de las pruebas.</p>
+          <p className={s.ratingWarning}><strong>Regla de evidencia:</strong> las estrellas preliminares indican prioridad para investigar, no carencias de servicios. Que una ficha no muestre página web, correo o teléfono NO prueba que el negocio carezca de ellos. Las estrellas miden oportunidad; «Confianza» mide por separado la solidez de las pruebas.</p>
         </div>
       </details>
 
