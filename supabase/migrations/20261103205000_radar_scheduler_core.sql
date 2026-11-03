@@ -49,6 +49,8 @@ create policy crm_radar_worker_runs_owner_read on public.crm_radar_worker_runs
 -- Existing CRM triggers use crm_private helpers when a server-only conversion changes stage and status.
 -- This grants schema resolution to the server role only; no anon/authenticated grants.
 grant usage on schema crm_private to service_role;
+grant execute on function crm_private.is_owner() to service_role;
+grant execute on function crm_private.radar_tier(uuid) to service_role;
 
 -- Only a service_role request can promote independently verified, high-confidence leads.
 -- Invoker privileges, row lock, uniqueness and check constraints prevent duplicates.
