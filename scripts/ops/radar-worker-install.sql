@@ -4,7 +4,9 @@
 -- The dedicated secret is generated inside Postgres, NEVER committed or printed.
 
 create extension if not exists pg_net;
-create extension if not exists pg_cron;
+create extension if not exists pg_cron with schema pg_catalog;
+grant usage on schema cron to postgres;
+grant all privileges on all tables in schema cron to postgres;
 
 do $avalon$
 declare
