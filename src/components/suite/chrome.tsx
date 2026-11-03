@@ -8,7 +8,8 @@ import { Icon } from "./icons";
 import s from "./suite.module.css";
 
 export type ChromeNotification = { tone: "warning" | "danger" | "info"; text: string; href: string };
-type User = { name: string; email: string; role: string; initial: string };
+export type StaffNotice = { id: string; severity: "urgent" | "normal"; category: string; title: string; body: string; link: string; created_at: string };
+type User = { name: string; email: string; role: string; initial: string; title?: string; photoUrl?: string | null };
 
 function useDismiss(open: boolean, close: () => void) {
   const ref = useRef<HTMLDivElement>(null);
@@ -23,14 +24,17 @@ function useDismiss(open: boolean, close: () => void) {
   return ref;
 }
 
-export function SuiteChrome({ lang, collapsed: initialCollapsed, section, user, notifications, schemaReady, nav, logout, children }: {
-  lang: Lang; collapsed: boolean; section: string; user: User; notifications: ChromeNotification[]; schemaReady: boolean;
+export function SuiteChrome({ lang, collapsed: initialCollapsed, section, user, notifications, initialStaffNotices, initialUnread, schemaReady, nav, logout, children }: {
+  lang: Lang; collapsed: boolean; section: string; user: User; notifications: ChromeNotification[]; initialStaffNotices: StaffNotice[]; initialUnread: number; schemaReady: boolean;
   nav: ReactNode; logout: ReactNode; children: ReactNode;
 }) {
   const es = lang === "es";
   const [collapsed, setCollapsed] = useState(initialCollapsed);
   const [drawer, setDrawer] = useState(false);
   const [menu, setMenu] = useState<"profile" | "alerts" | null>(null);
+  const [staffNotices, setStaffNotices] = useState<StaffNotice[]>(initialStaffNotices);
+  const [unread, setUnread] = useState(initialUnread);
+  const [noticeError, setNoticeError] = useState(false);
   const pathname = usePathname();
   const menuId = useId();
   const searchRef = useRef<HTMLInputElement>(null);
@@ -52,6 +56,36 @@ export function SuiteChrome({ lang, collapsed: initialCollapsed, section, user, 
     document.addEventListener("keydown", onKey);
     return () => document.removeEventListener("keydown", onKey);
   }, [drawer]);
+
+  // Fetch only the signed-in member's persisted inbox; refresh on focus and navigation.
+  useEffect(() => {
+    let alive = true;
+    const refresh = async () => {
+      try {
+        const response = await fetch("/admin/api/notifications", { cache: "no-store" });
+        if (!response.ok) throw Error("inbox");
+        const data = await response.json() as { notices: StaffNotice[]; unread: number };
+        if (alive) { setStaffNotices(data.notices ?? []); setUnread(data.unread ?? 0); setNoticeError(false); }
+      } catch { if (alive) setNoticeError(true); }
+    };
+    void refresh();
+    const interval = window.setInterval(() => { if (document.visibilityState === "visible") void refresh(); }, 30000);
+    const onFocus = () => { void refresh(); };
+    window.addEventListener("focus", onFocus);
+    return () => { alive = false; window.clearInterval(interval); window.removeEventListener("focus", onFocus); };
+  }, [pathname]);
+
+  const markNotice = async (id: string) => {
+    try {
+      const response = await fetch("/admin/api/notifications", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id }), keepalive: true
+      });
+      if (!response.ok) throw Error("mark");
+      setStaffNotices(items => items.filter(item => item.id !== id));
+      setUnread(x => Math.max(0, x - 1));
+    } catch { setNoticeError(true); }
+  };
 
   // "/" focuses global search unless the user is typing in a field.
   useEffect(() => {
@@ -120,26 +154,33 @@ export function SuiteChrome({ lang, collapsed: initialCollapsed, section, user, 
             <LanguageSwitch lang={lang} className={s.lang} />
             <div className={s.popoverWrap} ref={alertsRef}>
               <button type="button" className={s.iconButton} aria-expanded={menu === "alerts"} aria-controls={alertsId} onClick={() => setMenu(menu === "alerts" ? null : "alerts")}
-                aria-label={`${es ? "Notificaciones" : "Notifications"}: ${notifications.length}`}>
+                aria-label={`${es ? "Notificaciones" : "Notifications"}: ${unread + notifications.length}`}>
                 <Icon name="bell" />
-                {notifications.length > 0 && <span className={s.badge} aria-hidden="true">{notifications.length}</span>}
+                {unread + notifications.length > 0 && <span className={s.badge} aria-hidden="true">{unread + notifications.length}</span>}
               </button>
               {menu === "alerts" && (
                 <div className={s.popover} id={alertsId} role="region" aria-label={es ? "Notificaciones" : "Notifications"}>
                   <p className={s.popoverTitle}>{es ? "Notificaciones" : "Notifications"}</p>
-                  {notifications.length === 0 ? <p className={s.popoverEmpty}>{es ? "No hay notificaciones." : "No notifications."}</p> : (
+                  {staffNotices.length === 0 && notifications.length === 0 ? <p className={s.popoverEmpty}>{es ? "No hay notificaciones." : "No notifications."}</p> : (
                     <ul className={s.alertList}>
+                      {staffNotices.map(n => <li key={n.id} data-tone={n.severity === "urgent" ? "danger" : "info"}>
+                        <Link href={n.link || "/admin/workspace/crm/notifications"} onClick={() => { void markNotice(n.id); }}>{n.title}</Link>
+                        <button type="button" onClick={() => { void markNotice(n.id); }} aria-label={es ? "Marcar leído" : "Mark read"} style={{marginLeft:8,fontSize:11}}>{es ? "✓ Leído" : "✓ Read"}</button>
+                      </li>)}
                       {notifications.map(n => <li key={n.text} data-tone={n.tone}><Link href={n.href}>{n.text}</Link></li>)}
                     </ul>
                   )}
+                  {noticeError && <p role="alert" className={s.popoverEmpty}>{es ? "No se pudo sincronizar el buzón." : "Could not sync inbox."}</p>}
+                  <Link href="/admin/workspace/crm/notifications" style={{display:"block",marginTop:12,fontSize:12}}>{es ? "Ver todos los avisos" : "View all notifications"}</Link>
                 </div>
               )}
             </div>
             <div className={s.popoverWrap} ref={profileRef}>
               <button type="button" className={s.profileButton} aria-expanded={menu === "profile"} aria-controls={menuId} onClick={() => setMenu(menu === "profile" ? null : "profile")}
                 aria-label={es ? `Menú de ${user.name}` : `${user.name} menu`}>
-                <span className={s.avatar} aria-hidden="true">{user.initial}</span>
-                <span className={s.profileText}><strong>{user.name}</strong><small data-role={user.role}>{es ? "Propietario" : "Owner"} · {user.role}</small></span>
+                {user.photoUrl ? <img className={s.avatar} src={user.photoUrl} alt="" width={34} height={34} style={{objectFit:"cover",borderRadius:"50%"}}/> :
+                  <span className={s.avatar} aria-hidden="true">{user.initial}</span>}
+                <span className={s.profileText}><strong>{user.name}</strong><small data-role={user.role}>{user.title || (es ? "Miembro del staff" : "Staff member")} · {user.role}</small></span>
               </button>
               {menu === "profile" && (
                 <div className={s.popover} id={menuId}>
