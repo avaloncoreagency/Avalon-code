@@ -4,7 +4,7 @@
 // It never sends mail, contacts businesses, or exposes service keys.
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import { investigateOfficialWebsite, type ResearchReport } from "./radar-research.ts";
-import { ResearchBlocked, websiteUrl } from "./radar-website-safety.ts";
+import { ResearchBlocked, websiteUrl, fetchPublicPage } from "./radar-website-safety.ts";
 
 const MAX_DAILY_REPORTS = 12;
 const MAX_PER_INVOCATION = 2;
@@ -175,7 +175,23 @@ Deno.serve(async (request: Request) => {
   if (!sameHash(supplied, config.token_sha256)) return json({ error: "unauthorized" }, 401);
 
   let dryRun = false;
-  try { dryRun = (await request.json())?.dry_run === true; } catch { /* no body */ }
+  let networkProbe = false;
+  try {
+    const body = await request.json() as { dry_run?: unknown; network_probe?: unknown };
+    dryRun = body?.dry_run === true;
+    networkProbe = body?.network_probe === true;
+  } catch { /* no body */ }
+  if (networkProbe) {
+    // Safe, fixed first-party robots.txt probe checks that pinned-DNS HTTPS
+    // works in the Deno runtime. Never touches any business or quota.
+    try {
+      const response = await fetchPublicPage(new URL("https://avaloncoreagency.com/robots.txt"), "robots");
+      return json({ ok: true, network_probe: true, status: response.status, type: response.contentType });
+    } catch (cause) {
+      const code = cause instanceof ResearchBlocked ? cause.code : "runtime_network";
+      return json({ ok: false, network_probe: true, code }, 502);
+    }
+  }
   if (dryRun) {
     const { count, error } = await db.from("crm_prospects")
       .select("id", { head: true, count: "exact" }).not("source_ref", "is", null)
