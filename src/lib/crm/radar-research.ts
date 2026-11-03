@@ -179,11 +179,11 @@ export function analyzeWebsitePages(company: string, input: FetchedPage[], check
         storeLink ? "Se observó enlace a tienda o productos; el pago en línea sigue sin verificar." :
         "No se observó una tienda en las páginas consultadas; no demuestra que no exista.",
       storeLink?.source ?? successful[0].url, shop ? "medium" : "low");
-    const social = links.find(l => /instagram\.com|facebook\.com|linkedin\.com|tiktok\.com/.test(l.href));
+    const social = /href\s*=\s*["']https:\/\/(?:www\.)?(?:instagram\.com|facebook\.com|linkedin\.com|tiktok\.com)\//i.test(allHTML);
     push("social_links", "Enlaces a redes sociales", social ? "observed" : "unknown",
-      social ? "Se detectaron enlaces a redes sociales; no se midió actividad ni rendimiento comercial." :
+      social ? "La web enlaza perfiles sociales; no se midió actividad ni rendimiento comercial." :
         "No se observaron perfiles sociales en las páginas consultadas; no prueba que no existan.",
-      social?.source ?? successful[0].url, "low");
+      successful[0].url, "low");
     if (successful.length < MAX_RESEARCH_PAGES)
       warnings.push("Cobertura limitada: se consultaron " + successful.length + " páginas HTML.");
   }
