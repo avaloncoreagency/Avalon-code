@@ -246,6 +246,7 @@ export function SharedCalendar({ events, banners, owners, clients, leads, sales,
   };
   const chip = (event: CalendarEvent) => {
     const name = linkedLeadName(event, leads), href = leadCardHref(event.lead_id);
+    const customer = linkedClientName(event, clients, sales), saleHref = clientSalesCardHref(event.client_id, sales);
     return <div className={s.eventStack} key={event.id}>
       <button className={s.eventChip} style={colorStyle(event.color)} type="button"
         onClick={() => editEvent(event)} title={event.title + " · " + timeLabel(event)}>
@@ -253,6 +254,9 @@ export function SharedCalendar({ events, banners, owners, clients, leads, sales,
       </button>
       {name && href && <Link className={s.leadChip} href={href} title={t("Abrir ficha del lead", "Open lead card")}>
         🏷 {name}
+      </Link>}
+      {customer && saleHref && <Link className={s.leadChip} href={saleHref} title={t("Abrir la venta o historial del cliente", "Open customer sale or history")}>
+        💼 {customer}
       </Link>}
     </div>;
   };
@@ -348,6 +352,17 @@ export function SharedCalendar({ events, banners, owners, clients, leads, sales,
             {linkedLeadName(event, leads) && leadCardHref(event.lead_id) && <Link href={leadCardHref(event.lead_id)!} className={s.leadLink}>
               🏷 {linkedLeadName(event, leads)} · {t("Ver ficha del lead", "Open lead card")}
             </Link>}
+            {linkedClientName(event, clients, sales) && clientSalesCardHref(event.client_id, sales) && <Link href={clientSalesCardHref(event.client_id, sales)!} className={s.leadLink}>
+              💼 {linkedClientName(event, clients, sales)} · {t("Ver venta", "Open sale")}
+            </Link>}
+            {salesForCalendarClient(event.client_id, sales).length > 1 &&
+              <div className={s.saleLinks} aria-label={t("Otras ventas del cliente", "Other customer sales")}>
+                {salesForCalendarClient(event.client_id, sales).slice(1, 4).map(sale =>
+                  <Link href={"/admin/workspace/crm/sales/" + sale.id} key={sale.id}>
+                    {sale.sale_number}
+                  </Link>)}
+                {event.client_id && <Link href={"/admin/workspace/crm/clients/" + event.client_id}>{t("Historial 360°", "360° history")}</Link>}
+              </div>}
             {event.location && <span className={s.sideMeta}>📍 {event.location}</span>}
             {event.meeting_url && <a href={event.meeting_url} target="_blank" rel="noopener noreferrer" className={s.sideMeta}>{t("Abrir enlace de reunión", "Open meeting link")}</a>}
           </li>)}</ul>}
