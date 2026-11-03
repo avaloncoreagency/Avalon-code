@@ -13,6 +13,7 @@ export type CalendarEvent = {
   kind: string; status: string; color: string; description: string;
   location: string; meeting_url: string; participants: string;
   lead_id: string | null; client_id: string | null; version: number;
+  crm_leads?: { company: string } | null;
 };
 export type DayBanner = {
   id: string; day: string; title: string; subtitle: string;
@@ -77,4 +78,16 @@ export function localInput(iso: string): string {
   const pad = (n: number) => String(n).padStart(2, "0");
   return d.getFullYear() + "-" + pad(d.getMonth() + 1) + "-" + pad(d.getDate()) +
     "T" + pad(d.getHours()) + ":" + pad(d.getMinutes());
+}
+
+/** Calendar links always point to the protected pipeline lead detail, never a public URL. */
+export function leadCardHref(id: string | null | undefined): string | null {
+  if (!id || !/^[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}$/i.test(id)) return null;
+  return "/admin/workspace/crm/leads?lead=" + encodeURIComponent(id);
+}
+
+/** Names come from the event's RLS-protected relationship, then the recent-lead picker. */
+export function linkedLeadName(event: CalendarEvent, leads: { id: string; company: string }[]): string | null {
+  if (!event.lead_id) return null;
+  return event.crm_leads?.company || leads.find(lead => lead.id === event.lead_id)?.company || null;
 }
