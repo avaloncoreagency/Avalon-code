@@ -259,3 +259,26 @@ test('anonymous Api never invents an Authorization header and token env fallback
   if(gh===undefined)delete process.env.GH_TOKEN;else process.env.GH_TOKEN=gh;
  }
 });
+
+test('isolated integration can disable public GitHub network without giving false owner evidence',async()=>{
+ const old=process.env.BRIDGE_PUBLIC_READ_DISABLED;
+ let calls=0;
+ try{
+   process.env.BRIDGE_PUBLIC_READ_DISABLED='true';
+   await assert.rejects(()=>b.github({repo:'org/repo'},undefined,undefined,{
+     pages:async()=>{calls++;return [];},
+     get:async()=>{calls++;return {};},
+   }),/public read disabled/);
+   assert.equal(calls,0);
+ }finally{
+   if(old===undefined)delete process.env.BRIDGE_PUBLIC_READ_DISABLED;
+   else process.env.BRIDGE_PUBLIC_READ_DISABLED=old;
+ }
+ const fs=require('node:fs');
+ const page=fs.readFileSync('src/app/admin/dev-bridge/page.tsx','utf8');
+ assert.match(page,/publicOnly/);
+ assert.match(page,/completeGithub/);
+ assert.match(page,/Descarga de continuación bloqueada/);
+ const runtime=fs.readFileSync('src/lib/dev-bridge/runtime.ts','utf8');
+ assert.match(runtime,/if \(!c\.githubToken\) throw Error/);
+});
