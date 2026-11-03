@@ -6,6 +6,7 @@ import s from "./radar-auto-research.module.css";
 type Pending = { id: string; company: string };
 type Queue = { batch: Pending[]; pending: number; remaining: number; max_daily: number; error?: string };
 type Result = { ok?: boolean; error?: string; stars?: number | null; report?: { status?: string } };
+type ServerJob = { finished_at: string; status: string; checked: number; rated: number; converted: number; message: string };
 
 /**
  * Research begins automatically when the owner opens Radar or a new search
@@ -22,8 +23,21 @@ export function RadarAutoResearch({ revision, onChanged }: {
   const [remaining, setRemaining] = useState(0);
   const [pending, setPending] = useState(0);
   const [detail, setDetail] = useState("");
+  const [serverJob, setServerJob] = useState<ServerJob | null>(null);
   const refresh = useRef(onChanged);
   refresh.current = onChanged;
+
+  useEffect(() => {
+    const controller = new AbortController();
+    void fetch("/admin/workspace/crm/radar/research?job_status=1", {
+      cache: "no-store", signal: controller.signal,
+    }).then(async response => {
+      if (!response.ok) return;
+      const value = await response.json() as { job?: ServerJob | null };
+      if (!controller.signal.aborted) setServerJob(value.job ?? null);
+    }).catch(() => {});
+    return () => controller.abort();
+  }, [revision]);
 
   useEffect(() => {
     let cancelled = false;
@@ -142,10 +156,18 @@ export function RadarAutoResearch({ revision, onChanged }: {
         <span><strong>{remaining}</strong> consultas disponibles hoy</span>
       </div>
       {detail && <p className={s.detail} role="status">{detail}</p>}
+      <div className={s.serverJob}>
+        <strong>Investigador del servidor (con Avalon cerrado)</strong>
+        <span>{serverJob
+          ? "Última ejecución: " + new Date(serverJob.finished_at).toLocaleString("es") +
+            " · " + serverJob.checked + " revisados, " + serverJob.rated +
+            " calificados, " + serverJob.converted + " al pipeline"
+          : "Aún no hay una ejecución programada confirmada."}</span>
+      </div>
       <p className={s.note}>
-        Se inicia al abrir el radar, buscar negocios y se revisa cada hora mientras Avalon siga abierto. Sin clics adicionales, máximo 12 informes diarios por propietario.
-        Los sitios sin web verificable o sin oportunidades comprobadas permanecen «Sin calificar».
-        Esta versión requiere una sesión de propietario activa.
+        Mientras Avalon esté abierto también se revisa la cola al buscar y cada hora.
+        El servidor usa una cuota global máxima de 12 investigaciones diarias.
+        Sin web o sin evidencia sólida, un negocio permanece «Sin calificar».
       </p>
     </aside>
   );
