@@ -76,10 +76,10 @@ export function LeadTimeline({ lead, stages, revision, onClose, onEdit, onEditAc
   }
   return (
     <div className={s.scrim} onClick={e => e.target === e.currentTarget && onClose()}>
-      <aside ref={dialog} tabIndex={-1} className={s.drawer} role="dialog" aria-modal="true" aria-label={`Ficha del lead ${lead.company}`}>
+      <aside ref={dialog} tabIndex={-1} className={s.drawer} role="dialog" aria-modal="true" aria-label={`Historial de ${lead.company}`}>
         <header className={s.drawerHead}>
           <div>
-            <p className={s.eyebrow}>{label(lead.stage_id)} · {money(lead.value)}</p>
+            <p className={s.eyebrow}>Ficha del lead · {label(lead.stage_id)} · {money(lead.value)}</p>
             <h2>{String(lead.company)}</h2>
             <p className={s.sub}>{[lead.contact, lead.email, lead.phone].filter(Boolean).join(" · ") || "Sin contacto registrado"}</p>
             <dl className={s.leadDetails}>
