@@ -103,6 +103,15 @@ export function ManagerWorkstation({ lang }: { lang: string }) {
             style={{ padding: "8px 12px", cursor: "pointer", marginBottom: 12 }}>
             {en ? "Run check" : "Ejecutar comprobación"}
           </button>
+          {recent[code] && <div style={{ paddingTop: 10, borderTop: "1px solid #566", marginTop: 10 }}>
+            <strong>{en ? "Verified GitHub check" : "Comprobación verificada en GitHub"}</strong>
+            <p>{recent[code]?.display_status === "stale"
+              ? (en ? "No recent activity" : "Sin actividad reciente")
+              : (en ? "Completed" : "Completado")} · {new Date(recent[code]!.started_at).toLocaleString(en ? "en-US" : "es-US")}</p>
+            {recent[code]?.result?.nextAction && <p>{recent[code]?.result?.nextAction}</p>}
+          </div>}
+          {!recent[code] && historyStatus === "loaded" && <p>{en
+            ? "No hourly check recorded yet." : "Aún no hay comprobación horaria registrada."}</p>}
           {s.error && <p role="alert">{s.error}</p>}
           {s.result && <div>
             <small>{en ? "Verified at:" : "Verificado:"} {new Date(s.result.observedAt).toLocaleString(en ? "en-US" : "es-US")}</small>
