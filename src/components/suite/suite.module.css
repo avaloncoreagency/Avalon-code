@@ -334,3 +334,48 @@ a.kpi:hover { border-color:var(--accent, #6fe3ff); }
 .kpis > *:nth-child(2) { animation-delay: 0.05s; } .kpis > *:nth-child(3) { animation-delay: 0.1s; } .kpis > *:nth-child(4) { animation-delay: 0.15s; }
 .moduleCard { transition: transform var(--dur) var(--ease), border-color var(--dur) var(--ease), box-shadow var(--dur) var(--ease); }
 @media (prefers-reduced-motion: reduce) { .kpi:hover, .card:hover, .moduleCard:hover { transform: none; } .kpis > * { animation: none; } }
+
+
+/* Avalon kinetic HUD: a lightweight visual signal shared by every protected module.
+   No generated images, JS timers, new provider, or layout changes. */
+.topbar::after {
+  content: ""; pointer-events: none; position: absolute;
+  left: 0; right: 0; bottom: 0; height: 2px;
+  background: linear-gradient(90deg, transparent 3%, rgba(100, 215, 245, .9) 26%, rgba(185, 163, 255, .85) 56%, transparent 96%);
+  background-size: 230% 100%;
+  box-shadow: 0 0 12px rgba(100, 215, 245, .26);
+  animation: avalon-signal 12s linear infinite;
+}
+@keyframes avalon-signal {
+  0% { background-position: 120% 0; }
+  100% { background-position: -120% 0; }
+}
+.navItem[aria-current="page"]::after {
+  content: ""; position: absolute; right: 12px; top: calc(50% - 3px);
+  width: 6px; height: 6px; border-radius: 50%; pointer-events: none;
+  background: var(--ice); box-shadow: 0 0 12px rgba(100, 215, 245, .55);
+  animation: avalon-status-pulse 3.6s ease-in-out infinite;
+}
+@keyframes avalon-status-pulse {
+  0%, 100% { opacity: .55; transform: scale(.8); }
+  50% { opacity: 1; transform: scale(1.15); }
+}
+.moduleCard::before {
+  content: ""; position: absolute; inset: 0; z-index: 1;
+  border-radius: inherit; pointer-events: none; opacity: 0;
+  background: linear-gradient(110deg, transparent 30%, rgba(183, 233, 255, .1) 49%, transparent 68%);
+  transform: translateX(-60%);
+}
+.moduleCard:hover::before, .moduleCard:focus-visible::before {
+  opacity: 1; animation: avalon-card-sheen .9s ease-out 1;
+}
+@keyframes avalon-card-sheen {
+  from { transform: translateX(-60%); }
+  to { transform: translateX(60%); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .topbar::after, .navItem[aria-current="page"]::after,
+  .moduleCard:hover::before, .moduleCard:focus-visible::before { animation: none; }
+  .topbar::after { background-position: 50% 0; }
+  .moduleCard::before { display: none; }
+}
