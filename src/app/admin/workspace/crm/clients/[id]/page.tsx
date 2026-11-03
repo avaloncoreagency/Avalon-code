@@ -8,6 +8,7 @@ import { pick, formatDate } from "@/lib/i18n";
 import { run, type ProjectRow, PROJECT_COLUMNS } from "@/lib/os/data";
 import { SERVICES, isService } from "@/lib/os/client-hud";
 import { label, money } from "@/lib/sales/domain";
+import { ClientWorkspace } from "@/components/sales/client-workspace";
 import { addClientActivity, addContact, updateClient, updateClientNotes } from "../actions";
 import s from "@/components/sales/sales.module.css";
 export const dynamic = "force-dynamic";
@@ -21,7 +22,7 @@ type Event = { id: number; event_type: string; module: string; detail: string; r
 const OPEN = ["todo", "in_progress", "blocked"];
 
 export default async function Client360({ params, searchParams }: { params: Promise<{ id: string }>; searchParams: Promise<Query> }) {
-  const { supabase } = await requireOwner();
+  const { supabase, user } = await requireOwner();
   const { id } = await params;
   if (!UUID_RE.test(id)) notFound();
   const lang = await getLang();
@@ -45,6 +46,7 @@ export default async function Client360({ params, searchParams }: { params: Prom
     run<{ id: string; body: string; status: string; kind?: string; due_at: string | null; created_by: string; created_at: string }[]>(supabase.from("crm_activities").select("id,body,status,kind,due_at,created_by,created_at").or(leadId ? `client_id.eq.${id},lead_id.eq.${leadId}` : `client_id.eq.${id}`).order("created_at", { ascending: false }).limit(25)),
     leadId ? run<{ id: string; title: string; starts_at: string; kind: string; status: string }[]>(supabase.from("crm_events").select("id,title,starts_at,kind,status").eq("lead_id", leadId).order("starts_at", { ascending: false }).limit(10)) : Promise.resolve(null),
   ]);
+  const financeAllowed = user.email?.toLowerCase() === "avaloncoreagencysm@gmail.com";
   const ownerList = owners.data ?? [];
   const now = new Date().toISOString();
   const allProjects = [...(projects.data ?? []), ...(legacy.data ?? [])];
@@ -70,12 +72,15 @@ export default async function Client360({ params, searchParams }: { params: Prom
     <OkFlash lang={lang} code={q(p, "ok")} /><ErrorFlash lang={lang} code={q(p, "error")} />
     {client.error ? <Unavailable lang={lang} code={client.error} /> : c && <>
       <section className={s.stats} aria-label={pick(lang, "Resumen del cliente", "Client summary")}>
-        {[...byCurrency.entries()].map(([cur, m]) => <div key={cur} className={s.stat}><span>{pick(lang, "Contratado", "Contracted")} · {cur}</span><strong>{money(lang, m.contracted, cur)}</strong><small>{pick(lang, "Cobrado", "Collected")} {money(lang, m.collected, cur)} · {pick(lang, "Recurrente/mes", "Recurring/mo")} {money(lang, m.recurring, cur)}</small></div>)}
+        {financeAllowed && [...byCurrency.entries()].map(([cur, m]) => <div key={cur} className={s.stat}><span>{pick(lang, "Contratado", "Contracted")} · {cur}</span><strong>{money(lang, m.contracted, cur)}</strong><small>{pick(lang, "Cobrado", "Collected")} {money(lang, m.collected, cur)} · {pick(lang, "Recurrente/mes", "Recurring/mo")} {money(lang, m.recurring, cur)}</small></div>)}
         <div className={s.stat}><span>{pick(lang, "Proyectos activos", "Active projects")}</span><strong>{allProjects.filter(x => x.status === "active").length}</strong><small>{allProjects.length} {pick(lang, "en total", "total")}</small></div>
         <div className={s.stat}><span>{pick(lang, "Tareas abiertas", "Open tasks")}</span><strong>{openTasks.length}</strong><small>{(tasks.data ?? []).filter(t => t.status === "done").length} {pick(lang, "hechas", "done")}</small></div>
         <div className={s.stat}><span>{pick(lang, "Alertas", "Alerts")}</span><strong>{alerts.length}</strong><small>{pick(lang, "Responsable", "Owner")}: {ownerName(ownerList, c.owner_id)}</small></div>
       </section>
 
+      <ClientWorkspace supabase={supabase} clientId={c.id} lang={lang} sales={sales.data ?? []}
+        financeAllowed={financeAllowed}
+        demo={c.id === "eb442ca9-8991-4dd0-b7e9-648513613d5a"} />
       {alerts.length > 0 && <section className={s.panel} aria-labelledby="alerts"><h2 id="alerts">{pick(lang, "Alertas", "Alerts")}</h2><ul className={s.list}>{alerts.map(a => <li key={a.key} className={s.notice} data-severity="urgent"><Link href={a.href}>{a.text}</Link></li>)}</ul></section>}
 
       <section className={s.panel} aria-labelledby="projects"><header><h2 id="projects">{pick(lang, "Proyectos por departamento", "Projects by department")}</h2></header>
@@ -90,7 +95,7 @@ export default async function Client360({ params, searchParams }: { params: Prom
 
       <div className={s.columns}>
         <section className={s.panel} aria-labelledby="sales"><header><h2 id="sales">{pick(lang, "Ventas y servicios", "Sales and services")}</h2></header>
-          {sales.error ? <Unavailable lang={lang} code={sales.error} /> : (sales.data ?? []).length === 0 ? <p className={s.muted}>{pick(lang, "Sin ventas registradas.", "No sales recorded.")}</p> :
+          {!financeAllowed ? <p className={s.muted}>{pick(lang, "Los importes de ventas se muestran solo al responsable financiero.", "Sales amounts are available only to the finance administrator.")}</p> : sales.error ? <Unavailable lang={lang} code={sales.error} /> : (sales.data ?? []).length === 0 ? <p className={s.muted}>{pick(lang, "Sin ventas registradas.", "No sales recorded.")}</p> :
           <div className={s.tableWrap}><table className={s.table}><thead><tr><th>{pick(lang, "Venta", "Sale")}</th><th>{pick(lang, "Fecha", "Date")}</th><th className={s.num}>Total</th><th className={s.num}>{pick(lang, "Cobrado", "Collected")}</th><th>{pick(lang, "Contrato", "Contract")}</th><th>{pick(lang, "Entrega", "Delivery")}</th></tr></thead>
             <tbody>{sales.data!.map(x => <tr key={x.id}><td><Link href={`/admin/workspace/crm/sales/${x.id}`}>{x.sale_number}</Link><br /><span className={s.muted}>{x.crm_sale_lines.length} {pick(lang, "servicio(s)", "service(s)")}</span></td><td>{formatDate(lang, x.sold_on)}</td><td className={s.num}>{money(lang, x.total, x.currency)}</td><td className={s.num}>{money(lang, x.crm_payments.reduce((a, b) => a + Number(b.amount), 0), x.currency)}</td><td><Tag lang={lang} value={x.contract_status} /></td><td><Tag lang={lang} value={x.delivery_status} /></td></tr>)}</tbody></table></div>}
           <h3>{pick(lang, "Próximos pasos", "Next steps")}</h3>

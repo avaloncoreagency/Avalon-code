@@ -63,7 +63,7 @@ test("other service gaps remain explicitly unverified and emails come from publi
   assert.match(radarOpportunity("crm", true, "salon"), /no permite saber si usa CRM/);
   assert.match(radarOpportunity("ecommerce", true, "shop"), /Comprobar si vende online/);
 });
-test("radar is owner-gated, never rewards missing data and keeps human approval before the pipeline", () => {
+test("radar is owner-gated, never rewards missing data, and only confirms qualified leads before pipeline", () => {
   const read = f => fs.readFileSync(f, "utf8");
   const area = read("src/app/admin/workspace/crm/radar/area/route.ts");
   const places = read("src/app/admin/workspace/crm/radar/places/route.ts");
@@ -84,6 +84,8 @@ test("radar is owner-gated, never rewards missing data and keeps human approval 
   assert.doesNotMatch(search + campaigns, /service_role|SERVICE_ROLE/, "no privileged key for the scheduler");
   assert.doesNotMatch(area + read("src/lib/crm/radar-search.ts"), /status: "approved"|crm_convert_prospect/, "search never approves or converts");
   assert.match(places, /crm_convert_prospect/, "pipeline transfer reuses the audited conversion");
+  assert.match(places, /case "qualify"/, "explicit owner qualification replaces the extra approval click");
+  assert.match(places, /qualifyRadarProspect/, "qualified businesses use a single idempotent promotion helper");
   assert.match(places, /origin !== request\.nextUrl\.origin/, "cross-origin POST rejected");
   assert.match(geo, /1100/, "geocoder spaced per Nominatim policy");
   assert.match(ui, /No registrada en la fuente \(no significa que no tenga\)/);

@@ -23,4 +23,4 @@ jobs:
           BRIDGE_VERCEL_PROJECT: prj_tN1ZYrsx5fqoEePYjThsra3MvocP
           BRIDGE_VERCEL_TEAM: team_lHTO3wgJm0yAyexxMDmkIFW4
           BRIDGE_SUPABASE_TOKEN: ${{ secrets.BRIDGE_SUPABASE_TOKEN }}
-          BRIDGE_SUPABASE_REF: thdgrczotqapnvcjefoi
+          BRIDGE_SUPABASE_REF: ltbwzcrxeuczdhhtbqgm

@@ -64,18 +64,55 @@
 .map[data-basemap="geoapify"] :global(.leaflet-tile-pane) { filter:brightness(.95) saturate(.9) contrast(1.08); }
 .map :global(.leaflet-control-attribution) { background:#020611cc; color:#9fb3cf; font-size:10px; }
 .map :global(.leaflet-control-attribution a) { color:var(--cyan); }
-.sweep { position:absolute; inset:-20%; pointer-events:none; z-index:450;
-  background:conic-gradient(from 0deg, transparent 0deg, transparent 300deg, #22d3ee10 330deg, #22d3ee55 359deg, transparent 360deg);
-  animation:spin 6s linear infinite; mix-blend-mode:screen; border-radius:50%; }
-@keyframes spin { to { transform:rotate(360deg); } }
+/* Purely decorative visual sweep: never initiates requests or changes Leaflet state. */
+.radarFx { position:absolute; inset:0; z-index:450; overflow:hidden; pointer-events:none; }
+.radarFx::before { content:""; position:absolute; inset:0;
+  background:radial-gradient(circle at 50% 50%, #22d3ee0f 0, transparent 61%); }
+.radarDial { position:absolute; left:50%; top:50%; width:min(84%,540px); aspect-ratio:1;
+  transform:translate(-50%,-50%); border:1px solid #22d3ee3d; border-radius:50%;
+  background:repeating-radial-gradient(circle, transparent 0 68px, #22d3ee26 69px, transparent 71px),
+    radial-gradient(circle, #0e74901c 0, transparent 65%);
+  box-shadow:0 0 46px #22d3ee18, inset 0 0 35px #0891b21a; opacity:.76; }
+.radarBeam { position:absolute; inset:0; border-radius:50%;
+  background:conic-gradient(from 0deg, transparent 0 260deg, #22d3ee03 282deg,
+    #22d3ee1e 318deg, #22d3ee44 348deg, #67e8f999 359deg, transparent 360deg);
+  animation:radarOrbit 6.4s linear infinite; will-change:transform; }
+.radarBeam::after { content:""; position:absolute; left:50%; top:calc(50% - 1px); width:49%; height:2px;
+  background:linear-gradient(90deg,#67e8f9bb,#22d3ee33,transparent);
+  box-shadow:0 0 16px #67e8f9; }
+.radarEcho,.radarEchoDelayed { position:absolute; inset:0; border:2px solid #67e8f9; border-radius:50%;
+  animation:radarEcho 5.6s ease-out infinite; opacity:0; will-change:transform,opacity; }
+.radarEchoDelayed { animation-delay:-2.8s; }
+.radarCrosshair { position:absolute; inset:8%; border-radius:50%; opacity:.25;
+  background:linear-gradient(0deg,transparent calc(50% - .5px),#67e8f9 50%,transparent calc(50% + .5px)),
+    linear-gradient(90deg,transparent calc(50% - .5px),#67e8f9 50%,transparent calc(50% + .5px)); }
+.radarTelemetry { position:absolute; top:12px; right:12px; z-index:455; display:inline-flex; align-items:center; gap:7px;
+  padding:7px 10px; border:1px solid #22d3ee66; border-radius:9px;
+  color:#bffaff; background:#031326e8; font-size:10px; font-weight:700; letter-spacing:.1em;
+  font-variant-numeric:tabular-nums; box-shadow:0 0 18px #0891b230; }
+.radarLed { width:7px; height:7px; border-radius:50%; background:#22d3ee; box-shadow:0 0 10px #67e8f9;
+  animation:radarBeacon 2s ease-in-out infinite; }
+.radarFx[data-searching="true"] .radarBeam { animation-duration:2.6s; }
+@keyframes radarOrbit { to { transform:rotate(360deg); } }
+@keyframes radarEcho { 0% { opacity:.6; transform:scale(.08); } 76% { opacity:.16; } 100% { opacity:0; transform:scale(1); } }
+@keyframes radarBeacon { 50% { opacity:.35; } }
 .legend { position:absolute; left:8px; bottom:22px; z-index:460; list-style:none; margin:0; padding:6px 8px; background:#020611d9; border:1px solid var(--line); border-radius:10px; font-size:11px; display:grid; gap:2px; }
 .legend span { display:inline-block; width:10px; height:10px; border-radius:50%; margin-right:6px; vertical-align:middle; }
-.marker { display:grid; place-items:center; width:26px; height:26px; color:#020611; font:700 12px/1 system-ui; background:var(--tier); border:2px solid #fff; box-shadow:0 0 14px var(--tier); border-radius:50%; animation:pulse 2.4s ease-out 1; }
+.marker { position:relative; display:grid; place-items:center; width:26px; height:26px; color:#020611;
+  font:700 12px/1 system-ui; background:var(--tier); border:2px solid #fff;
+  box-shadow:0 0 14px var(--tier); border-radius:50%; animation:markerArrive .7s ease-out 1; }
+.markerLive::after { content:""; position:absolute; inset:-5px; border:1.5px solid var(--tier);
+  border-radius:inherit; pointer-events:none; opacity:0;
+  animation:markerSonar 4.6s ease-out infinite; animation-delay:var(--blip-delay,0s);
+  will-change:transform,opacity; }
+.markerLive.markerSelected::after { border-width:2.5px; }
+@keyframes markerArrive { from { opacity:.4; transform:scale(.75); } to { opacity:1; transform:scale(1); } }
+@keyframes markerSonar { 0%,45% { transform:scale(.75); opacity:0; } 52% { opacity:.85; } 78%,100% { transform:scale(1.7); opacity:0; } }
 .approved { border-radius:4px; transform:rotate(45deg); }
 .pipeline.marker, .marker.pipeline { border-radius:4px; }
 .dnc { background:#475569 !important; border-style:dashed; color:#fff; }
 .markerSelected { outline:3px solid #fff; outline-offset:3px; box-shadow:0 0 26px var(--tier), 0 0 0 6px #22d3ee55; }
-@keyframes pulse { 0% { box-shadow:0 0 0 0 var(--tier); } 100% { box-shadow:0 0 14px var(--tier); } }
+
 .side { display:grid; gap:10px; align-content:start; min-width:0; max-height:640px; overflow:auto; }
 .views { display:flex; gap:6px; overflow-x:auto; padding-bottom:4px; scrollbar-width:thin; }
 .views button { white-space:nowrap; min-height:36px !important; font-size:13px; }
@@ -109,9 +146,61 @@
   .side { max-height:none; overflow:visible; }
   .sheet { position:fixed; left:0; right:0; bottom:calc(64px + env(safe-area-inset-bottom)); max-height:72vh; overflow:auto; z-index:1200; border-radius:18px 18px 0 0; }
 }
-@media (prefers-reduced-motion: reduce) { .sweep { animation:none; display:none; } .marker { animation:none; } .card { transition:none; } }
+@media (prefers-reduced-motion: reduce) {
+  .radarFx { display:none; }
+  .marker,.markerLive::after { animation:none !important; }
+  .card { transition:none; }
+}
 .campaigns { border:1px solid var(--line); border-radius:16px; padding:12px; display:grid; gap:10px; background:#060d1c99; }
 .campaigns header { display:grid; gap:8px; }
 .campaigns h3 { margin:0; font-size:16px; color:var(--cyan); }
 .campaign { display:grid; gap:4px; border:1px solid var(--line); border-radius:12px; padding:10px; }
 .campaign small { color:#9fb3cf; overflow-wrap:anywhere; }
+
+/* Scoring guidance is visible without forcing the user into the large prospect form. */
+.ratingGuide { border:1px solid #2b6282; border-radius:14px;
+  background:linear-gradient(115deg,#042435eb,#111b37eb); overflow:hidden; }
+.ratingGuide summary { display:flex; gap:12px; align-items:center; flex-wrap:wrap;
+  list-style:none; cursor:pointer; padding:12px 15px; min-height:56px; }
+.ratingGuide summary::-webkit-details-marker,.sheetGuide summary::-webkit-details-marker { display:none; }
+.ratingGuideIcon { display:grid; place-items:center; width:34px; height:34px; flex:none; border-radius:11px;
+  background:#22d3ee24; border:1px solid #22d3ee6b; color:#67e8f9; font-size:20px; }
+.ratingGuideHeading { display:grid; gap:3px; }
+.ratingGuideHeading strong { font-size:14px; color:#ddf8ff; }
+.ratingGuideHeading small { color:#9dbad1; font-size:12px; }
+.ratingGuideAction { margin-left:auto; padding:4px 9px; font-size:12px; color:#67e8f9;
+  border:1px solid #22d3ee6b; border-radius:20px; }
+.ratingGuideBody { display:grid; gap:14px; padding:4px 15px 15px; border-top:1px solid #22d3ee30; }
+.ratingSteps { margin:12px 0 0; padding-left:23px; display:grid; gap:7px;
+  color:#d3e7f3; font-size:13px; line-height:1.55; }
+.ratingRules { list-style:none; display:grid; grid-template-columns:repeat(auto-fit,minmax(min(100%,265px),1fr));
+  gap:8px; margin:0; padding:0; }
+.ratingRules li { display:grid; align-content:start; gap:5px; padding:10px;
+  border:1px solid #30465e; border-radius:11px; background:#080f22bb; font-size:12px; line-height:1.45; }
+.ratingRules strong { font-size:13px; }
+.ratingRules span { color:#c6d7e8; }
+.ratingWarning { margin:0; padding:10px 12px; border-left:3px solid #facc15;
+  background:#facc1510; border-radius:6px; color:#e3e7f1; font-size:12px; line-height:1.55; }
+.ratingTip { font-size:12px; color:#c1e7f1; margin:0; }
+.sheetGuide { border:1px solid #2b6282; border-radius:12px; padding:10px 12px;
+  background:#061a2b; font-size:12px; line-height:1.5; color:#cedeea; }
+.sheetGuide summary { cursor:pointer; color:#67e8f9; font-weight:700; }
+.sheetGuide ul { display:grid; gap:6px; padding-left:18px; }
+.sheetGuide p { margin:8px 0 0; }
+@media (max-width:620px) {
+  .radarDial { width:min(88%,390px); }
+  .radarEchoDelayed { display:none; }
+  .radarTelemetry { font-size:9px; padding:6px 8px; }
+  .ratingGuideAction { width:100%; margin-left:0; text-align:center; }
+}
+/* One-action promotion from evidence-backed score to a single lead card. */
+.qualifyPanel { display:grid; gap:9px; padding:12px; border:1px solid #3d566b; border-radius:13px;
+  background:linear-gradient(120deg,#0a152c,#13213d); }
+.qualifyPanel[data-ready="true"] { border-color:#22d3ee80; box-shadow:inset 0 0 20px #0891b20f; }
+.qualifyPanel strong { font-size:14px; }
+.qualifyPanel small { color:#c0d4e8; font-size:12px; line-height:1.5; }
+.qualifyPanel button { width:100%; justify-content:center; min-height:48px; font-weight:700; }
+
+.quickManual { display:grid; gap:8px; border-top:1px solid #22d3ee38; padding-top:10px; }
+.quickManual .inline { background:#06142599; padding:10px; border-radius:11px; border:1px solid #344d67; }
+.quickManual .inline h4 { margin:0; }
