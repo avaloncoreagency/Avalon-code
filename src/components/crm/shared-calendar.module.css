@@ -36,6 +36,12 @@
 .banner[data-theme="amber"]{background:linear-gradient(120deg,#ae661a,#e6a94d)}
 .banner[data-theme="rose"]{background:linear-gradient(120deg,#a73366,#e16d9e)}
 .eventChip{display:block;text-align:left;width:100%;border:0;border-left:3px solid var(--calendar-accent,#8b5cf6);background:color-mix(in srgb,var(--calendar-accent,#8b5cf6) 18%,#111a2d);color:var(--cal-ink);border-radius:5px;padding:5px 6px;font-size:11px;font-weight:650;cursor:pointer;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.eventStack{display:grid;gap:2px;min-width:0}
+.leadChip{display:block;max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;border-radius:5px;padding:5px 6px;background:rgba(24,102,125,.21);color:#b0eeff;font-size:11px;font-weight:650;text-decoration:none}
+.leadLink{display:inline-flex;align-items:center;max-width:100%;min-height:34px;border-radius:8px;padding:5px 8px;border:1px solid rgba(84,209,231,.35);background:rgba(36,121,151,.16);color:#b0eeff;font-size:12px;font-weight:700;text-decoration:none;overflow-wrap:anywhere}
+.leadChip:hover,.leadChip:focus-visible,.leadLink:hover,.leadLink:focus-visible{text-decoration:underline;outline-offset:2px;border-color:#7de2fb}
+.helper{display:block;color:var(--cal-muted);font-size:11px;font-weight:450}
+.slot .eventStack{position:relative;z-index:2}
 .eventChip:focus-visible,.daySelect:focus-visible,.dayAdd:focus-visible{outline:2px solid #a3dbff;outline-offset:2px}
 .more{border:0;background:transparent;color:#9fcbff;text-align:left;cursor:pointer;font-size:11px}
 .side{border:1px solid var(--cal-border);border-radius:15px;padding:13px;background:rgba(17,29,51,.7)}
