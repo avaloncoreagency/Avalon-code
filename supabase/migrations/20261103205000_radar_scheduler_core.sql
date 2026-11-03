@@ -79,7 +79,7 @@ begin
   select report into source_report from public.crm_radar_research_reports
     where crm_radar_research_reports.prospect_id = p.id
       and status in ('complete','limited') order by scanned_at desc limit 1;
-  if not found or source_report->>'identity_matched' <> 'true' then return false; end if;
+  if not found or (source_report->>'identity_matched') is distinct from 'true' then return false; end if;
   select item into suggestion
     from jsonb_array_elements(coalesce(source_report->'suggested_needs','[]'::jsonb)) as item
     where item->>'service' = 'website' limit 1;
