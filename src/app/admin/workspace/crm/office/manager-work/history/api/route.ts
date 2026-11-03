@@ -27,7 +27,10 @@ export async function GET() {
     if (!isManagerCode(raw.manager) || last[raw.manager]) continue;
     last[raw.manager] = {
       ...raw,
-      display_status: raw.status === "running" && Date.parse(raw.lease_until) < now ? "stalled" : raw.status,
+      display_status:
+        raw.status === "running" && Date.parse(raw.lease_until) < now ? "stalled" :
+        raw.status === "completed" && now - Date.parse(raw.finished_at ?? raw.started_at) > 90 * 60 * 1000
+          ? "stale" : raw.status,
     };
   }
   return NextResponse.json({ last, observedAt: new Date(now).toISOString() }, {
