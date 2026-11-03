@@ -41,7 +41,10 @@ grant select on public.crm_radar_worker_runs to authenticated;
 grant select, insert on public.crm_radar_worker_runs to service_role;
 create policy crm_radar_worker_runs_owner_read on public.crm_radar_worker_runs
   for select to authenticated
-  using (agency_key = 'avalon' and (select crm_private.is_owner()));
+  using (agency_key = 'avalon' and exists (
+    select 1 from public.agency_memberships m
+    where m.user_id = (select auth.uid()) and m.role = 'owner'
+  ));
 
 -- Only a service_role request can promote independently verified, high-confidence leads.
 -- Invoker privileges, row lock, uniqueness and check constraints prevent duplicates.
