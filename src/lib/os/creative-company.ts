@@ -7,8 +7,9 @@ export const CREATIVE_REF = /^[A-Za-z0-9][A-Za-z0-9_.:-]{0,119}$/;
 
 export function exactCompanyName(value: unknown): string {
   if (typeof value !== "string") throw new Error("invalid");
+  if (/[\u0000-\u001f\u007f]/.test(value)) throw new Error("invalid");
   const name = value.trim().replace(/\s+/g, " ");
-  if (name.length > 200 || /[\u0000-\u001f\u007f]/.test(name)) throw new Error("invalid");
+  if (name.length > 200) throw new Error("invalid");
   return name;
 }
 
