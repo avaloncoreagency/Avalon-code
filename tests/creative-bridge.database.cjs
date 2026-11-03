@@ -172,8 +172,9 @@ test("ambiguous leads and client identities fail closed without orphan records",
   await db.exec(`insert into crm_clients(legal_name,trade_name,source,owner_id)
     values ('Other Company','Ambiguous Brand','Manual','${OWNER}'),
            ('Second Company','Ambiguous Brand','Manual','${OWNER}');`);
-  await as(MACHINE);
+  await db.exec("reset role;");
   const countBefore=await num("crm_leads");
+  await as(MACHINE);
   await assert.rejects(submit({company:"Ambiguous Brand",ref:"rolled-back-source"}),/ambiguous client identity/);
   await db.exec("reset role;");
   assert.equal(await num("crm_leads"),countBefore);
