@@ -18,7 +18,7 @@ function collect(tree) {
   if (typeof tree === 'object') return collect(tree.props?.children);
   return String(tree);
 }
-function harness({ owner = true, record = row, listError = null } = {}) {
+function harness({ owner = true, record = row, listError = null, stageError = null } = {}) {
   const reads = [], coreCalls = [];
   const supabase = {
     from(table) {
@@ -29,7 +29,9 @@ function harness({ owner = true, record = row, listError = null } = {}) {
         eq(key, value) { q.filters.push([key, value]); return builder; },
         order() { return builder; },
         limit: async () => ({ data: listError ? null : [row], error: listError }),
-        maybeSingle: async () => ({ data: table === 'crm_stages' ? { label: 'New lead' } : record, error: null }),
+        maybeSingle: async () => table === 'crm_stages'
+          ? { data: stageError ? null : { label: 'New lead' }, error: stageError }
+          : { data: record, error: null },
       };
       return builder;
     },
@@ -105,4 +107,25 @@ test('database lookup failure does not show a made-up analysis', async () => {
   const output = collect(await h.render({ searchParams: Promise.resolve({ lead: ID }) }));
   assert.match(output, /No se pudieron consultar los leads/);
   assert.equal(h.coreCalls.length, 0);
+});
+
+
+test('bidi and invisible control characters in a lead name cannot spoof the read-only view', async () => {
+  const suspicious = 'Synthetic\u202e Bakery\u200b\u2066';
+  const h = harness({ record: { ...row, company: suspicious } });
+  const display = collect(await h.render({ searchParams: Promise.resolve({ lead: ID }) }));
+  assert.doesNotMatch(display, /[\u200b-\u200f\u202a-\u202e\u2060-\u206f\ufeff]/);
+  assert.equal(h.coreCalls.length, 1);
+  assert.doesNotMatch(h.coreCalls[0].input.companyName, /[\u200b-\u200f\u202a-\u202e\u2060-\u206f\ufeff]/);
+  assert.deepEqual(h.coreCalls[0].input.signals, []);
+  assert.equal(h.coreCalls[0].options.adapter, null);
+});
+
+test('RLS-denied stage lookup fails closed without making up a Copilot result', async () => {
+  const h = harness({ stageError: { code: '42501' } });
+  const display = collect(await h.render({ searchParams: Promise.resolve({ lead: ID }) }));
+  assert.match(display, /No se pudo verificar el registro/);
+  assert.doesNotMatch(display, /Hechos comprobados/);
+  assert.equal(h.coreCalls.length, 0);
+  assert.deepEqual(h.reads.map(q => q.table), ['crm_leads', 'crm_leads', 'crm_stages']);
 });
