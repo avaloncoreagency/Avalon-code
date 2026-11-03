@@ -85,17 +85,22 @@ test("exactly one machine route bypasses the owner cookie gate, and has independ
   assert.match(route, /authenticateCreativeDelivery\(/);
   assert.match(route, /MAX_DELIVERY_BYTES/);
   assert.match(route, /persistSession: false/);
+  assert.match(route, /auth\.signInWithPassword\(/);
+  assert.doesNotMatch(route, /service_role|SERVICE_ROLE|SUPABASE_SECRET/);
   assert.match(route, /\.rpc\("os_receive_creative_delivery"/);
   assert.doesNotMatch(route, /getOwnerSession|requireOwner|setSession/);
 });
-test("database proposal is transactional, idempotent, rate-limited and service_role-only", () => {
+test("database proposal restricts writes to a separately allowlisted machine identity", () => {
   const sql = fs.readFileSync("docs/sql/creative-bridge-registration.sql", "utf8");
   assert.match(sql, /REVIEW-ONLY SQL PROPOSAL/);
   assert.match(sql, /create unique index if not exists os_projects_higgsfield_source_unique/);
   assert.match(sql, /security invoker set search_path = ''/);
-  assert.match(sql, /current_user <> 'service_role'/);
+  assert.match(sql, /create table if not exists os_private\.creative_bridge_identities/);
+  assert.match(sql, /security definer set search_path =/);
+  assert.match(sql, /v_machine_id := auth\.uid\(\)/);
+  assert.match(sql, /v_allowed_owner is distinct from p_owner_id/);
   assert.match(sql, /revoke all on function public\.os_receive_creative_delivery/);
-  assert.match(sql, /to service_role/);
+  assert.match(sql, /to authenticated/);
   assert.match(sql, /pg_advisory_xact_lock/g);
   assert.match(sql, /v_daily_count >= 30/);
   assert.match(sql, /from public\.crm_leads/);
