@@ -8,6 +8,7 @@ import { pick, formatDate } from "@/lib/i18n";
 import { run, type ProjectRow, PROJECT_COLUMNS } from "@/lib/os/data";
 import { SERVICES, isService } from "@/lib/os/client-hud";
 import { label, money } from "@/lib/sales/domain";
+import { ClientWorkspace } from "@/components/sales/client-workspace";
 import { addClientActivity, addContact, updateClient, updateClientNotes } from "../actions";
 import s from "@/components/sales/sales.module.css";
 export const dynamic = "force-dynamic";
@@ -142,6 +143,8 @@ export default async function Client360({ params, searchParams }: { params: Prom
           </form>
         </div>
       </section>
+
+      <ClientWorkspace supabase={supabase} clientId={c.id} lang={lang} sales={sales.data ?? []} />
 
       <section className={s.panel} aria-labelledby="history"><header><h2 id="history">{pick(lang, "Historial de actividad", "Activity history")}</h2><Link href={`/admin/workspace/crm/activity?client=${c.id}`}>{pick(lang, "Investigar en el centro de actividad", "Investigate in the activity center")}</Link></header>
         {timeline.error ? <Unavailable lang={lang} code={timeline.error} /> : timeline.data.length === 0 ? <p className={s.muted}>{pick(lang, "Sin eventos registrados.", "No recorded events.")}</p> :
