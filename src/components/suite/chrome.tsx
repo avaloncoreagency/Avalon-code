@@ -159,19 +159,40 @@ export function SuiteChrome({ lang, collapsed: initialCollapsed, section, user, 
                 {unread + notifications.length > 0 && <span className={s.badge} aria-hidden="true">{unread + notifications.length}</span>}
               </button>
               {menu === "alerts" && (
-                <div className={s.popover} id={alertsId} role="region" aria-label={es ? "Notificaciones" : "Notifications"}>
-                  <p className={s.popoverTitle}>{es ? "Notificaciones" : "Notifications"}</p>
-                  {staffNotices.length === 0 && notifications.length === 0 ? <p className={s.popoverEmpty}>{es ? "No hay notificaciones." : "No notifications."}</p> : (
+                <div className={`${s.popover} ${s.alertPopover}`} id={alertsId} role="region" aria-label={es ? "Notificaciones" : "Notifications"}>
+                  <div className={s.alertHeader}>
+                    <div>
+                      <span className={s.alertEyebrow}>{es ? "AVALON STAFF" : "AVALON STAFF"}</span>
+                      <h2>{es ? "Notificaciones" : "Notifications"}</h2>
+                      <p>{es ? "Lo importante para tu jornada, en un solo lugar." : "What matters for your workday, in one place."}</p>
+                    </div>
+                    <span className={s.alertCount} aria-label={es ? `${unread} sin leer` : `${unread} unread`}>{unread}</span>
+                  </div>
+                  {staffNotices.length === 0 && notifications.length === 0 ? (
+                    <div className={s.alertEmptyState}>
+                      <span className={s.alertEmptyMark} aria-hidden="true">✓</span>
+                      <strong>{es ? "Todo al día" : "All caught up"}</strong>
+                      <p>{es ? "No tienes avisos pendientes. ¡Buen trabajo!" : "No pending alerts. You're all set!"}</p>
+                    </div>
+                  ) : (
                     <ul className={s.alertList}>
-                      {staffNotices.map(n => <li key={n.id} data-tone={n.severity === "urgent" ? "danger" : "info"}>
-                        <Link href={n.link || "/admin/workspace/crm/notifications"} onClick={() => { void markNotice(n.id); }}>{n.title}</Link>
-                        <button type="button" onClick={() => { void markNotice(n.id); }} aria-label={es ? "Marcar leído" : "Mark read"} style={{marginLeft:8,fontSize:11}}>{es ? "✓ Leído" : "✓ Read"}</button>
+                      {staffNotices.map(n => <li key={n.id} className={s.alertItem} data-tone={n.severity === "urgent" ? "danger" : "info"}>
+                        <div className={s.alertItemHead}>
+                          <span className={s.alertCategory}>{n.category === "task" ? (es ? "Tarea" : "Task") : n.category === "calendar" ? (es ? "Calendario" : "Calendar") : n.category === "message" ? (es ? "Mensaje" : "Message") : n.category === "project" ? (es ? "Proyecto" : "Project") : n.category}</span>
+                          <time className={s.alertTimestamp} dateTime={n.created_at}>{new Date(n.created_at).toLocaleDateString(es ? "es" : "en", {day:"numeric",month:"short",timeZone:"UTC"})}</time>
+                        </div>
+                        <Link className={s.alertTitle} href={n.link || "/admin/workspace/crm/notifications"} onClick={() => { void markNotice(n.id); }}>{n.title}</Link>
+                        {n.body && <p className={s.alertDescription}>{n.body}</p>}
+                        <button className={s.alertRead} type="button" onClick={() => { void markNotice(n.id); }} aria-label={es ? "Marcar leído" : "Mark read"}>{es ? "Marcar como leído" : "Mark as read"} <span aria-hidden="true">✓</span></button>
                       </li>)}
-                      {notifications.map(n => <li key={n.text} data-tone={n.tone}><Link href={n.href}>{n.text}</Link></li>)}
+                      {notifications.map(n => <li key={n.text} className={s.alertItem} data-tone={n.tone}>
+                        <span className={s.alertCategory}>{es ? "Sistema" : "System"}</span>
+                        <Link className={s.alertTitle} href={n.href}>{n.text}</Link>
+                      </li>)}
                     </ul>
                   )}
-                  {noticeError && <p role="alert" className={s.popoverEmpty}>{es ? "No se pudo sincronizar el buzón." : "Could not sync inbox."}</p>}
-                  <Link href="/admin/workspace/crm/notifications" style={{display:"block",marginTop:12,fontSize:12}}>{es ? "Ver todos los avisos" : "View all notifications"}</Link>
+                  {noticeError && <p role="alert" className={s.alertError}>{es ? "No se pudo sincronizar el buzón." : "Could not sync inbox."}</p>}
+                  <Link href="/admin/workspace/crm/notifications" className={s.alertFooter}>{es ? "Abrir centro de notificaciones" : "Open notification center"} <span aria-hidden="true">↗</span></Link>
                 </div>
               )}
             </div>
