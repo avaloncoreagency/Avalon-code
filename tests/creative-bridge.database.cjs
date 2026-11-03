@@ -58,6 +58,8 @@ test("machine creates exactly one synthetic lead and product, with real audit ac
   const { db, as, one, num, submit } = await setup();
   t.after(() => db.close());
   await as(MACHINE);
+  const directIdentity = (await db.query("select os_private.is_creative_machine() allowed")).rows[0];
+  assert.equal(directIdentity.allowed, true, "dedicated Auth user is allowlisted");
   const result = await submit();
   assert.equal(result.created,true);
   assert.equal(result.lead_created,true);
