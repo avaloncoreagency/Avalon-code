@@ -1,0 +1,40 @@
+.page {
+  box-sizing: border-box;
+  max-width: 860px;
+  min-height: 100vh;
+  margin: 0 auto;
+  padding: 36px clamp(18px, 5vw, 56px);
+  color: #17263a;
+  background: #fff;
+  font-family: Arial, Helvetica, sans-serif;
+  line-height: 1.5;
+}
+.toolbar { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 16px; margin-bottom: 42px; font-size: 13px; }
+.toolbar a { color: #215f9d; text-decoration: underline; }
+.toolbar span { color: #5a6370; }
+.eyebrow { text-transform: uppercase; font-size: 12px; font-weight: 700; letter-spacing: .17em; color: #44627e; }
+.page h1 { margin: 8px 0 22px; font-size: clamp(24px, 4vw, 34px); line-height: 1.2; }
+.page h2 { font-size: 23px; margin: 28px 0 12px; }
+.page h3 { margin: 0 0 10px; font-size: 17px; }
+.notice { border: 1px solid #99b9d6; background: #f0f6fc; border-radius: 8px; padding: 12px; font-size: 13px; }
+.alert { border: 1px solid #d6a28a; background: #fff6f0; border-radius: 8px; padding: 14px; }
+.intro { display: grid; grid-template-columns: 2fr 1fr; gap: 16px; margin: 26px 0; }
+.intro div { padding: 12px 0; border-bottom: 1px solid #d4dee9; }
+.intro small { display: block; color: #65778c; }
+.intro strong { overflow-wrap: anywhere; }
+.section { margin: 28px 0; break-inside: avoid; }
+.scope { white-space: pre-wrap; overflow-wrap: anywhere; margin: 6px 0; }
+.table { width: 100%; border-collapse: collapse; font-size: 14px; }
+.table th, .table td { padding: 10px 8px; text-align: left; vertical-align: top; border-bottom: 1px solid #d8e0e8; }
+.table th { background: #f1f5fa; }
+.table th:last-child, .table td:last-child { text-align: right; white-space: nowrap; }
+.total { text-align: right; padding: 12px 0; border-bottom: 2px solid #273b54; }
+.footer { margin-top: 40px; padding-top: 16px; border-top: 1px solid #b5c5d5; color: #526274; font-size: 12px; }
+@media (max-width: 560px) { .intro { grid-template-columns: 1fr; } .table { font-size: 12px; } }
+@media print {
+  @page { margin: 16mm; }
+  .page { padding: 0; max-width: unset; min-height: 0; }
+  .toolbar { display: none; }
+  .notice, .alert { print-color-adjust: exact; }
+  .section { break-inside: avoid; }
+}
