@@ -129,7 +129,7 @@ export function decodeChunked(raw: Uint8Array, maxBytes: number): Uint8Array {
   throw new ResearchBlocked("chunk_invalid", "La respuesta HTTP tiene demasiados bloques.");
 }
 
-export function parseHttpResponse(raw: Uint8Array, maxBytes: number): {
+export function parseHttpResponse(raw: Uint8Array, maxBytes: number, uncleanTlsClose = false): {
   status: number; contentType: string; location?: string; text: string;
 } {
   let sep = -1;
@@ -164,7 +164,15 @@ export function parseHttpResponse(raw: Uint8Array, maxBytes: number): {
       throw new ResearchBlocked("oversize", "La página supera el límite de lectura segura.");
   }
   let bytes = raw.subarray(sep + 4);
-  if ((headers.get("transfer-encoding") ?? "").toLowerCase().includes("chunked")) {
+  const chunked = (headers.get("transfer-encoding") ?? "").toLowerCase().includes("chunked");
+  const status = Number(match[1]);
+  // An unclean TLS close (no close_notify) cannot prove the body is complete
+  // unless HTTP frames it with Content-Length or a terminating chunk. For
+  // robots 404/410 and redirects, only the complete headers are needed.
+  if (uncleanTlsClose && declared === null && !chunked &&
+      ![301,302,303,307,308,404,410].includes(status))
+    throw new ResearchBlocked("truncated", "No pudimos comprobar que el contenido llegó completo.");
+  if (chunked) {
     bytes = decodeChunked(bytes, maxBytes);
   } else if (declared !== null) {
     if (bytes.length < declared) throw new ResearchBlocked("truncated", "La página llegó incompleta.");
@@ -185,6 +193,7 @@ async function pinnedRequest(url: URL, kind: "robots" | "html"): Promise<Fetched
   const maxBytes = kind === "robots" ? MAX_ROBOTS : MAX_HTML;
   let tcp: Deno.Conn | null = null;
   let tls: Deno.TlsConn | null = null;
+  let uncleanTlsClose = false;
   let expired = false;
   let timer: number | undefined;
   const task = async () => {
@@ -210,14 +219,24 @@ async function pinnedRequest(url: URL, kind: "robots" | "html"): Promise<Fetched
     let bytes = 0;
     const buf = new Uint8Array(8192);
     for (;;) {
-      const n = await tls.read(buf);
+      let n: number | null;
+      try { n = await tls.read(buf); }
+      catch (cause) {
+        // Many legitimate HTTPS servers omit TLS close_notify. Keep the
+        // received bytes, but only accept complete HTTP framing below.
+        if (cause instanceof Error && cause.name === "UnexpectedEof") {
+          uncleanTlsClose = true;
+          break;
+        }
+        throw cause;
+      }
       if (n === null) break;
       bytes += n;
       if (bytes > maxBytes + 64 * 1024)
         throw new ResearchBlocked("oversize", "La página supera el límite de lectura segura.");
       if (n > 0) received.push(buf.slice(0, n));
     }
-    const parsed = parseHttpResponse(concat(received, bytes), maxBytes);
+    const parsed = parseHttpResponse(concat(received, bytes), maxBytes, uncleanTlsClose);
     return { url: url.href, ...parsed, complete: true };
   };
   try {
