@@ -26,12 +26,22 @@ export function safeLicensedOverpassUrl(input: string): string | null {
   } catch { return null; }
 }
 
+/** PR #65 compatibility: accept either server-only Places secret, never choose
+ * between two different keys silently. A provider selector remains mandatory.
+ */
+export function geoapifyServerKey(): string | null {
+  const primary = process.env.GEOAPIFY_API_KEY?.trim();
+  const alternate = process.env.AVALON_GEOAPIFY_PLACES_KEY?.trim();
+  if (primary && alternate && primary !== alternate) return null;
+  return primary || alternate || null;
+}
+
 /** Explicit provider selection. Missing key fails closed: never falls back to a public API. */
 export function radarEndpoint(): RadarProvider | { error: string } {
   const provider = process.env.AVALON_RADAR_PROVIDER;
   if (provider === "geoapify") {
-    if (!process.env.GEOAPIFY_API_KEY?.trim()) {
-      return { error: "Geoapify está seleccionado pero falta GEOAPIFY_API_KEY (servidor). No se consulta Overpass como respaldo." };
+    if (!geoapifyServerKey()) {
+      return { error: "Geoapify seleccionado, pero falta una clave privada válida o hay dos claves distintas configuradas. No se usa Overpass como respaldo." };
     }
     return { kind: "geoapify", url: "https://api.geoapify.com/v2/places", licensed: true };
   }
@@ -52,7 +62,7 @@ export async function searchAndIngest(db: SupabaseClient, area: RadarArea, runKe
   if ("error" in endpoint) return { ok: false, status: 503, error: endpoint.error, blocked: "provider" };
   try {
     const geoapify = endpoint.kind === "geoapify";
-    const key = process.env.GEOAPIFY_API_KEY;
+    const key = geoapifyServerKey();
     const res = await fetch(endpoint.url, geoapify ? {
       method: "POST",
       headers: { "Content-Type": "application/json", "x-api-key": key ?? "" },

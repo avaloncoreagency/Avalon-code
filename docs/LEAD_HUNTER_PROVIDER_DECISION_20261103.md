@@ -20,8 +20,8 @@ Official sources checked:
 4. Server-only key, owner-authenticated routes, 30-second manual search brake, 429 stops with clear errors, 12-second upstream timeout; no credentials committed.
 5. Search and geocoding stay disconnected in production unless **both** variables above are deliberately set. No new services, external API calls, users, vendors or charges are enabled by committing this code.
 
-## Separate map-layer blocker — REN / PR #56
-The street-map 403 is **not** fixed by changing the discovery API. The pending PR #56 removes the blocked OSM tile fallback and maintains a functional radar grid when no licensed tile provider is selected.
+## Map-layer status — PR #56 already merged
+The street-map 403 is **not** fixed by changing the discovery API. PR #56 merged into main and removed the blocked community OSM tile fallback; it preserves a safe radar grid when no licensed tile provider is selected.
 Geoapify's map tile URL requires a browser-visible API key. Restrict that key to Avalon domain and ensure #56's URL validator and attribution explicitly support the selected provider before enabling map tiles. Do not put the server-only Places key into NEXT_PUBLIC variables. In the meantime, use the safe grid fallback. Review OSM and Geoapify attribution on the radar screen before going live.
 
 ## Licensing and compliance gates
@@ -44,3 +44,9 @@ Geoapify's map tile URL requires a browser-visible API key. Restrict that key to
 - Cache geocoding by selected provider; validate Geoapify server key before cache hit and preserve attribution on cached responses.
 - Require GeoJSON response; reject upstream redirects and unexpected formats, and never mark an incompatible nonempty Places payload as a successful empty import.
 - Configurable Overpass URLs reject known public/community hosts, loopback/internal and unsafe host formats. This is not proof of data licensing, nor a distributed rate limiter.
+
+## Geoapify credential harmonization and geocoding safety
+- The Geoapify Places server key can be configured as `GEOAPIFY_API_KEY` (PR #67) or `AVALON_GEOAPIFY_PLACES_KEY` (PR #65). When **both** are configured, they must be identical; conflicting keys fail closed rather than silently charging one account. Production discovery still requires `AVALON_RADAR_PROVIDER=geoapify`; storing a key alone does not enable lookups.
+- The geocoder uses Geoapify `x-api-key` **server-side header** rather than URL query parameters. Forward geocoding rejects missing/blank coordinates, malformed GeoJSON and out-of-range points.
+- Production will **not** query public Nominatim unless a geocoder endpoint is explicitly configured. Use Geoapify when the account is ready or an owned/licensed geocoder. The OSM community Nominatim endpoint can be used only for bounded manual development tests under its policy.
+- The open PR #65 also changes search, geocoding and tile code. **Review and reconcile #65 and #67 together**; do not merge both independently without resolving the overlapping files and key naming. Keep the map's browser key `NEXT_PUBLIC_AVALON_GEOAPIFY_MAP_KEY` separate from any Places server key.

@@ -136,3 +136,29 @@ export function normalizeGeoapifyPlaces(input: unknown, areaLabel: string): Inge
   }
   return result;
 }
+
+/** Validate Geoapify forward-geocode GeoJSON separately from Places data.
+ * A malformed response returns null, while valid empty results return [].
+ * Never infer coordinates or return a fictitious 0,0 location.
+ */
+export function normalizeGeoapifyGeocoding(input: unknown): { label: string; lat: number; lon: number }[] | null {
+  const body = asObject(input);
+  if (!body || !Array.isArray(body.features)) return null;
+  const output: { label: string; lat: number; lon: number }[] = [];
+  for (const feature of body.features.slice(0, 5)) {
+    const props = asObject(asObject(feature)?.properties);
+    if (!props) continue;
+    const geometry = asObject(asObject(feature)?.geometry);
+    const coordinates = Array.isArray(geometry?.coordinates) ? geometry.coordinates : [];
+    const parse = (value: unknown): number =>
+      typeof value === "number" ? value :
+      typeof value === "string" && value.trim() ? Number(value) : Number.NaN;
+    const lat = parse(props.lat ?? coordinates[1]);
+    const lon = parse(props.lon ?? coordinates[0]);
+    const label = clean(props.formatted, 200);
+    if (!label || !Number.isFinite(lat) || !Number.isFinite(lon) ||
+        Math.abs(lat) > 90 || Math.abs(lon) > 180) continue;
+    output.push({ label, lat, lon });
+  }
+  return output;
+}

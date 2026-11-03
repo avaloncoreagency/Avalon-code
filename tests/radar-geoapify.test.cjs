@@ -9,7 +9,7 @@ const mod = { exports: {} };
 vm.runInNewContext(ts.transpileModule(source, {
   compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 },
 }).outputText, { module: mod, exports: mod.exports, URL, Number, Set, Error });
-const { buildGeoapifyRequest, geoapifyCategories, normalizeGeoapifyPlaces, GEOAPIFY_PLACES_LIMIT } = mod.exports;
+const { buildGeoapifyRequest, geoapifyCategories, normalizeGeoapifyPlaces, normalizeGeoapifyGeocoding, GEOAPIFY_PLACES_LIMIT } = mod.exports;
 const area = { lat: 25.774, lon: -80.19, radiusM: 5000, industries: ["restaurants", "dental"], label: "Miami" };
 
 test("Geoapify search maps allowed industries to real categories and caps chargeable results", () => {
@@ -124,4 +124,55 @@ test("configured Overpass cannot route to known community or local destinations"
   assert.equal(check("https://private.example.com/api"), "https://private.example.com/api");
   assert.match(code, /redirect: "error"/);
   assert.match(code, /Geoapify devolvió lugares sin nombre/);
+});
+
+test("Geoapify geocoding drops invalid coordinates but accepts explicit zero", () => {
+  const features = [
+    { properties: { formatted: "Missing location", lat: null, lon: null } },
+    { properties: { formatted: "Blank", lat: "", lon: " " } },
+    { properties: { formatted: "Outside latitude", lat: 121, lon: 20 } },
+    { properties: { formatted: "Explicit origin", lat: 0, lon: 0 } },
+    { properties: { formatted: "Valid", lat: 25.77, lon: -80.19 } },
+  ];
+  const found = normalizeGeoapifyGeocoding({ features });
+  assert.deepEqual(JSON.parse(JSON.stringify(found)), [
+    { label: "Explicit origin", lat: 0, lon: 0 },
+    { label: "Valid", lat: 25.77, lon: -80.19 },
+  ]);
+  assert.equal(normalizeGeoapifyGeocoding({ message: "bad" }), null);
+  assert.deepEqual(JSON.parse(JSON.stringify(normalizeGeoapifyGeocoding({ features: [] }))), []);
+});
+
+test("Geoapify secret alias is explicit and cannot silently choose between two keys", () => {
+  const code = fs.readFileSync("src/lib/crm/radar-search.ts", "utf8");
+  function load(env) {
+    const module = { exports: {} };
+    vm.runInNewContext(ts.transpileModule(code, {
+      compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 },
+    }).outputText, {
+      module, exports: module.exports, require: () => ({}), process: { env }, URL,
+    });
+    return module.exports;
+  }
+  const primary = load({ AVALON_RADAR_PROVIDER: "geoapify", GEOAPIFY_API_KEY: "test-primary" });
+  assert.equal(primary.geoapifyServerKey(), "test-primary");
+  assert.equal(primary.radarEndpoint().kind, "geoapify");
+  const alternate = load({ AVALON_RADAR_PROVIDER: "geoapify", AVALON_GEOAPIFY_PLACES_KEY: "test-alt" });
+  assert.equal(alternate.geoapifyServerKey(), "test-alt");
+  assert.equal(alternate.radarEndpoint().kind, "geoapify");
+  const mismatch = load({ AVALON_RADAR_PROVIDER: "geoapify", GEOAPIFY_API_KEY: "key-a", AVALON_GEOAPIFY_PLACES_KEY: "key-b" });
+  assert.equal(mismatch.geoapifyServerKey(), null);
+  assert.ok("error" in mismatch.radarEndpoint());
+  const noSelector = load({ GEOAPIFY_API_KEY: "test-primary", VERCEL_ENV: "production" });
+  assert.ok("error" in noSelector.radarEndpoint(), "a key alone must not activate production discovery");
+});
+
+test("Geoapify geocoding keeps secret in an outbound header, never in request URL", () => {
+  const code = fs.readFileSync("src/app/admin/workspace/crm/radar/geocode/route.ts", "utf8");
+  assert.match(code, /headers\["x-api-key"\] = apiKey!/);
+  assert.doesNotMatch(code, /apiKey: apiKey!/);
+  assert.match(code, /normalizeGeoapifyGeocoding\(raw\)/);
+  assert.match(code, /VERCEL_ENV === "production"/);
+  assert.match(code, /const parseCoordinate/);
+  assert.match(code, /redirect: "error"/);
 });

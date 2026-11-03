@@ -5,6 +5,7 @@ import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent } fro
 import type { Map as LeafletMap, LayerGroup, Circle } from "leaflet";
 import { INDUSTRIES, PUBLIC_MAX_RADIUS_M, RADIUS_PRESETS_MI, tierStyle, type IndustryId } from "@/lib/crm/radar";
 import s from "./titan.module.css";
+import { resolveRadarMapTiles } from "@/lib/crm/radar-map-tiles";
 
 type Need = { service: string; state: string; evidence_url: string; method: string; note: string; confidence: string; verified_at: string | null };
 export type RadarBusiness = {
@@ -18,6 +19,7 @@ const STATES: [string, string][] = [["unverified", "Sin verificar"], ["verified_
 const METHODS: [string, string][] = [["call", "Llamada"], ["website_review", "Revisión de su web"], ["public_listing", "Ficha pública"], ["owner_statement", "Lo dijo el negocio"], ["visit", "Visita"], ["other", "Otro"]];
 const VIEWS: [string, string][] = [["all", "Encontrados"], ["new", "Nuevos"], ["unrated", "Sin calificar"], ["qualified", "Calificados"], ["approved", "Aprobados"], ["pipeline", "En pipeline"], ["discarded", "Descartados"], ["dnc", "No contactar"]];
 const CONFIDENCE: Record<string, string> = { none: "Sin evidencia", low: "Baja", medium: "Media", high: "Alta" };
+const MAP_TILE_URL = resolveRadarMapTiles(process.env.NEXT_PUBLIC_AVALON_MAP_TILES);
 const effective = (b: RadarBusiness) => b.stars_override ?? b.stars;
 const shape = (b: RadarBusiness) => b.do_not_contact ? "dnc" : b.status === "converted" ? "pipeline" : b.status === "approved" ? "approved" : "found";
 const SHAPE_LABEL: Record<string, string> = { found: "Encontrado", approved: "Aprobado", pipeline: "En pipeline", dnc: "No contactar" };
@@ -34,6 +36,7 @@ export function TitanRadar({ onChanged }: { onChanged?: () => void }) {
   const layer = useRef<LayerGroup | null>(null);
   const ring = useRef<Circle | null>(null);
   const L = useRef<typeof import("leaflet") | null>(null);
+  const placesLoadRevision = useRef(0);
   const [center, setCenter] = useState<[number, number]>([25.7743, -80.1937]);
   const [label, setLabel] = useState("Miami, Florida");
   const [radius, setRadius] = useState("3");
@@ -52,15 +55,24 @@ export function TitanRadar({ onChanged }: { onChanged?: () => void }) {
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
   const [sweep, setSweep] = useState(true);
+  const [tileStatus, setTileStatus] = useState<"loading" | "ready" | "unconfigured" | "failed">(MAP_TILE_URL ? "loading" : "unconfigured");
+  const [mapRevision, setMapRevision] = useState(0);
+  const [locating, setLocating] = useState(false);
   const [busy, setBusy] = useState(false);
   const radiusM = Math.round(Number(radius) * (unit === "km" ? 1000 : 1609.344)) || 0;
   type Campaign = { id: string; name: string; radius_m: number; place_label: string; categories: string[]; frequency: string; status: string; last_run_at: string | null; crm_radar_runs: { status: string; found: number; inserted: number; started_at: string }[] };
   const [campaigns, setCampaigns] = useState<Campaign[]>([]);
   const [scheduler, setScheduler] = useState("");
   const loadCampaigns = useCallback(async () => {
-    const res = await fetch("/admin/workspace/crm/radar/campaigns", { cache: "no-store" });
-    const body = await res.json() as { campaigns?: Campaign[]; scheduler?: { reason: string } };
-    if (res.ok) { setCampaigns(body.campaigns ?? []); setScheduler(body.scheduler?.reason ?? ""); }
+    try {
+      const res = await fetch("/admin/workspace/crm/radar/campaigns", { cache: "no-store" });
+      if (!res.ok) throw new Error("campaigns unavailable");
+      const body = await res.json() as { campaigns?: Campaign[]; scheduler?: { reason: string } };
+      setCampaigns(body.campaigns ?? []);
+      setScheduler(body.scheduler?.reason ?? "");
+    } catch {
+      setScheduler("No se pudieron cargar las campañas. Revisa tu conexión e inténtalo nuevamente.");
+    }
   }, []);
   useEffect(() => { void loadCampaigns(); }, [loadCampaigns]);
   async function campaign(payload: Record<string, unknown>, ok: string) {
@@ -81,33 +93,75 @@ export function TitanRadar({ onChanged }: { onChanged?: () => void }) {
   }, []);
 
   const load = useCallback(async () => {
+    // A response for a previous view/filter must never replace a newer inbox.
+    const revision = ++placesLoadRevision.current;
     const params = new URLSearchParams({ view });
     if (minStars) params.set("stars", String(minStars));
-    const res = await fetch("/admin/workspace/crm/radar/places?" + params, { cache: "no-store" });
-    const body = await res.json() as { places?: RadarBusiness[]; error?: string };
-    if (!res.ok) { setError(body.error ?? "No se pudo cargar el radar."); return; }
-    setPlaces(body.places ?? []);
+    try {
+      const res = await fetch("/admin/workspace/crm/radar/places?" + params, { cache: "no-store" });
+      const body = await res.json() as { places?: RadarBusiness[]; error?: string };
+      if (revision !== placesLoadRevision.current) return;
+      if (!res.ok) { setError(body.error ?? "No se pudo cargar el radar."); return; }
+      setPlaces(body.places ?? []);
+    } catch {
+      if (revision === placesLoadRevision.current) setError("No se pudo conectar al servidor del radar. Revisa tu conexión e inténtalo nuevamente.");
+    }
   }, [view, minStars]);
   useEffect(() => { void load(); }, [load]);
 
-  // Map bootstrap (client only).
+  // Only request tiles when an HTTPS basemap provider was explicitly approved.
+  // Volunteer OSM servers previously returned policy-blocked images, sometimes with HTTP 200.
   useEffect(() => {
     let cancelled = false;
     let sizeTimer = 0;
+    let tileTimer = 0;
     void import("leaflet").then(mod => {
       if (cancelled || !mapEl.current || map.current) return;
       L.current = mod;
       const m = mod.map(mapEl.current, { zoomControl: true, attributionControl: true }).setView(center, 13);
-      mod.tileLayer(process.env.NEXT_PUBLIC_AVALON_MAP_TILES || "https://tile.openstreetmap.org/{z}/{x}/{y}.png", {
-        maxZoom: 19, attribution: '© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
-      }).addTo(m);
+      if (MAP_TILE_URL) {
+        const tiles = mod.tileLayer(MAP_TILE_URL, {
+          maxZoom: 19,
+          // Narrow per-image override of the application's no-referrer security header.
+          // Only the site origin, not the private CRM path, goes to the approved provider.
+          referrerPolicy: "strict-origin-when-cross-origin",
+          attribution: '© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
+        });
+        let loaded = false;
+        tiles.on("load", () => {
+          if (cancelled || !m.hasLayer(tiles)) return;
+          loaded = true;
+          window.clearTimeout(tileTimer);
+          setTileStatus("ready");
+        });
+        tiles.on("tileerror", () => {
+          if (cancelled || !m.hasLayer(tiles)) return;
+          m.removeLayer(tiles);
+          window.clearTimeout(tileTimer);
+          setTileStatus("failed");
+        });
+        tiles.addTo(m);
+        tileTimer = window.setTimeout(() => {
+          if (cancelled || loaded || !m.hasLayer(tiles)) return;
+          m.removeLayer(tiles);
+          setTileStatus("failed");
+        }, 8000);
+      }
       layer.current = mod.layerGroup().addTo(m);
-      m.on("click", e => { setCenter([e.latlng.lat, e.latlng.lng]); setLabel(`Punto ${e.latlng.lat.toFixed(4)}, ${e.latlng.lng.toFixed(4)}`); });
+      m.on("click", e => { setCenter([e.latlng.lat, e.latlng.lng]); setLabel("Punto " + e.latlng.lat.toFixed(4) + ", " + e.latlng.lng.toFixed(4)); });
       map.current = m;
+      // Initial markers and range circle must render even if data loads before Leaflet.
+      setMapRevision(n => n + 1);
       sizeTimer = window.setTimeout(() => { if (map.current === m) m.invalidateSize(); }, 100);
-    });
-    // Stop animations and timers before destroying, otherwise a pending pan touches a removed map.
-    return () => { cancelled = true; window.clearTimeout(sizeTimer); const m = map.current; map.current = null; layer.current = null; ring.current = null; m?.stop(); m?.off(); m?.remove(); };
+    }).catch(() => { if (!cancelled) setTileStatus("failed"); });
+    return () => {
+      cancelled = true;
+      window.clearTimeout(sizeTimer);
+      window.clearTimeout(tileTimer);
+      const m = map.current;
+      map.current = null; layer.current = null; ring.current = null;
+      m?.stop(); m?.off(); m?.remove();
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -117,7 +171,7 @@ export function TitanRadar({ onChanged }: { onChanged?: () => void }) {
     if (!mod || !m) return;
     ring.current?.remove();
     ring.current = mod.circle(center, { radius: Math.max(radiusM, 100), color: "#22d3ee", weight: 1.5, fillOpacity: 0.04, dashArray: "6 6" }).addTo(m);
-  }, [center, radiusM, places]);
+  }, [center, radiusM, places, mapRevision]);
 
   const visible = useMemo(() => places.filter(p => !onlyZone || (p.lat !== null && p.lon !== null && distanceKm(center, [p.lat, p.lon]) * 1000 <= radiusM)), [places, onlyZone, center, radiusM]);
 
@@ -138,27 +192,57 @@ export function TitanRadar({ onChanged }: { onChanged?: () => void }) {
       marker.on("click", () => setSelected(p.id));
       group.addLayer(marker);
     }
-  }, [visible, selected]);
+  }, [visible, selected, mapRevision]);
 
   useEffect(() => {
     const p = places.find(x => x.id === selected);
     if (p && p.lat !== null && p.lon !== null) map.current?.panTo([p.lat, p.lon], { animate: false });
-  }, [selected, places]);
-  useEffect(() => { map.current?.panTo(center, { animate: false }); }, [center]);
+  }, [selected, places, mapRevision]);
+  useEffect(() => { map.current?.panTo(center, { animate: false }); }, [center, mapRevision]);
 
   async function geocode(e: FormEvent) {
     e.preventDefault();
     setError(""); setGeoResults([]);
-    const res = await fetch("/admin/workspace/crm/radar/geocode?q=" + encodeURIComponent(query), { cache: "no-store" });
-    const body = await res.json() as { results?: { label: string; lat: number; lon: number }[]; error?: string };
-    if (!res.ok) { setError(body.error ?? "No se encontró el lugar."); return; }
-    if (!body.results?.length) { setError("Sin coincidencias. Prueba con otra ciudad o toca el mapa."); return; }
-    if (body.results.length === 1) pick(body.results[0]); else setGeoResults(body.results);
+    try {
+      const res = await fetch("/admin/workspace/crm/radar/geocode?q=" + encodeURIComponent(query), { cache: "no-store" });
+      const body = await res.json() as { results?: { label: string; lat: number; lon: number }[]; error?: string };
+      if (!res.ok) { setError(body.error ?? "No se encontró el lugar."); return; }
+      if (!body.results?.length) { setError("Sin coincidencias. Prueba con otra ciudad o toca el radar."); return; }
+      if (body.results.length === 1) pick(body.results[0]); else setGeoResults(body.results);
+    } catch {
+      setError("No se pudo buscar la ciudad. Revisa tu conexión e inténtalo nuevamente.");
+    }
   }
   function pick(r: { label: string; lat: number; lon: number }) { setCenter([r.lat, r.lon]); setLabel(r.label); setGeoResults([]); map.current?.setView([r.lat, r.lon], 12); }
   function locate() {
-    if (!navigator.geolocation) { setError("Este navegador no permite ubicación."); return; }
-    navigator.geolocation.getCurrentPosition(pos => pick({ label: "Mi ubicación", lat: pos.coords.latitude, lon: pos.coords.longitude }), () => setError("Permiso de ubicación denegado. Busca una ciudad o toca el mapa."));
+    if (locating) return;
+    // On the current Avalon security baseline geolocation=() is disabled.
+    // Detect that policy first; never ask for the user's location without a click.
+    const doc = document as Document & {
+      permissionsPolicy?: { allowsFeature(name: string): boolean };
+      featurePolicy?: { allowsFeature(name: string): boolean };
+    };
+    if (doc.permissionsPolicy?.allowsFeature("geolocation") === false ||
+        doc.featurePolicy?.allowsFeature("geolocation") === false) {
+      setError("La ubicación está deshabilitada por la política de seguridad de Avalon. Busca una ciudad o toca el radar.");
+      return;
+    }
+    if (!navigator.geolocation) { setError("Este navegador no permite ubicación. Busca una ciudad o toca el radar."); return; }
+    setError("");
+    setLocating(true);
+    navigator.geolocation.getCurrentPosition(
+      pos => {
+        setLocating(false);
+        pick({ label: "Mi ubicación", lat: pos.coords.latitude, lon: pos.coords.longitude });
+      },
+      err => {
+        setLocating(false);
+        setError(err.code === 1
+          ? "No se autorizó el acceso a tu ubicación. Busca una ciudad o toca el radar."
+          : "No se pudo obtener tu ubicación. Busca una ciudad o toca el radar.");
+      },
+      { enableHighAccuracy: false, timeout: 12000, maximumAge: 300000 },
+    );
   }
 
   async function search() {
@@ -206,7 +290,7 @@ export function TitanRadar({ onChanged }: { onChanged?: () => void }) {
         <label className={s.srOnly} htmlFor="radar-place">Ciudad, dirección o código postal</label>
         <input id="radar-place" value={query} onChange={e => setQuery(e.target.value)} placeholder="Ciudad, dirección o código postal" maxLength={120} />
         <button type="submit" className={s.ghost}>Ir</button>
-        <button type="button" className={s.ghost} onClick={locate} aria-label="Usar mi ubicación">◎</button>
+        <button type="button" className={s.ghost} onClick={locate} aria-label="Usar mi ubicación" disabled={locating} aria-busy={locating}>{locating ? "…" : "◎"}</button>
       </form>
       {geoResults.length > 0 && <ul className={s.geoList}>{geoResults.map(r => <li key={r.label}><button type="button" onClick={() => pick(r)}>{r.label}</button></li>)}</ul>}
 
@@ -229,14 +313,20 @@ export function TitanRadar({ onChanged }: { onChanged?: () => void }) {
       <div className={s.status} aria-live="polite">
         <span>Exploración visual: {sweep ? "activa" : "pausada"} <button type="button" className={s.link} onClick={() => setSweep(v => !v)}>{sweep ? "Pausar animación" : "Animar"}</button></span>
         <span>Búsqueda: {searching ? "en ejecución…" : lastSearch ? `completada ${new Date(lastSearch.at).toLocaleTimeString()} · ${lastSearch.found} encontrados · ${lastSearch.inserted} nuevos · ${lastSearch.updated} ya conocidos` : "sin ejecutar en esta sesión"}</span>
-        <span>Fuente: OpenStreetMap (ODbL)</span>
+        <span>Fuente de negocios: OpenStreetMap (ODbL)</span>
+        <span>Mapa base: {tileStatus === "ready" ? "conectado" : tileStatus === "loading" ? "cargando" : "modo radar sin cartografía"}</span>
       </div>
       {error && <p className={s.error} role="alert">{error}</p>}
       {notice && <p className={s.ok} role="status">{notice}</p>}
 
       <div className={s.stage}>
         <div className={s.mapWrap}>
-          <div ref={mapEl} className={s.map} role="application" aria-label="Mapa de negocios. Toca para elegir el centro de búsqueda." />
+          <div ref={mapEl} className={s.map} role="application" aria-label="Radar de negocios. Toca para elegir el centro de búsqueda." />
+          {(tileStatus === "unconfigured" || tileStatus === "failed") && <div className={s.mapNotice} role="status">
+            <strong>{tileStatus === "failed" ? "Cartografía temporalmente no disponible" : "Radar en modo de respaldo"}</strong>
+            <p>{tileStatus === "failed" ? "El proveedor de mapas no respondió. " : "No hay proveedor de mapas autorizado configurado. "}Los marcadores, el radio y la búsqueda siguen disponibles.</p>
+            <a href={"https://www.openstreetmap.org/#map=13/" + center[0].toFixed(4) + "/" + center[1].toFixed(4)} target="_blank" rel="noopener noreferrer">Ver la zona en OpenStreetMap</a>
+          </div>}
           {sweep && <div className={s.sweep} aria-hidden="true" />}
           <ul className={s.legend} aria-label="Leyenda">{[5, 4, 3, 2, 1, null].map(t => <li key={String(t)}><span style={{ background: tierStyle(t).color }} />{tierStyle(t).label}</li>)}</ul>
         </div>
