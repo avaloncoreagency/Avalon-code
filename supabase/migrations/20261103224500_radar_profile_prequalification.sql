@@ -2,11 +2,13 @@
 -- A public listing alone NEVER proves business needs or justifies pipeline.
 -- 1 star = public listing for review; 2 stars = listing with web+phone;
 -- higher scores still require explicit CRM service-need evidence.
+-- VOLATILE is essential: an AFTER INSERT trigger needs to see the new row
+-- in the current statement (STABLE functions use a pre-statement snapshot).
 begin;
 CREATE OR REPLACE FUNCTION crm_private.radar_tier(p uuid, OUT stars smallint, OUT confidence text, OUT reasons jsonb)
  RETURNS record
  LANGUAGE plpgsql
- STABLE
+ VOLATILE
  SET search_path TO ''
 AS $function$
 declare missing int; improve int; present int; assessed int; high int; applicable int;
