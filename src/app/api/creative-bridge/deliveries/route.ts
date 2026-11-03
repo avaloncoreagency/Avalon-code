@@ -24,9 +24,12 @@ export async function POST(request: NextRequest) {
       process.env.NEXT_PUBLIC_SUPABASE_URL?.includes("ltbwzcrxeuczdhhtbqgm"))
     return reply({ error: "isolated_staging_required" }, 503);
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-  const serverKey = process.env.AVALON_CREATIVE_BRIDGE_SUPABASE_SERVICE_ROLE_KEY;
+  const publishableKey = process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY;
+  const machineEmail = process.env.AVALON_CREATIVE_BRIDGE_MACHINE_EMAIL;
+  const machinePassword = process.env.AVALON_CREATIVE_BRIDGE_MACHINE_PASSWORD;
   const ownerId = process.env.AVALON_CREATIVE_BRIDGE_OWNER_ID;
-  if (!supabaseUrl || !serverKey || !ownerId || !UUID.test(ownerId)) return reply({ error: "not_configured" }, 503);
+  if (!supabaseUrl || !publishableKey || !machineEmail || !machinePassword ||
+      !ownerId || !UUID.test(ownerId)) return reply({ error: "not_configured" }, 503);
   if (request.headers.get("origin") || request.headers.get("cookie") ||
       request.headers.get("authorization")) return reply({ error: "invalid_request" }, 400);
   if (!/^application\/json(?:\s*;\s*charset=utf-8)?$/i.test(request.headers.get("content-type") ?? ""))
@@ -56,12 +59,16 @@ export async function POST(request: NextRequest) {
   try { payload = parseCreativeDelivery(JSON.parse(bytes.toString("utf8"))); }
   catch { return reply({ error: "invalid_delivery" }, 400); }
 
-  // The service-role credential NEVER leaves this protected Node.js process.
-  // The RPC (prepared in docs/sql) is restricted to service_role and performs
-  // idempotent lead + product registration in a single database transaction.
-  const supabase = createClient(supabaseUrl, serverKey, {
+  // A dedicated non-owner Supabase Auth user (server-side credential only) is
+  // allowlisted by a narrowly scoped RPC. No privileged database API key.
+  // HMAC keys held by Codex/Claude cannot read CRM data or sign in as the machine.
+  const supabase = createClient(supabaseUrl, publishableKey, {
     auth: { persistSession: false, autoRefreshToken: false, detectSessionInUrl: false },
   });
+  const { data: signedIn, error: loginError } = await supabase.auth.signInWithPassword({
+    email: machineEmail, password: machinePassword,
+  });
+  if (loginError || !signedIn.session || !signedIn.user) return reply({ error: "bridge_identity_unavailable" }, 503);
   const { data, error } = await supabase.rpc("os_receive_creative_delivery", {
     p_module: payload.module,
     p_source_ref: payload.source_ref,
