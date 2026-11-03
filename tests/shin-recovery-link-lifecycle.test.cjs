@@ -10,7 +10,7 @@ const ROUTE = "src/app/admin/auth/confirm/route.ts";
 const ORIGIN = "https://isolated.example.invalid";
 const USER = "00000000-0000-4000-8000-000000000001";
 
-function harness({ verifyOtp, originFailure = false, grantFailure = false } = {}) {
+function harness({ verifyOtp, originFailure = false, grantFailure = false, clientFailure = false } = {}) {
   const observed = { verified: [], grants: [], clients: 0 };
   const mocks = {
     "next/server": {
@@ -29,6 +29,7 @@ function harness({ verifyOtp, originFailure = false, grantFailure = false } = {}
     "@/lib/supabase/server": {
       createClient: async () => {
         observed.clients++;
+        if (clientFailure) throw Error("synthetic private Supabase client initialization failure");
         return {
           auth: {
             verifyOtp: async input => {
@@ -160,4 +161,29 @@ test("recovery: cookie/signing grant failure fails closed after verified OTP", a
   assert.deepEqual(app.observed.verified, [{ token_hash: "synthetic-token", type: "recovery" }]);
   assert.deepEqual(app.observed.grants, [], "failed cookie signing must never mint a grant");
   assert.ok(!response.headers.get("location").includes(USER), "verified user ID must remain private");
+});
+
+test("recovery: Supabase client initialization outage rejects before touching OTP", async () => {
+  const app = harness({
+    clientFailure: true,
+    verifyOtp: async () => { throw Error("OTP should never be checked"); },
+  });
+  const response = await app.call({ type: "recovery", token_hash: "synthetic-token" });
+  assertSafeRejection(response);
+  assert.equal(app.observed.clients, 1);
+  assert.deepEqual(app.observed.verified, [], "client creation failure must not attempt OTP verification");
+  assert.deepEqual(app.observed.grants, [], "client creation failure must not grant password access");
+});
+
+test("recovery: provider error with a user object must never grant password access", async () => {
+  const app = harness({
+    verifyOtp: async () => ({
+      data: { user: { id: USER } },
+      error: { message: "synthetic provider rejected OTP despite partial user result" },
+    }),
+  });
+  const response = await app.call({ type: "recovery", token_hash: "synthetic-token" });
+  assertSafeRejection(response);
+  assert.deepEqual(app.observed.verified, [{ token_hash: "synthetic-token", type: "recovery" }]);
+  assert.deepEqual(app.observed.grants, [], "an Auth error must override any partial identity");
 });
