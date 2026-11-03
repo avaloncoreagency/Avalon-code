@@ -57,7 +57,7 @@ declare
   strong_services integer := 0;
   actor uuid;
 begin
-  if current_setting('request.jwt.claim.role', true) is distinct from 'service_role' then
+  if current_user <> 'service_role' then
     raise exception 'service_role only' using errcode = '42501';
   end if;
   select * into p from public.crm_prospects where id = prospect_id for update;
@@ -72,9 +72,9 @@ begin
     return null;
   end if;
 
-  select count(distinct service)::integer into strong_services
-  from public.crm_prospect_needs
-  where prospect_id = p.id
+  select count(distinct n.service)::integer into strong_services
+  from public.crm_prospect_needs n
+  where n.prospect_id = p.id
     and state in ('verified_missing','opportunity_to_improve')
     and confidence = 'high'
     and method <> ''
