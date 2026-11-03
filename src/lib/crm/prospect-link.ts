@@ -19,6 +19,11 @@ const norm = (v: unknown) => String(v ?? "").trim().toLowerCase();
 const likeEscape = (v: string) => v.replace(/[\\%_]/g, m => "\\" + m);
 
 export async function findDuplicateLead(db: SupabaseClient, p: ProspectKey): Promise<DuplicateLead | null> {
+  // Best effort: explaining a conflict must never turn into a second failure that hides the original one.
+  try { return await lookupDuplicateLead(db, p); } catch { return null; }
+}
+
+async function lookupDuplicateLead(db: SupabaseClient, p: ProspectKey): Promise<DuplicateLead | null> {
   const email = norm(p.email);
   // PostgREST rewrites "*" into a wildcard and offers no escape for it: do not guess for such addresses.
   if (email.includes("*") || norm(p.company).includes("*") || norm(p.contact).includes("*")) return null;
@@ -35,7 +40,8 @@ export async function findDuplicateLead(db: SupabaseClient, p: ProspectKey): Pro
 
 /** 409 body for "this business is already in the pipeline", or null when no duplicate can be identified. */
 export async function duplicateConflict(db: SupabaseClient, prospectId: string) {
-  const { data: p } = await db.from("crm_prospects").select("company,contact,email").eq("id", prospectId).maybeSingle();
+  let p: ProspectKey | null = null;
+  try { p = (await db.from("crm_prospects").select("company,contact,email").eq("id", prospectId).maybeSingle()).data; } catch { return null; }
   if (!p) return null;
   const lead = await findDuplicateLead(db, p);
   if (!lead) return null;
