@@ -107,13 +107,18 @@ export async function GET(request: NextRequest) {
   } else members = (directory.data ?? []) as Member[];
   if (directory.error) return reply({ error: "No se pudo cargar el directorio." }, 503);
 
+  const scheduleBy = new Map((availability.data ?? []).map(a => [a.user_id, { timezone:a.timezone, weekly_hours:a.weekly_hours }]));
+  const absentBy = new Map<string, { starts_on:string; ends_on:string; reason:string }[]>();
+  for (const entry of timeOff.data ?? []) absentBy.set(entry.user_id,[...(absentBy.get(entry.user_id) ?? []),entry]);
   const now = Date.now();
-  const [tasks, projects, timeline, unread, pendingRequests] = await Promise.all([
+  const [tasks, projects, timeline, unread, pendingRequests, availability, timeOff] = await Promise.all([
     db.from("crm_tasks").select("assignee_id,status,due_at,completed_at,created_at,project_id").limit(5000),
     db.from("os_projects").select("id", { count: "exact", head: true }).eq("status", "active"),
     db.from("crm_timeline").select("id,event_type,module,actor_id,detail,result,created_at").order("created_at", { ascending: false }).limit(12),
     db.from("office_messages").select("sender_id").eq("recipient_id", me).is("read_at", null).limit(1000),
     db.from("office_agent_requests").select("agent").eq("status", "registered").limit(1000),
+    db.from("office_availability").select("user_id,timezone,weekly_hours").limit(100),
+    db.from("office_time_off").select("user_id,starts_on,ends_on,reason").gte("ends_on",new Date().toISOString().slice(0,10)).order("starts_on").limit(100),
   ]);
   const taskRows = (tasks.data ?? []) as TaskLite[];
   const lastActivity: Record<string, string> = {};
@@ -127,7 +132,7 @@ export async function GET(request: NextRequest) {
   return reply({
     me, period, profilesReady, messagingReady: !missing(unread.error) && !unread.error,
     tasksReady: !tasks.error,
-    members: members.map(m => ({ ...m, stats: memberStats(taskRows, m.user_id, period, now), lastActivity: lastActivity[m.user_id] ?? null, unread: unreadBy[m.user_id] ?? 0 })),
+    members: members.map(m => ({ ...m, availability: scheduleBy.get(m.user_id) ?? null, timeOff: absentBy.get(m.user_id) ?? [], stats: memberStats(taskRows, m.user_id, period, now), lastActivity: lastActivity[m.user_id] ?? null, unread: unreadBy[m.user_id] ?? 0 })),
     managers: MANAGERS.map(m => ({ ...m, status: MANAGER_INTEGRATION.status, registered: requestsBy[m.key] ?? 0 })),
     integration: MANAGER_INTEGRATION,
     team: { ...teamStats(taskRows, period, now), projects: projects.error ? null : projects.count ?? 0, series: completedSeries(taskRows, 14, now) },
