@@ -4,7 +4,7 @@ import { useEffect, useMemo, useState, type CSSProperties, type FormEvent } from
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
-  BANNER_THEMES, CALENDAR_COLORS, EVENT_KINDS, dayInZone, eventOnDay,
+  BANNER_THEMES, CALENDAR_COLORS, EVENT_KINDS, EVENT_KIND_ICONS, colorForEventKind, matchesCalendarFilters, dayInZone, eventOnDay,
   hourInZone, isCalendarDay, leadCardHref, linkedLeadName, linkedClientName, purchasedClientOptions, salesForCalendarClient, clientSalesCardHref, localInput, moveDay, moveMonth, visibleDays,
   type CalendarEvent, type CalendarView, type DayBanner, type OwnerOption, type CalendarSale,
 } from "@/lib/crm/shared-calendar";
@@ -74,6 +74,7 @@ export function SharedCalendar({ events, banners, owners, clients, leads, sales,
   const [view, setView] = useState<CalendarView>(initialView);
   const [selected, setSelected] = useState(isCalendarDay(initialDate) ? initialDate : localToday());
   const [filter, setFilter] = useState("all");
+  const [kindFilter, setKindFilter] = useState("all");
   const [zone, setZone] = useState("America/New_York");
   const [draft, setDraft] = useState<DraftEvent | null>(null);
   const [bannerDraft, setBannerDraft] = useState<DayBanner | null>(null);
@@ -122,9 +123,9 @@ export function SharedCalendar({ events, banners, owners, clients, leads, sales,
   }, [router, draft, bannerDraft]);
 
   const ownerName = (id: string) => owners.find(o => o.user_id === id)?.email.split("@")[0] || t("Propietario", "Owner");
-  const filtered = useMemo(() => events.filter(e =>
-    e.status !== "cancelled" && (filter === "all" || e.owner_id === filter || (e.attendee_ids || []).includes(filter))
-  ), [events, filter]);
+  const filtered = useMemo(() => events.filter(e => matchesCalendarFilters(e, filter, kindFilter)),
+    [events, filter, kindFilter]);
+  const countForKind = (kind: string) => events.filter(e => matchesCalendarFilters(e, filter, kind)).length;
   const days = useMemo(() => visibleDays(date, view), [date, view]);
   const dayEvents = (day: string) => filtered.filter(e => eventOnDay(e, day, zone))
     .sort((a, b) => a.starts_at.localeCompare(b.starts_at));
@@ -163,7 +164,7 @@ export function SharedCalendar({ events, banners, owners, clients, leads, sales,
     setClientQuery(""); setSelectedClient(null);
     setDraft({
       title: "", owner_id: userId, attendee_ids: owners.map(o => o.user_id),
-      kind: "meeting", color: CALENDAR_COLORS[0], all_day: false,
+      kind: "meeting", color: colorForEventKind("meeting"), all_day: false,
       start_local: day + "T" + pad(h) + ":00",
       end_local: (h === 23 ? moveDay(day, 1) : day) + "T" + pad((h + 1) % 24) + ":00",
       start_day: day, end_day: day,
@@ -250,7 +251,8 @@ export function SharedCalendar({ events, banners, owners, clients, leads, sales,
     return <div className={s.eventStack} key={event.id}>
       <button className={s.eventChip} style={colorStyle(event.color)} type="button"
         onClick={() => editEvent(event)} title={event.title + " · " + timeLabel(event)}>
-        {event.all_day ? "★ " : ""}{event.title}
+        <span className={s.eventTypeIcon} aria-hidden="true">{event.all_day ? "★" : EVENT_KIND_ICONS[event.kind as keyof typeof EVENT_KIND_ICONS] ?? "◆"}</span>
+        <span className={s.eventTitle}>{event.title}</span>
       </button>
       {name && href && <Link className={s.leadChip} href={href} title={t("Abrir ficha del lead", "Open lead card")}>
         🏷 {name}
@@ -292,10 +294,24 @@ export function SharedCalendar({ events, banners, owners, clients, leads, sales,
         )}
       </div>
     </div>
-    <div className={s.summary}>
-      <span className={s.pill}>{filtered.length} {t("eventos en el periodo cargado", "events in loaded period")}</span>
+    <div className={s.summary} aria-live="polite">
+      <span className={s.pill}>{filtered.length} {t("eventos visibles", "visible events")}</span>
       <span className={s.pill}>{owners.length} {t("propietarios autorizados", "authorized owners")}</span>
       <span className={s.pill}>{zone}</span>
+    </div>
+    <div className={s.typeFilters} role="group" aria-label={t("Filtrar eventos por tipo", "Filter events by type")}>
+      <button type="button" className={s.typePill + (kindFilter === "all" ? " " + s.typePillActive : "")}
+        aria-pressed={kindFilter === "all"} onClick={() => setKindFilter("all")}>
+        <span className={s.typeCount}>{countForKind("all")}</span> {t("Todos los tipos", "All types")}
+      </button>
+      {EVENT_KINDS.map(kind => <button type="button" key={kind}
+        className={s.typePill + (kindFilter === kind ? " " + s.typePillActive : "")}
+        aria-pressed={kindFilter === kind} style={colorStyle(colorForEventKind(kind))}
+        onClick={() => setKindFilter(current => current === kind ? "all" : kind)}>
+        <span className={s.typeDot} aria-hidden="true" />
+        <span>{TYPE[kind]?.[lang === "es" ? 0 : 1] || kind}</span>
+        <span className={s.typeCount}>{countForKind(kind)}</span>
+      </button>)}
     </div>
     <div className={s.split}>
       <div className={s.board}>
@@ -305,10 +321,11 @@ export function SharedCalendar({ events, banners, owners, clients, leads, sales,
               .map(name => <div key={name} className={s.weekHeader} role="columnheader">{name}</div>)}
             {days.map(day => {
               const list = dayEvents(day), banner = bannerFor(day);
-              return <div key={day} className={s.dayCell + (day.slice(0, 7) !== date.slice(0, 7) ? " " + s.outside : "") + (day === today ? " " + s.today : "")}
-                role="gridcell" aria-label={dateLabel(day)}>
+              return <div key={day} className={s.dayCell + (day.slice(0, 7) !== date.slice(0, 7) ? " " + s.outside : "") + (day === today ? " " + s.today : "") + (day === selected ? " " + s.selectedDay : "")}
+                role="gridcell" aria-selected={day === selected} aria-label={dateLabel(day)}>
                 <div className={s.dayTitle}>
-                  <button type="button" className={s.daySelect} onClick={() => setSelected(day)} aria-label={t("Ver", "View") + " " + dateLabel(day)}>{Number(day.slice(-2))}</button>
+                  <button type="button" className={s.daySelect} onClick={() => setSelected(day)} aria-pressed={day === selected} aria-label={t("Ver", "View") + " " + dateLabel(day)}>{Number(day.slice(-2))}</button>
+                  {list.length > 0 && <span className={s.dayCount} title={list.length + " " + t("eventos", "events")}>{list.length}</span>}
                   <button type="button" className={s.dayAdd} onClick={() => newEvent(day)} aria-label={t("Crear evento", "Create event") + " " + dateLabel(day)}>+</button>
                 </div>
                 {banner && <button type="button" className={s.banner} data-theme={banner.theme} onClick={() => openBanner(day)} title={banner.title}>
@@ -323,7 +340,8 @@ export function SharedCalendar({ events, banners, owners, clients, leads, sales,
           <div className={s.timeGrid} style={{ "--cal-days": days.length, "--cal-min-width": (days.length * 132 + 58) + "px" } as CSSProperties}>
             <div className={s.timeHeader}>{t("Hora", "Time")}</div>
             {days.map(day => <div key={day} className={s.timeHeader}>
-              <button type="button" className={s.button} onClick={() => setSelected(day)}>{dateLabel(day)}</button>
+              <button type="button" className={s.button + (day === selected ? " " + s.active : "")} aria-pressed={day === selected}
+                onClick={() => setSelected(day)}>{dateLabel(day)}</button>
               {bannerFor(day) && <button type="button" className={s.banner} data-theme={bannerFor(day)?.theme} onClick={() => openBanner(day)}>
                 <span>{bannerFor(day)?.emoji} {bannerFor(day)?.title}</span></button>}
               {dayEvents(day).filter(e => e.all_day).map(chip)}
@@ -343,8 +361,12 @@ export function SharedCalendar({ events, banners, owners, clients, leads, sales,
         {bannerFor(selected) && <button type="button" className={s.banner} data-theme={bannerFor(selected)?.theme}
           onClick={() => openBanner(selected)}><span>{bannerFor(selected)?.emoji} {bannerFor(selected)?.title}
           {bannerFor(selected)?.subtitle && " · " + bannerFor(selected)?.subtitle}</span></button>}
-        <h2 className={s.sideTitle}>{dateLabel(selected)}</h2>
-        {onDay.length === 0 ? <p className={s.empty}>{t("Sin eventos. Puedes programar una reunión o marcar este día como especial.", "No events. Schedule a meeting or mark this day as special.")}</p> :
+        <h2 className={s.sideTitle}>{dateLabel(selected)} <span className={s.dayAgendaCount}>{onDay.length}</span></h2>
+        {onDay.length === 0 ? <p className={s.empty}>
+          {kindFilter !== "all" || filter !== "all"
+            ? t("No hay citas con estos filtros para el día. Cambia el tipo o responsable.", "No appointments match these filters for this day. Change the type or owner.")
+            : t("Sin eventos. Puedes programar una reunión o marcar este día como especial.", "No events. Schedule a meeting or mark this day as special.")}
+        </p> :
           <ul className={s.sideList}>{onDay.map(event => <li className={s.sideItem} style={colorStyle(event.color)} key={event.id}>
             <button type="button" onClick={() => editEvent(event)}>{event.title}</button>
             <span className={s.sideMeta}>{timeLabel(event)} · {ownerName(event.owner_id)}</span>
@@ -387,7 +409,12 @@ export function SharedCalendar({ events, banners, owners, clients, leads, sales,
             <input autoFocus className={s.input} name="title" maxLength={200} required defaultValue={draft.title} placeholder={t("Reunión con cliente", "Client meeting")} /></label>
           <div className={s.formGrid}>
             <label className={s.label}>{t("Tipo", "Type")}
-              <select className={s.select} name="kind" defaultValue={draft.kind}>
+              <select className={s.select} name="kind" value={draft.kind}
+                onChange={e => {
+                  const nextKind = e.target.value;
+                  const color = draft.color === colorForEventKind(draft.kind) ? colorForEventKind(nextKind) : draft.color;
+                  setDraft({ ...draft, kind: nextKind, color });
+                }}>
                 {EVENT_KINDS.map(k => <option value={k} key={k}>{TYPE[k]?.[lang === "es" ? 0 : 1] || k}</option>)}
               </select></label>
             <label className={s.label}>{t("Responsable", "Owner")}
