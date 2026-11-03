@@ -129,6 +129,8 @@ declare
   v_project record;
   v_project_id uuid;
   v_lead_id uuid;
+  v_client_id uuid;
+  v_client_count integer;
   v_existing_company text;
   v_match_count integer;
   v_daily_count integer;
@@ -236,6 +238,22 @@ begin
     end if;
   end if;
 
+  -- A paying client without an origin lead must also see this product in
+  -- Client 360 / Sales. Match exact normalized legal/trade name, never fuzzy.
+  -- An ambiguous client name is a conflict, never an arbitrary attachment.
+  select count(*), min(id) into v_client_count, v_client_id
+    from public.crm_clients
+    where status <> 'archived' and (
+      lower(regexp_replace(btrim(legal_name), '[[:space:]]+', ' ', 'g')) =
+        lower(regexp_replace(btrim(p_company_name), '[[:space:]]+', ' ', 'g'))
+      or (btrim(trade_name) <> '' and
+        lower(regexp_replace(btrim(trade_name), '[[:space:]]+', ' ', 'g')) =
+        lower(regexp_replace(btrim(p_company_name), '[[:space:]]+', ' ', 'g'))
+    );
+  if v_client_count > 1 then
+    raise exception 'ambiguous client identity' using errcode = '22023';
+  end if;
+
   v_settings := case p_module
     when 'ecommerce' then jsonb_build_object('currency', 'USD')
     when 'crm_creator' then jsonb_build_object('blueprint',
@@ -257,8 +275,8 @@ begin
     )
   );
   insert into public.os_projects
-    (module, name, description, status, settings, created_by)
-  values (p_module, btrim(p_product_name), p_description, 'draft', v_settings, p_owner_id)
+    (module, name, description, status, settings, created_by, client_id)
+  values (p_module, btrim(p_product_name), p_description, 'draft', v_settings, p_owner_id, v_client_id)
   returning id into v_project_id;
 
   return jsonb_build_object('project_id', v_project_id, 'lead_id', v_lead_id,
