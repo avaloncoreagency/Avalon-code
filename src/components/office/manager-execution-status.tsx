@@ -52,12 +52,12 @@ export function ManagerExecutionStatus({ lang }: { lang: string }) {
       </div>
     </div>
     <p style={{ fontSize: ".82rem", opacity: .8 }}>
-      {en ? "Only actual stored work is displayed; no green status from a scheduler toggle."
-        : "Solo se muestra trabajo realmente registrado; no se simula presencia por un interruptor activado."}
+      {en ? "Verified GitHub checks only: PRs, tests and CI. These are not autonomous AI coding sessions."
+        : "Verificaciones reales de GitHub: PRs, pruebas y CI. No son sesiones autónomas de programación con IA."}
     </p>
     {unavailable && <p role="status">{en
-      ? "No verifiable worker history. Staging migration or worker may not be configured."
-      : "Sin historial verificable. Puede faltar la migración o la conexión del ejecutor."}</p>}
+      ? "No verified free GitHub Actions report. The hourly worker may not have run yet."
+      : "Sin reporte horario gratuito verificable. El workflow de GitHub puede no haberse ejecutado todavía."}</p>}
     <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(120px,1fr))", gap: 9 }}>
       {codes.map(code => {
         const run = history?.last?.[code];
