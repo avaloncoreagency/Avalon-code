@@ -31,8 +31,8 @@ revoke all on function os_private.is_creative_machine() from public, anon, authe
 grant execute on function os_private.is_creative_machine() to authenticated;
 
 -- Existing CRM triggers require an owner on every write. Preserve that
--- behavior except for allowlisted crm_leads INSERTs within the RPC.
--- Direct machine inserts remain blocked by unchanged owner-only RLS.
+-- behavior except for an allowlisted lead INSERT and its automatic system
+-- follow-up activity INSERT. Direct machine writes remain blocked by RLS.
 -- Audit actors remain the actual machine UUID; no owner session is forged.
 create or replace function crm_private.stamp() returns trigger
 -- Preserve SECURITY INVOKER for the global trigger; only the
@@ -41,15 +41,17 @@ language plpgsql security invoker set search_path = '' as $creative_stamp$
 declare v_approved_machine boolean;
 begin
   if not crm_private.is_owner() then
-    select (
-      TG_TABLE_NAME = 'crm_leads' and TG_OP = 'INSERT'
-      and os_private.is_creative_machine()
-    ) into v_approved_machine;
+    v_approved_machine := false;
+    if TG_OP = 'INSERT' and TG_TABLE_NAME = 'crm_leads' then
+      v_approved_machine := os_private.is_creative_machine();
+    elsif TG_OP = 'INSERT' and TG_TABLE_NAME = 'crm_activities' then
+      -- The existing CRM stage_followup trigger writes a system activity when
+      -- a lead enters the New stage. Preserve that built-in automation.
+      v_approved_machine := new.kind = 'system' and new.lead_id is not null
+        and os_private.is_creative_machine();
+    end if;
     if not coalesce(v_approved_machine, false) then
-      raise exception 'Creative CRM stamp forbidden (is_lead=%,is_insert=%,actor_present=%,allowlisted=%)',
-        TG_TABLE_NAME = 'crm_leads', TG_OP = 'INSERT',
-        auth.uid() is not null, os_private.is_creative_machine()
-        using errcode = '42501';
+      raise exception 'Creative CRM stamp forbidden' using errcode = '42501';
     end if;
   end if;
   if TG_OP = 'INSERT' then
@@ -86,15 +88,23 @@ $creative_stamp$;
 create or replace function crm_private.audit() returns trigger
 language plpgsql security definer set search_path = '' as $creative_audit$
 begin
-  if auth.uid() is null or not (
-    exists (select 1 from public.agency_memberships
-      where user_id = auth.uid() and role = 'owner')
-    or (
-      TG_TABLE_NAME = 'crm_leads' and TG_OP = 'INSERT'
-      and os_private.is_creative_machine()
-    )
-  ) then
+  if auth.uid() is null then
     raise exception 'Creative CRM audit forbidden' using errcode = '42501';
+  end if;
+  if not exists (select 1 from public.agency_memberships
+      where user_id = auth.uid() and role = 'owner') then
+    if TG_OP = 'INSERT' and TG_TABLE_NAME = 'crm_leads' then
+      if not os_private.is_creative_machine() then
+        raise exception 'Creative CRM audit forbidden' using errcode = '42501';
+      end if;
+    elsif TG_OP = 'INSERT' and TG_TABLE_NAME = 'crm_activities' then
+      if new.kind <> 'system' or new.lead_id is null
+        or not os_private.is_creative_machine() then
+        raise exception 'Creative CRM audit forbidden' using errcode = '42501';
+      end if;
+    else
+      raise exception 'Creative CRM audit forbidden' using errcode = '42501';
+    end if;
   end if;
   insert into public.crm_audit(entity, record_id, actor_id, operation, before_data, after_data)
   values (TG_TABLE_NAME, new.id, auth.uid(), TG_OP,
