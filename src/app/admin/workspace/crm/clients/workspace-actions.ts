@@ -47,7 +47,7 @@ export async function createClientJournalEntry(form: FormData) {
   const path = clientPath(id);
   const kind = field(form, "kind");
   const title = clean(form, "title", 160);
-  const body = clean(form, "body", 4000);
+  const body = clean(form, "journal_body", 4000);
   if (!TYPES.has(kind) || !title || !body) back(path, { error: "workspace_invalid" });
   const result = await supabase.from("crm_client_journal")
     .insert({ client_id: id, kind, title, body }).select("id").maybeSingle();
@@ -64,7 +64,7 @@ export async function reviseClientJournalEntry(form: FormData) {
   const path = clientPath(clientId);
   const kind = field(form, "kind");
   const title = clean(form, "title", 160);
-  const body = clean(form, "body", 4000);
+  const body = clean(form, "journal_body", 4000);
   const version = field(form, "version");
   if (!TYPES.has(kind) || !title || !body || !validVersion(version)) back(path, { error: "workspace_invalid" });
   const result = await supabase.from("crm_client_journal")
