@@ -41,6 +41,12 @@ export class Api {
 type Row=Record<string,unknown>;
 const row=(v:unknown):Row => v && typeof v==='object' ? v as Row : {};
 const str=(v:unknown) => typeof v==='string'?v:'';
+/** Multiple Issue references must not silently collapse to the first owner. */
+export function issueRefsFromBody(body:string):number[]{
+ const phrases=[...body.matchAll(/(?:close[sd]?|fix(?:e[sd])?|resolve[sd]?|refs?)\\s+#\\d+(?:\\s*(?:,|and|&)\\s*#\\d+)*/gi)];
+ return [...new Set(phrases.flatMap(m=>[...m[0].matchAll(/#(\\d+)/g)].map(id=>Number(id[1]))))]
+   .filter(n=>Number.isSafeInteger(n)&&n>0).slice(0,8);
+}
 export async function github(config:Config, since?:string, previous?:Github, api=new Api('https://api.github.com',config.githubToken??'')):Promise<Github> {
   if(!config.githubToken)throw Error('GitHub connection unavailable');
   if(!/^[\w.-]+\/[\w.-]+$/.test(config.repo))throw Error('Invalid repository');
@@ -92,7 +98,7 @@ export async function github(config:Config, since?:string, previous?:Github, api
     const ci=!Number.isFinite(total)||total>100||!runs.length?'UNKNOWN'
       :runs.some(r=>['failure','cancelled','timed_out','action_required'].includes(str(r.conclusion)))?'FAILED'
       :runs.every(r=>['success','skipped','neutral'].includes(str(r.conclusion)))?'PASSED':'PENDING';
-    return {number:n,title:redact(str(detail.title)),branch:str(head.ref),base_branch:str(baseRef.ref),base_sha:str(baseRef.sha),head_sha:sha,url:str(detail.html_url),files:files.map(f=>str(f.filename)),ci,reviews:reviews.map(r=>str(r.state)),conflict:typeof detail.mergeable==='boolean' ? !detail.mergeable : null,behind:Number(row(comparison).ahead_by??0),issues:[...str(detail.body).matchAll(/(?:close[sd]?|fix(?:e[sd])?|resolve[sd]?|refs?)\s+#(\d+)/gi)].map(m=>Number(m[1])),updated_at:str(detail.updated_at)};
+    return {number:n,title:redact(str(detail.title)),branch:str(head.ref),base_branch:str(baseRef.ref),base_sha:str(baseRef.sha),head_sha:sha,url:str(detail.html_url),files:files.map(f=>str(f.filename)),ci,reviews:reviews.map(r=>str(r.state)),conflict:typeof detail.mergeable==='boolean' ? !detail.mergeable : null,behind:Number(row(comparison).ahead_by??0),issues:issueRefsFromBody(str(detail.body)),updated_at:str(detail.updated_at)};
   };
   for(let index=0;index<prs.length;index+=5) {
     const batch=await Promise.all(prs.slice(index,index+5).map(p=>inspectPull(p)));
