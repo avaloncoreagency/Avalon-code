@@ -21,14 +21,14 @@ export async function GET(request: NextRequest) {
   const area = parseRadarArea(request.nextUrl.searchParams, endpoint.licensed);
   if ("error" in area) return reply({ error: area.error }, 400);
   const now = Date.now();
-  if (active || (!endpoint.licensed && now - (lastByOwner.get(session.userId) ?? 0) < 30_000)) {
-    return reply({ error: "El radar espera 30 s entre búsquedas para respetar el servidor de datos abiertos." }, 429);
+  if (active || now - (lastByOwner.get(session.userId) ?? 0) < 30_000) {
+    return reply({ error: "Espera 30 segundos entre búsquedas para proteger la cuota del proveedor." }, 429);
   }
   active = true;
   lastByOwner.set(session.userId, now);
   try {
     const out = await searchAndIngest(session.supabase, area, "manual:" + randomUUID());
     if (!out.ok) return reply({ error: out.error, blocked: out.blocked }, out.status);
-    return reply({ run: out.run, area, source: "OpenStreetMap (ODbL)", searchedAt: new Date().toISOString() });
+    return reply({ run: out.run, area, source: endpoint.kind === "geoapify" ? "Geoapify · OpenStreetMap (ODbL)" : "OpenStreetMap (ODbL)", capped: endpoint.kind === "geoapify" ? "Máximo 40 negocios por consulta; búsqueda no exhaustiva." : undefined, searchedAt: new Date().toISOString() });
   } finally { active = false; }
 }
