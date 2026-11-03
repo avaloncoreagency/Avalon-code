@@ -1,54 +1,53 @@
-name: Avalon Office managers - staging only
+name: Avalon Office managers - isolated staging
 
 on:
-  # Scheduled workflows run only from the default branch after an approved merge.
-  # This does NOT activate on a draft PR. GitHub may delay scheduled runs.
+  # Scheduled runs happen only from the default branch after an approved merge.
+  # GitHub may delay a scheduled run; this is never a guaranteed 24/7 process.
   schedule:
     - cron: "7 * * * *"
   workflow_dispatch:
     inputs:
       manager:
-        description: "Staging manager job"
+        description: "Choose a staging manager diagnostic"
         required: true
         type: choice
         default: all
-        options:
-          - all
-          - ren
-          - shin
-          - haru
-          - sora
-          - kenji
+        options: [all, ren, shin, haru, sora, kenji]
 
 permissions:
   contents: read
 
 concurrency:
-  group: avalon-office-manager-staging
+  group: avalon-office-staging-managers
   cancel-in-progress: false
 
 jobs:
-  staged-work:
-    name: Execute five bounded jobs against isolated Preview
+  diagnostics:
+    name: Five bounded checks in isolated Supabase staging
     runs-on: ubuntu-latest
-    timeout-minutes: 7
-    # This environment must be separately approved and provisioned by the owner.
+    timeout-minutes: 9
     environment: avalon-staging-managers
     env:
-      AVALON_MANAGER_PREVIEW_URL: ${{ secrets.AVALON_MANAGER_PREVIEW_URL }}
-      AVALON_MANAGER_WORKER_TOKEN: ${{ secrets.AVALON_MANAGER_WORKER_TOKEN }}
-      VERCEL_AUTOMATION_BYPASS_SECRET: ${{ secrets.VERCEL_AUTOMATION_BYPASS_SECRET }}
+      AVALON_STAGING_SUPABASE_URL: ${{ secrets.AVALON_STAGING_SUPABASE_URL }}
+      AVALON_MANAGER_STAGING_SUPABASE_REF: ${{ vars.AVALON_MANAGER_STAGING_SUPABASE_REF }}
+      AVALON_STAGING_SERVICE_ROLE_KEY: ${{ secrets.AVALON_STAGING_SERVICE_ROLE_KEY }}
       MANAGER_CHOICE: ${{ inputs.manager || 'all' }}
     steps:
       - uses: actions/checkout@v4
-      - name: Confirm runner contract without external calls
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+      - name: Install pinned tools
+        run: npm ci --no-audit --no-fund --ignore-scripts
+      - name: Exercise worker with synthetic fixtures (zero network)
         run: node --test tests/office-manager-runner.test.cjs
-      - name: Execute staged managers (read-only jobs)
+      - name: Execute owner-reviewed read-only checks in staging
         shell: bash
         run: |
           set -euo pipefail
-          if [ -z "$AVALON_MANAGER_PREVIEW_URL" ] || [ -z "$AVALON_MANAGER_WORKER_TOKEN" ]; then
-            echo "Staging runner not provisioned. No production fallback."
+          if [ -z "$AVALON_STAGING_SUPABASE_URL" ] || [ -z "$AVALON_STAGING_SERVICE_ROLE_KEY" ] || [ -z "$AVALON_MANAGER_STAGING_SUPABASE_REF" ]; then
+            echo "Isolated staging credentials are not configured. No production fallback."
             exit 1
           fi
           node scripts/office-manager-staging-poll.cjs
