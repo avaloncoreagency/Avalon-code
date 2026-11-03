@@ -107,9 +107,6 @@ export async function GET(request: NextRequest) {
   } else members = (directory.data ?? []) as Member[];
   if (directory.error) return reply({ error: "No se pudo cargar el directorio." }, 503);
 
-  const scheduleBy = new Map((availability.data ?? []).map(a => [a.user_id, { timezone:a.timezone, weekly_hours:a.weekly_hours }]));
-  const absentBy = new Map<string, { starts_on:string; ends_on:string; reason:string }[]>();
-  for (const entry of timeOff.data ?? []) absentBy.set(entry.user_id,[...(absentBy.get(entry.user_id) ?? []),entry]);
   const now = Date.now();
   const [tasks, projects, timeline, unread, pendingRequests, availability, timeOff] = await Promise.all([
     db.from("crm_tasks").select("assignee_id,status,due_at,completed_at,created_at,project_id").limit(5000),
@@ -120,6 +117,9 @@ export async function GET(request: NextRequest) {
     db.from("office_availability").select("user_id,timezone,weekly_hours").limit(100),
     db.from("office_time_off").select("user_id,starts_on,ends_on,reason").gte("ends_on",new Date().toISOString().slice(0,10)).order("starts_on").limit(100),
   ]);
+  const scheduleBy = new Map((availability.data ?? []).map(a => [a.user_id, { timezone:a.timezone, weekly_hours:a.weekly_hours }]));
+  const absentBy = new Map<string, { starts_on:string; ends_on:string; reason:string }[]>();
+  for (const entry of timeOff.data ?? []) absentBy.set(entry.user_id,[...(absentBy.get(entry.user_id) ?? []),entry]);
   const taskRows = (tasks.data ?? []) as TaskLite[];
   const lastActivity: Record<string, string> = {};
   const recentAll = await db.from("crm_timeline").select("actor_id,created_at").in("actor_id", members.map(m => m.user_id)).order("created_at", { ascending: false }).limit(500);
