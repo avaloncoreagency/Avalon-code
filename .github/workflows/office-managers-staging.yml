@@ -1,10 +1,7 @@
 name: Avalon Office managers - isolated staging
 
 on:
-  # Scheduled runs happen only from the default branch after an approved merge.
-  # GitHub may delay a scheduled run; this is never a guaranteed 24/7 process.
-  schedule:
-    - cron: "7 * * * *"
+  # Manual-only contingency. The default zero-cost runner is office-managers-free.yml.
   workflow_dispatch:
     inputs:
       manager:
