@@ -62,6 +62,7 @@ export async function POST(request: NextRequest) {
   // A dedicated non-owner Supabase Auth user (server-side credential only) is
   // allowlisted by a narrowly scoped RPC. No privileged database API key.
   // HMAC keys held by Codex/Claude cannot read CRM data or sign in as the machine.
+  try {
   const supabase = createClient(supabaseUrl, publishableKey, {
     auth: { persistSession: false, autoRefreshToken: false, detectSessionInUrl: false },
   });
@@ -83,6 +84,7 @@ export async function POST(request: NextRequest) {
   });
   if (error) {
     if (error.code === "22023" || error.code === "23505") return reply({ error: "conflict_or_ambiguous_company" }, 409);
+    if (error.code === "54000") return reply({ error: "bridge_daily_limit" }, 429);
     return reply({ error: "bridge_storage_unavailable" }, 503);
   }
   if (!data || typeof data !== "object" || !UUID.test(data.project_id) || !UUID.test(data.lead_id))
@@ -100,4 +102,8 @@ export async function POST(request: NextRequest) {
     product_path: "/admin/workspace/products/" + data.project_id,
     company_path: "/admin/workspace/clients/" + data.lead_id,
   }, data.created === true ? 201 : 200);
+  } catch {
+    // Network, Auth and database errors return no diagnostic data to callers.
+    return reply({ error: "bridge_storage_unavailable" }, 503);
+  }
 }
