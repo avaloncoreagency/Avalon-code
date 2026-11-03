@@ -121,7 +121,7 @@ export async function GET(request: NextRequest) {
       .eq("status", "scheduled").lte("starts_at",new Date(now).toISOString()).gt("ends_at",new Date(now).toISOString()).limit(300),
   ]);
   const scheduleBy = new Map((availability.data ?? []).map(a => [a.user_id, { user_id:a.user_id, timezone:a.timezone, weekly_hours:a.weekly_hours }]));
-  const absentBy = new Map<string, { starts_on:string; ends_on:string; reason:string }[]>();
+  const absentBy = new Map<string, { user_id:string; starts_on:string; ends_on:string; reason:string }[]>();
   for (const entry of timeOff.data ?? []) absentBy.set(entry.user_id,[...(absentBy.get(entry.user_id) ?? []),entry]);
   const calendarEvents = (busyCalendar.data ?? []) as StaffCalendarEvent[];
   const presenceUnavailable = !!(availability.error || timeOff.error || busyCalendar.error);
