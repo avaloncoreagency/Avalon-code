@@ -13,7 +13,7 @@ create table public.office_availability (
   check (jsonb_typeof(weekly_hours) = 'object' and pg_column_size(weekly_hours) <= 2048)
 );
 alter table public.office_availability enable row level security;
-revoke all on public.office_availability from public, anon, authenticated;
+revoke all on public.office_availability from anon, authenticated, public;
 grant select on public.office_availability to authenticated;
 grant insert (user_id,timezone,weekly_hours,quiet_start,quiet_end) on public.office_availability to authenticated;
 grant update (timezone,weekly_hours,quiet_start,quiet_end) on public.office_availability to authenticated;
@@ -62,7 +62,7 @@ create table public.office_time_off (
 );
 create index office_time_off_person on public.office_time_off(user_id,starts_on,ends_on);
 alter table public.office_time_off enable row level security;
-revoke all on public.office_time_off from public,anon,authenticated;
+revoke all on public.office_time_off from anon, authenticated, public;
 grant select on public.office_time_off to authenticated;
 grant insert(user_id,starts_on,ends_on,reason) on public.office_time_off to authenticated;
 grant delete on public.office_time_off to authenticated;
