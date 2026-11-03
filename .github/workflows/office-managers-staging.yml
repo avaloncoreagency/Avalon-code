@@ -1,0 +1,54 @@
+name: Avalon Office managers - staging only
+
+on:
+  # Scheduled workflows run only from the default branch after an approved merge.
+  # This does NOT activate on a draft PR. GitHub may delay scheduled runs.
+  schedule:
+    - cron: "7 * * * *"
+  workflow_dispatch:
+    inputs:
+      manager:
+        description: "Staging manager job"
+        required: true
+        type: choice
+        default: all
+        options:
+          - all
+          - ren
+          - shin
+          - haru
+          - sora
+          - kenji
+
+permissions:
+  contents: read
+
+concurrency:
+  group: avalon-office-manager-staging
+  cancel-in-progress: false
+
+jobs:
+  staged-work:
+    name: Execute five bounded jobs against isolated Preview
+    runs-on: ubuntu-latest
+    timeout-minutes: 7
+    # This environment must be separately approved and provisioned by the owner.
+    environment: avalon-staging-managers
+    env:
+      AVALON_MANAGER_PREVIEW_URL: ${{ secrets.AVALON_MANAGER_PREVIEW_URL }}
+      AVALON_MANAGER_WORKER_TOKEN: ${{ secrets.AVALON_MANAGER_WORKER_TOKEN }}
+      VERCEL_AUTOMATION_BYPASS_SECRET: ${{ secrets.VERCEL_AUTOMATION_BYPASS_SECRET }}
+      MANAGER_CHOICE: ${{ inputs.manager || 'all' }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Confirm runner contract without external calls
+        run: node --test tests/office-manager-runner.test.cjs
+      - name: Execute staged managers (read-only jobs)
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [ -z "$AVALON_MANAGER_PREVIEW_URL" ] || [ -z "$AVALON_MANAGER_WORKER_TOKEN" ]; then
+            echo "Staging runner not provisioned. No production fallback."
+            exit 1
+          fi
+          node scripts/office-manager-staging-poll.cjs
