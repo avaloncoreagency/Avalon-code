@@ -591,6 +591,17 @@ test('Nova Restaurant through the real app: one form, three departments, no dupl
   assert.equal(Number((await one("select count(*) n from crm_leads where company='Visitante Sintético LLC'")).n), 0);
   await pub.goto(origin + '/?lang=en');
   await pub.getByRole('heading', { name: 'Technology that grows your business.' }).waitFor();
+  assert.match(await pub.title(), /AI, websites, CRM and automation/, 'English page has an English title');
+  assert.equal(await pub.locator('link[rel="canonical"]').count(), 0, 'no canonical that would mark the English page as a duplicate of the Spanish one');
+  // Search-engine surface: robots.txt keeps the private OS out, sitemap lists only public pages.
+  const robotsTxt = await (await fetch(origin + '/robots.txt')).text();
+  assert.match(robotsTxt, /Disallow: \/admin/);
+  assert.match(robotsTxt, /Disallow: \/api/);
+  assert.match(robotsTxt, /Sitemap: https:\/\/avaloncoreagency\.com\/sitemap\.xml/);
+  const sitemapXml = await (await fetch(origin + '/sitemap.xml')).text();
+  assert.match(sitemapXml, /<loc>https:\/\/avaloncoreagency\.com\/<\/loc>/);
+  assert.match(sitemapXml, /hreflang="en" href="https:\/\/avaloncoreagency\.com\/\?lang=en"/, 'hreflang declared in the sitemap with full URLs');
+  assert.doesNotMatch(sitemapXml, /admin|login/);
   await visitor.close();
 
   assert.deepEqual(errors.filter(e => e.startsWith('pageerror')), [], 'no client-side errors');

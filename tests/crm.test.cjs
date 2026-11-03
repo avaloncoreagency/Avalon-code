@@ -4,6 +4,15 @@ const fs = require("node:fs");
 const ts = require("typescript");
 const vm = require("node:vm");
 const moduleObject = { exports: {} };
+// domain.ts imports its sibling "./usage-units"; this harness evaluates TypeScript in isolation, so resolve it here.
+const unitsModule = { exports: {} };
+vm.runInNewContext(
+  ts.transpileModule(fs.readFileSync("src/lib/crm/usage-units.ts", "utf8"), {
+    compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 },
+  }).outputText,
+  { exports: unitsModule.exports, module: unitsModule, String },
+);
+const localRequire = (name) => (name === "./usage-units" ? unitsModule.exports : require(name));
 vm.runInNewContext(
   ts.transpileModule(fs.readFileSync("src/lib/crm/domain.ts", "utf8"), {
     compilerOptions: {
@@ -14,7 +23,7 @@ vm.runInNewContext(
   {
     exports: moduleObject.exports,
     module: moduleObject,
-    require,
+    require: localRequire,
     Intl,
     Date,
     Set,
@@ -154,4 +163,11 @@ test("CRM home uses the overview instead of disguising Leads as the landing page
   assert.match(overview, /Urgentes/);
   assert.match(overview, /Normales/);
   assert.match(overview, /no están conectadas/);
+});
+
+test("usage records are saved with a canonical unit (no parallel 'credits'/'créditos' series)", () => {
+  const base = { provider: "Higgsfield", amount: 120, period_start: "2026-11-01T00:00:00Z", period_end: "2026-12-01T00:00:00Z", source: "Panel oficial (manual)" };
+  assert.equal(validate("usage", { ...base, unit: "credits" }).unit, "créditos");
+  assert.equal(validate("usage", { ...base, unit: "Créditos" }).unit, "créditos");
+  assert.equal(validate("usage", { ...base, unit: "horas de GPU" }).unit, "horas de GPU");
 });
