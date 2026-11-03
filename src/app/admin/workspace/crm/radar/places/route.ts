@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getOwnerSession } from "@/lib/auth/session";
 import { isValidRadarEmail } from "@/lib/crm/radar";
+import { qualifyRadarProspect } from "@/lib/crm/radar-qualification";
 
 export const dynamic = "force-dynamic";
 const reply = (data: unknown, status = 200) => NextResponse.json(data, { status, headers: { "Cache-Control": "private, no-store" } });
@@ -39,7 +40,7 @@ export async function GET(request: NextRequest) {
   return reply({ places: data, count });
 }
 
-/** Human actions on a found business. Approval and pipeline transfer are explicit, separate steps. */
+/** Owner-only actions; a confirmed score creates the pipeline lead in one action. */
 export async function POST(request: NextRequest) {
   const session = await getOwnerSession();
   if (!session) return reply({ error: "No autorizado" }, 403);
@@ -50,6 +51,16 @@ export async function POST(request: NextRequest) {
   const id = String(body.id ?? "");
   if (!UUID.test(id)) return reply({ error: "Negocio inválido" }, 400);
   const db = session.supabase;
+  const qualifiedReply = async () => {
+    const result = await qualifyRadarProspect(db, id);
+    if (result.kind === "pipeline")
+      return reply({ ok: true, qualified: true, stars: result.stars,
+        lead_id: result.leadId, created: result.created, link_warning: result.linkWarning });
+    if (result.kind === "unrated")
+      return reply({ error: "Sin calificar: verifica al menos una necesidad real o registra un ajuste manual justificado antes de crear un lead.", code: "unrated" }, 422);
+    if (result.kind === "blocked") return reply({ error: result.message }, result.status);
+    return reply({ error: result.message, code: result.code, saved: true }, result.status);
+  };
   const fail = (e: { code?: string; message?: string } | null, fallback = "No se pudo guardar.") => reply({ error:
     e?.message?.includes("radar_do_not_contact") ? "Marcado como No contactar: no puede aprobarse." :
     e?.message?.includes("aprueba") ? "Aprueba el prospecto antes de pasarlo al pipeline." :
@@ -61,15 +72,31 @@ export async function POST(request: NextRequest) {
       const conf = ["low", "medium", "high"].includes(String(body.confidence)) ? String(body.confidence) : "medium";
       const row = { prospect_id: id, service, state, method: ["unverified", "not_applicable"].includes(state) ? (method || "") : method, evidence_url: evidence, note: String(body.note ?? "").slice(0, 2000), confidence: conf, verified_at: state === "unverified" ? null : new Date().toISOString() };
       const existing = await db.from("crm_prospect_needs").select("id").eq("prospect_id", id).eq("service", service).maybeSingle();
+      if (existing.error) return fail(existing.error);
       const { error } = existing.data ? await db.from("crm_prospect_needs").update(row).eq("id", existing.data.id) : await db.from("crm_prospect_needs").insert(row);
-      return error ? fail(error) : reply({ ok: true });
+      if (error) return fail(error);
+      // Database trigger recalculates evidence-based stars; evidence entry alone
+      // never finalizes a partially investigated business.
+      const { data: score } = await db.from("crm_prospects").select("stars,stars_override").eq("id", id).maybeSingle();
+      return reply({ ok: true, qualified: (score?.stars_override ?? score?.stars) != null,
+        stars: score?.stars_override ?? score?.stars ?? null });
     }
     case "override": {
       const stars = body.stars === null ? null : Number(body.stars);
       if (stars !== null && !(Number.isInteger(stars) && stars >= 1 && stars <= 5)) return reply({ error: "Estrellas inválidas" }, 400);
-      const { error } = await db.from("crm_prospects").update({ stars_override: stars, override_reason: String(body.reason ?? "").slice(0, 1000) }).eq("id", id);
-      return error ? fail(error) : reply({ ok: true });
+      const reason = String(body.reason ?? "").trim().slice(0, 1000);
+      if (stars !== null && reason.length < 10)
+        return reply({ error: "Explica la calificación en al menos 10 caracteres; no asignes estrellas sin fundamento." }, 400);
+      const { error } = await db.from("crm_prospects").update({ stars_override: stars, override_reason: reason }).eq("id", id);
+      if (error) return fail(error);
+      // A saved manual rating is the owner's explicit qualification decision:
+      // immediately create (or reuse) the CRM lead; no separate approval click.
+      if (stars !== null) return qualifiedReply();
+      return reply({ ok: true, qualified: false });
     }
+    case "qualify":
+      // Confirm the computed evidence-based tier and create its pipeline card.
+      return qualifiedReply();
     case "contact": {
       const email = String(body.email ?? "").trim().toLowerCase();
       if (email && !isValidRadarEmail(email)) return reply({ error: "Correo inválido" }, 400);
