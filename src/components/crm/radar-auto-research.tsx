@@ -97,7 +97,11 @@ export function RadarAutoResearch({ revision, onChanged }: {
           }
           if (!madeProgress) break;
         }
-        if (!cancelled) setState("done");
+        if (!cancelled) {
+          setState(attempts >= 12 ? "limited" : "done");
+          if (attempts >= 12)
+            setDetail("Se completó el máximo de 12 investigaciones de esta sesión. Los negocios pendientes siguen seguros.");
+        }
       } catch (cause) {
         if (cancelled || controller.signal.aborted) return;
         setState("unavailable");
