@@ -29,7 +29,7 @@ export type ResearchReport = {
   unverified: string[];
   suggested_needs: Array<{
     service: "website" | "ecommerce";
-    state: "verified_present";
+    state: "verified_present" | "opportunity_to_improve";
     method: "website_review";
     evidence_url: string;
     confidence: "medium" | "high";
@@ -188,12 +188,30 @@ export function analyzeWebsitePages(company: string, input: FetchedPage[], check
       warnings.push("Cobertura limitada: se consultaron " + successful.length + " páginas HTML.");
   }
   const suggestedNeeds: ResearchReport["suggested_needs"] = [];
-  if (identity && successful.length) suggestedNeeds.push({
-    service: "website", state: "verified_present", method: "website_review",
-    evidence_url: successful[0].url, confidence: "medium",
-    note: "Web oficial accesible por HTTPS y nombre comercial concordante en título/encabezado; " +
-      "verificación automática " + checkedAt.slice(0, 10) + ". No implica ausencia de otras necesidades.",
-  });
+  if (identity && successful.length) {
+    // Two directly observable technical omissions on a linked official website
+    // can justify a small, tentative optimization opportunity. One missing
+    // tag alone is not sufficient; no hidden sales/marketing tools are inferred.
+    const absent = signals.filter(x =>
+      ["seo_title", "seo_meta_description", "mobile_viewport"].includes(x.code) &&
+      x.outcome === "not_observed");
+    const twoPagesChecked = successful.length >= 2;
+    const improvement = twoPagesChecked && absent.length >= 2;
+    suggestedNeeds.push({
+      service: "website",
+      state: improvement ? "opportunity_to_improve" : "verified_present",
+      method: "website_review",
+      evidence_url: successful[0].url,
+      confidence: "medium",
+      note: improvement
+        ? "Auditoría automática " + checkedAt.slice(0, 10) +
+          ": sitio oficial confirmado y dos o más señales técnicas verificadas ("
+          + absent.map(x => x.label).join(", ") +
+          "). Oportunidad acotada de optimización web; no demuestra intención de compra ni necesidad de rediseño."
+        : "Web oficial accesible por HTTPS y nombre comercial concordante en título/encabezado; " +
+          "verificación automática " + checkedAt.slice(0, 10) + ". No implica ausencia de otras necesidades.",
+    });
+  }
   const partial = successful.length < 2 || input.some(p => p.status !== 200) || warnings.length > 0;
   return {
     status: successful.length ? partial ? "limited" : "complete" : "limited",

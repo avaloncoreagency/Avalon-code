@@ -99,6 +99,48 @@ test("missing title/website, errors and limited pages never invent a missing ser
   assert.equal(unreachable.signals[0].outcome, "unknown");
 });
 
+test("only two verified technical defects on a matching official site suggest a small improvement", () => {
+  const partial = "<html><head><title>Blue Harbor Dental - Miami</title></head>" +
+    "<body><h1>Blue Harbor Dental</h1><a href='/services'>Services</a></body></html>";
+  const report = parser.analyzeWebsitePages("Blue Harbor Dental", [
+    fetched(partial), fetched("<title>Services</title>", official + "/services"),
+  ], "2026-11-03T19:00:00.000Z");
+  assert.equal(report.identity_matched, true);
+  assert.equal(report.suggested_needs.length, 1);
+  assert.equal(report.suggested_needs[0].service, "website");
+  assert.equal(report.suggested_needs[0].state, "opportunity_to_improve");
+  assert.match(report.suggested_needs[0].note, /dos o más señales técnicas/);
+  assert.equal(report.suggested_needs[0].confidence, "medium");
+  assert.ok(report.signals.some(s => s.code === "seo_meta_description" && s.outcome === "not_observed"));
+  assert.ok(report.signals.some(s => s.code === "mobile_viewport" && s.outcome === "not_observed"));
+  assert.ok(!report.suggested_needs.some(x => ["crm", "receptionist", "marketing"].includes(x.service)));
+  const single = parser.analyzeWebsitePages("Blue Harbor Dental", [
+    fetched(partial.replace("<title>Blue Harbor Dental - Miami</title>",
+      "<title>Blue Harbor Dental - Miami</title><meta name='viewport' content='width=device-width'>")),
+    fetched("<title>Services</title>", official + "/services"),
+  ], "2026-11-03T19:00:00.000Z");
+  assert.equal(single.suggested_needs[0].state, "verified_present", "one missing meta tag is not enough");
+});
+
+test("autonomous radar queue requires owner, obeys daily limits and does not auto-convert", () => {
+  const route = fs.readFileSync("src/app/admin/workspace/crm/radar/research/route.ts", "utf8");
+  const worker = fs.readFileSync("src/components/crm/radar-auto-research.tsx", "utf8");
+  const migration = fs.readFileSync("supabase/migrations/20261103195650_radar_auto_technical_opportunity_tier.sql", "utf8");
+  assert.match(route, /request.nextUrl.searchParams.get\("queue"\) === "1"/);
+  assert.match(route, /const session = await getOwnerSession\(\)/);
+  assert.match(route, /const AUTO_BATCH_MAX = 3/);
+  assert.match(route, /const MAX_DAILY_PER_OWNER = 12/);
+  assert.match(route, /do_not_contact/);
+  assert.match(route, /AUTO_RESEARCH_REFRESH_MS/);
+  assert.match(route, /payload.automated === true/);
+  assert.match(worker, /fetch\("\/admin\/workspace\/crm\/radar\/research\?queue=1"/);
+  assert.match(worker, /automated: true/);
+  assert.match(worker, /setRated/);
+  assert.match(worker, /new AbortController\(\)/);
+  assert.doesNotMatch(worker, /crm_convert_prospect|qualifyRadarProspect|op: "pipeline"/);
+  assert.match(migration, /assessed < 2 and missing = 0 and improve = 0/);
+});
+
 test("server workflow is owner gated, cached, limited and does not turn reports into pipeline leads", () => {
   const route = fs.readFileSync("src/app/admin/workspace/crm/radar/research/route.ts", "utf8");
   assert.match(route, /getOwnerSession/);

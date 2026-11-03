@@ -85,7 +85,7 @@ export function RadarResearchPanel({ prospectId, businessName, initialWebsite, o
         <div>
           <p className={s.eyebrow}>AVALON · RESEARCH</p>
           <h4 id="research-title">Investigación a fondo</h4>
-          <p>Inspección del sitio oficial de {businessName}. Hasta 3 páginas por ejecución, fuentes fechadas y sin IA de pago.</p>
+          <p>El radar examina automáticamente el sitio oficial de {businessName} mientras tu sesión esté activa. Aquí puedes consultar el informe o actualizarlo de forma opcional.</p>
         </div>
         <span className={s.budget}>12/día · 24 h de caché</span>
       </header>
@@ -97,7 +97,7 @@ export function RadarResearchPanel({ prospectId, businessName, initialWebsite, o
           aria-describedby="research-source-tip" />
         <button type="button" onClick={() => void research()} disabled={running || loading || !url.trim()}
           aria-busy={running}>
-          {running ? "Investigando sitio oficial…" : "Investigar a fondo"}
+          {running ? "Actualizando investigación…" : "Actualizar investigación (opcional)"}
         </button>
         <small id="research-source-tip">Si Geoapify no registró una web, puedes introducir una que hayas confirmado. Solo se visitan páginas HTTPS públicas permitidas por robots.txt.</small>
       </div>
@@ -142,7 +142,7 @@ export function RadarResearchPanel({ prospectId, businessName, initialWebsite, o
         </div>
         <p className={s.note}>Las observaciones técnicas no equivalen automáticamente a necesidades comerciales. Para asignar estrellas fiables, confirma las carencias en «Necesidades por servicio» usando fuentes y notas; el paso a pipeline sigue requiriendo calificación.</p>
       </div>}
-      {!loading && !report && !error && <p className={s.muted}>Aún no hay investigación registrada para este negocio. Puedes iniciarla manualmente.</p>}
+      {!loading && !report && !error && <p className={s.muted}>Aún no hay informe guardado. El radar lo investigará automáticamente si tiene una web pública verificable y queda presupuesto diario.</p>}
     </section>
   );
 }

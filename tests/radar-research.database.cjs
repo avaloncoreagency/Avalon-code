@@ -38,6 +38,24 @@ test("research report is append-only, owner-only and never converts unverified p
   assert.equal(await count("crm_radar_research_reports"), 1);
   assert.equal(await count("crm_leads"), 0);
   assert.equal((await db.query("select stars from crm_prospects where id=$1", [business.id])).rows[0].stars, null);
+  // The automatic scanner must not invent a need merely because a website
+  // exists. One verified narrow technical improvement may justify two stars,
+  // but never a 4-5 star major-opportunity label.
+  await db.query(
+    "insert into crm_prospect_needs(prospect_id, service, state, method, confidence, evidence_url, note) values($1,'website','verified_present','website_review','medium','https://example.org/','Web oficial verificada')",
+    [business.id],
+  );
+  assert.equal((await db.query("select stars from crm_prospects where id=$1", [business.id])).rows[0].stars,
+    null, "website merely present cannot create a sales rating");
+  await db.query(
+    "update crm_prospect_needs set state='opportunity_to_improve', note='Se comprobaron dos problemas técnicos visibles, no ausencia de CRM' where prospect_id=$1 and service='website'",
+    [business.id],
+  );
+  const scored = (await db.query("select stars,confidence from crm_prospects where id=$1", [business.id])).rows[0];
+  assert.equal(Number(scored.stars), 2, "one proven narrow optimization earns exactly two stars");
+  assert.equal(scored.confidence, "low", "a single website is low overall confidence");
+  assert.equal(await count("crm_leads"), 0, "auto research never pushes speculative cards to pipeline");
+
   await assert.rejects(db.query(
     "update crm_radar_research_reports set status='complete' where prospect_id=$1", [business.id]),
     /permission denied|policy|privilege/i, "research records are immutable without an owner-write endpoint");
