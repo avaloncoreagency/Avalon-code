@@ -17,7 +17,8 @@
     "bridge:resume": "node scripts/dev-bridge/cli.cjs resume",
     "bridge:doctor": "node scripts/dev-bridge/cli.cjs doctor",
     "bridge:report": "node scripts/dev-bridge/cli.cjs report",
-    "bridge:test": "node --test tests/dev-bridge/*.test.cjs"
+    "bridge:test": "node --test tests/dev-bridge/*.test.cjs",
+    "bridge:brief": "node scripts/dev-bridge/cli.cjs brief"
   },
   "dependencies": {
     "@supabase/ssr": "0.6.1",
