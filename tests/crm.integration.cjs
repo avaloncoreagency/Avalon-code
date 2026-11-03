@@ -35,6 +35,18 @@ test(
       ),
     );
     await db.exec(fs.readFileSync("supabase/migrations/20261102220000_shared_calendar.sql", "utf8"));
+    // CRM-core browser fixture keeps sales deliberately synthetic: the complete
+    // Sales migration/RLS is independently exercised in the sales database suite.
+    // Model just enough read-only owner-RLS sales for the calendar's customer picker
+    // to distinguish an empty sales list from a missing/inaccessible sales API.
+    await db.exec(`create table public.crm_sales (
+      id uuid primary key, client_id uuid not null, sale_number text not null,
+      sold_on date not null, status text not null, created_at timestamptz default now()
+    );
+    alter table public.crm_sales enable row level security;
+    create policy sales_fixture_owner_read on public.crm_sales for select to authenticated
+      using (exists (select 1 from public.agency_memberships where user_id = auth.uid() and role = 'owner'));
+    grant select on public.crm_sales to authenticated;`);
     // Titan Radar is a real CRM screen. The isolated browser fixture must
     // include its additive schema so it tests the same owner-only routes.
     await db.exec(
@@ -78,6 +90,7 @@ test(
       "crm_stages",
       "crm_leads",
       "crm_events",
+      "crm_sales",
       "crm_activities",
       "crm_prospects",
       "crm_usage",
