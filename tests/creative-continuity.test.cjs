@@ -41,3 +41,9 @@ test('advancing code invalidates old CI and rejects late resource events',()=>{
  const m=fixture(),next=c.advance(m,sha,'b'.repeat(40),'feature/resume','Run CI on new commit');assert.equal(next.ci,'UNKNOWN');assert.equal(next.head_sha,'b'.repeat(40));assert.equal(next.history[0].sha,sha);assert.throws(()=>c.advance(m,'c'.repeat(40),'b'.repeat(40),'feature/resume','Run CI'));
  assert.throws(()=>c.reconcile(next,{id:'late',source_sha:sha,kind:'checkpoint',agent:'codex',next_action:'Old result'}));
 });
+
+test('manifest retains PR, CI and deployment evidence without trusting unsafe or external task links',()=>{
+ const m=fixture();m.evidence={pull_request:'https://github.com/avaloncoreagency/Avalon-code/pull/112',ci_url:'https://github.com/avaloncoreagency/Avalon-code/actions/runs/123',preview_url:'https://synthetic.example.invalid/preview',production_url:null,observed_at:'2026-11-03T22:00:00Z'};assert.equal(c.manifest(m).evidence.pull_request,m.evidence.pull_request);
+ for(const link of ['https://user:secret@example.invalid','https://example.invalid/?token=private','javascript:alert(1)'])assert.throws(()=>c.manifest({...m,evidence:{preview_url:link}}));
+ assert.throws(()=>c.manifest({...m,evidence:{pull_request:'https://github.com/other/repo/pull/1'}}));
+});

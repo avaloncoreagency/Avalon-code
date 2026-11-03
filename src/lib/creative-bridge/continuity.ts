@@ -4,12 +4,14 @@ import schema from '../../../schemas/creative-bridge/manifest.schema.json';
 import {parseCreativeDelivery, type CreativeDelivery} from '../os/creative-bridge-protocol';
 export type Agent = 'codex'|'claude';
 export type Asset = {id:string;public_path?:string;kind:'image'|'video';alt:string; state:'pending'|'generating'|'ready'|'failed'|'cancelled'; job_ref:string|null; storage_ref:string|null; sha256:string|null; reduced_motion_ref:string|null};
-export type Manifest = {schema_version:1; task_id:string; project_ref:string; owner:'miguel'|'samuel'; agent:Agent; branch:string; head_sha:string; ci:'UNKNOWN'|'PENDING'|'PASSED'|'FAILED'; next_action:string; delivery:CreativeDelivery|null; assets:Asset[]; events:{id:string;digest:string}[]; receipt:{project_id:string;lead_id:string}|null; history:{sha:string;agent:Agent;action:string}[]};
+export type Evidence = {pull_request?:string|null;ci_url?:string|null;preview_url?:string|null;demo_url?:string|null;production_url?:string|null;observed_at?:string};
+export type Manifest = {evidence?:Evidence;schema_version:1; task_id:string; project_ref:string; owner:'miguel'|'samuel'; agent:Agent; branch:string; head_sha:string; ci:'UNKNOWN'|'PENDING'|'PASSED'|'FAILED'; next_action:string; delivery:CreativeDelivery|null; assets:Asset[]; events:{id:string;digest:string}[]; receipt:{project_id:string;lead_id:string}|null; history:{sha:string;agent:Agent;action:string}[]};
 const validate = new Ajv({allErrors:true}).compile(schema);
 export function manifest(input:unknown):Manifest {
   if(!validate(input))throw Error('Invalid private creative manifest');
   const value=JSON.parse(JSON.stringify(input)) as Manifest;
   if(value.delivery){value.delivery=parseCreativeDelivery(value.delivery);if(value.delivery.source_ref!==value.project_ref)throw Error('Project reference mismatch');}
+  for(const field of ['preview_url','demo_url','production_url'] as const){const link=value.evidence?.[field];if(link){const parsed=new URL(link);if(parsed.protocol!=='https:'||parsed.username||parsed.password||parsed.search||parsed.hash)throw Error('Unsafe evidence URL');}}
   if(!value.delivery && value.receipt)throw Error('Unassigned project cannot claim a receipt');
   if(new Set(value.assets.map(a=>a.id)).size!==value.assets.length || new Set(value.events.map(e=>e.id)).size!==value.events.length)throw Error('Duplicate identity');
   for(const asset of value.assets)if(asset.state==='ready'&&(!asset.sha256||!asset.storage_ref))throw Error('Ready asset requires durable storage and checksum');
