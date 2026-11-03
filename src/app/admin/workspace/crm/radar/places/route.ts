@@ -30,7 +30,9 @@ export async function GET(request: NextRequest) {
     default: q = q.eq("do_not_contact", false);
   }
   const minStars = Number(p.get("stars"));
-  if (Number.isInteger(minStars) && minStars >= 1 && minStars <= 5) q = q.gte("stars", minStars);
+  // Filter by the effective tier (manual override takes precedence over computed stars).
+  if (Number.isInteger(minStars) && minStars >= 1 && minStars <= 5)
+    q = q.or(`stars_override.gte.${minStars},and(stars_override.is.null,stars.gte.${minStars})`);
   const refs = (p.get("refs") ?? "").split(",").filter(r => /^[a-z0-9_]+:[A-Za-z0-9/_.:-]{1,120}$/.test(r)).slice(0, 200);
   if (refs.length) q = q.in("source_ref", refs);
   const bbox = (p.get("bbox") ?? "").split(",").map(Number);
