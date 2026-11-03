@@ -169,7 +169,8 @@ test('Nova Restaurant through the real app: one form, three departments, no dupl
   assert.ok(overflow <= 1, `no horizontal page scroll on mobile (overflow ${overflow}px)`);
 
   // Titan Radar: the external map provider is mocked (no internet in tests); ingest, needs,
-  // stars, approval and pipeline transfer run through the real routes and RLS-protected DB.
+  // automatic evidence-based stars, owner confirmation and one-click pipeline creation
+  // run through the real routes and RLS-protected DB.
   await db.exec('reset role;');
   await db.exec(`set request.jwt.claim.sub='${SAMUEL}'; set role authenticated;`);
   await db.query('select crm_radar_ingest($1::jsonb, $2)', [JSON.stringify([
@@ -197,13 +198,28 @@ test('Nova Restaurant through the real app: one form, three departments, no dupl
   assert.equal(Number((await db.query("select stars from crm_prospects where source_ref='osm:node/987654321'")).rows[0].stars), 4, 'four verified needs → 4 stars');
   assert.match(await sam.getByRole('dialog').innerText(), /★★★★☆ Oro/);
   await sam.screenshot({ path: EVIDENCE + '/radar-results-mobile.png', fullPage: true });
-  await sam.getByRole('button', { name: '✓ Aprobar' }).click();
-  await sam.getByText(/aprobado/).waitFor();
-  await sam.getByRole('button', { name: '→ Pasar al pipeline' }).click();
-  await sam.getByText(/está ahora en Leads Pipeline/).waitFor();
+  assert.equal(await count("select count(*) n from crm_leads where company='Radar Dental Sintético'"), 0,
+    'calculated score is a draft until the owner finishes research');
+  await sam.getByRole('button', { name: /Calificar y crear tarjeta en pipeline/ }).click();
+  await sam.getByRole('link', { name: 'Abrir tarjeta en pipeline' }).first().waitFor();
   assert.equal(await count("select count(*) n from crm_prospects where company='Radar Dental Sintético' and status='converted'"), 1);
   assert.equal(await count("select count(*) n from crm_leads where company='Radar Dental Sintético'"), 1);
-  assert.equal(await count("select count(*) n from crm_leads where company='Radar Café Sintético'"), 0, 'unapproved business never reaches the pipeline');
+  const dentalLead = await one("select id,stage_id,prospect_id from crm_leads where company='Radar Dental Sintético'");
+  assert.equal(dentalLead.stage_id, 'new', 'newly qualified business starts at Nuevo lead');
+  assert.ok(dentalLead.prospect_id, 'pipeline card retains a link to the rated radar business');
+
+  // Reopening the same lead does not create duplicates. A second unverified
+  // business stays out until Samuel explicitly qualifies it with a reason.
+  assert.equal(await count("select count(*) n from crm_leads where company='Radar Café Sintético'"), 0,
+    'discovery alone never adds a lead');
+  await sam.getByRole('button', { name: 'Abrir Radar Café Sintético' }).click();
+  await sam.getByLabel('Estrellas manuales').selectOption('2');
+  await sam.getByLabel('Motivo del ajuste').fill('Evaluación sintética verificada en llamada: oportunidad de mejorar atención');
+  await sam.getByRole('button', { name: 'Calificar manualmente y crear lead' }).click();
+  await sam.getByRole('link', { name: 'Abrir tarjeta en pipeline' }).first().waitFor();
+  assert.equal(await count("select count(*) n from crm_leads where company='Radar Café Sintético'"), 1,
+    'manual rating creates a pipeline card automatically');
+  assert.equal(Number((await one("select stars_override from crm_prospects where company='Radar Café Sintético'")).stars_override), 2);
   await sam.unroute('**/admin/workspace/crm/radar/area?*');
 
   // Mobile-first smoke test: every high-frequency Avalon route is usable on a phone.
