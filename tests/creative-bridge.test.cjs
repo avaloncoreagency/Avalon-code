@@ -98,6 +98,11 @@ test("database proposal restricts writes to a separately allowlisted machine ide
   assert.match(sql, /security definer set search_path =/);
   assert.match(sql, /v_machine_id := auth\.uid\(\)/);
   assert.match(sql, /v_allowed_owner is distinct from p_owner_id/);
+  assert.match(sql, /context_token/);
+  assert.match(sql, /pg_catalog.set_config/);
+  assert.match(sql, /create or replace function crm_private.stamp/);
+  assert.match(sql, /create or replace function crm_private.audit/);
+  assert.match(sql, /TG_TABLE_NAME = 'crm_leads' and TG_OP = 'INSERT'/);
   assert.match(sql, /revoke all on function public\.os_receive_creative_delivery/);
   assert.match(sql, /to authenticated/);
   assert.match(sql, /pg_advisory_xact_lock/g);
