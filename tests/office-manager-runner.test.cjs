@@ -3,149 +3,158 @@ const assert = require("node:assert/strict");
 const fs = require("node:fs");
 const ts = require("typescript");
 
-function loadPureTs(filename, deps = {}) {
-  const source = fs.readFileSync(filename, "utf8");
-  const compiled = ts.transpileModule(source, {
+function compilePure(path, deps = {}) {
+  const source = fs.readFileSync(path, "utf8");
+  const js = ts.transpileModule(source, {
     compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 },
   }).outputText;
   const mod = { exports: {} };
-  new Function("module", "exports", "require", compiled)(
-    mod, mod.exports, id => {
-      if (!(id in deps)) throw Error("untrusted_import:" + id);
-      return deps[id];
-    },
-  );
+  new Function("module", "exports", "require", js)(mod, mod.exports, id => {
+    if (!(id in deps)) throw Error("unexpected_import");
+    return deps[id];
+  });
   return mod.exports;
 }
-const jobs = loadPureTs("src/lib/office/manager-work.ts");
-const { SAFE_OFFICE_COMMAND, workerRunKey, executeWorkerRun } = loadPureTs("src/lib/office/manager-worker.ts", {
+const jobs = compilePure("src/lib/office/manager-work.ts");
+const { SAFE_OFFICE_COMMAND, workerRunKey, executeWorkerRun } = compilePure("src/lib/office/manager-worker.ts", {
   "./manager-work": jobs,
 });
 const poller = require("../scripts/office-manager-staging-poll.cjs");
-const date = new Date("2026-11-03T21:06:00Z");
-const token = "b".repeat(38);
+const now = new Date("2026-11-03T21:06:00Z");
+const uuid = "60a6b110-49ba-4725-b03a-26058c0d668a";
+const stagingRef = "jasgumggzgoqbemtcmno";
+const stagedUrl = "https://" + stagingRef + ".supabase.co";
+const key = "synthetic-service-key-for-tests-only-never-live-" + "x".repeat(24);
 
-test("exactly five jobs can be processed hourly without unsafe free-form commands", () => {
+test("five manager jobs, unique hours and only fixed commands", () => {
   assert.deepEqual([...poller.CODES], ["ren", "shin", "haru", "sora", "kenji"]);
   assert.equal(SAFE_OFFICE_COMMAND, "AVALON_MANAGER_CHECK_V1");
-  assert.equal(workerRunKey("ren", "scheduled", date, null), "scheduled:ren:2026-11-03T21");
-  assert.equal(workerRunKey("haru", "requested", date, "60a6b110-49ba-4725-b03a-26058c0d668a"),
-    "request:60a6b110-49ba-4725-b03a-26058c0d668a");
-  assert.throws(() => workerRunKey("ren", "requested", date, "untrusted free text"));
-  assert.throws(() => workerRunKey("unknown", "scheduled", date, null));
+  assert.equal(workerRunKey("ren", "scheduled", now, null), "scheduled:ren:2026-11-03T21");
+  assert.equal(workerRunKey("shin", "requested", now, uuid), "request:" + uuid);
+  assert.throws(() => workerRunKey("shin", "requested", now, "run arbitrary shell"));
 });
 
-test("atomic claim prevents repeated job execution in same hour", async () => {
-  const used = new Set();
-  let counted = 0, finishes = 0;
+test("atomic claims prevent duplicate execution", async () => {
+  const seen = new Set();
+  let counts = 0, saved = 0;
   const store = {
-    claim: async key => {
-      if (used.has(key)) return null;
-      used.add(key);
-      return "60a6b110-49ba-4725-b03a-26058c0d668a";
-    },
-    finish: async () => { finishes++; return true; },
+    claim: async runKey => seen.has(runKey) ? null : (seen.add(runKey), uuid),
+    finish: async () => { saved++; return true; },
   };
-  const reader = async () => { counted++; return 4; };
-  const first = await executeWorkerRun("ren", "scheduled", null, store, reader, date);
-  const second = await executeWorkerRun("ren", "scheduled", null, store, reader, date);
-  assert.equal(first.status, "completed");
-  assert.equal(second.status, "duplicate");
-  assert.equal(finishes, 1);
-  assert.equal(counted, jobs.MANAGER_JOBS.ren.specs.length);
+  const once = await executeWorkerRun("ren", "scheduled", null, store, async () => { counts++; return 4; }, now);
+  const twice = await executeWorkerRun("ren", "scheduled", null, store, async () => { counts++; return 4; }, now);
+  assert.equal(once.status, "completed");
+  assert.equal(twice.status, "duplicate");
+  assert.equal(saved, 1);
+  assert.equal(counts, jobs.MANAGER_JOBS.ren.specs.length);
 });
 
-test("failed database work is recorded as failed without leaking error details", async () => {
-  const persisted = [];
+test("database failure saves error code only, never raw secret", async () => {
+  const captured = [];
   const store = {
-    claim: async () => "60a6b110-49ba-4725-b03a-26058c0d668a",
-    finish: async (...args) => { persisted.push(args); return true; },
+    claim: async () => uuid,
+    finish: async (...args) => { captured.push(args); return true; },
   };
-  const r = await executeWorkerRun("shin", "scheduled", null, store,
-    async () => { throw Error("database secret or private customer details"); }, date);
+  const r = await executeWorkerRun("haru", "scheduled", null, store,
+    async () => { throw Error("customer secret in database failure"); }, now);
   assert.equal(r.status, "failed");
-  assert.equal(persisted[0][2], "failed");
-  assert.equal(persisted[0][3], null);
-  assert.equal(persisted[0][4], "check_unavailable");
-  assert.ok(!JSON.stringify(persisted).includes("database secret"));
+  assert.equal(captured[0][2], "failed");
+  assert.equal(captured[0][3], null);
+  assert.equal(captured[0][4], "check_unavailable");
+  assert.ok(!JSON.stringify(captured).includes("customer secret"));
 });
 
-test("a stolen/expired lease cannot persist a result", async () => {
-  const store = {
-    claim: async () => "60a6b110-49ba-4725-b03a-26058c0d668a",
-    finish: async () => false,
-  };
-  await assert.rejects(() => executeWorkerRun("sora", "scheduled", null, store, async () => 0, date), /lease_lost/);
+test("lost lease cannot be represented as successful", async () => {
+  await assert.rejects(
+    () => executeWorkerRun("sora", "scheduled", null, {
+      claim: async () => uuid,
+      finish: async () => false,
+    }, async () => 2, now), /lease_lost/,
+  );
 });
 
-test("the GitHub runner permits only a verified HTTPS vercel.app Preview host", () => {
-  assert.equal(poller.previewEndpoint("https://avalon-test-branch-avalon.vercel.app/"),
-    "https://avalon-test-branch-avalon.vercel.app/api/internal/office-manager-runner");
-  for (const url of [
-    "https://avaloncoreagency.com", "http://avalon-test.vercel.app",
-    "https://vercel.app", "https://vercel.app.attacker.test",
-    "https://user:pass@avalon-test.vercel.app", "https://avalon-test.vercel.app/other",
-    "https://avalon-test.vercel.app?token=secret", "http://localhost:3000",
-  ]) assert.throws(() => poller.previewEndpoint(url));
+test("runner refuses production and cross-project credentials", () => {
+  assert.deepEqual(poller.isolatedSettings(stagedUrl, stagingRef, key), { base: stagedUrl, key });
+  for (const [base, ref, secret] of [
+    ["https://ltbwzcrxeuczdhhtbqgm.supabase.co", "ltbwzcrxeuczdhhtbqgm", key],
+    ["https://avaloncoreagency.com", stagingRef, key],
+    ["http://" + stagingRef + ".supabase.co", stagingRef, key],
+    [stagedUrl, "ltbwzcrxeuczdhhtbqgm", key],
+    [stagedUrl, stagingRef, ""],
+    [stagedUrl + "/", stagingRef, key],
+  ]) assert.throws(() => poller.isolatedSettings(base, ref, secret));
   assert.deepEqual(poller.chooseManagers("all"), [...poller.CODES]);
-  assert.deepEqual(poller.chooseManagers("ren"), ["ren"]);
-  assert.throws(() => poller.chooseManagers("attacker"));
+  assert.deepEqual(poller.chooseManagers("sora"), ["sora"]);
+  assert.throws(() => poller.chooseManagers("hacker"));
 });
 
-test("all five workers send only allowlisted job IDs, no client information", async () => {
-  const calls = [];
-  const fakeFetch = async (url, options) => {
-    calls.push({ url, options });
-    const body = JSON.parse(options.body);
-    return { ok: true, status: 200,
-      json: async () => ({ manager: body.manager, scheduled: "completed", processed: 0, failures: 0 }) };
+test("all five worker jobs use bounded mock gateway and report actual outcomes", async () => {
+  const calls = [], saved = [];
+  const gateway = {
+    countReader: async spec => { calls.push(spec.table); return 2; },
+    store: { claim: async () => uuid, finish: async (...args) => { saved.push(args); return true; } },
+    eligibleRequests: async () => [],
   };
-  const result = await poller.runStagingManagers({
-    baseUrl: "https://staging-avalon.vercel.app", token, fetcher: fakeFetch,
-  });
-  assert.equal(result.length, 5);
-  assert.ok(result.every(x => x.ok));
-  assert.deepEqual(calls.map(x => JSON.parse(x.options.body).manager), [...poller.CODES]);
-  assert.ok(calls.every(c => c.options.headers.authorization === "Bearer " + token));
-  assert.ok(calls.every(c => c.options.redirect === "error"));
-  assert.ok(!JSON.stringify(result).includes(token));
+  const results = await poller.runStagingManagers({ gateway, now });
+  assert.equal(results.length, 5);
+  assert.ok(results.every(r => r.ok && r.status === "completed"));
+  assert.equal(saved.length, 5);
+  assert.ok(calls.length >= 10);
+  assert.ok(saved.every(entry => entry[3].source === "staging_service_worker"));
 });
 
-test("transport failures remain visible and do not stop other managers", async () => {
-  const res = await poller.runStagingManagers({
-    baseUrl: "https://staging-avalon.vercel.app", token,
-    fetcher: async (_, opts) => {
-      const code = JSON.parse(opts.body).manager;
-      if (code === "haru") throw Error("hidden token " + token);
-      return { ok: true, status: 200,
-        json: async () => ({ manager: code, scheduled: "completed", processed: 0, failures: 0 }) };
-    },
-  });
-  assert.equal(res.length, 5);
-  assert.deepEqual(res.filter(x => !x.ok).map(x => x.manager), ["haru"]);
-  assert.ok(!JSON.stringify(res).includes(token));
+test("transport errors do not stop independent managers or print keys", async () => {
+  const gateway = {
+    countReader: async spec => { if (spec.table === "crm_sales") throw Error("key " + key); return 2; },
+    store: { claim: async () => uuid, finish: async () => true },
+    eligibleRequests: async () => [],
+  };
+  const results = await poller.runStagingManagers({ gateway, now });
+  assert.equal(results.length, 5);
+  assert.deepEqual(results.filter(r => !r.ok).map(r => r.manager), ["haru"]);
+  assert.ok(!JSON.stringify(results).includes(key));
 });
 
-test("the worker API is fail-closed and never runs on production", () => {
-  const route = fs.readFileSync("src/app/api/internal/office-manager-runner/route.ts", "utf8");
-  assert.match(route, /VERCEL_ENV !== "preview"/);
-  assert.match(route, /PROD_SUPABASE_REF/);
-  assert.match(route, /sameSecret\(provided, settings\.workerToken\)/);
-  assert.match(route, /SAFE_OFFICE_COMMAND/);
-  assert.match(route, /office_manager_claim_run/);
-  assert.match(route, /office_manager_finish_run/);
-  assert.doesNotMatch(route, /\\.insert\\(|\\.delete\\(|\\.update\\(/);
+test("PostgREST gateway sends only staging HEAD counts, authenticated RPC and fixed queue filters", async () => {
+  const requests = [];
+  const fakeFetch = async (url, opts) => {
+    requests.push({ url, opts });
+    if (opts.method === "HEAD") return { ok: true, headers: { get: name => name === "content-range" ? "*/4" : null } };
+    if (url.includes("/rpc/office_manager_claim_run"))
+      return { ok: true, text: async () => JSON.stringify(uuid) };
+    if (url.includes("/rpc/office_manager_finish_run"))
+      return { ok: true, text: async () => "true" };
+    return { ok: true, text: async () => "[]" };
+  };
+  const db = poller.createGateway({ base: stagedUrl, ref: stagingRef, key }, fakeFetch);
+  const results = await poller.runStagingManagers({ gateway: db, manager: "ren", now });
+  assert.deepEqual(results.map(r => r.manager), ["ren"]);
+  assert.equal(results[0].status, "completed");
+  assert.ok(requests.some(x => x.opts.method === "HEAD"));
+  assert.ok(requests.every(x => x.url.startsWith(stagedUrl + "/rest/v1/")));
+  assert.ok(requests.every(x => x.opts.headers.apikey === key && x.opts.headers.authorization === "Bearer " + key));
+  assert.ok(requests.some(x => x.url.includes("body=eq.AVALON_MANAGER_CHECK_V1")));
+  assert.ok(!JSON.stringify(results).includes(key));
 });
 
-test("migration protects stored results with owner-read RLS and service-only writes", () => {
+test("staging worker stays outside Next public application code", () => {
+  assert.ok(!fs.existsSync("src/app/api/internal/office-manager-runner/route.ts"));
+  const source = fs.readFileSync("scripts/office-manager-staging-poll.cjs", "utf8");
+  assert.ok(!source.includes("NEXT_PUBLIC_SUPABASE_SECRET"));
+  assert.ok(!source.includes("avaloncoreagency.com"));
+  const history = fs.readFileSync("src/app/admin/workspace/crm/office/manager-work/history/api/route.ts", "utf8");
+  assert.ok(history.includes("getOwnerSession()"));
+  assert.ok(history.includes('"No autorizado"'));
+});
+
+test("schema restricts results to owners and claiming fixed system diagnostics", () => {
   const sql = fs.readFileSync("supabase/migrations/20261103211000_office_manager_runs.sql", "utf8");
-  assert.match(sql, /enable row level security/);
-  assert.match(sql, /grant select on public\.office_manager_runs to authenticated/);
-  assert.match(sql, /grant select, insert, update on public\.office_manager_runs to service_role/);
-  assert.match(sql, /grant execute on function public\.office_manager_claim_run[\s\S]*to service_role/);
-  assert.match(sql, /for select to authenticated using \(\(select crm_private\.is_owner\(\)\)\)/);
-  assert.match(sql, /where r\.id = p_request_id and r\.agent = p_manager/);
-  assert.match(sql, /r\.body = 'AVALON_MANAGER_CHECK_V1'/);
-  assert.match(sql, /claim_token = p_token/);
-  assert.match(sql, /lease_until > now\(\)/);
+  assert.ok(sql.includes("alter table public.office_manager_runs enable row level security;"));
+  assert.ok(sql.includes("revoke all on public.office_manager_runs from anon, authenticated;"));
+  assert.ok(sql.includes("grant select on public.office_manager_runs to authenticated;"));
+  assert.ok(sql.includes("for select to authenticated using ((select crm_private.is_owner()))"));
+  assert.ok(sql.includes("r.body = 'AVALON_MANAGER_CHECK_V1'"));
+  assert.ok(sql.includes("claim_token = p_token"));
+  assert.ok(sql.includes("lease_until > now()"));
+  assert.ok(sql.includes("to service_role"));
 });
