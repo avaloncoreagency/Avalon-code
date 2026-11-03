@@ -15,7 +15,7 @@ export type ManagerReport = {
   manager: ManagerCode;
   title: string;
   observedAt: string;
-  source: "owner_rls_database";
+  source: "owner_rls_database" | "staging_service_worker";
   status: "completed" | "unavailable";
   metrics: { key: string; label: string; count: number }[];
   nextAction: string;
@@ -91,6 +91,7 @@ export async function executeManagerCheck(
   manager: ManagerCode,
   reader: CountReader,
   now: Date = new Date(),
+  source: ManagerReport["source"] = "owner_rls_database",
 ): Promise<ManagerReport> {
   if (!isManagerCode(manager)) throw new Error("invalid_manager");
   if (!Number.isFinite(now.getTime())) throw new Error("invalid_now");
@@ -99,8 +100,10 @@ export async function executeManagerCheck(
     manager,
     title: job.title,
     observedAt: now.toISOString(),
-    source: "owner_rls_database" as const,
-    note: "Ejecución bajo demanda y de solo lectura. No es un agente IA conectado ni prueba actividad horaria autónoma.",
+    source,
+    note: source === "staging_service_worker"
+      ? "Trabajo de diagnóstico del ejecutor aislado, verificado con conteos reales. Sin IA ni cambios de CRM."
+      : "Ejecución bajo demanda y de solo lectura. No es un agente IA conectado ni prueba actividad horaria autónoma.",
   };
   const numbers: Record<string, number> = {};
   const metrics: ManagerReport["metrics"] = [];
