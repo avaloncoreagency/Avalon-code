@@ -26,6 +26,17 @@ type Request = { id: string; body: string; ref_type: string | null; ref_id: stri
 type StaffProject = { id: string | null; name: string; module: string | null; status: string | null; client_id: string | null; client_name: string | null; work_orders: number; open_tasks: number };
 
 const API = "/admin/workspace/crm/office/api";
+const PROJECT_BASE: Record<string, string> = {
+  website: "/admin/workspace/website-designer",
+  ecommerce: "/admin/workspace/ecommerce-designer",
+  crm_creator: "/admin/workspace/crm-creator",
+  receptionist: "/admin/workspace/ai-receptionist",
+  marketing: "/admin/workspace/marketing-hub",
+};
+const projectHref = (project: StaffProject) =>
+  project.id && project.module && PROJECT_BASE[project.module]
+    ? `${PROJECT_BASE[project.module]}/${project.id}`
+    : null;
 const PERIODS = [["7", "7 días", "7 days"], ["30", "30 días", "30 days"], ["90", "90 días", "90 days"], ["all", "Todo", "All time"]] as const;
 const REFS = [["lead", "Lead", "Lead"], ["client", "Cliente", "Client"], ["sale", "Venta", "Sale"], ["project", "Proyecto", "Project"], ["task", "Tarea", "Task"]] as const;
 const ROLE: Record<string, [string, string]> = { owner: ["Propietario", "Owner"], admin: ["Administrador", "Admin"], operator: ["Operador", "Operator"] };
@@ -388,7 +399,7 @@ function MemberPanel({ member, data, lang, when, onClose, onChanged }: { member:
                 <div><strong>{pr.name}</strong><small>{[pr.client_name, pr.module, pr.status].filter(Boolean).join(" · ") || t("Proyecto vinculado", "Linked project")}</small>
                 <small>{pr.work_orders} {t("órdenes", "orders")} · {pr.open_tasks} {t("tareas abiertas", "open tasks")}</small></div>
                 <div className={s.projectLinks}>
-                  {pr.id && <Link href={`/admin/workspace/products/${pr.id}`}>{t("Abrir proyecto", "Open project")}</Link>}
+                  {projectHref(pr) && <Link href={projectHref(pr)!}>{t("Abrir proyecto", "Open project")}</Link>}
                   {pr.client_id && <Link href={`/admin/workspace/crm/clients/${pr.client_id}`}>{t("Ficha del cliente", "Client record")}</Link>}
                   {!pr.id && !pr.client_id && <span>{t("Sin vínculo", "Not linked")}</span>}
                 </div>
