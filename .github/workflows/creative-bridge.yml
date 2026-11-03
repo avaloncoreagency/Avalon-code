@@ -1,0 +1,32 @@
+name: Creative Bridge isolated PostgreSQL
+on:
+  pull_request:
+    paths:
+      - 'docs/sql/creative-bridge-registration.sql'
+      - 'src/lib/os/creative-bridge-protocol.ts'
+      - 'src/app/api/creative-bridge/**'
+      - 'src/lib/supabase/middleware.ts'
+      - 'tests/creative-bridge*'
+      - 'tests/higgsfield-handoff.test.cjs'
+      - '.github/workflows/creative-bridge.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  bridge-database:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22.18.0'
+          cache: npm
+      - run: npm ci
+      - run: npm ci --prefix tests/qa
+      - name: Real SQL in isolated PGlite with synthetic users
+        run: node --test tests/creative-bridge.database.cjs
+        env:
+          NODE_PATH: ./tests/qa/node_modules
+      - name: Signed protocol and module workflow
+        run: node --test tests/creative-bridge.test.cjs tests/higgsfield-handoff.test.cjs
