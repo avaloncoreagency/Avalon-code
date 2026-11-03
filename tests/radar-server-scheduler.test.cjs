@@ -17,7 +17,10 @@ test("Deno radar worker has a guarded secret, daily cap, lease and no outbound s
   assert.match(edge, /lease_until/);
   assert.match(edge, /investigateOfficialWebsite/);
   assert.match(edge, /report\.identity_matched/);
-  assert.match(edge, /Number\(row\.stars\) >= 4 && row\.confidence === "high"/);
+  assert.match(edge, /\.eq\("confidence", "high"\)/);
+  assert.match(edge, /p\.stars_override == null && Number\(p\.stars\) >= 4/);
+  assert.match(edge, /crm_radar_worker_convert_verified/);
+  assert.match(edge, /Conversion is independent of whether a website was crawled/);
   assert.doesNotMatch(edge, /sendEmail|twilio|resend\.emails|sendSms/);
   assert.match(migration, /security invoker/);
   assert.match(migration, /current_user <> 'service_role'/);
