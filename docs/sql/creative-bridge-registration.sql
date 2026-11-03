@@ -39,7 +39,7 @@ begin
       )
     ) into v_approved_machine;
     if not coalesce(v_approved_machine, false) then
-      raise exception 'CRM forbidden' using errcode = '42501';
+      raise exception 'Creative CRM stamp forbidden' using errcode = '42501';
     end if;
   end if;
   if TG_OP = 'INSERT' then
@@ -88,7 +88,7 @@ begin
       )
     )
   ) then
-    raise exception 'CRM forbidden' using errcode = '42501';
+    raise exception 'Creative CRM audit forbidden' using errcode = '42501';
   end if;
   insert into public.crm_audit(entity, record_id, actor_id, operation, before_data, after_data)
   values (TG_TABLE_NAME, new.id, auth.uid(), TG_OP,
