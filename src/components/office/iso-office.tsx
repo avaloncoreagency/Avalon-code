@@ -1,5 +1,6 @@
 "use client";
 import { useCallback, useMemo, useRef, useState, type KeyboardEvent, type PointerEvent as ReactPointerEvent, type ReactNode } from "react";
+import { INITIAL_CAMERA, OFFICE_MIN_ZOOM, OFFICE_MAX_ZOOM, officeViewport, officePointerAnchor, zoomOfficeAt, panOfficeBy, type Camera } from "@/lib/office/scene-camera";
 import s from "./iso-office.module.css";
 
 /**
@@ -130,36 +131,93 @@ const AI_SEATS: [number, number][] = [[3.4, 14.2], [7.2, 13.2], [11.2, 12.8], [1
 
 export function IsoOffice({ people, selected, onSelect, lang, screen }: Props) {
   const t = useCallback((es: string, en: string) => (lang === "en" ? en : es), [lang]);
-  const humans = people.filter(p => p.kind === "human");
-  const agents = people.filter(p => p.kind === "ai");
+  const humans = useMemo(() => people.filter(p => p.kind === "human"), [people]);
+  const agents = useMemo(() => people.filter(p => p.kind === "ai"), [people]);
   const hour = new Date().getHours();
   const night = hour >= 19 || hour < 7;
 
-  const [zoom, setZoom] = useState(1);
-  const [pan, setPan] = useState<[number, number]>([0, 0]);
-  const drag = useRef<{ x: number; y: number; px: number; py: number; moved: boolean } | null>(null);
+  // Multi-pointer camera: one finger drags at zoom >1; two fingers pinch from any zoom.
+  // Only decorative animations are used; motion never implies a worker is running.
+  const [camera, setCamera] = useState<Camera>(INITIAL_CAMERA);
   const svg = useRef<SVGSVGElement>(null);
+  const activePointers = useRef(new Map<number, { x: number; y: number }>());
+  const gesture = useRef<{
+    mode: "single" | "pinch"; startCamera: Camera; x: number; y: number;
+    distance: number; anchor: { x: number; y: number }; captured: boolean;
+  } | null>(null);
+  const suppressClick = useRef(false);
 
-  // Scene bounds in screen space.
-  const minX = px(0, D)[0] - 20, maxX = px(W, 0)[0] + 20, minY = px(0, 0, H)[1] - 30, maxY = px(W, D)[1] + 30;
-  const fullW = maxX - minX, fullH = maxY - minY;
-  const vw = fullW / zoom, vh = fullH / zoom;
-  const clampPan = useCallback((x: number, y: number, z: number): [number, number] => {
-    const mx = (fullW - fullW / z) / 2, my = (fullH - fullH / z) / 2;
-    return [Math.max(-mx, Math.min(mx, x)), Math.max(-my, Math.min(my, y))];
-  }, [fullW, fullH]);
-  const viewBox = `${minX + (fullW - vw) / 2 + pan[0]} ${minY + (fullH - vh) / 2 + pan[1]} ${vw} ${vh}`;
-  const setZ = (z: number) => { const nz = Math.max(1, Math.min(2.6, z)); setZoom(nz); setPan(p => clampPan(p[0], p[1], nz)); };
+  const minX = px(0, D)[0] - 20, maxX = px(W, 0)[0] + 20;
+  const minY = px(0, 0, H)[1] - 30, maxY = px(W, D)[1] + 30;
+  const bounds = { minX, minY, width: maxX - minX, height: maxY - minY };
+  const viewport = officeViewport(camera, bounds);
+  const viewBox = `${viewport.x} ${viewport.y} ${viewport.width} ${viewport.height}`;
+  const anchorAt = (x: number, y: number, c: Camera = camera) => svg.current
+    ? officePointerAnchor(x, y, svg.current.getBoundingClientRect(), c, bounds)
+    : { x: 0.5, y: 0.5 };
+  const zoomBy = (step: number) => setCamera(c => zoomOfficeAt(c, bounds, c.zoom + step));
+  const fullView = () => setCamera(INITIAL_CAMERA);
 
-  const down = (e: ReactPointerEvent<SVGSVGElement>) => { if (zoom > 1) drag.current = { x: e.clientX, y: e.clientY, px: pan[0], py: pan[1], moved: false }; };
-  const move = (e: ReactPointerEvent<SVGSVGElement>) => {
-    const d = drag.current, el = svg.current;
-    if (!d || !el) return;
-    const k = vw / el.clientWidth, dx = (e.clientX - d.x) * k, dy = (e.clientY - d.y) * k;
-    if (Math.abs(dx) + Math.abs(dy) > 4) { d.moved = true; el.setPointerCapture(e.pointerId); }
-    setPan(clampPan(d.px - dx, d.py - dy, zoom));
+  const down = (e: ReactPointerEvent<SVGSVGElement>) => {
+    if (e.pointerType === "mouse" && e.button !== 0) return;
+    const pointers = activePointers.current;
+    if (pointers.size === 0) suppressClick.current = false;
+    pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
+    if (pointers.size >= 2) {
+      const [a, b] = [...pointers.values()];
+      const x = (a.x + b.x) / 2, y = (a.y + b.y) / 2;
+      const distance = Math.max(1, Math.hypot(a.x - b.x, a.y - b.y));
+      gesture.current = { mode: "pinch", startCamera: camera, x, y, distance,
+        anchor: anchorAt(x, y), captured: true };
+      suppressClick.current = true;
+      // Capture both touches so the pinch stays stable when fingers move outside SVG.
+      for (const id of pointers.keys()) {
+        try { e.currentTarget.setPointerCapture(id); } catch { /* unsupported pointer capture */ }
+      }
+    } else if (pointers.size === 1) {
+      gesture.current = { mode: "single", startCamera: camera, x: e.clientX, y: e.clientY,
+        distance: 0, anchor: { x: 0.5, y: 0.5 }, captured: false };
+    }
   };
-  const up = () => { drag.current = null; };
+
+  const move = (e: ReactPointerEvent<SVGSVGElement>) => {
+    const pointers = activePointers.current;
+    if (!pointers.has(e.pointerId)) return;
+    pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
+    const g = gesture.current, element = svg.current;
+    if (!g || !element) return;
+    if (g.mode === "pinch" && pointers.size >= 2) {
+      const [a, b] = [...pointers.values()];
+      const x = (a.x + b.x) / 2, y = (a.y + b.y) / 2;
+      const distance = Math.max(1, Math.hypot(a.x - b.x, a.y - b.y));
+      const targetZoom = g.startCamera.zoom * distance / g.distance;
+      setCamera(zoomOfficeAt(g.startCamera, bounds, targetZoom, g.anchor,
+        anchorAt(x, y, g.startCamera)));
+      suppressClick.current = true;
+    } else if (g.mode === "single" && pointers.size === 1 && g.startCamera.zoom > 1) {
+      const dx = e.clientX - g.x, dy = e.clientY - g.y;
+      if (Math.hypot(dx, dy) < 7 && !g.captured) return;
+      if (!g.captured) {
+        g.captured = true;
+        suppressClick.current = true;
+        try { e.currentTarget.setPointerCapture(e.pointerId); } catch { /* fallback to pointer events */ }
+      }
+      const previous = officeViewport(g.startCamera, bounds);
+      const rect = element.getBoundingClientRect();
+      const scale = Math.min(rect.width / previous.width, rect.height / previous.height);
+      if (scale > 0) setCamera(panOfficeBy(g.startCamera, bounds, -dx / scale, -dy / scale));
+    }
+  };
+
+  const up = (e: ReactPointerEvent<SVGSVGElement>) => {
+    activePointers.current.delete(e.pointerId);
+    if (activePointers.current.size === 0) gesture.current = null;
+    else if (activePointers.current.size === 1) {
+      const remaining = [...activePointers.current.values()][0];
+      gesture.current = { mode: "single", startCamera: camera, x: remaining.x, y: remaining.y,
+        distance: 0, anchor: { x: 0.5, y: 0.5 }, captured: false };
+    }
+  };
 
   const items = useMemo(() => {
     const list: Item[] = [];
@@ -198,8 +256,10 @@ export function IsoOffice({ people, selected, onSelect, lang, screen }: Props) {
   return (
     <div className={s.wrap}>
       <svg ref={svg} className={s.svg} viewBox={viewBox} role="group" aria-label={t("Sede de Avalon en vista isométrica. Selecciona a una persona o manager.", "Avalon HQ, isometric view. Select a person or manager.")}
-        data-zoomed={zoom > 1} onPointerDown={down} onPointerMove={move} onPointerUp={up} onPointerLeave={up}
-        onClickCapture={e => { if (drag.current?.moved) { e.stopPropagation(); e.preventDefault(); } }}>
+        data-zoomed={camera.zoom > 1} onPointerDown={down} onPointerMove={move}
+        onPointerUp={up} onPointerCancel={up} onPointerLeave={e => { if (!e.currentTarget.hasPointerCapture(e.pointerId)) up(e); }}
+        onDoubleClick={e => { e.preventDefault(); setCamera(c => zoomOfficeAt(c, bounds, c.zoom + 0.6, anchorAt(e.clientX, e.clientY))); }}
+        onClickCapture={e => { if (suppressClick.current) { e.stopPropagation(); e.preventDefault(); suppressClick.current = false; } }}>
         <defs>
           <linearGradient id="iso-sky" x1="0" y1="0" x2="0" y2="1">
             <stop offset="0" stopColor={night ? "#050911" : "#1a2347"} /><stop offset="0.7" stopColor={night ? "#141a36" : "#5b5fa8"} /><stop offset="1" stopColor={night ? "#2a2357" : "#b39bd6"} />
@@ -251,9 +311,10 @@ export function IsoOffice({ people, selected, onSelect, lang, screen }: Props) {
         })}
       </svg>
       <div className={s.controls} role="group" aria-label={t("Cámara", "Camera")}>
-        <button type="button" onClick={() => setZ(zoom + 0.4)} aria-label={t("Acercar", "Zoom in")}>+</button>
-        <button type="button" onClick={() => setZ(zoom - 0.4)} aria-label={t("Alejar", "Zoom out")} disabled={zoom <= 1}>−</button>
-        <button type="button" onClick={() => { setZoom(1); setPan([0, 0]); }} aria-label={t("Vista completa", "Full view")} disabled={zoom === 1}>⤢</button>
+        <span className={s.zoomReadout} aria-live="off">{Math.round(camera.zoom * 100)}%</span>
+        <button type="button" onClick={() => zoomBy(0.35)} aria-label={t("Acercar", "Zoom in")} disabled={camera.zoom >= OFFICE_MAX_ZOOM}>+</button>
+        <button type="button" onClick={() => zoomBy(-0.35)} aria-label={t("Alejar", "Zoom out")} disabled={camera.zoom <= OFFICE_MIN_ZOOM}>−</button>
+        <button type="button" onClick={fullView} aria-label={t("Vista completa", "Full view")} disabled={camera.zoom === OFFICE_MIN_ZOOM && camera.panX === 0 && camera.panY === 0}>⤢</button>
       </div>
     </div>
   );
