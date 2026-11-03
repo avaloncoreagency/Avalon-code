@@ -3,7 +3,7 @@ export type Owner = 'miguel' | 'samuel';
 export type Fact<T> = { status: 'VERIFIED' | 'UNKNOWN' | 'STALE'; checked_at: string; verified_at: string | null; data: T | null; error?: string };
 export type Issue = { id: string; number: number; title: string; owner: Owner | null; module: string; state: string; open?: boolean; labels: string[]; url: string; updated_at: string; body: string; handoff?:{state:string;sha:string;at:string;url:string} };
 export type Pull = { number: number; title: string; branch: string; base_branch: string; base_sha: string; head_sha: string; url: string; files: string[]; ci: string; reviews: string[]; conflict: boolean | null; behind: number; issues: number[]; updated_at?: string };
-export type Github = { issues: Issue[]; pulls: Pull[]; branches: {name:string;sha:string}[]; commits: {sha:string;date:string;author:string;url:string}[]; migrations: string[] };
+export type Github = { coverage?: 'full' | 'summary'; issues: Issue[]; pulls: Pull[]; branches: {name:string;sha:string}[]; commits: {sha:string;date:string;author:string;url:string}[]; migrations: string[] };
 export type Deployment = { id:string;sha:string;branch:string;environment:string;state:string;url:string;created:number };
 export type Database = { ref:string; status:string; migrations:string[]; rls:{table:string;enabled:boolean}[]; advisors:string[]; functions:{name:string;status:string}[] };
 export type Snapshot = { schema_version:1; at:string; github:Fact<Github>; vercel:Fact<Deployment[]>; supabase:Fact<Database>; findings:{id:string;severity:string;claim:'VERIFIED'|'INFERRED';message:string}[]; events:{id:string;at:string}[]; checkpoint:{github_since:string|null} };
@@ -16,7 +16,7 @@ export class Api {
     if (!path.startsWith('/') || path.startsWith('//')) throw Error('Invalid API path');
     for(let attempt=0;attempt<3;attempt++) {
       let response:Response;
-      try { response=await this.transport(this.root+path,{method:body?'POST':'GET',headers:{Authorization:`Bearer ${this.token}`,Accept:'application/json','Content-Type':'application/json'},body:body?JSON.stringify(body):undefined,signal:AbortSignal.timeout(12000),redirect:'error'}); }
+      try { response=await this.transport(this.root+path,{method:body?'POST':'GET',headers:{...(this.token?{Authorization:`Bearer ${this.token}`}:{}) ,Accept:'application/json','Content-Type':'application/json'},body:body?JSON.stringify(body):undefined,signal:AbortSignal.timeout(12000),redirect:'error'}); }
       catch { if(attempt===2) throw Error('Provider network/timeout failure'); await this.pause(200*2**attempt); continue; }
       if(response.ok) return response.json();
       if((response.status===429 || response.status>=500 || (response.status===403 && response.headers.get('x-ratelimit-remaining')==='0')) && attempt<2) {
@@ -47,8 +47,41 @@ export function issueRefsFromBody(body:string):number[]{
  return [...new Set(phrases.flatMap(m=>[...m[0].matchAll(/#(\d+)/g)].map(id=>Number(id[1]))))]
    .filter(n=>Number.isSafeInteger(n)&&n>0).slice(0,8);
 }
+/** Minimal public GitHub facts when Vercel has no GH token.
+ * Never claim to have scanned files/CI/conflicts, and NEVER generate resume
+ * packages from this limited snapshot. Uses only three public GET requests.
+ */
+export async function publicGithubSummary(c:Config, api=new Api('https://api.github.com','')):Promise<Github>{
+ if(!/^[\\w.-]+\\/[\\w.-]+$/.test(c.repo))throw Error('Invalid repository');
+ const base=`/repos/${c.repo}`;
+ const [issueRows,prs,main]=await Promise.all([
+   api.pages(base+'/issues?state=open'),
+   api.pages(base+'/pulls?state=open'),
+   api.get(base+'/branches/main'),
+ ]);
+ const issues:Issue[]=issueRows.filter(i=>!i.pull_request).map(i=>{
+   const labels=((i.labels??[]) as Row[]).map(l=>str(row(l).name));
+   const owners=labels.filter(l=>l==='owner:miguel'||l==='owner:samuel');
+   return {id:`github:${c.repo}#${i.number}`,number:Number(i.number),
+     title:redact(str(i.title)),owner:owners.length===1?owners[0].slice(6) as Owner:null,
+     module:labels.find(l=>l.startsWith('module:'))?.slice(7)??'UNKNOWN',
+     state:labels.find(l=>l.startsWith('status:'))?.slice(7)??'UNKNOWN',
+     open:true,labels,url:str(i.html_url),updated_at:str(i.updated_at),body:redact(str(i.body))};
+ });
+ const pulls:Pull[]=prs.map(p=>{
+   const h=row(p.head),b=row(p.base);
+   return {number:Number(p.number),title:redact(str(p.title)),
+     branch:str(h.ref),base_branch:str(b.ref),base_sha:str(b.sha),head_sha:str(h.sha),
+     url:str(p.html_url),files:[],ci:'UNKNOWN',reviews:[],conflict:null,behind:0,
+     issues:issueRefsFromBody(str(p.body)),updated_at:str(p.updated_at)};
+ });
+ const mainSha=str(row(row(main).commit).sha);
+ return {coverage:'summary',issues,pulls,
+   branches:/^[a-f0-9]{40}$/.test(mainSha)?[{name:'main',sha:mainSha}]:[],
+   commits:[],migrations:[]};
+}
 export async function github(config:Config, since?:string, previous?:Github, api=new Api('https://api.github.com',config.githubToken??'')):Promise<Github> {
-  if(!config.githubToken)throw Error('GitHub connection unavailable');
+  if(!config.githubToken)return publicGithubSummary(config,api);
   if(!/^[\w.-]+\/[\w.-]+$/.test(config.repo))throw Error('Invalid repository');
   const base=`/repos/${config.repo}`;
   const [issueRows,prs,branchRows,commitRows]=await Promise.all([api.pages(base+'/issues?state=all'+(since?'&since='+encodeURIComponent(since):'')),api.pages(base+'/pulls?state=open'),api.pages(base+'/branches'),api.pages(base+'/commits?sha='+encodeURIComponent(process.env.BRIDGE_CODE_REF??'main')+(since?'&since='+encodeURIComponent(since):''))]);
@@ -106,7 +139,7 @@ export async function github(config:Config, since?:string, previous?:Github, api
   }
   const tree=row(await api.get(base+'/git/trees/'+encodeURIComponent(process.env.BRIDGE_CODE_REF??'main')+'?recursive=1'));
   if(tree.truncated)throw Error('Repository tree truncated');
-  return {issues:[...issueMap.values()].sort((a,b)=>a.number-b.number),pulls,branches:branchRows.map(b=>({name:str(b.name),sha:str(row(b.commit).sha)})),commits:[...new Map([...(previous?.commits??[]).map(c=>[c.sha,c] as const),...commitRows.map(c=>({sha:str(c.sha),date:str(row(row(c.commit).author).date),author:redact(str(row(row(c.commit).author).name)),url:str(c.html_url)})).map(c=>[c.sha,c] as const)]).values()].sort((a,b)=>b.date.localeCompare(a.date)).slice(0,2000),migrations:((tree.tree??[]) as Row[]).map(t=>str(t.path)).filter(p=>/^supabase\/migrations\/\d+.*\.sql$/.test(p)).map(p=>p.split('/').pop()!.split('_')[0])};
+  return {coverage:'full',issues:[...issueMap.values()].sort((a,b)=>a.number-b.number),pulls,branches:branchRows.map(b=>({name:str(b.name),sha:str(row(b.commit).sha)})),commits:[...new Map([...(previous?.commits??[]).map(c=>[c.sha,c] as const),...commitRows.map(c=>({sha:str(c.sha),date:str(row(row(c.commit).author).date),author:redact(str(row(row(c.commit).author).name)),url:str(c.html_url)})).map(c=>[c.sha,c] as const)]).values()].sort((a,b)=>b.date.localeCompare(a.date)).slice(0,2000),migrations:((tree.tree??[]) as Row[]).map(t=>str(t.path)).filter(p=>/^supabase\/migrations\/\d+.*\.sql$/.test(p)).map(p=>p.split('/').pop()!.split('_')[0])};
 }
 export async function vercel(c:Config,api=new Api('https://api.vercel.com',c.vercelToken??'')):Promise<Deployment[]> {
   if(!c.vercelToken||!c.vercelProject||!c.vercelTeam)throw Error('Vercel connection unavailable');
@@ -137,6 +170,7 @@ export function findings(input:Pick<Snapshot,'github'|'vercel'|'supabase'>):Snap
   const add=(id:string,message:string,claim:'VERIFIED'|'INFERRED'='VERIFIED')=>out.push({id,severity:'warning',claim,message});
   for(const name of ['github','vercel','supabase'] as const)if(freshness<unknown>(s[name]).status!=='VERIFIED')add('source:'+name,`${name}: UNKNOWN or stale telemetry`);
   if(s.github.status==='VERIFIED'&&s.github.data){const g=s.github.data;
+    if(g.coverage==='summary')add('source:github_limited','GitHub public summary: PR titles, refs and Issue labels only. CI, changed files, conflicts and resume are UNKNOWN.','INFERRED');
     for(const p of g.pulls){if(p.ci==='FAILED')add('ci:'+p.number,`PR #${p.number}: failed CI`);if(p.conflict)add('conflict:'+p.number,`PR #${p.number}: confirmed merge conflict`);if(p.behind)add('behind:'+p.number,`PR #${p.number}: base advanced; inspect divergence`);if(!p.issues.length)add('issue:'+p.number,`PR #${p.number}: no linked work item`);
       if(p.files.some(f=>/^(src\/lib\/auth|src\/lib\/supabase|src\/components\/suite|src\/app\/page|src\/app\/globals|\.env|\.github)|types/.test(f))&&!p.reviews.includes('APPROVED'))add('review:'+p.number,`PR #${p.number}: shared/security/public surface needs review`);
     }
@@ -144,7 +178,7 @@ export function findings(input:Pick<Snapshot,'github'|'vercel'|'supabase'>):Snap
     for(const i of g.issues){if(i.open===false)continue;if(!i.owner)add('owner:'+i.number,`Issue #${i.number}: owner UNKNOWN`);if(i.state==='in-progress'&&Date.now()-Date.parse(i.updated_at)>7*86400000)add('stale:'+i.number,`Issue #${i.number}: no update for seven days`,'INFERRED');}
   }
   if(s.vercel.status==='VERIFIED')for(const d of s.vercel.data??[])if(d.state==='ERROR'||d.state==='CANCELED')add('deployment:'+d.id,`${d.environment} deployment ${d.id}: ${d.state}; application health UNKNOWN`);
-  if(s.github.status==='VERIFIED'&&s.supabase.status==='VERIFIED'&&s.supabase.data){const db=s.supabase.data;const code=s.github.data?.migrations??[];for(const m of new Set([...code,...db.migrations]))if(code.includes(m)!==db.migrations.includes(m))add('migration:'+m,`Migration drift ${m} on ${db.ref}; do not apply automatically`);for(const r of db.rls)if(!r.enabled)add('rls:'+r.table,`RLS disabled: ${r.table}`);for(const a of db.advisors)add('advisor:'+a,a);}
+  if(s.github.status==='VERIFIED'&&s.github.data?.coverage!=='summary'&&s.supabase.status==='VERIFIED'&&s.supabase.data){const db=s.supabase.data;const code=s.github.data?.migrations??[];for(const m of new Set([...code,...db.migrations]))if(code.includes(m)!==db.migrations.includes(m))add('migration:'+m,`Migration drift ${m} on ${db.ref}; do not apply automatically`);for(const r of db.rls)if(!r.enabled)add('rls:'+r.table,`RLS disabled: ${r.table}`);for(const a of db.advisors)add('advisor:'+a,a);}
   return out.sort((a,b)=>a.id.localeCompare(b.id));
 }
 export async function sync(c:Config,old?:Snapshot,full=false, adapters={github,vercel,supabase}):Promise<Snapshot>{
@@ -166,6 +200,7 @@ export async function sync(c:Config,old?:Snapshot,full=false, adapters={github,v
 export type Resume = {schema_version:1;work_item_id:string;project:string;module:string;original_owner:Owner;resuming_owner:Owner;repository:string;branch:string;base_sha:string;head_sha:string;pull_request:number;status:string;last_verified_at:string;verification_sources:string[];completed_work:string[];pending_work:string[];blockers:string[];changed_files:string[];test_results:string;deployment_status:string;database_dependencies:string[];next_action:string;safety_warnings:string[];claims:{status:string;description:string}[];required_commands:string[]};
 export function resume(s:Snapshot, issueNumber:number, owner:Owner, repository:string, currentHead:string):Resume {
   if(freshness(s.github).status!=='VERIFIED')throw Error('Fresh GitHub verification required');
+  if(s.github.data?.coverage==='summary')throw Error('Authenticated full GitHub verification required to resume');
   const i=s.github.data?.issues.find(i=>i.number===issueNumber);if(!i||!i.owner||i.open===false)throw Error('Missing active issue or unique owner');
   const linked=s.github.data?.pulls.filter(p=>p.issues.includes(issueNumber))??[];if(linked.length>1)throw Error('Multiple PRs linked; split work items before resuming');
   const p=linked[0];if(!p)throw Error('Missing linked PR');if(!/^[a-f0-9]{40}$/.test(currentHead)||p.head_sha!==currentHead)throw Error('Head advanced; regenerate handoff');
