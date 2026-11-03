@@ -46,7 +46,10 @@ begin
       and os_private.is_creative_machine()
     ) into v_approved_machine;
     if not coalesce(v_approved_machine, false) then
-      raise exception 'Creative CRM stamp forbidden' using errcode = '42501';
+      raise exception 'Creative CRM stamp forbidden (is_lead=%,is_insert=%,actor_present=%,allowlisted=%)',
+        TG_TABLE_NAME = 'crm_leads', TG_OP = 'INSERT',
+        auth.uid() is not null, os_private.is_creative_machine()
+        using errcode = '42501';
     end if;
   end if;
   if TG_OP = 'INSERT' then
