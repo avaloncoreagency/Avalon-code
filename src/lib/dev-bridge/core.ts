@@ -214,4 +214,4 @@ export function collaboration(g:Github|null):CollaborationView {
     ||pr.files.some(f=>/(?:higgsfield|creative-bridge|creative-delivery)/i.test(f)));
   return {assigned,unassigned,overlaps,overlap_total,creative,total:latest.length};
 }
-export function config():Config{return {repo:process.env.BRIDGE_REPOSITORY??'avaloncoreagency/Avalon-code',githubToken:process.env.BRIDGE_GITHUB_TOKEN??process.env.GH_TOKEN??process.env.GITHUB_TOKEN,vercelToken:process.env.BRIDGE_VERCEL_TOKEN,vercelProject:process.env.BRIDGE_VERCEL_PROJECT,vercelTeam:process.env.BRIDGE_VERCEL_TEAM,supabaseToken:process.env.BRIDGE_SUPABASE_TOKEN,supabaseRef:process.env.BRIDGE_SUPABASE_REF};}
+export function config():Config{return {repo:process.env.BRIDGE_REPOSITORY??'avaloncoreagency/Avalon-code',githubToken:process.env.BRIDGE_GITHUB_TOKEN||process.env.GH_TOKEN||process.env.GITHUB_TOKEN,vercelToken:process.env.BRIDGE_VERCEL_TOKEN,vercelProject:process.env.BRIDGE_VERCEL_PROJECT,vercelTeam:process.env.BRIDGE_VERCEL_TEAM,supabaseToken:process.env.BRIDGE_SUPABASE_TOKEN,supabaseRef:process.env.BRIDGE_SUPABASE_REF};}
