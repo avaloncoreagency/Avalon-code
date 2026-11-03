@@ -14,7 +14,9 @@ create table public.crm_radar_worker_config (
 );
 
 alter table public.crm_radar_worker_config enable row level security;
-revoke all on public.crm_radar_worker_config from public, anon, authenticated;
+revoke all on public.crm_radar_worker_config from anon;
+revoke all on public.crm_radar_worker_config from authenticated;
+revoke all on public.crm_radar_worker_config from public;
 grant select, update on public.crm_radar_worker_config to service_role;
 insert into public.crm_radar_worker_config(id) values ('avalon');
 
@@ -32,7 +34,9 @@ create table public.crm_radar_worker_runs (
 );
 create index crm_radar_worker_runs_recent on public.crm_radar_worker_runs (finished_at desc);
 alter table public.crm_radar_worker_runs enable row level security;
-revoke all on public.crm_radar_worker_runs from public, anon, authenticated;
+revoke all on public.crm_radar_worker_runs from anon;
+revoke all on public.crm_radar_worker_runs from authenticated;
+revoke all on public.crm_radar_worker_runs from public;
 grant select on public.crm_radar_worker_runs to authenticated;
 grant select, insert on public.crm_radar_worker_runs to service_role;
 create policy crm_radar_worker_runs_owner_read on public.crm_radar_worker_runs
