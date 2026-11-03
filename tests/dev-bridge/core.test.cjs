@@ -195,3 +195,14 @@ test('real GitHub PR list avoids redundant detail/history calls and preserves UN
  const pkg=b.resume(snapshot,95,'samuel','org/repo',sha);
  assert.ok(validate(pkg),JSON.stringify(validate.errors));
 });
+
+test('PR Issue linkage reads both owners in Refs #95 and #96; cannot silently attribute only first',()=>{
+ assert.deepEqual(b.issueRefsFromBody('Refs #95 and #96'),[95,96]);
+ assert.deepEqual(b.issueRefsFromBody('Refs #95, fixes #95, closes #96'),[95,96]);
+ assert.deepEqual(b.issueRefsFromBody('A changed image linked in the body #123, no explicit work item'),[]);
+ const data=fixture().github.data;
+ data.issues=[{...data.issues[0],number:95,owner:'miguel'},
+   {...data.issues[0],number:96,owner:'samuel'}];
+ data.pulls[0].issues=b.issueRefsFromBody('Refs #95 and #96');
+ assert.deepEqual(b.collaboration(data).unassigned.map(x=>x.number),[11]);
+});
