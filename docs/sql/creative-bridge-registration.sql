@@ -11,39 +11,42 @@ create table if not exists os_private.creative_bridge_identities (
   user_id uuid primary key references auth.users(id) on delete cascade,
   owner_id uuid not null references public.agency_memberships(user_id),
   enabled boolean not null default false,
-  context_token uuid not null default gen_random_uuid(), -- secret DB-only transaction capability
   label text not null default '' check (length(label) <= 80),
   created_at timestamptz not null default now()
 );
 alter table os_private.creative_bridge_identities enable row level security;
 revoke all on table os_private.creative_bridge_identities from public, anon, authenticated;
 
--- Existing CRM triggers require an owner on every write. This strictly
--- preserves the owner path and permits ONLY crm_leads INSERT when the private
--- database capability was set in the same RPC transaction by the allowlisted
--- machine identity. JWT-only impersonation or direct REST writes are denied.
+-- Read-only authorization helper: a non-owner machine can register a lead
+-- ONLY inside the private definer RPC; original owner-only CRM INSERT RLS
+-- blocks direct REST inserts. The machine has no read grant on this allowlist.
+create or replace function os_private.is_creative_machine() returns boolean
+language sql stable security definer set search_path = '' as $creative_identity$
+  select exists (
+    select 1 from os_private.creative_bridge_identities ci
+    where ci.user_id = auth.uid() and ci.enabled
+  )
+$creative_identity$;
+revoke all on function os_private.is_creative_machine() from public, anon, authenticated;
+grant execute on function os_private.is_creative_machine() to authenticated;
+
+-- Existing CRM triggers require an owner on every write. Preserve that
+-- behavior except for allowlisted crm_leads INSERTs within the RPC.
+-- Direct machine inserts remain blocked by unchanged owner-only RLS.
 -- Audit actors remain the actual machine UUID; no owner session is forged.
 create or replace function crm_private.stamp() returns trigger
--- SECURITY DEFINER is required: machine has no direct SELECT grant on the
--- private allowlist. Explicit auth.uid owner/allowlist checks remain mandatory.
-language plpgsql security definer set search_path = '' as $creative_stamp$
+-- Preserve SECURITY INVOKER for the global trigger; only the
+-- read-only private helper runs as SECURITY DEFINER.
+language plpgsql security invoker set search_path = '' as $creative_stamp$
 declare v_approved_machine boolean;
 begin
   if not crm_private.is_owner() then
     select (
       TG_TABLE_NAME = 'crm_leads' and TG_OP = 'INSERT'
-      and exists (
-        select 1 from os_private.creative_bridge_identities ci
-        where ci.user_id = auth.uid() and ci.enabled
-          and pg_catalog.current_setting('avalon.creative_bridge_token', true) = ci.context_token::text
-      )
+      and os_private.is_creative_machine()
     ) into v_approved_machine;
     if not coalesce(v_approved_machine, false) then
-      raise exception 'Creative CRM stamp forbidden (context_set=%,identity_allowlisted=%)',
-        nullif(pg_catalog.current_setting('avalon.creative_bridge_token', true), '') is not null,
-        exists (select 1 from os_private.creative_bridge_identities ci
-          where ci.user_id = auth.uid() and ci.enabled)
-        using errcode = '42501';
+      raise exception 'Creative CRM stamp forbidden' using errcode = '42501';
     end if;
   end if;
   if TG_OP = 'INSERT' then
@@ -85,11 +88,7 @@ begin
       where user_id = auth.uid() and role = 'owner')
     or (
       TG_TABLE_NAME = 'crm_leads' and TG_OP = 'INSERT'
-      and exists (
-        select 1 from os_private.creative_bridge_identities ci
-        where ci.user_id = auth.uid() and ci.enabled
-          and pg_catalog.current_setting('avalon.creative_bridge_token', true) = ci.context_token::text
-      )
+      and os_private.is_creative_machine()
     )
   ) then
     raise exception 'Creative CRM audit forbidden' using errcode = '42501';
@@ -131,7 +130,6 @@ as $function$
 declare
   v_machine_id uuid;
   v_allowed_owner uuid;
-  v_context_token uuid;
   v_project record;
   v_project_id uuid;
   v_lead_id uuid;
@@ -144,7 +142,7 @@ declare
   v_settings jsonb;
 begin
   v_machine_id := auth.uid();
-  select owner_id, context_token into v_allowed_owner, v_context_token
+  select owner_id into v_allowed_owner
     from os_private.creative_bridge_identities
     where user_id = v_machine_id and enabled = true;
   if v_machine_id is null or v_allowed_owner is null or v_allowed_owner is distinct from p_owner_id then
@@ -172,10 +170,6 @@ begin
   ) then
     raise exception 'unknown delivery owner' using errcode = '42501';
   end if;
-
-  -- A DB-only random capability unlocks the CRM stamp/audit INSERT triggers
-  -- only for this single request/transaction and this allowlisted Auth user.
-  perform pg_catalog.set_config('avalon.creative_bridge_token', v_context_token::text, true);
 
   -- The duplicate check is serialized even if two agents submit concurrently.
   perform pg_catalog.pg_advisory_xact_lock(
