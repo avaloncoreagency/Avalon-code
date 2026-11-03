@@ -31,6 +31,42 @@ test("workspace errors use bounded explanations, not raw database details", () =
   assert.equal(workspaceFeedback("ok", "es", "saved"), null, "existing sales codes retain their own messages");
 });
 
+test("OkFlash safely ignores inherited URL codes and renders only explicit success codes", () => {
+  const source = fs.readFileSync("src/components/sales/ui.tsx", "utf8");
+  const compiled = ts.transpileModule(source, {
+    fileName: "ui.tsx",
+    compilerOptions: {
+      module: ts.ModuleKind.CommonJS,
+      target: ts.ScriptTarget.ES2022,
+      jsx: ts.JsxEmit.ReactJSX,
+      esModuleInterop: true,
+    },
+    reportDiagnostics: true,
+  });
+  assert.deepEqual((compiled.diagnostics || []).filter(d => d.category === ts.DiagnosticCategory.Error), []);
+
+  const jsx = (tag, props) => ({ tag, props });
+  const stubs = {
+    "react/jsx-runtime": { jsx, jsxs: jsx },
+    "next/link": () => null,
+    "@/components/crm/navigation": { CrmNavigation: () => null },
+    "@/lib/i18n": { pick: (lang, es, en) => lang === "es" ? es : en },
+    "@/lib/sales/domain": { label: (_, code) => code, tone: () => "ok", saleErrorText: () => "Unavailable" },
+    "@/lib/crm/workspace-feedback": { workspaceFeedback },
+    "./sales.module.css": { flash: "flash" },
+  };
+  const ui = { exports: {} };
+  new Function("require", "module", "exports", compiled.outputText)(
+    id => { if (Object.hasOwn(stubs, id)) return stubs[id]; throw Error("Unexpected import: " + id); },
+    ui, ui.exports,
+  );
+  for (const code of ["constructor", "__proto__", "toString", "valueOf", "hasOwnProperty", "unknown"]) {
+    assert.equal(ui.exports.OkFlash({ lang: "es", code }), null, code);
+  }
+  assert.match(ui.exports.OkFlash({ lang: "es", code: "confirmed" }).props.children, /Venta confirmada/);
+  assert.match(ui.exports.OkFlash({ lang: "en", code: "workspace_saved" }).props.children, /saved/);
+});
+
 test("CRM flash components handle workspace feedback without changing Sales errors", () => {
   const ui = fs.readFileSync("src/components/sales/ui.tsx", "utf8");
   const actions = fs.readFileSync("src/app/admin/workspace/crm/clients/workspace-actions.ts", "utf8");
