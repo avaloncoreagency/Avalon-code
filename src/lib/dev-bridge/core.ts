@@ -1,7 +1,7 @@
 /* Server-side provider adapters. Never import from client components. */
 export type Owner = 'miguel' | 'samuel';
 export type Fact<T> = { status: 'VERIFIED' | 'UNKNOWN' | 'STALE'; checked_at: string; verified_at: string | null; data: T | null; error?: string };
-export type Issue = { id: string; number: number; title: string; owner: Owner | null; module: string; state: string; labels: string[]; url: string; updated_at: string; body: string; handoff?:{state:string;sha:string;at:string;url:string} };
+export type Issue = { id: string; number: number; title: string; owner: Owner | null; module: string; state: string; open?: boolean; labels: string[]; url: string; updated_at: string; body: string; handoff?:{state:string;sha:string;at:string;url:string} };
 export type Pull = { number: number; title: string; branch: string; base_branch: string; base_sha: string; head_sha: string; url: string; files: string[]; ci: string; reviews: string[]; conflict: boolean | null; behind: number; issues: number[]; updated_at?: string };
 export type Github = { issues: Issue[]; pulls: Pull[]; branches: {name:string;sha:string}[]; commits: {sha:string;date:string;author:string;url:string}[]; migrations: string[] };
 export type Deployment = { id:string;sha:string;branch:string;environment:string;state:string;url:string;created:number };
@@ -51,11 +51,13 @@ export async function github(config:Config, since?:string, previous?:Github, api
     if(Date.parse(issueMap.get(Number(i.number))?.updated_at??'')>Date.parse(str(i.updated_at)))continue;
     const labels=(i.labels as unknown[]??[]).map(l=>str(row(l).name));
     const owners=labels.filter(l=>l==='owner:miguel'||l==='owner:samuel');
-    issueMap.set(Number(i.number),{id:`github:${config.repo}#${i.number}`,number:Number(i.number),title:redact(str(i.title)),owner:owners.length===1?owners[0].slice(6) as Owner:null,module:labels.find(l=>l.startsWith('module:'))?.slice(7)??'UNKNOWN',state:labels.find(l=>l.startsWith('status:'))?.slice(7)??'UNKNOWN',labels,url:str(i.html_url),updated_at:str(i.updated_at),body:redact(str(i.body))});
+    issueMap.set(Number(i.number),{id:`github:${config.repo}#${i.number}`,number:Number(i.number),title:redact(str(i.title)),owner:owners.length===1?owners[0].slice(6) as Owner:null,module:labels.find(l=>l.startsWith('module:'))?.slice(7)??'UNKNOWN',state:labels.find(l=>l.startsWith('status:'))?.slice(7)??'UNKNOWN',open: typeof i.state==='string' ? i.state==='open' : undefined,labels,url:str(i.html_url),updated_at:str(i.updated_at),body:redact(str(i.body))});
   }
   // Comments remain canonical; only retain the latest structured handoff envelope.
   for(const i of issueMap.values()) {
-    if(!i.owner || !issueRows.some(r=>Number(r.number)===i.number))continue;
+    if(!i.owner || i.open === false || !issueRows.some(r=>Number(r.number)===i.number))continue;
+    const sourceIssue=issueRows.find(r=>Number(r.number)===i.number);
+    if(sourceIssue && sourceIssue.comments===0)continue;
     const comments=await api.pages(base+`/issues/${i.number}/comments`);
     for(const comment of comments) {
       const match=str(comment.body).match(/<!-- avalon-handoff:\d+:([a-f0-9]{40}):(miguel|samuel):([^>]+) -->/);
@@ -68,10 +70,18 @@ export async function github(config:Config, since?:string, previous?:Github, api
   // a failed detail still leaves the whole GitHub provider UNKNOWN/STALE.
   const inspectPull = async (p:Row):Promise<Pull> => {
     const n=Number(p.number);
-    const detail=row(await api.get(base+`/pulls/${n}`));
+    // The paginated /pulls response already carries the full head/base/body.
+    // Avoid one redundant HTTP request per PR (often dozens in Avalon).
+    const detail=p.head && p.base && typeof p.title==='string' ? p : row(await api.get(base+`/pulls/${n}`));
     const head=row(detail.head), baseRef=row(detail.base), sha=str(head.sha);
-    const [files,checks,reviews,comparison,prCommits]=await Promise.all([api.pages(base+`/pulls/${n}/files`),api.get(base+`/commits/${sha}/check-runs?per_page=100`),api.pages(base+`/pulls/${n}/reviews`),api.get(base+`/compare/${encodeURIComponent(str(head.ref))}...${encodeURIComponent(str(baseRef.ref))}`),api.pages(base+`/pulls/${n}/commits`)]);
-    commitRows.push(...prCommits);
+    const [files,checks,reviews,comparison]=await Promise.all([
+      api.pages(base+`/pulls/${n}/files`),
+      api.get(base+`/commits/${sha}/check-runs?per_page=100`),
+      api.pages(base+`/pulls/${n}/reviews`),
+      api.get(base+`/compare/${encodeURIComponent(str(head.ref))}...${encodeURIComponent(str(baseRef.ref))}`),
+    ]);
+    // Recent main commits come from the first /commits read. PR heads
+    // already carry their verified SHA and need no expensive commit histories.
     const checkData=row(checks);
     const allChecks=(checkData.check_runs??[]) as Row[];
     // Vercel deployment statuses are not GitHub Actions test outcomes. A
@@ -82,10 +92,10 @@ export async function github(config:Config, since?:string, previous?:Github, api
     const ci=!Number.isFinite(total)||total>100||!runs.length?'UNKNOWN'
       :runs.some(r=>['failure','cancelled','timed_out','action_required'].includes(str(r.conclusion)))?'FAILED'
       :runs.every(r=>['success','skipped','neutral'].includes(str(r.conclusion)))?'PASSED':'PENDING';
-    return {number:n,title:redact(str(detail.title)),branch:str(head.ref),base_branch:str(baseRef.ref),base_sha:str(baseRef.sha),head_sha:sha,url:str(detail.html_url),files:files.map(f=>str(f.filename)),ci,reviews:reviews.map(r=>str(r.state)),conflict:detail.mergeable===null?null:detail.mergeable===false,behind:Number(row(comparison).ahead_by??0),issues:[...str(detail.body).matchAll(/(?:close[sd]?|fix(?:e[sd])?|resolve[sd]?|refs?)\s+#(\d+)/gi)].map(m=>Number(m[1])),updated_at:str(detail.updated_at)};
+    return {number:n,title:redact(str(detail.title)),branch:str(head.ref),base_branch:str(baseRef.ref),base_sha:str(baseRef.sha),head_sha:sha,url:str(detail.html_url),files:files.map(f=>str(f.filename)),ci,reviews:reviews.map(r=>str(r.state)),conflict:typeof detail.mergeable==='boolean' ? !detail.mergeable : null,behind:Number(row(comparison).ahead_by??0),issues:[...str(detail.body).matchAll(/(?:close[sd]?|fix(?:e[sd])?|resolve[sd]?|refs?)\s+#(\d+)/gi)].map(m=>Number(m[1])),updated_at:str(detail.updated_at)};
   };
-  for(let index=0;index<prs.length;index+=3) {
-    const batch=await Promise.all(prs.slice(index,index+3).map(p=>inspectPull(p)));
+  for(let index=0;index<prs.length;index+=5) {
+    const batch=await Promise.all(prs.slice(index,index+5).map(p=>inspectPull(p)));
     pulls.push(...batch);
   }
   const tree=row(await api.get(base+'/git/trees/'+encodeURIComponent(process.env.BRIDGE_CODE_REF??'main')+'?recursive=1'));
@@ -125,7 +135,7 @@ export function findings(input:Pick<Snapshot,'github'|'vercel'|'supabase'>):Snap
       if(p.files.some(f=>/^(src\/lib\/auth|src\/lib\/supabase|src\/components\/suite|src\/app\/page|src\/app\/globals|\.env|\.github)|types/.test(f))&&!p.reviews.includes('APPROVED'))add('review:'+p.number,`PR #${p.number}: shared/security/public surface needs review`);
     }
     for(let a=0;a<g.pulls.length;a++)for(let b=a+1;b<g.pulls.length;b++){const x=g.pulls[a],y=g.pulls[b];const overlap=x.files.filter(f=>y.files.includes(f));if(overlap.some(f=>f.startsWith('supabase/migrations/')))add(`migration-conflict:${x.number}:${y.number}`,`Potential migration conflict #${x.number}/#${y.number}; never resolve automatically`,'INFERRED');if(overlap.length)add(`overlap:${x.number}:${y.number}`,`Potential conflict #${x.number}/#${y.number}: ${overlap.join(', ')}`,'INFERRED');if(x.base_branch!==y.base_branch)add(`base:${x.number}:${y.number}`,`Different integration bases #${x.number}/#${y.number}; manual compatibility review`,'INFERRED');}
-    for(const i of g.issues){if(!i.owner)add('owner:'+i.number,`Issue #${i.number}: owner UNKNOWN`);if(i.state==='in-progress'&&Date.now()-Date.parse(i.updated_at)>7*86400000)add('stale:'+i.number,`Issue #${i.number}: no update for seven days`,'INFERRED');}
+    for(const i of g.issues){if(i.open===false)continue;if(!i.owner)add('owner:'+i.number,`Issue #${i.number}: owner UNKNOWN`);if(i.state==='in-progress'&&Date.now()-Date.parse(i.updated_at)>7*86400000)add('stale:'+i.number,`Issue #${i.number}: no update for seven days`,'INFERRED');}
   }
   if(s.vercel.status==='VERIFIED')for(const d of s.vercel.data??[])if(d.state==='ERROR'||d.state==='CANCELED')add('deployment:'+d.id,`${d.environment} deployment ${d.id}: ${d.state}; application health UNKNOWN`);
   if(s.github.status==='VERIFIED'&&s.supabase.status==='VERIFIED'&&s.supabase.data){const db=s.supabase.data;const code=s.github.data?.migrations??[];for(const m of new Set([...code,...db.migrations]))if(code.includes(m)!==db.migrations.includes(m))add('migration:'+m,`Migration drift ${m} on ${db.ref}; do not apply automatically`);for(const r of db.rls)if(!r.enabled)add('rls:'+r.table,`RLS disabled: ${r.table}`);for(const a of db.advisors)add('advisor:'+a,a);}
@@ -150,7 +160,7 @@ export async function sync(c:Config,old?:Snapshot,full=false, adapters={github,v
 export type Resume = {schema_version:1;work_item_id:string;project:string;module:string;original_owner:Owner;resuming_owner:Owner;repository:string;branch:string;base_sha:string;head_sha:string;pull_request:number;status:string;last_verified_at:string;verification_sources:string[];completed_work:string[];pending_work:string[];blockers:string[];changed_files:string[];test_results:string;deployment_status:string;database_dependencies:string[];next_action:string;safety_warnings:string[];claims:{status:string;description:string}[];required_commands:string[]};
 export function resume(s:Snapshot, issueNumber:number, owner:Owner, repository:string, currentHead:string):Resume {
   if(freshness(s.github).status!=='VERIFIED')throw Error('Fresh GitHub verification required');
-  const i=s.github.data?.issues.find(i=>i.number===issueNumber);if(!i||!i.owner)throw Error('Missing issue or unique owner');
+  const i=s.github.data?.issues.find(i=>i.number===issueNumber);if(!i||!i.owner||i.open===false)throw Error('Missing active issue or unique owner');
   const linked=s.github.data?.pulls.filter(p=>p.issues.includes(issueNumber))??[];if(linked.length>1)throw Error('Multiple PRs linked; split work items before resuming');
   const p=linked[0];if(!p)throw Error('Missing linked PR');if(!/^[a-f0-9]{40}$/.test(currentHead)||p.head_sha!==currentHead)throw Error('Head advanced; regenerate handoff');
   const next=i.body.match(/^Next action:\s*(.+)$/mi)?.[1];if(!next)throw Error('Missing exact Next action in Issue');
@@ -185,7 +195,7 @@ export function collaboration(g:Github|null):CollaborationView {
   for(const pr of latest) {
     const linked=pr.issues.map(n=>issues.get(n));
     // Unknown, incomplete, or contradictory ownership never becomes verified.
-    const owner=linked.length&&linked.every(i=>i?.owner&&i.owner===linked[0]?.owner)
+    const owner=linked.length&&linked.every(i=>i?.owner&&i.open!==false&&i.owner===linked[0]?.owner)
       ?linked[0]!.owner:null;
     if(!owner) {unassigned.push(pr);continue;}
     const issue=linked[0]!;
