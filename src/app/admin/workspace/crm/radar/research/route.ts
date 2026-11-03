@@ -29,6 +29,15 @@ async function ownerProspect(id: string) {
 }
 
 export async function GET(request: NextRequest) {
+  if (request.nextUrl.searchParams.get("job_status") === "1") {
+    const session = await getOwnerSession();
+    if (!session) return reply({ error: "No autorizado." }, 403);
+    const { data, error } = await session.supabase.from("crm_radar_worker_runs")
+      .select("finished_at,status,checked,rated,converted,blocked,message")
+      .order("finished_at", { ascending: false }).limit(1).maybeSingle();
+    if (error) return reply({ error: "No se pudo consultar el estado del investigador." }, 503);
+    return reply({ job: data ?? null });
+  }
   if (request.nextUrl.searchParams.get("queue") === "1") {
     const session = await getOwnerSession();
     if (!session) return reply({ error: "No autorizado." }, 403);
