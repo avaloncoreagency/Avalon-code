@@ -2,7 +2,7 @@
 export type Owner = 'miguel' | 'samuel';
 export type Fact<T> = { status: 'VERIFIED' | 'UNKNOWN' | 'STALE'; checked_at: string; verified_at: string | null; data: T | null; error?: string };
 export type Issue = { id: string; number: number; title: string; owner: Owner | null; module: string; state: string; labels: string[]; url: string; updated_at: string; body: string; handoff?:{state:string;sha:string;at:string;url:string} };
-export type Pull = { number: number; title: string; branch: string; base_branch: string; base_sha: string; head_sha: string; url: string; files: string[]; ci: string; reviews: string[]; conflict: boolean | null; behind: number; issues: number[] };
+export type Pull = { number: number; title: string; branch: string; base_branch: string; base_sha: string; head_sha: string; url: string; files: string[]; ci: string; reviews: string[]; conflict: boolean | null; behind: number; issues: number[]; updated_at?: string };
 export type Github = { issues: Issue[]; pulls: Pull[]; branches: {name:string;sha:string}[]; commits: {sha:string;date:string;author:string;url:string}[]; migrations: string[] };
 export type Deployment = { id:string;sha:string;branch:string;environment:string;state:string;url:string;created:number };
 export type Database = { ref:string; status:string; migrations:string[]; rls:{table:string;enabled:boolean}[]; advisors:string[]; functions:{name:string;status:string}[] };
@@ -63,18 +63,30 @@ export async function github(config:Config, since?:string, previous?:Github, api
     }
   }
   const pulls:Pull[]=[];
-  // Sequential per-PR reads bound API pressure. One inaccessible detail fails GitHub closed.
-  for(const p of prs) {
+  // With many simultaneous Codex/Claude PRs, bounded batches avoid a very slow
+  // serial scan while limiting secondary API rate pressure. No partial snapshot:
+  // a failed detail still leaves the whole GitHub provider UNKNOWN/STALE.
+  const inspectPull = async (p:Row):Promise<Pull> => {
     const n=Number(p.number);
     const detail=row(await api.get(base+`/pulls/${n}`));
     const head=row(detail.head), baseRef=row(detail.base), sha=str(head.sha);
-    const [files,checks,reviews,comparison,statuses,prCommits]=await Promise.all([api.pages(base+`/pulls/${n}/files`),api.get(base+`/commits/${sha}/check-runs?per_page=100`),api.pages(base+`/pulls/${n}/reviews`),api.get(base+`/compare/${encodeURIComponent(str(head.ref))}...${encodeURIComponent(str(baseRef.ref))}`),api.get(base+`/commits/${sha}/status?per_page=100`),api.pages(base+`/pulls/${n}/commits`)]);
+    const [files,checks,reviews,comparison,prCommits]=await Promise.all([api.pages(base+`/pulls/${n}/files`),api.get(base+`/commits/${sha}/check-runs?per_page=100`),api.pages(base+`/pulls/${n}/reviews`),api.get(base+`/compare/${encodeURIComponent(str(head.ref))}...${encodeURIComponent(str(baseRef.ref))}`),api.pages(base+`/pulls/${n}/commits`)]);
     commitRows.push(...prCommits);
-    const runs=(row(checks).check_runs??[]) as Row[];
-    const complete=Number(row(checks).total_count)<=100 && Number(row(statuses).total_count)<=100;
-    const combined=row(statuses);
-    const ci=Number(combined.total_count)>0&&combined.state!=='success'?(combined.state==='pending'?'PENDING':'FAILED'):!complete||!runs.length?'UNKNOWN':runs.some(r=>['failure','cancelled','timed_out','action_required'].includes(str(r.conclusion)))?'FAILED':runs.every(r=>r.conclusion==='success'||r.conclusion==='skipped'||r.conclusion==='neutral')?'PASSED':'PENDING';
-    pulls.push({number:n,title:redact(str(detail.title)),branch:str(head.ref),base_branch:str(baseRef.ref),base_sha:str(baseRef.sha),head_sha:sha,url:str(detail.html_url),files:files.map(f=>str(f.filename)),ci,reviews:reviews.map(r=>str(r.state)),conflict:detail.mergeable===null?null:detail.mergeable===false,behind:Number(row(comparison).ahead_by??0),issues:[...str(detail.body).matchAll(/(?:close[sd]?|fix(?:e[sd])?|resolve[sd]?|refs?)\s+#(\d+)/gi)].map(m=>Number(m[1]))});
+    const checkData=row(checks);
+    const allChecks=(checkData.check_runs??[]) as Row[];
+    // Vercel deployment statuses are not GitHub Actions test outcomes. A
+    // Preview deliberately blocked from production Supabase must not be
+    // reported as a failed unit/integration suite.
+    const runs=allChecks.filter(r=>str(row(r.app).slug).toLowerCase()!=='vercel' && !/^vercel(?:\s|$)/i.test(str(r.name)));
+    const total=Number(checkData.total_count);
+    const ci=!Number.isFinite(total)||total>100||!runs.length?'UNKNOWN'
+      :runs.some(r=>['failure','cancelled','timed_out','action_required'].includes(str(r.conclusion)))?'FAILED'
+      :runs.every(r=>['success','skipped','neutral'].includes(str(r.conclusion)))?'PASSED':'PENDING';
+    return {number:n,title:redact(str(detail.title)),branch:str(head.ref),base_branch:str(baseRef.ref),base_sha:str(baseRef.sha),head_sha:sha,url:str(detail.html_url),files:files.map(f=>str(f.filename)),ci,reviews:reviews.map(r=>str(r.state)),conflict:detail.mergeable===null?null:detail.mergeable===false,behind:Number(row(comparison).ahead_by??0),issues:[...str(detail.body).matchAll(/(?:close[sd]?|fix(?:e[sd])?|resolve[sd]?|refs?)\s+#(\d+)/gi)].map(m=>Number(m[1])),updated_at:str(detail.updated_at)};
+  };
+  for(let index=0;index<prs.length;index+=3) {
+    const batch=await Promise.all(prs.slice(index,index+3).map(p=>inspectPull(p)));
+    pulls.push(...batch);
   }
   const tree=row(await api.get(base+'/git/trees/'+encodeURIComponent(process.env.BRIDGE_CODE_REF??'main')+'?recursive=1'));
   if(tree.truncated)throw Error('Repository tree truncated');
@@ -144,5 +156,52 @@ export function resume(s:Snapshot, issueNumber:number, owner:Owner, repository:s
   const next=i.body.match(/^Next action:\s*(.+)$/mi)?.[1];if(!next)throw Error('Missing exact Next action in Issue');
   const deployments=freshness(s.vercel).status==='VERIFIED'?(s.vercel.data??[]).filter(d=>d.sha===p.head_sha):[];
   return {required_commands:['git fetch origin','git status --porcelain',`git worktree add -b resume/${owner}/issue-${issueNumber} ../avalon-resume-${issueNumber} ${p.head_sha}`,'npm ci','npm run bridge:check','npm run bridge:test'],schema_version:1,work_item_id:i.id,project:'Avalon Core Agency',module:i.module,original_owner:i.owner,resuming_owner:owner,repository,branch:p.branch,base_sha:p.base_sha,head_sha:p.head_sha,pull_request:p.number,status:'Draft',last_verified_at:s.github.verified_at!,verification_sources:[i.url,p.url],completed_work:[],pending_work:[next],blockers:s.findings.map(f=>f.message),changed_files:p.files,test_results:p.ci,deployment_status:deployments.map(d=>`${d.environment}: ${d.state}; application health UNKNOWN`).join('; ')||'UNKNOWN',database_dependencies:s.supabase.status==='VERIFIED'?(s.supabase.data?.migrations??[]):['UNKNOWN'],next_action:next,safety_warnings:['Check local git status --porcelain before checkout. Remote dashboard cannot inspect your worktree.',`Create an isolated branch from ${p.head_sha}. Never overwrite ${p.branch}.`,'Issue ownership does not imply acceptance.',...(p.behind?['Branch base advanced; review divergence.']:[]),...(p.conflict?['Confirmed conflict; no automatic merge.']:[]),...(i.state==='in-progress'?['Original owner may be active; coordinate through Issue before shared changes.']:[])],claims:[{status:'VERIFIED',description:'Branch and CI metadata; not proof of application correctness'},{status:'REPORTED',description:'Next action comes from the Issue'}]};
+}
+
+export type CollaborationTask = { pr:Pull; issue:Issue; next_action:string|null };
+export type PRFileOverlap = { left:number; right:number; files:string[] };
+export type CollaborationView = {
+  assigned:Record<Owner,CollaborationTask[]>;
+  unassigned:Pull[];
+  overlaps:PRFileOverlap[];
+  overlap_total:number;
+  creative:Pull[];
+  total:number;
+};
+/**
+ * Read-only coordination from canonical Issue labels and exact PR diffs.
+ * Never infer Miguel/Samuel from a branch, commit author, AI provider or title.
+ * Many legacy Issues are unlabeled: they must remain VISIBLE but unassigned.
+ */
+export function collaboration(g:Github|null):CollaborationView {
+  const assigned:Record<Owner,CollaborationTask[]>={miguel:[],samuel:[]};
+  const unassigned:Pull[]=[];
+  const overlaps:PRFileOverlap[]=[];
+  let overlap_total=0;
+  if(!g)return {assigned,unassigned,overlaps,overlap_total,creative:[],total:0};
+  const latest=[...g.pulls].sort((a,b)=>
+    (Date.parse(b.updated_at??'')||0)-(Date.parse(a.updated_at??'')||0)||b.number-a.number);
+  const issues=new Map(g.issues.map(i=>[i.number,i]));
+  for(const pr of latest) {
+    const linked=pr.issues.map(n=>issues.get(n));
+    // Unknown, incomplete, or contradictory ownership never becomes verified.
+    const owner=linked.length&&linked.every(i=>i?.owner&&i.owner===linked[0]?.owner)
+      ?linked[0]!.owner:null;
+    if(!owner) {unassigned.push(pr);continue;}
+    const issue=linked[0]!;
+    const next=issue.body.match(/^Next action:\s*(.+)$/mi)?.[1]?.trim()??null;
+    assigned[owner].push({pr,issue,next_action:next});
+  }
+  for(let i=0;i<latest.length;i++)for(let j=i+1;j<latest.length;j++){
+    const left=latest[i],right=latest[j];
+    const rightFiles=new Set(right.files);
+    const shared=left.files.filter(f=>rightFiles.has(f));
+    if(!shared.length)continue;
+    overlap_total++;
+    if(overlaps.length<12)overlaps.push({left:left.number,right:right.number,files:shared.slice(0,8)});
+  }
+  const creative=latest.filter(pr=>/(?:higgsfield|creative[-_ ]bridge|creative[-_ ]delivery)/i.test(pr.title)
+    ||pr.files.some(f=>/(?:higgsfield|creative-bridge|creative-delivery)/i.test(f)));
+  return {assigned,unassigned,overlaps,overlap_total,creative,total:latest.length};
 }
 export function config():Config{return {repo:process.env.BRIDGE_REPOSITORY??'avaloncoreagency/Avalon-code',githubToken:process.env.BRIDGE_GITHUB_TOKEN??process.env.GH_TOKEN??process.env.GITHUB_TOKEN,vercelToken:process.env.BRIDGE_VERCEL_TOKEN,vercelProject:process.env.BRIDGE_VERCEL_PROJECT,vercelTeam:process.env.BRIDGE_VERCEL_TEAM,supabaseToken:process.env.BRIDGE_SUPABASE_TOKEN,supabaseRef:process.env.BRIDGE_SUPABASE_REF};}
