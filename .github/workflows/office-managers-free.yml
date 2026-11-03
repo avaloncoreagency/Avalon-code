@@ -23,7 +23,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 3
     # Optional kill-switch for administrators. No paid APIs, DB or secrets.
-    if: ${{ vars.AVALON_OFFICE_FREE_CHECKS_DISABLED != 'true' }}
+    if: ${{ github.event.repository.private == false && vars.AVALON_OFFICE_FREE_CHECKS_DISABLED != 'true' }}
     env:
       GITHUB_TOKEN: ${{ github.token }}
     steps:
