@@ -434,7 +434,7 @@ test('Nova Restaurant through the real app: one form, three departments, no dupl
   await page.goto(origin + '/admin/workspace/crm/office');
   await page.getByRole('heading', { name: 'Oficina', level: 1 }).waitFor();
   const scene = page.getByRole('region', { name: 'Sede de Avalon: selecciona una estación' });
-  for (const name of ['REN', 'SHIN', 'HARU', 'SORA', 'KENJI']) await scene.getByRole('button', { name: new RegExp('^' + name + ' · manager virtual de IA · Sin conexión') }).waitFor();
+  for (const name of ['REN', 'SHIN', 'HARU', 'SORA', 'KENJI']) await scene.getByRole('button', { name: new RegExp('^' + name + ' · Sin conexión · manager virtual de IA') }).waitFor();
   assert.equal(await scene.getByRole('button', { name: /Propietario/ }).count(), 2, 'both owners come from agency_memberships');
   // Own profile: edit (self-only).
   await scene.getByRole('button', { name: /^miguel · Propietario/ }).click();
@@ -467,7 +467,7 @@ test('Nova Restaurant through the real app: one form, three departments, no dupl
   await page.screenshot({ path: `${EVIDENCE}/office-messages.png` });
   await drawer.getByRole('button', { name: 'Volver a la oficina' }).click();
   // AI manager: request is registered, explicitly NOT executed; no fabricated reply.
-  await scene.getByRole('button', { name: /^REN · manager virtual de IA/ }).click();
+  await scene.getByRole('button', { name: /^REN · Sin conexión · manager virtual de IA/ }).click();
   drawer = page.getByRole('dialog');
   await drawer.getByText('Manager virtual de IA · no es una persona').waitFor();
   await drawer.getByLabel(/Solicitud para REN/).fill('REN, muéstrame lo que falta para completar Avalon.');

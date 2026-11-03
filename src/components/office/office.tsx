@@ -2,6 +2,7 @@
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties, type FormEvent } from "react";
 import type { Lang } from "@/lib/i18n";
+import { IsoOffice } from "./iso-office";
 import s from "./office.module.css";
 
 type Stats = { assigned: number; open: number; overdue: number; done: number; projects: number };
@@ -31,8 +32,6 @@ const STATUS: Record<string, [string, string]> = {
   available: ["Disponible", "Available"], configured_idle: ["Configurado pero no ejecutado", "Configured, not run"],
   offline: ["Sin conexión", "Offline"], not_implemented: ["No implementado", "Not implemented"],
 };
-// Desk positions for human members along the window line (percent of the scene). Extra members wrap to a second row.
-const DESKS = [{ x: 30, y: 44 }, { x: 70, y: 44 }, { x: 40, y: 40 }, { x: 60, y: 40 }, { x: 14, y: 50 }, { x: 86, y: 50 }, { x: 50, y: 38 }];
 
 const refHref = (type: string | null, id: string | null) =>
   !type || !id ? null : type === "lead" ? `/admin/workspace/crm/leads?lead=${id}` : type === "client" ? `/admin/workspace/crm/clients/${id}` :
@@ -59,7 +58,6 @@ export function Office({ lang }: { lang: Lang }) {
   const [view, setView] = useState<"space" | "directory">("space");
   const [selected, setSelected] = useState<Selected>(null);
   const [revision, setRevision] = useState(0);
-  const scene = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     const c = new AbortController();
@@ -70,22 +68,11 @@ export function Office({ lang }: { lang: Lang }) {
     return () => c.abort();
   }, [period, revision]);
 
-  // Light parallax: pointer moves CSS variables only (transform-based layers). Disabled with reduced motion.
+  // Live view without a realtime dependency: refresh every 30 s while the tab is visible.
   useEffect(() => {
-    const el = scene.current;
-    if (!el || window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
-    let frame = 0;
-    const move = (e: PointerEvent) => {
-      const r = el.getBoundingClientRect();
-      const x = (e.clientX - r.left) / r.width - 0.5, y = (e.clientY - r.top) / r.height - 0.5;
-      cancelAnimationFrame(frame);
-      frame = requestAnimationFrame(() => { el.style.setProperty("--px", x.toFixed(3)); el.style.setProperty("--py", y.toFixed(3)); });
-    };
-    const leave = () => { el.style.setProperty("--px", "0"); el.style.setProperty("--py", "0"); };
-    el.addEventListener("pointermove", move);
-    el.addEventListener("pointerleave", leave);
-    return () => { cancelAnimationFrame(frame); el.removeEventListener("pointermove", move); el.removeEventListener("pointerleave", leave); };
-  }, [view, data !== null]); // eslint-disable-line react-hooks/exhaustive-deps
+    const id = setInterval(() => { if (document.visibilityState === "visible") setRevision(n => n + 1); }, 30000);
+    return () => clearInterval(id);
+  }, []);
 
   const departments = useMemo(() => [...new Set((data?.members ?? []).map(m => m.department).filter(Boolean))], [data]);
   const members = useMemo(() => (data?.members ?? []).filter(m =>
@@ -168,39 +155,18 @@ export function Office({ lang }: { lang: Lang }) {
 
       {view === "space" ? (
         <section className={s.sceneWrap} aria-label={t("Sede de Avalon: selecciona una estación", "Avalon HQ: select a workstation")}>
-          <div className={s.scene} ref={scene}>
-            <div className={s.sky} aria-hidden="true" />
-            <Skyline />
-            <div className={s.windows} aria-hidden="true" />
-            <div className={s.ceiling} aria-hidden="true" />
-            <div className={s.meetingRoom} aria-hidden="true"><span>{t("Sala de reuniones", "Meeting room")}</span></div>
-            <div className={s.floor} aria-hidden="true" />
-            <span className={s.zoneLabel} style={{ left: "50%", top: "32%" }} aria-hidden="true">{t("Equipo", "Team")}</span>
-            <span className={s.zoneLabel} style={{ left: "50%", top: "86%" }} aria-hidden="true">{t("Managers de IA · virtuales", "AI managers · virtual")}</span>
-            {members.map((m, i) => {
-              const d = DESKS[i % DESKS.length], row = Math.floor(i / DESKS.length);
-              return (
-                <button key={m.user_id} type="button" className={s.station} data-kind="human" data-selected={selected?.kind === "member" && selected.id === m.user_id}
-                  style={{ left: `${d.x}%`, top: `${d.y + row * 6}%` }} onClick={() => setSelected({ kind: "member", id: m.user_id })}
-                  aria-label={`${nameOf(m)} · ${t(...ROLE[m.role] ?? ["Miembro", "Member"])} · ${m.stats.open} ${t("tareas abiertas", "open tasks")}`}>
-                  <Avatar member={m} size={52} />
-                  <span className={s.stationName}>{nameOf(m)}</span>
-                  {m.unread > 0 && <span className={s.badge}>{m.unread}</span>}
-                  <span className={s.desk} aria-hidden="true" />
-                </button>
-              );
-            })}
-            {managers.map(m => (
-              <button key={m.key} type="button" className={s.station} data-kind="ai" data-selected={selected?.kind === "manager" && selected.key === m.key}
-                style={{ left: `${m.station.x}%`, top: `${m.station.y}%`, "--hue": m.hue } as CSSProperties} onClick={() => setSelected({ kind: "manager", key: m.key })}
-                aria-label={`${m.name} · ${t("manager virtual de IA", "virtual AI manager")} · ${t(...STATUS[m.status])}`}>
-                <span className={s.agentMark}>{m.name.slice(0, 2)}</span>
-                <span className={s.stationName}>{m.name}</span>
-                <span className={s.desk} aria-hidden="true" />
-              </button>
-            ))}
-          </div>
-          <p className={s.sceneHint}>{t("Toca una estación para abrir el perfil. En el teléfono desliza la escena o usa el Directorio.", "Tap a workstation to open the profile. On phones swipe the scene or use the Directory.")}</p>
+          <IsoOffice lang={lang} selected={selected?.kind === "member" ? selected.id : selected?.kind === "manager" ? `ai:${selected.key}` : null}
+            onSelect={id => setSelected(id.startsWith("ai:") ? { kind: "manager", key: id.slice(3) } : { kind: "member", id })}
+            screen={{ active: data.tasksReady ? data.team.active : null, overdue: data.tasksReady ? data.team.overdue : null, done: data.tasksReady ? data.team.done : null, unread: data.members.reduce((n, m) => n + m.unread, 0) }}
+            people={[
+              ...members.map(m => ({ id: m.user_id, kind: "human" as const, name: nameOf(m), initials: initials(nameOf(m)), subtitle: m.title || t(...ROLE[m.role] ?? ["Miembro", "Member"]),
+                photo: m.has_photo ? `/admin/workspace/crm/office/photo/${m.user_id}` : null, open: m.stats.open, overdue: m.stats.overdue, unread: m.unread,
+                recentMinutes: m.lastActivity ? Math.round((Date.now() - Date.parse(m.lastActivity)) / 60000) : null })),
+              ...managers.map(m => ({ id: `ai:${m.key}`, kind: "ai" as const, name: m.name, initials: m.name.slice(0, 2), subtitle: t(...STATUS[m.status]), hue: m.hue,
+                open: m.registered, overdue: 0, unread: 0, recentMinutes: null, offline: m.status !== "available" })),
+            ]} />
+          <p className={s.sceneHint}>{t("Toca a una persona o manager para abrir su perfil. Luz verde: actividad registrada en la última hora (no es presencia en tiempo real). Se actualiza cada 30 s.",
+            "Tap a person or manager to open their profile. Green light: activity recorded in the last hour (not real-time presence). Refreshes every 30 s.")}</p>
         </section>
       ) : (
         <section className={s.directory} aria-label={t("Directorio", "Directory")}>
@@ -279,22 +245,6 @@ function Sparkline({ values, label }: { values: number[]; label: string }) {
       </svg>
       <figcaption>{total}</figcaption>
     </figure>
-  );
-}
-
-/** Static, deterministic skyline (no randomness): towers with a few lit floors. */
-function Skyline() {
-  const towers = [[0, 46, 9], [8, 30, 6], [13, 52, 7], [19, 38, 5], [24, 60, 8], [31, 42, 6], [37, 70, 7], [44, 48, 5], [49, 64, 9], [57, 36, 6],
-    [62, 74, 7], [69, 44, 6], [74, 58, 8], [81, 34, 5], [85, 66, 7], [92, 40, 8]];
-  return (
-    <svg className={s.skyline} viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true">
-      {towers.map(([x, hgt, w], i) => (
-        <g key={i}>
-          <rect x={x} y={100 - hgt} width={w} height={hgt} className={s.tower} />
-          {Array.from({ length: Math.floor(hgt / 9) }, (_, f) => (f + i) % 3 === 0 ? <rect key={f} x={x + 1} y={100 - hgt + 4 + f * 9} width={w - 2} height={0.8} className={s.lit} /> : null)}
-        </g>
-      ))}
-    </svg>
   );
 }
 

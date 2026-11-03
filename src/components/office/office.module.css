@@ -39,57 +39,7 @@
 
 /* Scene ------------------------------------------------------------------------------ */
 .sceneWrap { display: grid; gap: 8px; min-width: 0; }
-.scene {
-  --px: 0; --py: 0;
-  position: relative; aspect-ratio: 21 / 9; min-height: 340px; border-radius: 24px; overflow: hidden; isolation: isolate;
-  border: 1px solid var(--line); background: var(--obsidian);
-  box-shadow: 0 30px 80px rgba(0, 0, 0, 0.45), inset 0 1px 0 rgba(255, 255, 255, 0.04);
-}
-.sky, .skyline, .windows, .ceiling, .floor { position: absolute; pointer-events: none; transition: transform 0.6s var(--ease); }
-.sky { inset: -6%; background:
-  radial-gradient(60% 50% at 70% 18%, rgba(118, 104, 232, 0.26), transparent 70%),
-  radial-gradient(40% 40% at 20% 10%, rgba(100, 215, 245, 0.12), transparent 70%),
-  radial-gradient(1px 1px at 12% 14%, #fff8, transparent), radial-gradient(1px 1px at 33% 9%, #fff6, transparent),
-  radial-gradient(1px 1px at 58% 21%, #fff7, transparent), radial-gradient(1px 1px at 81% 7%, #fff6, transparent),
-  radial-gradient(1px 1px at 91% 24%, #fff5, transparent), radial-gradient(1px 1px at 46% 4%, #fff5, transparent),
-  radial-gradient(70% 18% at 50% 62%, rgba(118, 104, 232, 0.22), transparent 70%),
-  linear-gradient(180deg, #050911 0%, #0c1426 52%, #1a2142 64%);
-  transform: translate3d(calc(var(--px) * -10px), calc(var(--py) * -6px), 0); }
-.skyline { left: -4%; right: -4%; top: 30%; height: 33%; transform: translate3d(calc(var(--px) * -18px), calc(var(--py) * -8px), 0); }
-.tower { fill: #182238; stroke: rgba(200, 210, 224, 0.12); stroke-width: 0.15; vector-effect: non-scaling-stroke; }
-.lit { fill: rgba(183, 233, 255, 0.5); }
-/* Floor-to-ceiling glass: thin titanium mullions and a faint reflection. */
-.windows { inset: 8% 0 37% 0; background:
-  repeating-linear-gradient(90deg, transparent 0, transparent calc(12.5% - 2px), rgba(200, 210, 224, 0.22) calc(12.5% - 2px), rgba(200, 210, 224, 0.22) 12.5%),
-  linear-gradient(115deg, transparent 30%, rgba(255, 255, 255, 0.035) 45%, transparent 60%);
-  border-top: 1px solid rgba(200, 210, 224, 0.2); border-bottom: 2px solid rgba(187, 168, 142, 0.35);
-  transform: translate3d(calc(var(--px) * -4px), 0, 0); }
-.ceiling { inset: 0 0 92% 0; background: linear-gradient(180deg, #0a0f1a, #0d1322);
-  border-bottom: 1px solid rgba(100, 215, 245, 0.35); box-shadow: 0 6px 30px rgba(100, 215, 245, 0.12); }
-.floor { inset: 63% -5% -5% -5%; background:
-  linear-gradient(180deg, rgba(118, 104, 232, 0.10), transparent 30%),
-  repeating-linear-gradient(90deg, transparent 0, transparent 9.9%, rgba(200, 210, 224, 0.05) 10%),
-  linear-gradient(180deg, #121827 0%, #0a0f1a 100%);
-  transform: perspective(600px) rotateX(48deg) translate3d(calc(var(--px) * 6px), 0, 0); transform-origin: top center; }
-.meetingRoom { position: absolute; right: 3%; top: 16%; width: 17%; height: 44%; border: 1px solid rgba(183, 233, 255, 0.28);
-  background: linear-gradient(160deg, rgba(183, 233, 255, 0.07), rgba(118, 104, 232, 0.05)); border-radius: 6px; backdrop-filter: blur(2px); }
-.meetingRoom span { position: absolute; left: 10px; top: 8px; font-size: 10px; letter-spacing: 0.18em; text-transform: uppercase; color: var(--ice); opacity: 0.7; }
-.zoneLabel { position: absolute; transform: translate(-50%, -50%); font-size: 10px; letter-spacing: 0.24em; text-transform: uppercase; color: var(--champagne); opacity: 0.75; pointer-events: none; white-space: nowrap; }
 .sceneHint { margin: 0; font-size: 12px; color: var(--muted); }
-
-.station {
-  position: absolute; transform: translate(-50%, -50%); display: grid; justify-items: center; gap: 4px; padding: 6px; z-index: 2;
-  background: none; border: 0; color: var(--text); font: inherit; cursor: pointer; border-radius: 16px;
-  transition: transform 0.35s var(--ease);
-}
-.station:hover, .station[data-selected="true"] { transform: translate(-50%, -54%); }
-.station .avatar, .station .agentMark { box-shadow: 0 0 0 1px var(--line-strong), 0 10px 26px rgba(0, 0, 0, 0.5); transition: box-shadow 0.35s var(--ease); }
-.station[data-selected="true"] .avatar, .station[data-selected="true"] .agentMark, .station:hover .avatar, .station:hover .agentMark {
-  box-shadow: 0 0 0 2px var(--ice), 0 0 28px rgba(183, 233, 255, 0.35), 0 10px 26px rgba(0, 0, 0, 0.5); }
-.stationName { font-size: 12px; font-weight: 600; letter-spacing: 0.04em; padding: 2px 10px; border-radius: 999px; background: rgba(8, 13, 22, 0.78); border: 1px solid var(--line); white-space: nowrap; }
-.desk { width: 76px; height: 8px; border-radius: 3px; background: linear-gradient(180deg, #2a3242, #121827); border-top: 1px solid rgba(187, 168, 142, 0.5); box-shadow: 0 8px 14px rgba(0, 0, 0, 0.5); }
-.station[data-kind="ai"] .desk { border-top-color: hsl(var(--hue) 80% 72% / 0.6); }
-.badge { position: absolute; top: 0; right: 4px; min-width: 20px; height: 20px; padding: 0 5px; box-sizing: border-box; border-radius: 999px; background: var(--violet); color: #fff; font-size: 11px; font-weight: 700; display: grid; place-items: center; }
 
 .avatar { display: grid; place-items: center; border-radius: 50%; object-fit: cover; flex: none; font-weight: 600; letter-spacing: 0.04em; color: var(--text);
   background: radial-gradient(circle at 30% 25%, #2b3550, #141b2c); border: 1px solid rgba(187, 168, 142, 0.45); }
@@ -219,14 +169,10 @@ img.avatar { background: var(--navy); }
 }
 @media (max-width: 700px) {
   /* Panorama: keep proportions and let the owner swipe horizontally; the Directory is always available. */
-  .sceneWrap { overflow-x: auto; scroll-snap-type: x proximity; -webkit-overflow-scrolling: touch; margin: 0 -4px; padding: 0 4px 6px; }
-  .scene { width: 760px; aspect-ratio: auto; height: 380px; scroll-snap-align: center; }
   .drawer { width: 100%; border-left: 0; padding: 18px 16px calc(84px + env(safe-area-inset-bottom)); }
   .scrim { align-items: flex-end; }
   .kpi strong { font-size: 24px; }
 }
 @media (prefers-reduced-motion: reduce) {
   .office *, .office *::before, .office *::after { animation: none !important; transition: none !important; }
-  .sky, .skyline, .windows, .floor { transform: none; }
-  .floor { transform: perspective(600px) rotateX(48deg); }
 }
