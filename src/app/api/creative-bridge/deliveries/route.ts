@@ -19,6 +19,10 @@ export async function POST(request: NextRequest) {
        process.env.AVALON_CREATIVE_BRIDGE_PRODUCTION_APPROVED !== "true")) {
     return reply({ error: "bridge_disabled" }, 503);
   }
+  // Runtime check also protects deployments whose env was changed after build.
+  if (process.env.VERCEL_ENV === "preview" &&
+      process.env.NEXT_PUBLIC_SUPABASE_URL?.includes("ltbwzcrxeuczdhhtbqgm"))
+    return reply({ error: "isolated_staging_required" }, 503);
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const serverKey = process.env.AVALON_CREATIVE_BRIDGE_SUPABASE_SERVICE_ROLE_KEY;
   const ownerId = process.env.AVALON_CREATIVE_BRIDGE_OWNER_ID;
