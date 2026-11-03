@@ -42,10 +42,10 @@
 .wrap { --kanban-line: var(--line-strong); color: var(--text); }
 .intro h2 { color: var(--text); font-family: var(--display); }
 .intro p { color: var(--text-muted); opacity: 1; }
-.scroll { scrollbar-color: rgba(138,108,255,.55) rgba(13,20,44,.6); }
+.scroll { scrollbar-color: rgba(118, 104, 232,.55) rgba(13,20,44,.6); }
 .scroll:focus-visible { outline-color: var(--cyan); }
 .column {
-  border-color: var(--crm-border); border-top: 2px solid rgba(138,108,255,.42);
+  border-color: var(--crm-border); border-top: 2px solid rgba(118, 104, 232,.42);
   background: var(--crm-panel-bg);
   box-shadow: 0 12px 30px rgba(0,0,0,.15);
 }
@@ -56,8 +56,8 @@
 .columnHead small,.contact,.meta,.source { color: var(--text-muted); opacity: 1; }
 .stageTitle h3 { color: var(--text); }
 .stageTitle span {
-  color: var(--cyan); border-color: rgba(34,227,255,.26);
-  background: rgba(34,227,255,.07);
+  color: var(--cyan); border-color: rgba(100, 215, 245,.26);
+  background: rgba(100, 215, 245,.07);
 }
 .cards .card {
   border-color: var(--line-strong);
@@ -65,8 +65,8 @@
   box-shadow: 0 4px 12px rgba(0,0,0,.15);
 }
 .cards .card:hover,.cards .card:focus-within {
-  border-color: rgba(34,227,255,.55);
-  box-shadow: 0 0 0 1px rgba(34,227,255,.2),0 6px 20px rgba(0,0,0,.18);
+  border-color: rgba(100, 215, 245,.55);
+  box-shadow: 0 0 0 1px rgba(100, 215, 245,.2),0 6px 20px rgba(0,0,0,.18);
 }
 .cardTitle strong,.value { color: var(--text); }
 .next { border-top-color: var(--line); }
@@ -79,7 +79,16 @@
   background: rgba(22,32,66,.58); color: var(--text);
   border-color: var(--line-strong);
 }
-.actions button:hover { background: rgba(138,108,255,.2); border-color: var(--cyan); }
+.actions button:hover { background: rgba(118, 104, 232,.2); border-color: var(--cyan); }
 .actions button:focus-visible,.change select:focus-visible {
   outline-color: var(--cyan);
 }
+
+/* Spatial Luxury motion (2026-11-03): drag & drop feedback. Style only; board behaviour unchanged. */
+.cards .card { transition: transform var(--dur) var(--ease), box-shadow var(--dur) var(--ease), border-color var(--dur) var(--ease), opacity var(--dur) var(--ease); }
+.cards .card:hover { transform: translateY(-2px); }
+.cards .card:active { cursor: grabbing; transform: scale(1.02) rotate(-0.6deg); box-shadow: 0 18px 40px rgba(0,0,0,.4); }
+.column { transition: background-color var(--dur) var(--ease), border-color var(--dur) var(--ease), box-shadow var(--dur) var(--ease); }
+.column[data-drop-target="true"] { box-shadow: inset 0 0 0 1px rgba(183, 233, 255, .45), 0 0 28px rgba(118, 104, 232, .18); }
+.cards > * { animation: avalon-enter .4s var(--ease) both; }
+@media (prefers-reduced-motion: reduce) { .cards .card:hover, .cards .card:active { transform: none; } .cards > * { animation: none; } }

@@ -80,7 +80,7 @@ export function SuiteChrome({ lang, collapsed: initialCollapsed, section, user, 
         <div className={s.brandRow}>
           <Link href="/admin/dashboard" className={s.brand} aria-label="Avalon OS — Dashboard">
             <svg viewBox="0 0 140 130" className={s.logo} aria-hidden="true">
-              <defs><linearGradient id="os-mark" x1="0" y1="1" x2="1" y2="0"><stop stopColor="#22e3ff" /><stop offset=".5" stopColor="#6d5bff" /><stop offset="1" stopColor="#f45cff" /></linearGradient></defs>
+              <defs><linearGradient id="os-mark" x1="0" y1="1" x2="1" y2="0"><stop stopColor="#64d7f5" /><stop offset=".5" stopColor="#7668e8" /><stop offset="1" stopColor="#b9a3ff" /></linearGradient></defs>
               <path d="M70 12 131 112H99L70 62 40 112H9ZM70 79 91 115H49Z" fill="url(#os-mark)" />
             </svg>
             <span className={s.brandText}><strong>AVALON</strong><small>CORE AGENCY · OS</small></span>

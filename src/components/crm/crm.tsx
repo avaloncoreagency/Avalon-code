@@ -13,6 +13,7 @@ import { RecordForm } from "./record-form";
 import { CrmNavigation } from "./navigation";
 import { TitanRadar } from "./titan-radar";
 import { LeadBoard } from "./lead-board";
+import { LeadTimeline } from "./lead-timeline";
 import s from "./crm.module.css";
 export const crmSections = sections;
 export type CrmSection = Section;
@@ -89,9 +90,7 @@ export function Crm({ section = "leads" }: { section?: CrmSection }) {
       entity: Entity;
       row: Row | null;
     } | null>(null),
-    [detail, setDetail] = useState<Row | null>(null),
-    [activities, setActivities] = useState<Row[]>([]),
-    [audit, setAudit] = useState<Record<string, unknown>[]>([]);
+    [detail, setDetail] = useState<Row | null>(null);
   const [calendarView, setCalendarView] = useState("month"),
     [day, setDay] = useState(() => new Date().toISOString().slice(0, 10)),
     [zone, setZone] = useState("UTC");
@@ -126,31 +125,6 @@ export function Crm({ section = "leads" }: { section?: CrmSection }) {
       });
     return () => controller.abort();
   }, [entity, section, filters, page, revision]);
-  useEffect(() => {
-    if (!detail) return;
-    const controller = new AbortController();
-    setActivities([]);
-    setAudit([]);
-    Promise.all(
-      ["activities", "audit"].map(async (entity) => {
-        const r = await fetch(
-          `${endpoint}?entity=${entity}&lead=${detail.id}`,
-          { signal: controller.signal },
-        );
-        const d = await r.json();
-        if (!r.ok) throw new Error(d.error);
-        return d.rows;
-      }),
-    )
-      .then(([a, b]) => {
-        setActivities(a);
-        setAudit(b);
-      })
-      .catch((e) => {
-        if (e.name !== "AbortError") setError(e.message);
-      });
-    return () => controller.abort();
-  }, [detail, revision]);
   async function mutate(body: unknown) {
     setBusy(true);
     setError("");
@@ -516,41 +490,20 @@ export function Crm({ section = "leads" }: { section?: CrmSection }) {
             )}
             {section === "leads" && <LeadLink onOpen={setDetail} />}
             {detail && (
-              <section className={s.panel}>
-                <h2>{String(detail.company)} · Notas e historial</h2>
-                <p>Lead ID: {String(detail.id)}</p>
-                <div className={s.actions}>
-                  <button
-                    onClick={() => edit({ lead_id: detail.id }, "activities")}
-                  >
-                    Añadir nota / actividad
-                  </button>
-                  <button onClick={() => setDetail(null)}>
-                    Cerrar detalle
-                  </button>
-                </div>
-                {activities.map((a) => (
-                  <article key={String(a.id)} className={s.lead}>
-                    <p>{String(a.body)}</p>
-                    <small>
-                      {String(a.status)} · {stamp(a.created_at)}
-                    </small>
-                    <button onClick={() => edit(a, "activities")}>
-                      Editar actividad
-                    </button>
-                  </article>
-                ))}
-                {!activities.length && <p>Sin notas en esta página.</p>}
-                <h3>Últimos 100 cambios</h3>
-                {audit.map((a) => (
-                  <p key={String(a.id)}>
-                    {stamp(a.created_at)} · {String(a.operation)} ·{" "}
-                    {String(a.actor_id)}
-                    {(a.after_data as Row)?.stage_id &&
-                      ` · etapa: ${(a.after_data as Row).stage_id}`}
-                  </p>
-                ))}
-              </section>
+              <LeadTimeline
+                lead={rows.find((r) => r.id === detail.id) ?? detail}
+                stages={stages}
+                revision={revision}
+                onClose={() => setDetail(null)}
+                onEdit={() => {
+                  edit(rows.find((r) => r.id === detail.id) ?? detail);
+                  setDetail(null);
+                }}
+                onEditActivity={(a) => {
+                  edit(a, "activities");
+                  setDetail(null);
+                }}
+              />
             )}
             {section === "leads" &&
               (view === "table" ? (

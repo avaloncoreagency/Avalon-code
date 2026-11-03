@@ -13,6 +13,7 @@ export const crmNavigation = [
   { slug: "sales", label: "Ventas", href: "/admin/workspace/crm/sales" },
   { slug: "calendar", label: "Calendario", href: "/admin/workspace/crm/calendar" },
   { slug: "tasks", label: "Tareas", href: "/admin/workspace/crm/tasks" },
+  { slug: "office", label: "Oficina", href: "/admin/workspace/crm/office" },
 ] as const;
 
 export type Section = (typeof sections)[number]["slug"];

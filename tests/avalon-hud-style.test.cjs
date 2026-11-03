@@ -14,7 +14,8 @@ test("all CRM surfaces reuse the Avalon OS HUD cyan/violet/magenta identity", ()
   assert.match(shell, /\.navItem\[aria-current="page"\]/);
   assert.match(crm, /\.tab\[aria-current="page"\]/);
   assert.match(crm, /background:\s*var\(--crm-active-bg\)/);
-  assert.match(root, /--crm-active-bg:\s*linear-gradient\(115deg,\s*rgba\(109,\s*91,\s*255/);
+  // Spatial Luxury palette (owner request 2026-11-03): Cosmic Violet replaces the former neon violet.
+  assert.match(root, /--crm-active-bg:\s*linear-gradient\(115deg,\s*rgba\(118,\s*104,\s*232/);
   assert.match(ops, /background:var\(--crm-active-bg\)/);
   assert.match(ops, /--accent:var\(--cyan\)/);
   assert.match(kanban, /\.cards \.card:hover/);

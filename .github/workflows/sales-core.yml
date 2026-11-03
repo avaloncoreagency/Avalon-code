@@ -60,7 +60,7 @@ jobs:
           cache-dependency-path: tests/qa/package-lock.json
       - run: npm ci --prefix tests/qa --no-audit --no-fund
       - name: Sales, RLS, idempotency and timeline tests (PGlite)
-        run: NODE_PATH=tests/qa/node_modules node --test tests/sales.database.cjs tests/radar.database.cjs tests/public-inquiry.database.cjs tests/crm.pipeline.database.cjs tests/crm.database.cjs tests/unified.database.cjs
+        run: NODE_PATH=tests/qa/node_modules node --test tests/sales.database.cjs tests/radar.database.cjs tests/public-inquiry.database.cjs tests/pipeline-board.database.cjs tests/office.database.cjs tests/crm.pipeline.database.cjs tests/crm.database.cjs tests/unified.database.cjs
       - name: Summary
         if: always()
         run: echo "Synthetic data only. No remote Supabase, Vercel or production resource is touched." >> "$GITHUB_STEP_SUMMARY"
