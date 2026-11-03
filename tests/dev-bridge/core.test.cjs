@@ -206,3 +206,56 @@ test('PR Issue linkage reads both owners in Refs #95 and #96; cannot silently at
  data.pulls[0].issues=b.issueRefsFromBody('Refs #95 and #96');
  assert.deepEqual(b.collaboration(data).unassigned.map(x=>x.number),[11]);
 });
+
+test('public GitHub fallback uses only 3 unprivileged reads; no fabricated CI, file scan or resume',async()=>{
+ const requests=[];
+ const api={
+  pages:async p=>{
+   requests.push(p);
+   if(p.includes('/issues?state=open'))return [
+     {number:95,state:'open',title:'Public Dev Bridge',
+       labels:[{name:'owner:miguel'},{name:'module:dashboard'}],
+       body:'Next action: Verify feature PR SHA',html_url:'https://github.com/org/repo/issues/95',updated_at:now()},
+   ];
+   if(p.includes('/pulls?state=open'))return [{number:96,title:'Public PR',
+     body:'Refs #95',head:{ref:'feat/pr',sha},base:{ref:'main',sha:base},
+     html_url:'https://github.com/org/repo/pull/96',updated_at:now()}];
+   throw Error('Unexpected public page '+p);
+  },
+  get:async p=>{
+    requests.push(p);
+    if(p==='/repos/org/repo/branches/main')return {commit:{sha:base}};
+    throw Error('Unexpected public request '+p);
+  },
+ };
+ const result=await b.github({repo:'org/repo'},undefined,undefined,api);
+ assert.equal(result.coverage,'summary');
+ assert.equal(requests.length,3,'no per-PR file, check or commit reads without token');
+ assert.deepEqual(result.pulls[0].files,[]);
+ assert.equal(result.pulls[0].ci,'UNKNOWN');
+ assert.equal(result.pulls[0].conflict,null);
+ assert.equal(result.branches[0].sha,base);
+ assert.equal(b.collaboration(result).assigned.miguel[0].pr.number,96);
+ const state=fixture();state.github.data=result;
+ assert.ok(b.findings(state).some(x=>x.id==='source:github_limited'));
+ assert.equal(b.findings(state).some(x=>x.id.startsWith('migration:')),false);
+ assert.throws(()=>b.resume(state,95,'samuel','org/repo',sha),/Authenticated full GitHub/);
+});
+test('anonymous Api never invents an Authorization header and token env fallback skips empty strings',async()=>{
+ let auth;
+ const api=new b.Api('https://fixture.test','',async (_url,opts)=>{
+   auth=opts.headers.Authorization;
+   return Response.json({ok:true});
+ });
+ assert.deepEqual(await api.get('/snapshot'),{ok:true});
+ assert.equal(auth,undefined);
+ const key=process.env.BRIDGE_GITHUB_TOKEN,gh=process.env.GH_TOKEN;
+ try{
+  process.env.BRIDGE_GITHUB_TOKEN='';
+  process.env.GH_TOKEN='synthetic-scoped-token';
+  assert.equal(b.config().githubToken,'synthetic-scoped-token');
+ }finally{
+  if(key===undefined)delete process.env.BRIDGE_GITHUB_TOKEN;else process.env.BRIDGE_GITHUB_TOKEN=key;
+  if(gh===undefined)delete process.env.GH_TOKEN;else process.env.GH_TOKEN=gh;
+ }
+});
