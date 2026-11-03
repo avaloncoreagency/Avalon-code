@@ -10,7 +10,7 @@ const ROUTE = "src/app/admin/auth/confirm/route.ts";
 const ORIGIN = "https://isolated.example.invalid";
 const USER = "00000000-0000-4000-8000-000000000001";
 
-function harness({ verifyOtp, originFailure = false } = {}) {
+function harness({ verifyOtp, originFailure = false, grantFailure = false } = {}) {
   const observed = { verified: [], grants: [], clients: 0 };
   const mocks = {
     "next/server": {
@@ -47,6 +47,7 @@ function harness({ verifyOtp, originFailure = false } = {}) {
     },
     "@/lib/auth/email-flow": {
       grantPasswordFlow: async (id, purpose) => {
+        if (grantFailure) throw Error("synthetic private AUTH_FLOW_SECRET/cookie failure");
         observed.grants.push({ id, purpose });
       },
     },
@@ -147,4 +148,16 @@ test("recovery: missing app origin fails 503 before consuming a valid-looking to
   assert.equal(response.headers.get("referrer-policy"), "no-referrer");
   assert.equal(app.observed.clients, 0);
   assert.deepEqual(app.observed.grants, []);
+});
+
+test("recovery: cookie/signing grant failure fails closed after verified OTP", async () => {
+  const app = harness({
+    grantFailure: true,
+    verifyOtp: async () => ({ data: { user: { id: USER } }, error: null }),
+  });
+  const response = await app.call({ type: "recovery", token_hash: "synthetic-token" });
+  assertSafeRejection(response);
+  assert.deepEqual(app.observed.verified, [{ token_hash: "synthetic-token", type: "recovery" }]);
+  assert.deepEqual(app.observed.grants, [], "failed cookie signing must never mint a grant");
+  assert.ok(!response.headers.get("location").includes(USER), "verified user ID must remain private");
 });
