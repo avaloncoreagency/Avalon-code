@@ -1,10 +1,11 @@
 "use client";
 
 import { useEffect, useMemo, useState, type CSSProperties, type FormEvent } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
   BANNER_THEMES, CALENDAR_COLORS, EVENT_KINDS, dayInZone, eventOnDay,
-  hourInZone, isCalendarDay, localInput, moveDay, moveMonth, visibleDays,
+  hourInZone, isCalendarDay, leadCardHref, linkedLeadName, localInput, moveDay, moveMonth, visibleDays,
   type CalendarEvent, type CalendarView, type DayBanner, type OwnerOption,
 } from "@/lib/crm/shared-calendar";
 import {
@@ -13,7 +14,7 @@ import {
 import s from "./shared-calendar.module.css";
 
 type Client = { id: string; legal_name: string };
-type Lead = { id: string; company: string };
+type Lead = { id: string; company: string; contact?: string | null };
 type Props = {
   events: CalendarEvent[]; banners: DayBanner[]; owners: OwnerOption[];
   clients: Client[]; leads: Lead[]; userId: string;
@@ -79,9 +80,39 @@ export function SharedCalendar({ events, banners, owners, clients, leads, userId
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState("");
   const [modalError, setModalError] = useState("");
+  const [leadQuery, setLeadQuery] = useState("");
+  const [leadMatches, setLeadMatches] = useState<Lead[]>([]);
+  const [leadSearchStatus, setLeadSearchStatus] = useState<"idle" | "loading" | "error">("idle");
+  const [selectedLead, setSelectedLead] = useState<Lead | null>(null);
+  const editingEvent = draft !== null;
   const t = (es: string, en: string) => lang === "es" ? es : en;
 
   useEffect(() => { setZone(Intl.DateTimeFormat().resolvedOptions().timeZone || "America/New_York"); }, []);
+  // Search the existing owner-protected CRM endpoint; never expose lead data to a public provider.
+  useEffect(() => {
+    const term = leadQuery.trim();
+    if (!editingEvent || term.length < 2) {
+      setLeadMatches([]);
+      setLeadSearchStatus("idle");
+      return;
+    }
+    const controller = new AbortController();
+    setLeadSearchStatus("loading");
+    const timer = window.setTimeout(async () => {
+      try {
+        const response = await fetch("/admin/workspace/crm/api?entity=leads&page=0&q=" + encodeURIComponent(term), { signal: controller.signal });
+        const data = await response.json();
+        if (!response.ok || !Array.isArray(data.rows)) throw new Error("Lead search unavailable");
+        if (!controller.signal.aborted) {
+          setLeadMatches((data.rows as Lead[]).filter(row => typeof row.id === "string" && typeof row.company === "string"));
+          setLeadSearchStatus("idle");
+        }
+      } catch {
+        if (!controller.signal.aborted) { setLeadMatches([]); setLeadSearchStatus("error"); }
+      }
+    }, 300);
+    return () => { window.clearTimeout(timer); controller.abort(); };
+  }, [leadQuery, editingEvent]);
   // Two open owner sessions see each other's changes without an external paid service.
   useEffect(() => {
     const timer = window.setInterval(() => { if (!document.hidden && !draft && !bannerDraft) router.refresh(); }, 120000);
@@ -107,6 +138,9 @@ export function SharedCalendar({ events, banners, owners, clients, leads, userId
     return fmt.format(new Date(event.starts_at)) + " – " + fmt.format(new Date(event.ends_at));
   };
   const bannerFor = (day: string) => banners.find(b => b.day === day);
+  const leadOptions = leadQuery.trim().length >= 2 ? leadMatches : leads.slice(0, 50);
+  const pickerLeads = selectedLead && !leadOptions.some(lead => lead.id === selectedLead.id)
+    ? [selectedLead, ...leadOptions] : leadOptions;
   const navigate = (target: string, mode: CalendarView = view) => {
     if (!isCalendarDay(target)) return;
     setDate(target); setSelected(target); setView(mode);
@@ -118,6 +152,7 @@ export function SharedCalendar({ events, banners, owners, clients, leads, userId
   const newEvent = (day = selected, hour = 9) => {
     const h = Math.min(Math.max(hour, 0), 23);
     setSelected(day); setModalError("");
+    setLeadQuery(""); setLeadMatches([]); setSelectedLead(null);
     setDraft({
       title: "", owner_id: userId, attendee_ids: owners.map(o => o.user_id),
       kind: "meeting", color: CALENDAR_COLORS[0], all_day: false,
@@ -128,7 +163,10 @@ export function SharedCalendar({ events, banners, owners, clients, leads, userId
     });
   };
   const editEvent = (event: CalendarEvent) => {
-    setModalError("");
+    setModalError(""); setLeadQuery(""); setLeadMatches([]);
+    setSelectedLead(event.lead_id ? (event.crm_leads?.company
+      ? { id: event.lead_id, company: event.crm_leads.company }
+      : leads.find(lead => lead.id === event.lead_id) || null) : null);
     const startDay = event.all_day ? event.starts_at.slice(0, 10) : dayInZone(event.starts_at, zone);
     setDraft({
       ...event, owner_id: event.owner_id, attendee_ids: event.attendee_ids || [],
