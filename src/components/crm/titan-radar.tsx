@@ -19,22 +19,24 @@ export type RadarBusiness = {
 const SERVICES: [string, string][] = [["website", "Sitio web"], ["ecommerce", "E-commerce"], ["crm", "CRM / seguimiento"], ["receptionist", "Recepcionista IA"], ["marketing", "Marketing"], ["automation", "Automatización"]];
 const STATES: [string, string][] = [["unverified", "Sin verificar"], ["verified_missing", "Necesidad verificada"], ["opportunity_to_improve", "Oportunidad de mejora"], ["verified_present", "Ya lo tiene (verificado)"], ["not_applicable", "No aplica"]];
 const METHODS: [string, string][] = [["call", "Llamada"], ["website_review", "Revisión de su web"], ["public_listing", "Ficha pública"], ["owner_statement", "Lo dijo el negocio"], ["visit", "Visita"], ["other", "Otro"]];
-const VIEWS: [string, string][] = [["all", "Encontrados"], ["new", "Nuevos"], ["unrated", "Sin calificar"], ["qualified", "Calificados"], ["approved", "Aprobados"], ["pipeline", "En pipeline"], ["discarded", "Descartados"], ["dnc", "No contactar"]];
+const VIEWS: [string, string][] = [["all", "Encontrados"], ["new", "Nuevos"], ["unrated", "Sin calificar"], ["preliminary", "Precalificados"], ["qualified", "Calificados"], ["approved", "Aprobados"], ["pipeline", "En pipeline"], ["discarded", "Descartados"], ["dnc", "No contactar"]];
 const CONFIDENCE: Record<string, string> = { none: "Sin evidencia", low: "Baja", medium: "Media", high: "Alta" };
 /** Guidance only; actual automatic scores come from the verified evidence RPC. */
 const RATING_GUIDE: { stars: number | null; rule: string }[] = [
   { stars: 5, rule: "Necesidades verificadas en prácticamente todos los servicios aplicables; propuesta integral clara." },
   { stars: 4, rule: "Varias carencias importantes verificadas; oportunidad real de vender múltiples servicios." },
   { stars: 3, rule: "Una o dos necesidades de alto impacto confirmadas; oferta concreta." },
-  { stars: 2, rule: "Ya usa herramientas, pero hay mejoras específicas y verificadas." },
-  { stars: 1, rule: "Sus sistemas funcionan razonablemente bien; solo oportunidad menor o futura, basada en revisión." },
-  { stars: null, rule: "Falta investigar o no hay pruebas suficientes. No asignes estrellas por ausencia de datos." },
+  { stars: 2, rule: "Precalificación de ficha con web y teléfono, O mejora técnica verificada. No implica intención de compra." },
+  { stars: 1, rule: "Ficha pública encontrada con categoría y ubicación; prioridad de investigación, no necesidad confirmada." },
+  { stars: null, rule: "No hay siquiera una ficha pública suficiente ni necesidad verificada. Sigue sin calificar." },
 ];
 const CUSTOM_MAP_TILE_URL = resolveRadarMapTiles(process.env.NEXT_PUBLIC_AVALON_MAP_TILES);
 const GEOAPIFY_MAP_TILE_URL = geoapifyFreeTileUrl(process.env.NEXT_PUBLIC_AVALON_GEOAPIFY_MAP_KEY);
 const MAP_TILE_URL = CUSTOM_MAP_TILE_URL ?? GEOAPIFY_MAP_TILE_URL;
 const USE_GEOAPIFY_MAP = !CUSTOM_MAP_TILE_URL && !!GEOAPIFY_MAP_TILE_URL;
 const effective = (b: RadarBusiness) => b.stars_override ?? b.stars;
+const isPreliminary = (b: RadarBusiness) => b.stars_override == null &&
+  b.stars_reasons.some(reason => reason.startsWith("Precalificación automática:"));
 const shape = (b: RadarBusiness) => b.do_not_contact ? "dnc" : b.status === "converted" ? "pipeline" : b.status === "approved" ? "approved" : "found";
 const SHAPE_LABEL: Record<string, string> = { found: "Encontrado", approved: "Aprobado", pipeline: "En pipeline", dnc: "No contactar" };
 const distanceKm = (a: [number, number], b: [number, number]) => {
@@ -308,14 +310,15 @@ export function TitanRadar({ onChanged }: { onChanged?: () => void }) {
   }
 
   const current = places.find(p => p.id === selected) ?? null;
-  const best = visible.filter(p => effective(p) !== null && !p.do_not_contact && p.status !== "rejected").sort((a, b) => (effective(b) ?? 0) - (effective(a) ?? 0)).slice(0, 5);
+  const currentPreliminary = current ? isPreliminary(current) : false;
+  const best = visible.filter(p => (effective(p) ?? 0) >= 3 && !p.do_not_contact && p.status !== "rejected").sort((a, b) => (effective(b) ?? 0) - (effective(a) ?? 0)).slice(0, 5);
 
   return (
     <section className={s.titan} aria-labelledby="titan-title">
       <header className={s.head}>
         <div><p className={s.eyebrow}>Avalon · Lead Hunter</p><h2 id="titan-title">Titan Radar</h2>
           <p className={s.muted}>Explorar → Descubrir → Investigar el sitio oficial con fuentes → Revisar evidencias → Calificar → Pipeline. El radar verifica lo observable, pero nunca inventa necesidades invisibles.</p></div>
-        <ol className={s.steps} aria-label="Recorrido">{["Explorar", "Investigar", "Calificar", "Pipeline"].map((step, i) => <li key={step} data-done={i < (current ? (current.status === "converted" ? 4 : effective(current) !== null ? 3 : 1) : lastSearch ? 1 : 0)}>{step}</li>)}</ol>
+        <ol className={s.steps} aria-label="Recorrido">{["Explorar", "Investigar", "Calificar", "Pipeline"].map((step, i) => <li key={step} data-done={i < (current ? (current.status === "converted" ? 4 : effective(current) !== null && !currentPreliminary ? 3 : 1) : lastSearch ? 1 : 0)}>{step}</li>)}</ol>
       </header>
 
       <form className={s.searchBar} onSubmit={geocode} role="search">
@@ -371,7 +374,8 @@ export function TitanRadar({ onChanged }: { onChanged?: () => void }) {
             <li>Abre un negocio y revisa su web, atención, CRM, marketing y e-commerce solo cuando aplique.</li>
             <li>En «Necesidades por servicio» registra lo que comprobaste, el método, una nota o URL y el nivel de confianza.</li>
             <li>La calificación calculada depende de la evidencia registrada. Puedes ajustarla manualmente solo con un motivo verificable.</li>
-            <li>Cuando termines, pulsa «Calificar y crear tarjeta»: se aprueba y se crea automáticamente en «Nuevo lead», sin otro paso. Una calificación manual justificada también lo hace.</li>
+            <li>La ficha pública recibe 1–2 estrellas preliminares automáticamente y después la investigación puede aumentar su calificación según pruebas.</li>
+             <li>Solo una oportunidad realmente verificada puede convertirse en tarjeta del pipeline. Una calificación manual fundamentada también permite incorporarla.</li>
           </ol>
           <ul className={s.ratingRules}>
             {RATING_GUIDE.map(item => <li key={String(item.stars)}>
@@ -379,7 +383,7 @@ export function TitanRadar({ onChanged }: { onChanged?: () => void }) {
               <span>{item.rule}</span>
             </li>)}
           </ul>
-          <p className={s.ratingWarning}><strong>Regla de evidencia:</strong> que una ficha no muestre página web, correo o teléfono NO prueba que el negocio carezca de ellos. Las estrellas miden oportunidad; «Confianza» mide la solidez de la prueba. Son indicadores distintos.</p>
+          <p className={s.ratingWarning}><strong>Regla de evidencia:</strong> las estrellas preliminares indican prioridad para investigar, no carencias de servicios. Una ficha sin página web o teléfono no demuestra que carezca de ellos. «Confianza» mide por separado la solidez de las pruebas.</p>
         </div>
       </details>
 
@@ -418,7 +422,7 @@ export function TitanRadar({ onChanged }: { onChanged?: () => void }) {
               <span className={s.tier} style={{ borderColor: tier.color, color: tier.color }}>{tier.label}</span>
               <strong>{p.company}</strong>
               <small>{[p.industry, p.location].filter(Boolean).join(" · ")}</small>
-              <small>{SHAPE_LABEL[shape(p)]} · Evidencia: {CONFIDENCE[p.confidence] ?? p.confidence}{p.phone ? " · ☎ disponible" : ""}</small>
+              <small>{SHAPE_LABEL[shape(p)]} · Evidencia: {CONFIDENCE[p.confidence] ?? p.confidence}{isPreliminary(p) ? " · Calificación preliminar" : ""}{p.phone ? " · ☎ disponible" : ""}</small>
             </button></li>;
           })}</ul>
           {visible.length === 0 && <p className={s.muted}>Sin negocios en esta bandeja. Elige una zona y pulsa <strong>Buscar negocios</strong>. Si la fuente no devuelve datos, lo verás indicado; nunca se muestran negocios inventados.</p>}
@@ -452,7 +456,7 @@ export function TitanRadar({ onChanged }: { onChanged?: () => void }) {
       {current && <aside className={s.sheet} role="dialog" aria-modal="false" aria-labelledby="sheet-title">
         <header><div><h3 id="sheet-title">{current.company}</h3><p className={s.muted}>{[current.industry, current.location].filter(Boolean).join(" · ")}</p></div>
           <button type="button" className={s.close} onClick={() => setSelected(null)} aria-label="Cerrar ficha">✕</button></header>
-        <p className={s.tierBig} style={{ color: tierStyle(effective(current)).color }}>{tierStyle(effective(current)).label}{current.stars_override ? " (ajuste manual)" : ""} · Evidencia {CONFIDENCE[current.confidence]}</p>
+        <p className={s.tierBig} style={{ color: tierStyle(effective(current)).color }}>{tierStyle(effective(current)).label}{current.stars_override ? " (ajuste manual)" : currentPreliminary ? " (preliminar)" : ""} · Evidencia {CONFIDENCE[current.confidence]}</p>
         <details open><summary>¿Por qué tiene esta calificación?</summary><ul>{current.stars_reasons.map(r => <li key={r}>{r}</li>)}{current.stars_override && <li>Ajuste manual: {current.override_reason}</li>}</ul></details>
         <dl className={s.facts}>
           <dt>Teléfono</dt><dd>{current.phone ? <a href={`tel:${current.phone.replace(/[^\d+]/g, "")}`}>{current.phone}</a> : "No disponible"}</dd>
@@ -479,13 +483,15 @@ export function TitanRadar({ onChanged }: { onChanged?: () => void }) {
         </div>
 
         {current.status !== "converted" && <>
-          <div className={s.qualifyPanel} data-ready={effective(current) !== null ? "true" : "false"}>
+          <div className={s.qualifyPanel} data-ready={effective(current) !== null && !currentPreliminary ? "true" : "false"}>
              <strong>Calificación actual: <span style={{ color: tierStyle(effective(current)).color }}>{tierStyle(effective(current)).label}</span></strong>
-             {effective(current) !== null && !current.do_not_contact && current.status !== "rejected"
+             {effective(current) !== null && !currentPreliminary && !current.do_not_contact && current.status !== "rejected"
                ? <button type="button" className={s.pipeline} disabled={busy} onClick={() => void act(current.id, { op: "qualify" }, `${current.company}: calificación confirmada.`)}>★ Calificar y crear tarjeta en pipeline</button>
                : <p className={s.ratingTip}>{current.do_not_contact || current.status === "rejected"
                  ? "Negocio bloqueado o descartado: no se enviará al pipeline."
-                 : "Sin evidencia suficiente. Guarda necesidades verificadas o asigna estrellas manualmente con motivo."}</p>}
+                 : currentPreliminary
+                  ? "Estas estrellas son una prioridad inicial basada en el directorio. La investigación automática debe encontrar una oportunidad comprobada antes de enviar al pipeline."
+                  : "Sin evidencia suficiente. Guarda necesidades verificadas o asigna estrellas manualmente con motivo."}</p>}
              <small>Una tarjeta por negocio en «Nuevo lead». La oportunidad y la confianza de evidencia se muestran por separado.</small>
              <div className={s.quickManual}><p className={s.ratingTip}>¿Verificaste otra oportunidad? Puedes asignar estrellas manualmente y crear el lead en un solo paso.</p>
           <form key={`override:${current.id}`} className={s.inline} onSubmit={e => { e.preventDefault(); const f = new FormData(e.currentTarget); const v = String(f.get("stars"));
