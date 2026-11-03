@@ -127,7 +127,7 @@ on the page, `getOwnerSession` on every route, same-origin check on writes).
 
 | Item | State | Evidence |
 |---|---|---|
-| 2.5D HQ scene (CSS/SVG: glass façade, skyline, meeting room, desks), light pointer parallax, reduced-motion off | done | `office-desktop.png` |
+| Live isometric HQ (dollhouse view, SVG): glass façade + skyline (day/night by local hour), lounge, glass meeting room, desks, plants; every member and the 5 AI managers seated at a desk; zoom/pan; keyboard accessible; badges only from stored data; wall screen with live counts; 30 s refresh | done | `office-desktop.png` |
 | Directory from `agency_memberships` (all roles) via `office_directory()`; new members appear without code changes | done (isolated DB) | `tests/office.database.cjs` |
 | Profiles + photo written only by the person themselves (no invented portraits; neutral monogram otherwise) | done (isolated DB) | DB + browser |
 | Member stats from `crm_tasks` (assigned / open / overdue / completed / projects), recent activity from `crm_timeline`; definitions shown; no productivity score | done | `tests/office.test.cjs` |
@@ -135,8 +135,9 @@ on the page, `getOwnerSession` on every route, same-origin check on writes).
 | Private messages (sender/recipient-only RLS, immutable, read-once receipts, linked lead/client/sale/project/task must exist, 200/h bound); 20 s refresh, no Realtime dependency | done (isolated DB) | DB + browser (desktop → iPhone width) |
 | AI managers REN/SHIN/HARU/SORA/KENJI: profiles + request inbox; status **Sin conexión**; requests are only "registrada" or "cancelada", never "ejecutada"; no generated replies | done | DB + browser |
 | Office stats panel + filters (period, role, department, person) + 14-day completed sparkline | done | browser |
-| Higgsfield imagery (HQ panorama, area variants, manager portraits) | **awaiting owner approval** | credits read-only checked (see below) |
-| Visual expansion to Dashboard/CRM/Sales/Calendar/other modules | not started in this increment | — |
+| Higgsfield imagery | **blocked by sandbox network** | budget approved; 1 test image generated (0.25 credits) but `d8j0ntlcm91z4.cloudfront.net` is denied → cannot be downloaded into the repo |
+| Spatial Luxury retheme of the whole app (central tokens: obsidian/navy/cosmic violet/ice/lavender/titanium/champagne; neon removed from module styles) | done | screenshots in `tests/sales.browser.cjs` |
+| Motion layer: page-content entrance on navigation, press feedback, card depth on hover, staggered KPIs, Kanban drag feedback; `prefers-reduced-motion` disables it | done | visual |
 
 Not built (honest): AI execution backend (managers cannot run anything), presence/availability source,
 push/e-mail notifications for messages, "incidents" (no incident entity exists yet).
@@ -147,4 +148,7 @@ Migration `20261103100000_office.sql`: **not applied anywhere**. Until applied, 
 
 Higgsfield (checked 2026-11-03, read-only): MCP reachable from Claude Code; balance 2,000 credits, team
 plan; candidate models `soul_location` (environments) and `soul_cast` (consistent characters). Per-image
-price not exposed by the API → no generation performed, 0 credits spent.
+price not exposed by the API at first check. After owner approval (2026-11-03): preflight 0.25 credits per
+`gpt_image_2_5` image, ~1 per `soul_cast` portrait; one isometric HQ image generated (0.25 credits). The result
+host `d8j0ntlcm91z4.cloudfront.net` is blocked by this environment's network policy, so no further assets were
+generated until it is allowed. Total spent: 0.25 credits.

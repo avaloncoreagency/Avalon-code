@@ -1,52 +1,62 @@
-/* Avalon OS design tokens. Every component reads colors and radii from here. */
+/* Avalon OS design tokens — "Spatial Luxury" (2026-11-03). Every component reads colors and radii from here.
+   Light is an architectural detail, not the main element: accents are softer and glows are subtle. */
 :root {
   color-scheme: dark;
   --sans: var(--font-sans, system-ui), system-ui, -apple-system, "Segoe UI", Roboto, Arial, sans-serif;
   --display: var(--font-display, var(--font-sans, system-ui)), system-ui, sans-serif;
 
-  --bg: #050816;
-  --bg-elevated: #0a1024;
-  --panel: rgba(13, 20, 44, 0.78);
-  --panel-solid: #0d142c;
-  --panel-hover: rgba(22, 32, 66, 0.9);
-  --line: rgba(130, 150, 220, 0.16);
-  --line-strong: rgba(140, 160, 240, 0.32);
+  --obsidian: #080d16;
+  --navy: #111827;
+  --ice: #b7e9ff;
+  --lavender: #b9a3ff;
+  --titanium: #c8d2e0;
+  --champagne: #bba88e;
 
-  --text: #edf1ff;
-  --text-muted: #a7b2d4;
-  --text-faint: #75809f;
+  --bg: #080d16;
+  --bg-elevated: #0d1320;
+  --panel: rgba(17, 24, 39, 0.78);
+  --panel-solid: #111827;
+  --panel-hover: rgba(26, 35, 56, 0.92);
+  --line: rgba(200, 210, 224, 0.12);
+  --line-strong: rgba(200, 210, 224, 0.24);
 
-  --cyan: #22e3ff;
-  --blue: #3d7bff;
-  --violet: #8a6cff;
-  --magenta: #f45cff;
+  --text: #eef2f8;
+  --text-muted: #a3aec0;
+  --text-faint: #7a8597;
+
+  --cyan: #64d7f5;
+  --blue: #6f9cf0;
+  --violet: #7668e8;
+  --magenta: #b9a3ff;
   --teal: #2ee6b8;
   --amber: #ffc25c;
   --danger: #ff6b9a;
   --success: #3ef0b0;
   --warning: #ffcf6b;
 
-  --gradient: linear-gradient(115deg, #22e3ff 0%, #6d5bff 48%, #f45cff 100%);
-  --glow-cyan: 0 0 22px rgba(34, 227, 255, 0.28);
-  --glow-violet: 0 0 26px rgba(138, 108, 255, 0.3);
+  --gradient: linear-gradient(115deg, #b7e9ff 0%, #7668e8 55%, #b9a3ff 100%);
+  --glow-cyan: 0 0 18px rgba(100, 215, 245, 0.16);
+  --glow-violet: 0 0 20px rgba(118, 104, 232, 0.18);
 
   --radius-sm: 8px;
   --radius: 14px;
   --radius-lg: 20px;
-  --shadow: 0 18px 50px rgba(0, 0, 0, 0.35);
-  --focus: 0 0 0 2px var(--bg), 0 0 0 4px var(--cyan);
+  --shadow: 0 24px 60px rgba(0, 0, 0, 0.42);
+  --focus: 0 0 0 2px var(--bg), 0 0 0 4px var(--ice);
+  --ease: cubic-bezier(0.22, 1, 0.36, 1);
+  --dur: 0.32s;
   /* One Avalon CRM HUD contract across Pipeline, Sales, Calendar and Radar.
      Event color swatches and semantic warnings remain intentionally independent. */
   --crm-hud-bg:
-    radial-gradient(1000px 400px at 87% -9%, rgba(138, 108, 255, 0.14), transparent 62%),
-    radial-gradient(800px 420px at -9% 105%, rgba(34, 227, 255, 0.07), transparent 66%),
-    #070d1c;
-  --crm-panel-bg: linear-gradient(145deg, rgba(21, 31, 60, 0.92), rgba(10, 16, 35, 0.94));
-  --crm-nav-bg: rgba(9, 15, 34, 0.8);
-  --crm-active-bg: linear-gradient(115deg, rgba(109, 91, 255, 0.28), rgba(34, 227, 255, 0.11));
-  --crm-cta-bg: linear-gradient(118deg, rgba(34, 115, 169, 0.64), rgba(109, 91, 255, 0.38));
-  --crm-control-bg: #111e39;
-  --crm-control-border: #3f5679;
+    radial-gradient(1000px 400px at 87% -9%, rgba(118, 104, 232, 0.12), transparent 62%),
+    radial-gradient(800px 420px at -9% 105%, rgba(183, 233, 255, 0.05), transparent 66%),
+    #0a101c;
+  --crm-panel-bg: linear-gradient(160deg, rgba(23, 31, 50, 0.92), rgba(11, 16, 28, 0.94));
+  --crm-nav-bg: rgba(12, 18, 30, 0.82);
+  --crm-active-bg: linear-gradient(115deg, rgba(118, 104, 232, 0.26), rgba(183, 233, 255, 0.08));
+  --crm-cta-bg: linear-gradient(118deg, rgba(100, 215, 245, 0.28), rgba(118, 104, 232, 0.34));
+  --crm-control-bg: #0d1424;
+  --crm-control-border: rgba(200, 210, 224, 0.26);
   --crm-border: var(--line-strong);
   --crm-radius: var(--radius-lg);
   --crm-ink: var(--text);
@@ -67,7 +77,7 @@ body { margin: 0; min-height: 100vh; background: var(--bg); color: var(--text); 
 a { color: inherit; }
 button, input, select, textarea { font: inherit; color: inherit; }
 :focus-visible { outline: none; box-shadow: var(--focus); border-radius: 6px; }
-::selection { background: rgba(138, 108, 255, 0.45); }
+::selection { background: rgba(118, 104, 232, 0.45); }
 
 .sr-only {
   position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden;
@@ -79,8 +89,23 @@ button, input, select, textarea { font: inherit; color: inherit; }
 }
 .skip-link:focus { top: 12px; }
 
+/* Motion layer: page content enters softly on every navigation (only newly mounted sections animate),
+   controls respond to press, cards lift on hover. transform/opacity only. */
+@keyframes avalon-enter { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: none; } }
+@keyframes avalon-fade { from { opacity: 0; } to { opacity: 1; } }
+#main > * { animation: avalon-enter 0.5s var(--ease) both; }
+#main > *:nth-child(2) { animation-delay: 0.04s; }
+#main > *:nth-child(3) { animation-delay: 0.08s; }
+#main > *:nth-child(4) { animation-delay: 0.12s; }
+#main > *:nth-child(n + 5) { animation-delay: 0.16s; }
+:where(button, [role="button"], a[class]) { transition: transform var(--dur) var(--ease), background-color var(--dur) var(--ease), border-color var(--dur) var(--ease), box-shadow var(--dur) var(--ease), color var(--dur) var(--ease); }
+:where(button:not(:disabled), a[class]):active { transform: scale(0.98); }
+:where(dialog, [role="dialog"]) { animation: avalon-fade 0.25s var(--ease); }
+input, select, textarea { transition: border-color var(--dur) var(--ease), box-shadow var(--dur) var(--ease); }
+
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { animation-duration: 0.01ms !important; animation-iteration-count: 1 !important; transition-duration: 0.01ms !important; }
+  #main > * { animation: none; }
 }
 
 /* Legacy placeholder pages (/ and /dashboard) */

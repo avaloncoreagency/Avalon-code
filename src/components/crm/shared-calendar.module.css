@@ -6,7 +6,7 @@
 .tools{display:flex;align-items:center;gap:7px;flex-wrap:wrap}
 .button,.control,.filter{background:var(--crm-control-bg);color:var(--cal-ink);border:1px solid var(--cal-border);border-radius:11px;padding:9px 12px;min-height:40px;font:inherit;font-size:13px;cursor:pointer}
 .button:hover,.button:focus-visible,.control:focus-visible,.filter:focus-visible{border-color:#61c5ed;outline-offset:2px}
-.primary{background:var(--crm-cta-bg);border-color:rgba(34,227,255,.58);color:var(--text);font-weight:700;box-shadow:0 0 20px rgba(138,108,255,.15)}
+.primary{background:var(--crm-cta-bg);border-color:rgba(100, 215, 245,.58);color:var(--text);font-weight:700;box-shadow:0 0 20px rgba(118, 104, 232,.15)}
 .active{background:var(--crm-active-bg);border-color:#739ff6}
 .nav{display:flex;align-items:center;gap:7px;margin:14px 0;flex-wrap:wrap}
 .period{font-size:17px;font-weight:750;min-width:180px;margin-right:auto}
