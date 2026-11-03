@@ -2,8 +2,7 @@
 // Deploy with verify_jwt=false ONLY because this function authenticates a
 // dedicated >=256-bit token from Vault against a service-role-only hash.
 // It never sends mail, contacts businesses, or exposes service keys.
-// @ts-nocheck -- This file is compiled by Deno, not Next.js.
-import { createClient } from "@supabase/supabase-js";
+import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import { investigateOfficialWebsite, type ResearchReport } from "./radar-research.ts";
 import { ResearchBlocked, websiteUrl } from "./radar-website-safety.ts";
 
@@ -77,7 +76,7 @@ function mayScan(previous: StoredReport | undefined, now: number): boolean {
   return brokenRobots && age >= WAIT_AFTER_BROKEN_ROBOTS_HOURS * 3600_000;
 }
 
-async function recordEvidence(db: any, owner: string, prospect: Prospect, report: ResearchReport): Promise<boolean> {
+async function recordEvidence(db: SupabaseClient, owner: string, prospect: Prospect, report: ResearchReport): Promise<boolean> {
   if (!report.identity_matched || !report.suggested_needs.length || prospect.status === "converted")
     return false;
   const suggestion = report.suggested_needs.find(n => n.service === "website");
@@ -105,7 +104,7 @@ async function recordEvidence(db: any, owner: string, prospect: Prospect, report
   return false;
 }
 
-async function processBatch(db: any, owner: string, now: number) {
+async function processBatch(db: SupabaseClient, owner: string, now: number) {
   let checked = 0, rated = 0, converted = 0, blocked = 0, failures = 0;
   const utcDay = new Date(now);
   utcDay.setUTCHours(0, 0, 0, 0);
