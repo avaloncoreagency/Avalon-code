@@ -39,7 +39,11 @@ begin
       )
     ) into v_approved_machine;
     if not coalesce(v_approved_machine, false) then
-      raise exception 'Creative CRM stamp forbidden' using errcode = '42501';
+      raise exception 'Creative CRM stamp forbidden (context_set=%,identity_allowlisted=%)',
+        nullif(pg_catalog.current_setting('avalon.creative_bridge_token', true), '') is not null,
+        exists (select 1 from os_private.creative_bridge_identities ci
+          where ci.user_id = auth.uid() and ci.enabled)
+        using errcode = '42501';
     end if;
   end if;
   if TG_OP = 'INSERT' then
