@@ -89,6 +89,9 @@ test("dedicated worker state has private secrets and owner-only run history", { 
   // Supabase production service_role has table privileges + bypassrls. Simulate them in CI.
   await db.exec([
     "reset role;",
+    // Hosted Supabase grants service_role broad public-table privileges; the
+    // PGlite fixture does not. Reproduce hosted grants ONLY in synthetic CI.
+    "grant all on all tables in schema public to service_role;",
     "grant select,update on crm_prospects to service_role;",
     "grant select,insert,update on crm_leads to service_role;",
     "grant select,insert,update on crm_prospect_needs to service_role;",
