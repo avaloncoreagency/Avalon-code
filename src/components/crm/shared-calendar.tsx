@@ -232,12 +232,18 @@ export function SharedCalendar({ events, banners, owners, clients, leads, userId
     } catch { setModalError(t("No se pudo eliminar.", "Could not remove.")); }
     finally { setBusy(false); }
   };
-  const chip = (event: CalendarEvent) => (
-    <button key={event.id} className={s.eventChip} style={colorStyle(event.color)} type="button"
-      onClick={() => editEvent(event)} title={event.title + " · " + timeLabel(event)}>
-      {event.all_day ? "★ " : ""}{event.title}
-    </button>
-  );
+  const chip = (event: CalendarEvent) => {
+    const name = linkedLeadName(event, leads), href = leadCardHref(event.lead_id);
+    return <div className={s.eventStack} key={event.id}>
+      <button className={s.eventChip} style={colorStyle(event.color)} type="button"
+        onClick={() => editEvent(event)} title={event.title + " · " + timeLabel(event)}>
+        {event.all_day ? "★ " : ""}{event.title}
+      </button>
+      {name && href && <Link className={s.leadChip} href={href} title={t("Abrir ficha del lead", "Open lead card")}>
+        🏷 {name}
+      </Link>}
+    </div>;
+  };
 
   return <section className={s.shell} aria-label={t("Calendario compartido", "Shared calendar")}>
     <header className={s.header}>
@@ -327,6 +333,9 @@ export function SharedCalendar({ events, banners, owners, clients, leads, userId
             <button type="button" onClick={() => editEvent(event)}>{event.title}</button>
             <span className={s.sideMeta}>{timeLabel(event)} · {ownerName(event.owner_id)}</span>
             <span className={s.sideMeta}>{TYPE[event.kind]?.[lang === "es" ? 0 : 1] || event.kind}</span>
+            {linkedLeadName(event, leads) && leadCardHref(event.lead_id) && <Link href={leadCardHref(event.lead_id)!} className={s.leadLink}>
+              🏷 {linkedLeadName(event, leads)} · {t("Ver ficha del lead", "Open lead card")}
+            </Link>}
             {event.location && <span className={s.sideMeta}>📍 {event.location}</span>}
             {event.meeting_url && <a href={event.meeting_url} target="_blank" rel="noopener noreferrer" className={s.sideMeta}>{t("Abrir enlace de reunión", "Open meeting link")}</a>}
           </li>)}</ul>}
@@ -388,9 +397,32 @@ export function SharedCalendar({ events, banners, owners, clients, leads, userId
           <label className={s.label}>{t("Invitados externos (notas; no envía invitaciones)", "External guests (notes; no invitations sent)")}
             <input className={s.input} name="participants" maxLength={1000} defaultValue={draft.participants} /></label>
           <div className={s.formGrid}>
-            <label className={s.label}>{t("Relacionar con lead", "Related lead")}
-              <select className={s.select} name="lead_id" defaultValue={draft.lead_id}><option value="">{t("Sin vincular", "Not linked")}</option>
-                {leads.map(l => <option value={l.id} key={l.id}>{l.company}</option>)}</select></label>
+            <div className={s.label}>
+              <label htmlFor="cal-lead-search">{t("Etiquetar lead del pipeline", "Tag a pipeline lead")}</label>
+              <input id="cal-lead-search" className={s.input} type="search" autoComplete="off"
+                value={leadQuery} onChange={e => setLeadQuery(e.target.value)}
+                placeholder={t("Buscar empresa o contacto...", "Search company or contact...")} />
+              <label htmlFor="cal-lead-select">{t("Lead asociado", "Linked lead")}</label>
+              <select id="cal-lead-select" className={s.select} name="lead_id" value={draft.lead_id}
+                onChange={e => {
+                  const id = e.target.value;
+                  setDraft({ ...draft, lead_id: id });
+                  setSelectedLead(id ? pickerLeads.find(lead => lead.id === id) || null : null);
+                }}>
+                <option value="">{t("Sin vincular", "Not linked")}</option>
+                {pickerLeads.map(lead => <option value={lead.id} key={lead.id}>
+                  {lead.company}{lead.contact ? " · " + lead.contact : ""}
+                </option>)}
+              </select>
+              {leadSearchStatus === "loading" && <span className={s.helper}>{t("Buscando en el pipeline...", "Searching pipeline...")}</span>}
+              {leadSearchStatus === "error" && <span className={s.helper} role="alert">{t("No se pudo buscar. Reintenta.", "Could not search. Try again.")}</span>}
+              {leadQuery.trim().length >= 2 && leadSearchStatus === "idle" && pickerLeads.length === 0 &&
+                <span className={s.helper}>{t("No se encontraron leads activos.", "No active leads found.")}</span>}
+              {draft.lead_id && leadCardHref(draft.lead_id) &&
+                <Link href={leadCardHref(draft.lead_id)!} className={s.leadLink}>
+                  🏷 {selectedLead?.company || leads.find(lead => lead.id === draft.lead_id)?.company || t("Lead seleccionado", "Selected lead")} · {t("Abrir ficha", "Open card")}
+                </Link>}
+            </div>
             <label className={s.label}>{t("Relacionar con cliente", "Related client")}
               <select className={s.select} name="client_id" defaultValue={draft.client_id}><option value="">{t("Sin vincular", "Not linked")}</option>
                 {clients.map(c => <option value={c.id} key={c.id}>{c.legal_name}</option>)}</select></label>
