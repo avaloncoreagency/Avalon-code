@@ -265,11 +265,11 @@ test('SMTP-free magiclink verifies identity before granting password setup, with
   const route = load('src/app/admin/auth/confirm/route.ts', {
     '@/lib/supabase/server': { createClient: async () => ({ auth: { verifyOtp: async input => {
       assert.equal(input.type, 'magiclink'); verified = true;
-      return { data: { user: { id: 'verified-existing-id' } }, error: null };
+      return { data: { user: { id: '00000000-0000-4000-8000-000000000002' } }, error: null };
     } } }) },
     '@/lib/auth/policy': policy,
     '@/lib/auth/email-flow': { grantPasswordFlow: async (id, purpose) => {
-      assert.equal(verified, true); assert.equal(id, 'verified-existing-id'); assert.equal(purpose, 'invite');
+      assert.equal(verified, true); assert.equal(id, '00000000-0000-4000-8000-000000000002'); assert.equal(purpose, 'invite');
     } },
   });
   const response = await route.GET(new NextRequest('http://localhost:3000/admin/auth/confirm?type=magiclink&token_hash=synthetic'));
