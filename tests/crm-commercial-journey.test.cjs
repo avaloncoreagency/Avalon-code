@@ -65,12 +65,23 @@ test("one synthetic sale payload keeps the exact Radar-origin lead without side 
   assert.equal(sale.lines[0].service_code, "desarrollo-web");
 });
 
+test("a repeat sale is prelinked to the canonical client of the exact origin lead", () => {
+  assert.match(newSale, /\\.eq\\("origin_lead_id", leadId\\)/, "never match a client by company name");
+  assert.match(newSale, /clientChoices/, "older clients outside the 500-row selector remain selectable");
+  assert.match(newSale, /client_id: sourceLead \\? sourceClient\\?\\.id/, "canonical link overrides an unrelated query param");
+  assert.match(newSale, /linkedClient\\.error/, "lookup failures fail closed rather than guessing");
+  const migration = read("supabase/migrations/20261102170000_avalon_sales_core.sql");
+  assert.match(migration, /origin_lead_id uuid unique references public\\.crm_leads/, "one canonical client per origin lead");
+});
+
 test("client project library, meetings and converted prospect return to the exact CRM lead", () => {
   const library = read("src/app/admin/workspace/clients/[id]/page.tsx");
   assert.ok(library.includes('/admin/workspace/crm/leads?lead=${id}'));
   assert.ok(crm.includes('/admin/workspace/crm/leads?lead=${row.lead_id}'));
   assert.ok(!library.includes('/admin/workspace/crm?lead='));
   assert.ok(!crm.includes('/admin/workspace/crm?lead='));
+  assert.ok(library.includes("eq('origin_lead_id',id)"));
+  assert.ok(library.includes('/admin/workspace/crm/clients/${canonicalClient.data.id}'), "library offers exact Client 360 link");
   const context = read("src/components/os/project-context.tsx");
   assert.ok(context.includes('/admin/workspace/crm/clients/${client.id}'), "product library retains Client 360 link");
 });
