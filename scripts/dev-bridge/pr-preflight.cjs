@@ -82,9 +82,8 @@ async function run(){
    "",
    "This is advisory only. No branch, permission, customer record or Issue was modified.",
  ];
- // GitHub-sourced values are untrusted: keep only plain text before writing the job summary.
- const plain=line=>String(line).replace(/[^\p{L}\p{N} .,#:/·()_-]/gu,"").slice(0,300);
- if(process.env.GITHUB_STEP_SUMMARY)fs.appendFileSync(process.env.GITHUB_STEP_SUMMARY,lines.map(plain).join("\n")+"\n");
+ // GitHub-sourced values are untrusted: they are printed to the job log only, never written to files.
+ console.log(lines.join("\n"));
  console.log(JSON.stringify({
   pr:pr.number,status:result.status,owner:result.owner,issue:result.issue,
   head_sha:result.exact_sha,warning_codes:result.warnings,
