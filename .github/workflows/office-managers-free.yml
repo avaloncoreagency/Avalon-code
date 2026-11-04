@@ -1,0 +1,37 @@
+name: Avalon Office managers — zero-cost GitHub checks
+
+on:
+  # This workflow executes on the DEFAULT BRANCH only, after reviewed merge.
+  # Repository is public: standard GitHub-hosted runners are free.
+  schedule:
+    - cron: '19 * * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  issues: write
+  pull-requests: read
+  actions: read
+
+concurrency:
+  group: avalon-office-github-free-ledger
+  cancel-in-progress: false
+
+jobs:
+  verify-and-report:
+    name: Five GitHub-native checks, one verified report
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    # Optional kill-switch for administrators. No paid APIs, DB or secrets.
+    if: ${{ github.event.repository.private == false && vars.AVALON_OFFICE_FREE_CHECKS_DISABLED != 'true' }}
+    env:
+      GITHUB_TOKEN: ${{ github.token }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Test free runner locally without network
+        run: node --test tests/office-manager-free-github.test.cjs
+      - name: Read GitHub status and update one evidence issue
+        run: node scripts/office-manager-free-github.cjs
