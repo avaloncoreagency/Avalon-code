@@ -90,6 +90,7 @@ export function buildRadarIntelligence(p: RadarIntelProfile, report: ResearchRep
     ["booking_link","Reservas en línea","Se observó un enlace de citas o reservas; no se verificó el proceso completo."],
     ["contact_form","Formulario de contacto","Se observó un formulario con campos de contacto; no se probó su entrega."],
     ["contact_page","Contacto web","Se encontró un enlace a una sección de contacto."],
+    ["direct_contact_link","Enlace de llamada o correo","La web anuncia un canal directo; no se ha comprobado su tiempo de respuesta."],
     ["storefront","Tienda en línea","Se observó un enlace o indicio de tienda; no se comprobaron ventas."],
     ["social_links","Redes sociales","La web enlaza redes sociales; su actividad y resultados son desconocidos."],
     ["local_business_schema","Datos de negocio estructurados","Se observaron datos de tipo LocalBusiness u Organization para buscadores."],
