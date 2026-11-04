@@ -42,3 +42,35 @@ test("KENJI: denied second ledger page leaves 100/200-row profit unverified", as
   assert.equal(summary.currencies[0].profitCents, null,
     "USD 8,000 from first pages is not a verified profitability total");
 });
+
+test("KENJI: exact 101/201 counts with empty second pages cannot certify USD 8,000", async () => {
+  const path = "src/lib/sales/client-finance.ts";
+  assert.ok(fs.existsSync(path), "HARU helper required for combined CI");
+  const js = ts.transpileModule(fs.readFileSync(path, "utf8"), {
+    compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 },
+  }).outputText;
+  const mod = { exports: {} };
+  vm.runInNewContext(js, { module: mod, exports: mod.exports, Number, String, Array, Set, Map, Math });
+  const { loadAllRows, summarizeClientFinance } = mod.exports;
+  const offsets = [[], []];
+  const source = (n, cap, kind, index) => async (from, to) => {
+    offsets[index].push(from);
+    const rows = Array.from({ length: cap }, (_, i) => kind === "sale"
+      ? { id: "s" + i, currency: "USD", status: "confirmed", total: "100.00",
+          recurring_monthly: "0.00", crm_payments: [{ amount: "100.00" }] }
+      : { id: "c" + i, currency: "USD", amount: "10.00" });
+    return { data: from === 0 ? rows.slice(0, to + 1) : [], error: null, count: n };
+  };
+  const sales = await loadAllRows(source(101, 100, "sale", 0));
+  const costs = await loadAllRows(source(201, 200, "cost", 1));
+  assert.deepEqual(Array.from(offsets[0]), [0, 100]);
+  assert.deepEqual(Array.from(offsets[1]), [0, 200]);
+  assert.equal(sales.complete, false);
+  assert.equal(costs.complete, false);
+  const summary = summarizeClientFinance({ sales, costs });
+  assert.equal(summary.complete, false);
+  assert.ok(summary.issues.includes("sales_partial"));
+  assert.ok(summary.issues.includes("costs_partial"));
+  assert.equal(summary.currencies[0].subtotalProfitCents, 800000);
+  assert.equal(summary.currencies[0].profitCents, null);
+});
