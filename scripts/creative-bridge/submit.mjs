@@ -2,7 +2,7 @@
 // One job -> one signed handoff. No owner cookies, no Supabase keys in agents.
 // Usage: npm run creative:submit -- /private/path/to/handoff.json
 import { createHmac, createHash } from "node:crypto";
-import { readFile, stat } from "node:fs/promises";
+import { open } from "node:fs/promises";
 import { resolve } from "node:path";
 
 const MAX_BYTES = 8192;
@@ -23,9 +23,13 @@ if (!manifestPath || !endpointText || !keyId || !secretText) {
     const key = Buffer.from(secretText, "base64");
     if (key.length < 32 || key.toString("base64") !== secretText) throw Error("invalid_integration_key");
     const fullPath = resolve(manifestPath);
-    const info = await stat(fullPath);
-    if (!info.isFile() || info.size > MAX_BYTES) throw Error("invalid_manifest_size");
-    const original = await readFile(fullPath);
+    const handle = await open(fullPath, "r");
+    let original;
+    try {
+      const info = await handle.stat();
+      if (!info.isFile() || info.size > MAX_BYTES) throw Error("invalid_manifest_size");
+      original = await handle.readFile();
+    } finally { await handle.close(); }
     // Canonical compact JSON is signed and transmitted byte-identically.
     const body = Buffer.from(JSON.stringify(JSON.parse(original.toString("utf8"))), "utf8");
     if (body.byteLength > MAX_BYTES) throw Error("invalid_manifest_size");

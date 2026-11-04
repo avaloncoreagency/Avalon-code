@@ -40,13 +40,11 @@ function mediaExtension(bytes) {
 function safeFileBytes(filename) {
   // lstat + O_NOFOLLOW + fstat prevents a symlink from publishing local secrets.
   if (typeof filename!=='string' || !filename) throw Error('source');
-  const info=fs.lstatSync(filename);
-  if (!info.isFile() || info.size<24 || info.size>MAX_BYTES) throw Error('size');
+  // Open first (O_NOFOLLOW refuses a symlink), then validate the OPEN descriptor: no check-then-use window.
   const fd=fs.openSync(filename,fs.constants.O_RDONLY|fs.constants.O_NOFOLLOW);
   try {
     const open=fs.fstatSync(fd);
-    if (!open.isFile() || open.size<24 || open.size>MAX_BYTES ||
-        open.ino!==info.ino || open.dev!==info.dev) throw Error('source_changed');
+    if (!open.isFile() || open.size<24 || open.size>MAX_BYTES) throw Error('size');
     const bytes=Buffer.alloc(open.size);
     let offset=0;
     while (offset<bytes.length) {
@@ -59,9 +57,10 @@ function safeFileBytes(filename) {
   } finally { fs.closeSync(fd); }
 }
 function verifyOutput(filename,digest) {
-  const entry=fs.lstatSync(filename);
-  if (!entry.isFile() || entry.isSymbolicLink() || entry.size>MAX_BYTES ||
-      sha256(safeFileBytes(filename))!==digest) throw Error('published_asset_unavailable');
+  // safeFileBytes refuses symlinks and non-regular files on the opened descriptor itself.
+  let ok=false;
+  try { ok=sha256(safeFileBytes(filename))===digest; } catch { ok=false; }
+  if (!ok) throw Error('published_asset_unavailable');
 }
 
 try {
