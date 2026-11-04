@@ -13,8 +13,14 @@ const errors = (transpiled.diagnostics || [])
   .filter(d => d.category === ts.DiagnosticCategory.Error)
   .map(d => ts.flattenDiagnosticMessageText(d.messageText, "\n"));
 assert.deepEqual(errors, []);
+// radar-qualification.ts imports its sibling "./prospect-link" (duplicate-lead lookup); resolve it for this isolated evaluation.
+const linkModule = { exports: {} };
+new Function("module", "exports", ts.transpileModule(fs.readFileSync("src/lib/crm/prospect-link.ts", "utf8"), {
+  compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 },
+}).outputText)(linkModule, linkModule.exports);
+const localRequire = name => (name === "./prospect-link" ? linkModule.exports : require(name));
 const mod = { exports: {} };
-new Function("module", "exports", "require", transpiled.outputText)(mod, mod.exports, require);
+new Function("module", "exports", "require", transpiled.outputText)(mod, mod.exports, localRequire);
 const { qualifyRadarProspect } = mod.exports;
 
 const ID = "00000000-0000-4000-8000-000000000011";
@@ -31,6 +37,8 @@ function fixture(prospect, options = {}) {
   const chain = (response) => ({
     eq() { return this; },
     is() { return this; },
+    ilike() { return this; },
+    limit() { return this; },
     select() { return this; },
     maybeSingle: async () => response,
     then(resolve, reject) { return Promise.resolve(response).then(resolve, reject); },
@@ -46,6 +54,8 @@ function fixture(prospect, options = {}) {
         },
       };
       if (table === "crm_leads") return {
+        // Duplicate-lead lookup used to explain a unique-violation (prospect-link.ts).
+        select() { return chain({ data: options.existingLead ? [options.existingLead] : [], error: null }); },
         update(patch) { events.push({ kind: "link", patch }); return chain({ error: options.linkError || null }); },
       };
       throw new Error("Unexpected table: " + table);
@@ -148,4 +158,27 @@ test("only qualified user actions invoke promotion, no automatic map ingestion",
   assert.doesNotMatch(search, /qualifyRadarProspect|crm_convert_prospect/);
   assert.match(ui, /Calificar y crear tarjeta en pipeline/);
   assert.match(ui, /Calificar manualmente y crear lead/);
+});
+
+test("a duplicate names the existing lead so the owner can open or link it (no card is created)", async () => {
+  const existing = { id: LEAD, company: "Café Existente", contact: "Rosa", email: "cafe@example.invalid", stage_id: "proposal" };
+  const { db, events } = fixture(record({ company: "Café Radar", contact: "", email: "Cafe@Example.invalid" }), { convertError: { code: "23505" }, existingLead: existing });
+  const out = await qualifyRadarProspect(db, ID);
+  assert.equal(out.kind, "failed");
+  assert.equal(out.code, "duplicate");
+  assert.equal(out.status, 409);
+  assert.deepEqual({ ...out.lead }, { id: LEAD, company: "Café Existente", stage_id: "proposal" });
+  assert.match(out.message, /^Calificación guardada\. Este negocio ya está en el pipeline como «Café Existente»/);
+  assert.ok(!events.some(e => e.kind === "link"), "no provenance link and no second lead");
+});
+
+test("if the duplicate lookup itself fails, the original conflict is still reported (never a second failure)", async () => {
+  const { db } = fixture(record({ company: "X", email: "x@example.invalid" }), { convertError: { code: "23505" } });
+  const real = db.from;
+  db.from = table => { if (table === "crm_leads") throw new Error("boom"); return real(table); };
+  const out = await qualifyRadarProspect(db, ID);
+  assert.equal(out.kind, "failed");
+  assert.equal(out.code, "duplicate");
+  assert.equal(out.lead, undefined);
+  assert.match(out.message, /ya existe un lead con esos datos/);
 });

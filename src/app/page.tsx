@@ -4,12 +4,38 @@ import { QuoteForm } from "@/components/public/quote-form";
 import { SERVICE_NAMES } from "@/components/public/services";
 import s from "./public.module.css";
 
-export const metadata: Metadata = {
-  title: "Avalon Core Agency · IA, webs, CRM y automatización para empresas",
-  description: "Desarrollo web, e-commerce, CRM personalizados, recepcionistas de IA, marketing y automatización empresarial. Solicita tu cotización.",
-  robots: { index: true, follow: true },
-  openGraph: { title: "Avalon Core Agency", description: "IA. Personas. Sistemas. Un mañana más brillante.", type: "website" },
-};
+/** Canonical public origin. Previews and the admin host never set it: only the production site is indexable. */
+const SITE_ORIGIN = "https://avaloncoreagency.com";
+const META = {
+  es: {
+    title: "Avalon Core Agency · IA, webs, CRM y automatización para empresas",
+    description: "Desarrollo web, e-commerce, CRM personalizados, recepcionistas de IA, marketing y automatización empresarial. Solicita tu cotización.",
+    og: "IA. Personas. Sistemas. Un mañana más brillante.", locale: "es_ES",
+  },
+  en: {
+    title: "Avalon Core Agency · AI, websites, CRM and automation for businesses",
+    description: "Web development, e-commerce, custom CRMs, AI receptionists, marketing and business automation. Request a quote.",
+    og: "AI. People. Systems. A brighter tomorrow.", locale: "en_US",
+  },
+} as const;
+
+/**
+ * Title, description and Open Graph locale follow the page language (?lang=en).
+ * No canonical/hreflang here on purpose: Next.js strips the query string from `alternates`, which would point every
+ * language at "/" and tell search engines the English page is a duplicate. The language relation is declared in
+ * sitemap.xml instead, where the full URLs are kept.
+ */
+export async function generateMetadata({ searchParams }: { searchParams: Promise<Record<string, string | string[] | undefined>> }): Promise<Metadata> {
+  const lang = (await searchParams).lang === "en" ? "en" : "es";
+  const m = META[lang];
+  return {
+    metadataBase: new URL(SITE_ORIGIN),
+    title: m.title,
+    description: m.description,
+    robots: { index: true, follow: true },
+    openGraph: { title: "Avalon Core Agency", description: m.og, type: "website", siteName: "Avalon Core Agency", locale: m.locale },
+  };
+}
 
 const COPY = {
   es: {

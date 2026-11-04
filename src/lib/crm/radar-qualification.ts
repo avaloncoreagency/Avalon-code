@@ -1,4 +1,5 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { duplicateConflict, type DuplicateLead } from "./prospect-link";
 
 /**
  * Qualifying a real business is a deliberate owner action, not a consequence
@@ -24,7 +25,7 @@ export type RadarQualification =
   | { kind: "unrated"; stars: null }
   | { kind: "blocked"; stars: number | null; status: number; message: string }
   | { kind: "pipeline"; stars: number; leadId: string; created: boolean; linkWarning: boolean }
-  | { kind: "failed"; stars: number | null; status: number; code: "duplicate" | "database"; message: string };
+  | { kind: "failed"; stars: number | null; status: number; code: "duplicate" | "database"; message: string; lead?: DuplicateLead };
 
 const validStars = (n: unknown): n is number =>
   typeof n === "number" && Number.isInteger(n) && n >= 1 && n <= 5;
@@ -70,11 +71,17 @@ export async function qualifyRadarProspect(db: SupabaseClient, id: string): Prom
   const { data: leadId, error: conversionError } = await db.rpc("crm_convert_prospect", { prospect_id: id });
   if (conversionError) {
     const duplicate = conversionError.code === "23505";
+    // Name the existing lead (same e-mail / company + contact) so the owner can open it or link to it, instead of
+    // being left with "revisa el pipeline". Nothing is created or changed here.
+    const existing = duplicate ? await duplicateConflict(db, id) : null;
     return { kind: "failed", stars, status: duplicate ? 409 : 503,
       code: duplicate ? "duplicate" : "database",
       message: duplicate
-        ? "Calificación guardada, pero ya existe un lead con esos datos. Revisa el pipeline para evitar duplicados; no se creó otra tarjeta."
-        : "Calificación guardada, pero no se pudo crear la tarjeta. Puedes reintentar desde el radar." };
+        ? existing
+          ? `Calificación guardada. ${existing.body.error}`
+          : "Calificación guardada, pero ya existe un lead con esos datos. Revisa el pipeline para evitar duplicados; no se creó otra tarjeta."
+        : "Calificación guardada, pero no se pudo crear la tarjeta. Puedes reintentar desde el radar.",
+      ...(existing ? { lead: existing.body.lead } : {}) };
   }
   if (typeof leadId !== "string" || !leadId)
     return { kind: "failed", stars, status: 503, code: "database", message: "La conversión no devolvió un identificador de lead." };
