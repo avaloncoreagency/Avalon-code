@@ -43,7 +43,7 @@ function parentSaleLimit() {
   return query ? Number(query[1]) : Number.POSITIVE_INFINITY;
 }
 
-function table(rows) {
+function table(rows, readError = null) {
   let first = 0;
   let lastExclusive = Number.POSITIVE_INFINITY;
   const query = {
@@ -65,7 +65,7 @@ function table(rows) {
     },
     then(resolve, reject) {
       const selected = rows.slice(first, lastExclusive);
-      return Promise.resolve({ data: selected, error: null, count: rows.length }).then(resolve, reject);
+      return Promise.resolve({ data: readError ? null : selected, error: readError, count: readError ? null : rows.length }).then(resolve, reject);
     },
   };
   return query;
@@ -73,7 +73,7 @@ function table(rows) {
 
 // Supabase query simulation respects limit/range; it DOES NOT conveniently
 // return the hidden 201st expense when the component requests only 200.
-function syntheticDb(costRows) {
+function syntheticDb(costRows, denyCosts = false) {
   const records = {
     crm_client_workspace: [{
       client_id: clientId, package_name: "", development_stage: "",
@@ -87,7 +87,8 @@ function syntheticDb(costRows) {
   };
   return { from(name) {
     assert.ok(Object.hasOwn(records, name), "Unexpected financial query: " + name);
-    return table(records[name]);
+    return table(records[name], denyCosts && name === "crm_client_costs"
+      ? { code: "42501", message: "permission denied" } : null);
   } };
 }
 
@@ -176,7 +177,7 @@ function financialStatNodes(node, found = []) {
   return found;
 }
 
-async function renderFixture(saleRows, costRows) {
+async function renderFixture(saleRows, costRows, { denyCosts = false } = {}) {
   const sales = saleRows.slice(0, parentSaleLimit());
   const render = loadWorkspace();
   let finance;
@@ -200,17 +201,23 @@ async function renderFixture(saleRows, costRows) {
     };
     finance = financeLib.summarizeClientFinance({
       sales: await financeLib.loadAllRows(pager(saleRows, 100, salesOffsets)),
-      costs: await financeLib.loadAllRows(pager(costRows, 200, costOffsets)),
+      costs: await financeLib.loadAllRows(denyCosts
+        ? async () => ({ data: null, error: { code: "42501", message: "permission denied" }, count: null })
+        : pager(costRows, 200, costOffsets)),
     });
     assert.equal(finance.salesRead, saleRows.length, "No sale may be silently skipped");
-    assert.equal(finance.costsRead, costRows.length, "No cost may be silently skipped");
+    if (denyCosts) {
+      assert.equal(finance.complete, false, "A denied expense source must prohibit complete profitability");
+    } else {
+      assert.equal(finance.costsRead, costRows.length, "No cost may be silently skipped");
+    }
     assert.equal(salesOffsets.includes(100), saleRows.length > 100,
       "Sales pagination must continue from 100 only when the 101st row exists");
-    assert.equal(costOffsets.includes(200), costRows.length > 200,
+    if (!denyCosts) assert.equal(costOffsets.includes(200), costRows.length > 200,
       "Expense pagination must continue from 200 only when the 201st row exists");
   }
   const tree = await render({
-    clientId, lang: "es", sales, supabase: syntheticDb(costRows),
+    clientId, lang: "es", sales, supabase: syntheticDb(costRows, denyCosts),
     ...(finance ? { finance, financeAllowed: true, demo: false } : {}),
   });
   return { stats: financialStatNodes(tree), all: textOf(tree), usedSales: sales.length };
@@ -308,4 +315,20 @@ test("KENJI: missing exact count plus 100/200-row caps cannot certify truncated 
   }
   assert.notEqual(summary.currencies[0].profitCents, 800000,
     "The old 100/200-page USD 8,000.00 subtotal must not be certified as full profit");
+});
+
+// Authorization failure is distinct from pagination: a 42501/RLS denial of
+// expenses must never become a valid, nonzero profit simply because sales load.
+// Legacy #78 hides stats on a failed query; HARU's post-fix helper may show an
+// explicitly partial subtotal, but neither path may label USD 180 as full profit.
+test("KENJI: denied expense ledger cannot appear as complete profitability", async () => {
+  const result = await renderFixture(fixtures.sales.slice(0, 2), fixtures.costs.slice(0, 2),
+    { denyCosts: true });
+  const stats = result.stats.join(" | ");
+  assert.doesNotMatch(stats, /Rentabilidad registrada|Recorded profitability/i,
+    "RLS-denied expenses must not produce a complete profitability label");
+  assert.doesNotMatch(stats, /USD 180\.00/,
+    "A denied cost source cannot certify USD 180 as a complete net profit");
+  assert.match(result.all, /No fue posible leer|No se pudieron leer los gastos|Expenses could not be read|parcial|partial|incomplet/i,
+    "The owner must be told clearly why complete profitability is unavailable");
 });
