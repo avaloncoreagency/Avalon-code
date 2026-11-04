@@ -284,3 +284,40 @@ test("recovery: cleanup exceptions cannot expose a consumed OTP or private cooki
   assert.deepEqual(app.observed.grants, []);
   assert.ok(!response.headers.get("location").includes(USER));
 });
+
+
+test("recovery: a malformed verified identity with a new session is safely cleaned up", async () => {
+  for (const failures of [{}, { clearFailure: true, signOutFailure: true }]) {
+    const app = harness({
+      ...failures,
+      verifyOtp: async () => ({
+        data: {
+          user: { id: "synthetic-not-a-uuid" },
+          session: { access_token: "synthetic-only", refresh_token: "synthetic-only" },
+        },
+        error: null,
+      }),
+    });
+    const response = await app.call({ type: "recovery", token_hash: "synthetic-token" });
+    assertSafeRejection(response);
+    assert.equal(app.observed.clears, 1, "any partial signed recovery proof must be cleared");
+    assert.deepEqual(app.observed.signOuts, [{ scope: "local" }],
+      "a newly returned session must be signed out, even when proof cleanup fails");
+    assert.deepEqual(app.observed.grants, [], "malformed user IDs must never get reset grants");
+    assert.deepEqual(app.observed.verified, [{ token_hash: "synthetic-token", type: "recovery" }]);
+    assert.ok(!response.headers.get("location").includes("synthetic-only"));
+  }
+});
+
+test("recovery: expired OTP without new session preserves an existing owner session", async () => {
+  const app = harness({
+    verifyOtp: async () => ({
+      data: { user: null, session: null },
+      error: { message: "synthetic expired OTP" },
+    }),
+  });
+  assertSafeRejection(await app.call({ type: "recovery", token_hash: "synthetic-token" }));
+  assert.deepEqual(app.observed.grants, []);
+  assert.equal(app.observed.clears, 0, "an ordinary expired link should not clear a preexisting flow");
+  assert.deepEqual(app.observed.signOuts, [], "an ordinary expired link must not log out an existing owner");
+});
