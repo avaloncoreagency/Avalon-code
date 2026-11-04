@@ -2,7 +2,7 @@ name: Dev Bridge sync
 on:
   workflow_dispatch:
   schedule:
-    - cron: '17 */6 * * *'
+    - cron: '17 * * * *'
   push:
     branches: [main]
     paths: ['src/lib/dev-bridge/**', 'scripts/dev-bridge/**', '.github/workflows/dev-bridge-sync.yml']

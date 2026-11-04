@@ -1,5 +1,11 @@
 # Avalon OS — shared agent instructions
 
+## Current shared development rule — Dev Bridge / Higgsfield (2026-11-03)
+**Before choosing a branch, coding or accepting any handoff, read `docs/dev-bridge/COOPERATION.md`.** Run a fresh read-only GitHub scan through an authorized connector or `npm run bridge:brief -- --read-only`; it can reuse an existing `gh auth login`. Source of truth is exact remote SHA + open PR + linked Issue with one verified owner label and `Next action:`. Unlabeled PR != inactive developer. Never claim access to another agent's private chat. Codex and Claude work on distinct branches/worktrees, reference the Issue and leave a verifiable test/next-step handoff. GitHub Actions PR preflight reports incomplete metadata automatically. Do not merge another owner's branch, change owner permissions or use production data to resolve a build failure.
+
+**Historical caveat:** Sprint 01's Google-first, old feature branch and Issue #8 instructions further down this document are archival context, not current task or login policy. Current live implementation must be inspected in `main` before every change. Higgsfield draft PR #87 is **not an active media import**: reference_only is not a shipped site, CRM or visual. Never bypass isolated-Supabase Preview protection or silently enable paid asset generation.
+
+
 ## Product
 Private operations suite for Avalon Core Agency built with Next.js App Router, Supabase Auth/Postgres and Vercel. Seven navigation modules: Dashboard, CRM, Website Designer, CRM Creator, AI Receptionist, E-commerce, Marketing Hub.
 

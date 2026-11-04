@@ -24,6 +24,47 @@ async function main(){
    let fd;try{fd=fs.openSync(lock,'wx',0o600);}catch{throw Error('Synchronization lock exists; inspect active process before removing it');}
    try{s=await bridge.sync(c,s,args.includes('--full'));if(!readonly)atomic(snapshotPath,s);console.log(JSON.stringify(summary(s),null,2));}finally{fs.closeSync(fd);fs.unlinkSync(lock);}return;
  }
+ if(command==='brief'){
+   // A start-of-session brief must be based on a NEW remote GitHub read.
+   // Without a token, cached state may be shown via status, never as verified
+   // collaboration instructions for an agent to act upon.
+   if(!c.githubToken) {
+     // Existing gh CLI auth can be used in Codex/Claude without exposing a
+     // personal token in any prompt, file, log, URL or process argument.
+     // This fallback only applies to the read-only agent briefing command.
+     try {
+       const token=cp.execFileSync('gh',['auth','token'],{
+         encoding:'utf8',timeout:4000,maxBuffer:4096,stdio:['ignore','pipe','ignore'],
+       }).trim();
+       if(token.length>=20) c.githubToken=token;
+     } catch { /* No configured gh CLI identity; fail closed below. */ }
+   }
+   if(!c.githubToken)throw Error('Live GitHub authorization needed: use an existing gh auth login or scoped GH_TOKEN. Do not paste secrets into prompts.');
+   s=await bridge.sync(c,s,false);
+   if(bridge.freshness(s.github).status!=='VERIFIED')throw Error('GitHub is UNKNOWN or STALE; no safe team brief can be generated.');
+   if(!readonly)atomic(snapshotPath,s);
+   const g=s.github.data;
+   const view=bridge.collaboration(g);
+   const pick=p=>({pr:p.number,branch:p.branch,sha:p.head_sha,ci:p.ci,
+      files:p.files.slice(0,20),url:p.url,updated_at:p.updated_at??'UNKNOWN'});
+   const ownerItems=owner=>view.assigned[owner].slice(0,12).map(({pr,issue,next_action})=>({
+     ...pick(pr),issue:issue.number,module:issue.module,next_action:next_action??'NOT_REPORTED',
+     claim:'Issue label verified; next action is reported, not independently tested'
+   }));
+   const brief={schema_version:1,at:s.at,github_verified_at:s.github.verified_at,
+     repository:c.repo,main_sha:g.branches.find(b=>b.name==='main')?.sha??'UNKNOWN',
+     collaboration:{miguel:ownerItems('miguel'),samuel:ownerItems('samuel'),
+       unassigned:view.unassigned.slice(0,16).map(pick),
+       unassigned_total:view.unassigned.length,
+       potential_overlaps:view.overlaps,overlap_total:view.overlap_total,
+       creative_bridge_prs:view.creative.slice(0,12).map(pick)},
+     safety:['Do not assign ownership by commit author, branch name or model.',
+       'Do not edit another active branch or merge automatically.',
+       'Use a separate worktree, verify exact remote SHA and CI.',
+       'Higgsfield reference_only is not imported code/media or approved client delivery.',
+       'No live app E2E or production deployment is claimed by this brief.']};
+   console.log(JSON.stringify(brief,null,2));return;
+ }
  if(!s)throw Error('No snapshot. Run npm run bridge:sync (missing providers become UNKNOWN).');
  if(command==='status'||command==='report'){console.log(JSON.stringify(summary(s),null,2));return;}
  if(command==='check'){
