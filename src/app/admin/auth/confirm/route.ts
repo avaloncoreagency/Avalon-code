@@ -36,24 +36,35 @@ export async function GET(request: NextRequest) {
   if (!linkType || !isSafeTokenHash(tokenHash)) return done("/admin/login?error=callback");
   let verifiedUserId: string | null = null;
   let authClient: Awaited<ReturnType<typeof createClient>> | null = null;
+  let invalidIdentityWithSession = false;
+  // Keep cleanup scoped to a newly established session, never to an ordinary
+  // invalid or expired link submitted by a currently signed-in owner.
+  const cleanupFailedFlow = async () => {
+    try { await clearPasswordFlow(); } catch { /* best-effort proof removal */ }
+    try { await authClient?.auth.signOut({ scope: "local" }); } catch { /* best-effort session cleanup */ }
+  };
   try {
     authClient = await createClient();
     const { data, error } = await authClient.auth.verifyOtp({ token_hash: tokenHash, type: linkType });
     const userId = !error ? data?.user?.id : null;
     verifiedUserId = isVerifiedAuthUuid(userId) ? userId : null;
+    // Even an unexpected/malformed Auth result may have set SSR cookies.
+    // Only clean up when the response confirms a newly returned session.
+    invalidIdentityWithSession = !error && !!data?.session && !verifiedUserId;
   } catch { /* Fail closed without exposing tokens. */ }
   // Only a Supabase-verified identity reaches this point. It unlocks password
   // setup for that same account; dashboard access still requires membership.
-  if (!verifiedUserId) return done("/admin/login?error=callback");
+  if (!verifiedUserId) {
+    if (invalidIdentityWithSession) await cleanupFailedFlow();
+    return done("/admin/login?error=callback");
+  }
   const purpose = PURPOSE[linkType];
   try {
     await grantPasswordFlow(verifiedUserId, purpose);
   } catch {
-    // verifyOtp may have started an authenticated Supabase session before
-    // cookie signing failed. Revoke this request\'s local session and remove any
-    // partial password-flow proof. Do not leak cleanup errors or token details.
-    try { await clearPasswordFlow(); } catch { /* best-effort cleanup */ }
-    try { await authClient?.auth.signOut({ scope: "local" }); } catch { /* best-effort cleanup */ }
+    // OTP may have created a local session; remove it and the partial proof.
+    // The access JWT might remain valid until expiry: this is best-effort.
+    await cleanupFailedFlow();
     return done("/admin/login?error=callback");
   }
   return done(purpose === "invite" ? "/admin/signup" : "/admin/reset-password");
