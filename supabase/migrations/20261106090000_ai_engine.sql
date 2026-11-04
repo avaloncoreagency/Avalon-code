@@ -3,7 +3,7 @@
 -- recorded, and the worker stops the provider before it would be).
 -- PREPARED — not applied to any remote database. Writes are service_role only (server worker); owners read through RLS.
 -- AI is OFF by default: crm_agent_settings.ai_enabled = false until an owner turns it on.
--- Rollback: drop the four tables and the two functions below; alter table crm_agent_settings drop column ai_enabled.
+-- Rollback: drop the four tables and the three functions below; alter table crm_agent_settings drop column ai_enabled.
 begin;
 
 alter table public.crm_agent_settings add column ai_enabled boolean not null default false;
@@ -16,6 +16,7 @@ create table public.crm_ai_worker_profiles (
   objectives jsonb not null default '[]'::jsonb check (jsonb_typeof(objectives) = 'array'),
   executors jsonb not null default '[]'::jsonb check (jsonb_typeof(executors) = 'array'),
   ai_enabled boolean not null default false,
+  suspended boolean not null default false, -- individual stop, independent of the global kill switch
   updated_at timestamptz not null default now(),
   -- A reserved seat has no executors and no AI: nothing can run for it until a human activates it in a reviewed change.
   constraint reserved_is_inert check (status = 'active' or (executors = '[]'::jsonb and objectives = '[]'::jsonb and not ai_enabled))
@@ -96,6 +97,9 @@ begin
   if not exists (select 1 from public.crm_ai_worker_profiles p where p.key = new.worker_key and p.status = 'active') then
     raise exception 'ai_worker_reserved' using errcode = '42501';
   end if;
+  if tg_table_name = 'crm_ai_tasks' and exists (select 1 from public.crm_ai_worker_profiles p where p.key = new.worker_key and p.suspended) then
+    raise exception 'ai_worker_suspended' using errcode = '42501';
+  end if;
   if tg_table_name = 'crm_ai_tasks' and exists (select 1 from public.crm_agent_settings s where s.id = 'avalon' and (s.kill_switch or not s.ai_enabled)) then
     raise exception 'ai_disabled' using errcode = '42501';
   end if;
@@ -112,6 +116,15 @@ begin
 end $$;
 revoke all on function public.crm_ai_set_enabled(boolean) from public, anon;
 grant execute on function public.crm_ai_set_enabled(boolean) to authenticated;
+-- Owners suspend / resume one manager without touching the others.
+create function public.crm_ai_set_suspended(p_worker text, p_on boolean) returns void language plpgsql security definer set search_path = '' as $$
+begin
+  if not crm_private.is_owner() then raise exception 'crm_forbidden' using errcode = '42501'; end if;
+  update public.crm_ai_worker_profiles set suspended = p_on, updated_at = now() where key = p_worker and status = 'active';
+  if not found then raise exception 'ai_worker_not_active' using errcode = '22023'; end if;
+end $$;
+revoke all on function public.crm_ai_set_suspended(text, boolean) from public, anon;
+grant execute on function public.crm_ai_set_suspended(text, boolean) to authenticated;
 revoke all on function crm_private.ai_assert_worker_allowed() from public, anon, authenticated;
 
 commit;

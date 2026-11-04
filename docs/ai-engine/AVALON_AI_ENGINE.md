@@ -74,6 +74,29 @@ apagada (`ai_enabled=false`) hasta que un owner la active con `crm_ai_set_enable
 - Las PR creadas por REN con `GITHUB_TOKEN` no disparan otros workflows (regla de GitHub); la evidencia de pruebas es la ejecución del propio REN.
 - Graphify no estaba disponible en esta sesión (UNKNOWN); la revisión se hizo sobre el código de `main@d2890bb`.
 
+## Autonomía por niveles (`src/lib/ai-engine/policy.ts`)
+| Nivel | Acciones | Quién decide |
+|---|---|---|
+| Automático | lectura, diagnóstico, análisis, pruebas aisladas, estado interno, borradores | el manager, sin preguntar |
+| Política aprobada | reintentos (máx. 2), cambios de bajo riesgo en rama propia y PR borrador (solo REN), comentarios de evidencia | el manager, dentro de los límites |
+| Propietario | producción, migraciones con datos reales, permisos, gastos, comunicación externa, borrado, irreversibles | **nunca** lo ejecuta un manager; se marca `avalon:needs-owner` |
+
+Además: interruptor general (`AVALON_AI_ENGINE_DISABLED=true`), suspensión individual (`AVALON_SUSPENDED=haru,sora` o
+`crm_ai_set_suspended` en la base), límites de 6 ejecuciones/hora y 30/día por manager, bloqueo para que un manager no corra
+dos veces a la vez, y reanudación tras caída (punto de control antes de trabajar; reintentos acotados).
+
+## Operación (`scripts/ai-engine/operate.cjs`)
+- **Rutina** (job `managers`, cada 6 h tras fusionar): SHIN audita RLS/privilegios anon/`SECURITY DEFINER`/secretos/permisos
+  de workflows/kill switch sobre un PostgreSQL aislado con todas las migraciones; HARU verifica las 13 etapas y el enlace
+  Radar→Lead + pruebas CRM; SORA ejecuta las pruebas del Creative Bridge y HQ, límites de recursos y gasto Higgsfield = 0;
+  KENJI ejecuta lint, TypeScript y pruebas, detecta regresiones frente a la ejecución anterior y **rechaza** resultados sin
+  evidencia ejecutada; REN detecta archivos tocados por varios PR abiertos y arma el plan con las prioridades altas de los demás.
+  Resultado: comentario en avaloncoreagency/Avalon-code#134 + artefacto JSON + memoria persistente.
+- **Recepción de tareas** (job `intake`): Issues con etiqueta `avalon:task` → manager por enrutado (palabras clave; la IA solo
+  analiza) → si pide algo del nivel propietario se marca `avalon:needs-owner` sin ejecutar → si no, ejecuta y responde en el Issue
+  (`avalon:in-progress` → `avalon:done`).
+- Con proveedores configurados, cada manager añade un análisis de IA gratuita sobre sus hechos; sin ellos lo indica (`not_configured`).
+
 ## Rollback
 Variable `AVALON_AI_ENGINE_DISABLED=true` (para todo), borrar los secretos, revertir el PR. Base de datos: no aplicada; si se aplica,
 el bloque de rollback está en la cabecera de la migración.

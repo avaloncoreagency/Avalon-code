@@ -6,6 +6,8 @@ name: Avalon AI Engine
 #                 same-repository PR carrying the label `ai-engine:live` (labels require write access).
 # ren-dev-task  — REN's autonomous low-risk task against `main`: own branch + DRAFT PR, never merges. Dispatch mode=ren or
 #                 label `ai-engine:ren-run`. Requires live-smoke to pass first.
+# managers      — the five managers' authorized routine (SHIN, HARU, SORA, KENJI, REN); evidence comment on the ledger Issue.
+# intake        — open Issues labeled `avalon:task` → routed manager → authorized execution → answer + label on the Issue.
 # Secrets (Settings → Secrets and variables → Actions): GROQ_API_KEY, CLOUDFLARE_ACCOUNT_ID, CLOUDFLARE_API_TOKEN,
 # OPENROUTER_API_KEY. Kill switch: repository variable AVALON_AI_ENGINE_DISABLED=true.
 
@@ -25,12 +27,15 @@ on:
       - 'scripts/ai-engine/**'
       - 'tests/ai-engine*'
       - 'supabase/migrations/*ai_engine*.sql'
+  # Routine operation (only fires on the default branch, i.e. after a reviewed merge).
+  schedule:
+    - cron: '17 */6 * * *'
   workflow_dispatch:
     inputs:
       mode:
-        description: 'smoke = live provider test; ren = smoke + REN autonomous task'
+        description: 'smoke = live provider test; ren = smoke + REN task; managers = routine of the five managers; intake = process avalon:task issues'
         type: choice
-        options: [smoke, ren]
+        options: [smoke, ren, managers, intake]
         default: smoke
 
 permissions:
@@ -52,7 +57,7 @@ jobs:
           cache: npm
       - run: npm ci
       - run: npm ci --prefix tests/qa
-      - run: node --test tests/ai-engine.test.cjs
+      - run: node --test tests/ai-engine.test.cjs tests/ai-engine-ops.test.cjs
       - run: node --test tests/ai-engine.database.cjs tests/ai-engine-ren.pipeline.cjs
         env:
           NODE_PATH: ./tests/qa/node_modules
@@ -145,3 +150,95 @@ jobs:
           name: ai-engine-ren-evidence
           path: .ai-engine-state/ren-evidence.json
           if-no-files-found: ignore
+
+  managers:
+    needs: offline
+    if: >-
+      vars.AVALON_AI_ENGINE_DISABLED != 'true' && (
+        github.event_name == 'schedule' ||
+        (github.event_name == 'workflow_dispatch' && inputs.mode == 'managers') ||
+        (github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository &&
+         contains(github.event.pull_request.labels.*.name, 'ai-engine:managers')))
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      contents: read
+      issues: write          # evidence comment on the ledger Issue only
+      pull-requests: read
+    env:
+      GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
+      CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
+      GH_TOKEN: ${{ github.token }}
+      AVALON_SUSPENDED: ${{ vars.AVALON_SUSPENDED }}
+      NODE_PATH: ${{ github.workspace }}/tests/qa/node_modules
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22.18.0'
+          cache: npm
+      - run: npm ci && npm ci --prefix tests/qa
+      - name: Restore managers' state and memory
+        uses: actions/cache/restore@v4
+        with:
+          path: .ai-engine-ops
+          key: ai-engine-ops-${{ github.run_id }}
+          restore-keys: ai-engine-ops-
+      - name: Managers routine
+        run: node scripts/ai-engine/operate.cjs --mode routine --state .ai-engine-ops/state.json --evidence .ai-engine-ops/evidence.json --post "${{ vars.AVALON_LEDGER_ISSUE || '134' }}"
+      - name: Save managers' state and memory
+        if: always()
+        uses: actions/cache/save@v4
+        with:
+          path: .ai-engine-ops
+          key: ai-engine-ops-${{ github.run_id }}
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: ai-engine-managers-evidence
+          path: .ai-engine-ops/evidence.json
+          if-no-files-found: ignore
+
+  intake:
+    needs: offline
+    if: >-
+      vars.AVALON_AI_ENGINE_DISABLED != 'true' && (
+        github.event_name == 'schedule' ||
+        (github.event_name == 'workflow_dispatch' && inputs.mode == 'intake') ||
+        (github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository &&
+         contains(github.event.pull_request.labels.*.name, 'ai-engine:intake')))
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      contents: read
+      issues: write          # answer and label avalon:task issues only
+      pull-requests: read
+    env:
+      GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
+      CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
+      GH_TOKEN: ${{ github.token }}
+      AVALON_SUSPENDED: ${{ vars.AVALON_SUSPENDED }}
+      NODE_PATH: ${{ github.workspace }}/tests/qa/node_modules
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22.18.0'
+          cache: npm
+      - run: npm ci && npm ci --prefix tests/qa
+      - uses: actions/cache/restore@v4
+        with:
+          path: .ai-engine-intake
+          key: ai-engine-intake-${{ github.run_id }}
+          restore-keys: ai-engine-intake-
+      - name: Process avalon:task issues
+        run: node scripts/ai-engine/operate.cjs --mode intake --state .ai-engine-intake/state.json --evidence .ai-engine-intake/evidence.json
+      - if: always()
+        uses: actions/cache/save@v4
+        with:
+          path: .ai-engine-intake
+          key: ai-engine-intake-${{ github.run_id }}

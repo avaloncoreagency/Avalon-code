@@ -40,6 +40,12 @@ test('AI engine schema: 10 profiles, inert reserved seats, $0-only ledger, servi
   await fails(`insert into crm_ai_usage(day,provider,cost_usd) values(current_date,'openrouter',0.01)`, /check constraint/);
   await fails(`update crm_ai_tasks set cost_usd = 0.000001 where id='task-0001'`, /check constraint/);
   await db.exec(`insert into crm_ai_usage(day,provider,requests,tokens) values(current_date,'groq',3,900)`);
+  await as(M); await db.exec(`select crm_ai_set_suspended('haru', true)`);
+  await fails(`select crm_ai_set_suspended('samuel_4', true)`, /ai_worker_not_active/);
+  await svc();
+  await fails(`insert into crm_ai_tasks(id,worker_key,purpose,data_class,status) values('task-0004','haru','x','synthetic','running')`, /ai_worker_suspended/);
+  await db.exec(`insert into crm_ai_tasks(id,worker_key,purpose,data_class,status) values('task-0005','kenji','x','synthetic','running')`);
+  await as(X); await fails(`select crm_ai_set_suspended('kenji', true)`, /crm_forbidden/); await svc();
   await db.exec(`insert into crm_ai_memory(worker_key,kind,body,source) values('ren','result','PR borrador creado','ren-dev:2026-11-05')`);
   await fails(`update crm_ai_worker_profiles set status='active' where key='samuel_1'`, /permission denied/);
   await db.exec(`reset role`);
