@@ -99,6 +99,17 @@ test('owner sees only RLS business fields; zero fabricated facts, zero AI calls 
   assert.ok(h.reads.every(q => q.fields.length > 0));
 });
 
+test('unexpected mismatched lead row cannot become another account\'s evidence', async () => {
+  const other = { ...row, id: '33333333-3333-4333-8333-333333333333', company: 'Other Synthetic Client' };
+  const h = harness({ record: other });
+  const display = collect(await h.render({ searchParams: Promise.resolve({ lead: ID }) }));
+  assert.match(display, /No se pudo verificar el registro/);
+  assert.doesNotMatch(display, /Other Synthetic Client|Hechos comprobados|Etapa:/);
+  assert.equal(h.coreCalls.length, 0);
+  assert.deepEqual(h.reads.map(q => q.table), ['crm_leads', 'crm_leads']);
+  assert.ok(h.reads[1].filters.some(([key, value]) => key === 'id' && value === ID));
+});
+
 test('invalid and RLS-hidden lead IDs produce no Copilot draft', async () => {
   const invalid = harness();
   const invalidOutput = collect(await invalid.render({ searchParams: Promise.resolve({ lead: '../bad' }) }));
