@@ -115,7 +115,8 @@ test('RLS denial on selected lead lookup fails closed, without analysis or stage
   const h = harness({ leadError: { code: '42501', message: 'permission denied' } });
   const display = collect(await h.render({ searchParams: Promise.resolve({ lead: ID }) }));
   assert.match(display, /No se pudo verificar el registro/);
-  assert.doesNotMatch(display, /Hechos comprobados|Synthetic Bakery/);
+  // The owner may still see the business in the selector; no verified analysis should render.
+  assert.doesNotMatch(display, /Hechos comprobados|Etapa:/);
   assert.equal(h.coreCalls.length, 0);
   assert.deepEqual(h.reads.map(q => q.table), ['crm_leads', 'crm_leads']);
 });
