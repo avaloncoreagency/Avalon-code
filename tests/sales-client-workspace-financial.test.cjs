@@ -281,3 +281,31 @@ test("KENJI: the 201st expense alone must not be silently omitted from total pro
   // The pre-fix workspace .limit(200) incorrectly renders USD 8,000.
   await assertCompleteOrMarkedPartial(fixtures.sales.slice(0, 100), fixtures.costs, "7990.00", "8000.00");
 });
+// Negative contract: a PostgREST max-rows cap may return a short response even
+// though additional rows exist. When an exact count is unavailable, the client
+// cannot infer completeness from response length. It must either continue until
+// every row is fetched or fail closed with no profitability total.
+test("KENJI: missing exact count plus 100/200-row caps cannot certify truncated profit", async () => {
+  assert.ok(financeLib, "HARU finance helper must be integrated before certifying the no-count path");
+  const cappedWithoutCount = (rows, cap) => async (from, to) => ({
+    data: rows.slice(from, Math.min(to + 1, from + cap)),
+    error: null,
+    count: null,
+  });
+  const sales = await financeLib.loadAllRows(cappedWithoutCount(fixtures.sales, 100));
+  const costs = await financeLib.loadAllRows(cappedWithoutCount(fixtures.costs, 200));
+  const summary = financeLib.summarizeClientFinance({ sales, costs });
+  assert.equal(summary.currencies.length, 1, "Synthetic USD ledger must remain visible for QA");
+  const completeRows = sales.rows.length === 101 && costs.rows.length === 201;
+  if (completeRows) {
+    assert.equal(summary.complete, true, "Full 101/201 ledger is eligible for complete profitability");
+    assert.equal(summary.currencies[0].profitCents, 809000, "Full profit must be USD 8,090.00");
+  } else {
+    assert.equal(summary.complete, false,
+      "An absent count with a server cap cannot prove that short pages are exhaustive");
+    assert.equal(summary.currencies[0].profitCents, null,
+      "Truncated ledger may display a labelled subtotal, never a total profitability");
+  }
+  assert.notEqual(summary.currencies[0].profitCents, 800000,
+    "The old 100/200-page USD 8,000.00 subtotal must not be certified as full profit");
+});
