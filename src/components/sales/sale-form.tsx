@@ -23,7 +23,7 @@ export function SaleForm({ lang, idempotencyKey, services, clients, leads, owner
 }) {
   const [state, action] = useActionState<SaleFormState, FormData>(confirmSale, { error: null, values: {} });
   const v = (name: string, fallback = "") => state.values[name] ?? fallback;
-  const [mode, setMode] = useState<"existing" | "new">(defaults.client_id ? "existing" : (state.values.client_mode as "existing" | "new") || (clients.length ? "existing" : "new"));
+  const [mode, setMode] = useState<"existing" | "new">(defaults.client_id ? "existing" : (state.values.client_mode as "existing" | "new") || (defaults.lead_id ? "new" : (clients.length ? "existing" : "new")));
   const [totals, setTotals] = useState(() => previewTotals([]));
   const [currency, setCurrency] = useState("USD");
   const [filled, setFilled] = useState<boolean[]>(() => Array.from({ length: MAX_LINES }, (_, i) => i === 0));
