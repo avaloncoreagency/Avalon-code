@@ -177,8 +177,8 @@ function financialStatNodes(node, found = []) {
   return found;
 }
 
-async function renderFixture(saleRows, costRows, { denyCosts = false } = {}) {
-  const sales = saleRows.slice(0, parentSaleLimit());
+async function renderFixture(saleRows, costRows, { denyCosts = false, denySales = false } = {}) {
+  const sales = denySales ? [] : saleRows.slice(0, parentSaleLimit());
   const render = loadWorkspace();
   let finance;
   if (financeLib) {
@@ -200,18 +200,24 @@ async function renderFixture(saleRows, costRows, { denyCosts = false } = {}) {
       });
     };
     finance = financeLib.summarizeClientFinance({
-      sales: await financeLib.loadAllRows(pager(saleRows, 100, salesOffsets)),
+      sales: await financeLib.loadAllRows(denySales
+        ? async () => ({ data: null, error: { code: "42501", message: "permission denied" }, count: null })
+        : pager(saleRows, 100, salesOffsets)),
       costs: await financeLib.loadAllRows(denyCosts
         ? async () => ({ data: null, error: { code: "42501", message: "permission denied" }, count: null })
         : pager(costRows, 200, costOffsets)),
     });
-    assert.equal(finance.salesRead, saleRows.length, "No sale may be silently skipped");
+    if (denySales) {
+      assert.equal(finance.complete, false, "A denied sales source must prohibit complete profitability");
+    } else {
+      assert.equal(finance.salesRead, saleRows.length, "No sale may be silently skipped");
+    }
     if (denyCosts) {
       assert.equal(finance.complete, false, "A denied expense source must prohibit complete profitability");
     } else {
       assert.equal(finance.costsRead, costRows.length, "No cost may be silently skipped");
     }
-    assert.equal(salesOffsets.includes(100), saleRows.length > 100,
+    if (!denySales) assert.equal(salesOffsets.includes(100), saleRows.length > 100,
       "Sales pagination must continue from 100 only when the 101st row exists");
     if (!denyCosts) assert.equal(costOffsets.includes(200), costRows.length > 200,
       "Expense pagination must continue from 200 only when the 201st row exists");
@@ -331,4 +337,20 @@ test("KENJI: denied expense ledger cannot appear as complete profitability", asy
     "A denied cost source cannot certify USD 180 as a complete net profit");
   assert.match(result.all, /No fue posible leer|No se pudieron leer los gastos|Expenses could not be read|parcial|partial|incomplet/i,
     "The owner must be told clearly why complete profitability is unavailable");
+});
+
+
+// Symmetric failure mode to denied expenses: if the sales ledger is denied,
+// a negative costs-only subtotal is NOT certified as the client's full profit.
+// A successful read of costs alone does not prove that zero sales exist.
+test("KENJI: denied sales ledger cannot appear as complete profitability", async () => {
+  const result = await renderFixture(fixtures.sales.slice(0, 2), fixtures.costs.slice(0, 2),
+    { denySales: true });
+  const stats = result.stats.join(" | ");
+  assert.doesNotMatch(stats, /Rentabilidad registrada|Recorded profitability/i,
+    "RLS-denied sales must not produce a complete profitability label");
+  assert.doesNotMatch(stats, /USD -20\.00/,
+    "A denied sales source cannot certify a costs-only subtotal as net profit");
+  assert.match(result.all, /No se pudieron leer las ventas|Sales could not be read|parcial|partial|incomplet|no disponible/i,
+    "The owner must know that the sales source is incomplete or unavailable");
 });
