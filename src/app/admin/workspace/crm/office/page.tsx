@@ -14,7 +14,7 @@ export default async function OfficePage() {
   return (
     <Suite active="crm">
       <CrmNavigation active="office" />
-      <div style={{ padding: "12px 24px" }}><Link href="/admin/workspace/crm/office/manager-work">Abrir estaciones de trabajo · ejecutar las cinco comprobaciones reales</Link></div>
+      <div style={{ padding: "12px 24px" }}><Link href="/admin/workspace/crm/office/hq">Avalon HQ 3D (nueva oficina, vista previa)</Link> · <Link href="/admin/workspace/crm/office/manager-work">Abrir estaciones de trabajo · ejecutar las cinco comprobaciones reales</Link></div>
       <ManagerExecutionStatus lang={lang} />
       <Office lang={lang} />
     </Suite>
