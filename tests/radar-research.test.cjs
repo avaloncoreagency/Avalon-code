@@ -87,6 +87,18 @@ test("verified site and cited signals never pretend hidden CRM/AI/marketing were
   assert.ok(!report.suggested_needs.some(n => n.state === "verified_missing"));
 });
 
+test("public contact channels add evidence but never imply missing CRM or AI", () => {
+  const withContact = homepage + '<a href="mailto:info@blueharbordental.example.org">Write to us</a>';
+  const report = parser.analyzeWebsitePages("Blue Harbor Dental", [
+    fetched(withContact), fetched("<title>Contact</title>", official + "/contact"),
+  ], "2026-11-04T08:00:00.000Z");
+  const contact = report.signals.find(s => s.code === "direct_contact_link");
+  assert.equal(contact.outcome, "observed");
+  assert.equal(contact.source_url, official + "/");
+  assert.deepEqual(report.suggested_needs.map(n => n.service), ["website"]);
+  assert.ok(!report.suggested_needs.some(n => ["crm", "receptionist", "marketing"].includes(n.service)));
+});
+
 test("missing title/website, errors and limited pages never invent a missing service", () => {
   const unmatched = parser.analyzeWebsitePages("Different Business", [fetched(homepage)],
     "2026-11-03T19:00:00.000Z");

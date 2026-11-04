@@ -184,6 +184,13 @@ export function analyzeWebsitePages(company: string, input: FetchedPage[], check
       social ? "La web enlaza perfiles sociales; no se midió actividad ni rendimiento comercial." :
         "No se observaron perfiles sociales en las páginas consultadas; no prueba que no existan.",
       successful[0].url, "low");
+    const directContact = successful.find(p => p.text.toLowerCase().includes("mailto:") ||
+      p.text.toLowerCase().includes("tel:"));
+    push("direct_contact_link", "Canal de contacto anunciado", directContact ? "observed" : "unknown",
+      directContact ? "El HTML incluye un enlace para correo o llamada. No se evaluó la respuesta comercial." :
+      "El HTML consultado no permite verificar un canal directo de contacto.",
+      directContact?.url ?? successful[0].url, directContact ? "medium" : "low");
+
     if (successful.length < MAX_RESEARCH_PAGES)
       warnings.push("Cobertura limitada: se consultaron " + successful.length + " páginas HTML.");
   }

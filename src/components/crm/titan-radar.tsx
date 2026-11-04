@@ -471,6 +471,22 @@ export function TitanRadar({ onChanged }: { onChanged?: () => void }) {
           prospectId={current.id}
           businessName={current.company}
           initialWebsite={current.website}
+          profile={{
+            company: current.company,
+            category: current.category,
+            phone: current.phone,
+            website: current.website,
+            contact: current.contact,
+            stars: current.stars,
+            stars_override: current.stars_override,
+            stars_reasons: current.stars_reasons,
+            confidence: current.confidence,
+            status: current.status,
+            do_not_contact: current.do_not_contact,
+            needs: current.crm_prospect_needs,
+          }}
+          promoting={busy}
+          onPromote={() => void act(current.id, { op: "qualify" }, `${current.company}: lead incorporado al pipeline.`)}
           onChanged={() => { void load(); onChanged?.(); }}
         />}
         <div className={s.actions}>
