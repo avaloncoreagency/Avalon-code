@@ -44,6 +44,7 @@ export default async function SalesCopilotPage({ searchParams }: Props) {
       .from("crm_leads")
       .select("id,company,stage_id")
       .eq("id", leadId)
+      .eq("archived", false) // Bookmarked archived leads must follow the active-list policy.
       .maybeSingle();
     if (error) unavailable = true;
     else if (!row) missing = true; // Identical for an absent or RLS-hidden lead.
