@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import type { ManagerCode } from "@/lib/office/manager-work";
+import { managerStatusAt } from "@/lib/office/manager-freshness";
 
 const names: Record<ManagerCode, string> = {
   ren: "REN", shin: "SHIN", haru: "HARU", sora: "SORA", kenji: "KENJI",
@@ -16,6 +17,8 @@ export function ManagerExecutionStatus({ lang }: { lang: string }) {
   const [history, setHistory] = useState<History | null>(null);
   const [unavailable, setUnavailable] = useState(false);
   const [loading, setLoading] = useState(false);
+  // A completed check must not stay green forever when the Office tab remains open.
+  const [clockMs, setClockMs] = useState(0);
   async function refresh() {
     setLoading(true);
     try {
@@ -34,6 +37,16 @@ export function ManagerExecutionStatus({ lang }: { lang: string }) {
     }
   }
   useEffect(() => { void refresh(); }, []);
+  useEffect(() => {
+    const tick = () => setClockMs(Date.now());
+    tick();
+    const timer = window.setInterval(tick, 60_000);
+    document.addEventListener("visibilitychange", tick);
+    return () => {
+      window.clearInterval(timer);
+      document.removeEventListener("visibilitychange", tick);
+    };
+  }, []);
   return <section aria-labelledby="office-real-manager-work" style={{
     margin: "12px 20px", padding: "15px", borderRadius: "12px",
     border: "1px solid #41617b", background: "rgba(12,25,42,.75)",
@@ -61,8 +74,8 @@ export function ManagerExecutionStatus({ lang }: { lang: string }) {
     <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(120px,1fr))", gap: 9 }}>
       {codes.map(code => {
         const run = history?.last?.[code];
-        const good = run?.display_status === "completed";
-        const state = run?.display_status ?? "not_run";
+        const state = managerStatusAt(run, clockMs);
+        const good = state === "completed";
         const label = state === "completed" ? (en ? "Completed" : "Completado")
           : state === "running" ? (en ? "Running" : "Trabajando")
           : state === "stale" ? (en ? "No recent activity" : "Sin actividad reciente")
