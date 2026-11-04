@@ -101,7 +101,7 @@ export function RadarResearchPanel({ prospectId, businessName, initialWebsite, p
         <div>
           <p className={s.eyebrow}>AVALON · RESEARCH</p>
           <h4 id="research-title">Investigación a fondo</h4>
-          <p>El radar examina automáticamente el sitio oficial de {businessName} mientras tu sesión esté activa. Aquí puedes consultar el informe o actualizarlo de forma opcional.</p>
+          <p>El investigador programado continúa trabajando incluso con Avalon cerrado. Aquí puedes consultar la última evidencia de {businessName} y actualizarla de forma opcional si queda cuota.</p>
         </div>
         <span className={s.budget}>12/día · 24 h de caché</span>
       </header>
