@@ -126,7 +126,7 @@ async function intake(store) {
   for (const i of issues.slice(0, 3)) {
     const text = `${i.title}\n${i.body || ''}`;
     E.assertSendable('internal_aggregate', [text]); // a task containing personal data is not processed by AI
-    const route = P.routeTask(text);
+    const route = P.routeTask(i.body || '', i.title);
     const ownerOnly = P.ownerOnlyRequests(text);
     gh(['issue', 'edit', String(i.number), '--repo', REPO, '--add-label', 'avalon:in-progress']);
     if (ownerOnly.length) {

@@ -57,16 +57,19 @@ export const ROUTING: { manager: string; words: RegExp }[] = [
   { manager: "kenji", words: /prueba|test|calidad|regresi|rendimiento|m[oó]vil|ci\b|lint|coste|costo|bug/i },
   { manager: "ren", words: /plan|coordin|refactor|c[oó]digo|desarroll|rama|pr\b|dependen|organiz/i },
 ];
-export function routeTask(text: string): { manager: string; method: "keywords" } {
+const stripMeta = (t: string) => t.replace(/`[^`]*`|\b[a-z-]+:[a-z-]+\b/gi, " "); // code spans and labels are not the request
+export function routeTask(text: string, title = ""): { manager: string; method: "keywords" } {
   let best = { manager: "ren", hits: 0 };
+  const body = stripMeta(text), head = stripMeta(title);
   for (const r of ROUTING) {
-    const hits = (text.match(new RegExp(r.words.source, "gi")) ?? []).length;
+    const hits = (body.match(new RegExp(r.words.source, "gi")) ?? []).length + 3 * (head.match(new RegExp(r.words.source, "gi")) ?? []).length;
     if (hits > best.hits) best = { manager: r.manager, hits };
   }
   return { manager: best.manager, method: "keywords" };
 }
 /** Actions a free-text request asks for that a manager may never do alone. */
-export function ownerOnlyRequests(text: string): Action[] {
+export function ownerOnlyRequests(raw: string): Action[] {
+  const text = stripMeta(raw);
   const out: Action[] = [];
   if (/producci[oó]n|production|deploy|desplieg|publica/i.test(text)) out.push("production_change");
   if (/migraci[oó]n|migration|alter table|drop /i.test(text)) out.push("migration_real_data");

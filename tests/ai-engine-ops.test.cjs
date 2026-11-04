@@ -37,6 +37,9 @@ test('task intake routes to the right manager and flags owner-only requests', ()
   assert.equal(P.routeTask('Organizar dependencias del plan técnico').manager, 'ren');
   assert.deepEqual(P.ownerOnlyRequests('Despliega a producción y borra los leads viejos'), ['production_change', 'delete_data']);
   assert.deepEqual(P.ownerOnlyRequests('Revisa las pruebas del calendario'), []);
+  // Regression (real Issue #136): label text like `avalon:needs-owner` is not a permission change; the title outweighs body words.
+  assert.deepEqual(P.ownerOnlyRequests('Pide un cambio en producción; resultado: la etiqueta `avalon:needs-owner`'), ['production_change']);
+  assert.equal(P.routeTask('Prueba negativa del sistema de recepción', 'Revisar la seguridad de las sesiones').manager, 'shin');
 });
 
 test('KENJI rejects results that look done but cite no executed check', () => {
