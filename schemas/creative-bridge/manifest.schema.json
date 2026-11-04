@@ -151,7 +151,8 @@
           "kind": {
             "enum": [
               "image",
-              "video"
+              "video",
+              "model"
             ]
           },
           "alt": {
@@ -160,7 +161,7 @@
           },
           "public_path": {
             "type": "string",
-            "pattern": "^/creative-bridge/[a-f0-9]{64}\\.(png|webp|jpg|mp4)$"
+            "pattern": "^/creative-bridge/[a-f0-9]{64}\\.(png|webp|jpg|mp4|glb)$"
           }
         }
       }

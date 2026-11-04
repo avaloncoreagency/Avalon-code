@@ -3,7 +3,7 @@ import Ajv from 'ajv';
 import schema from '../../../schemas/creative-bridge/manifest.schema.json';
 import {parseCreativeDelivery, type CreativeDelivery} from '../os/creative-bridge-protocol';
 export type Agent = 'codex'|'claude';
-export type Asset = {id:string;public_path?:string;kind:'image'|'video';alt:string; state:'pending'|'generating'|'ready'|'failed'|'cancelled'; job_ref:string|null; storage_ref:string|null; sha256:string|null; reduced_motion_ref:string|null};
+export type Asset = {id:string;public_path?:string;kind:'image'|'video'|'model';alt:string; state:'pending'|'generating'|'ready'|'failed'|'cancelled'; job_ref:string|null; storage_ref:string|null; sha256:string|null; reduced_motion_ref:string|null};
 export type Evidence = {pull_request?:string|null;ci_url?:string|null;preview_url?:string|null;demo_url?:string|null;production_url?:string|null;observed_at?:string};
 export type Manifest = {evidence?:Evidence;schema_version:1; task_id:string; project_ref:string; owner:'miguel'|'samuel'; agent:Agent; branch:string; head_sha:string; ci:'UNKNOWN'|'PENDING'|'PASSED'|'FAILED'; next_action:string; delivery:CreativeDelivery|null; assets:Asset[]; events:{id:string;digest:string}[]; receipt:{project_id:string;lead_id:string}|null; history:{sha:string;agent:Agent;action:string}[]};
 const validate = new Ajv({allErrors:true}).compile(schema);
