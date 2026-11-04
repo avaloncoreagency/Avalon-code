@@ -66,12 +66,12 @@ test("one synthetic sale payload keeps the exact Radar-origin lead without side 
 });
 
 test("a repeat sale is prelinked to the canonical client of the exact origin lead", () => {
-  assert.match(newSale, /\\.eq\\("origin_lead_id", leadId\\)/, "never match a client by company name");
-  assert.match(newSale, /clientChoices/, "older clients outside the 500-row selector remain selectable");
-  assert.match(newSale, /client_id: sourceLead \\? sourceClient\\?\\.id/, "canonical link overrides an unrelated query param");
-  assert.match(newSale, /linkedClient\\.error/, "lookup failures fail closed rather than guessing");
+  assert.ok(newSale.includes('.eq("origin_lead_id", leadId)'), "never match a client by company name");
+  assert.ok(newSale.includes("clientChoices"), "older clients outside the 500-row selector remain selectable");
+  assert.ok(newSale.includes("client_id: sourceLead ? sourceClient?.id"), "canonical link overrides an unrelated query param");
+  assert.ok(newSale.includes("linkedClient.error"), "lookup failures fail closed rather than guessing");
   const migration = read("supabase/migrations/20261102170000_avalon_sales_core.sql");
-  assert.match(migration, /origin_lead_id uuid unique references public\\.crm_leads/, "one canonical client per origin lead");
+  assert.ok(migration.includes("origin_lead_id uuid unique references public.crm_leads"), "one canonical client per origin lead");
 });
 
 test("client project library, meetings and converted prospect return to the exact CRM lead", () => {
