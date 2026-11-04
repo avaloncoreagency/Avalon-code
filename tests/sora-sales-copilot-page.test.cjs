@@ -152,3 +152,15 @@ test('archived lead cannot be analyzed through a bookmarked UUID', async () => {
   assert.equal(h.coreCalls.length, 0);
   assert.ok(h.reads[1].filters.some(([key, value]) => key === 'archived' && value === false));
 });
+
+
+test('missing or malformed lead stage fails closed without invoking Sales Copilot', async () => {
+  for (const stageId of [null, '', 'not-a-uuid', '11111111-1111-1111-1111-111111111111']) {
+    const h = harness({ record: { ...row, stage_id: stageId } });
+    const display = collect(await h.render({ searchParams: Promise.resolve({ lead: ID }) }));
+    assert.match(display, /No se pudo verificar el registro/);
+    assert.doesNotMatch(display, /Hechos comprobados|Etapa no verificada/);
+    assert.equal(h.coreCalls.length, 0);
+    assert.deepEqual(h.reads.map(q => q.table), ['crm_leads', 'crm_leads']);
+  }
+});
