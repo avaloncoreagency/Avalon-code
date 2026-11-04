@@ -92,8 +92,9 @@ try {
       if (!['pending','generating'].includes(asset.state)) throw Error('state');
       fs.mkdirSync(outputDir,{recursive:true});
       if (fs.realpathSync(outputDir)!==outputDir) throw Error('public_symlink');
-      if (fs.existsSync(output)) verifyOutput(output,digest);
-      else fs.writeFileSync(output,bytes,{flag:'wx',mode:0o644});
+      // Exclusive create; if the file already exists, verify it instead of overwriting (no check-then-write window).
+      try { fs.writeFileSync(output,bytes,{flag:'wx',mode:0o644}); }
+      catch (e) { if (e && e.code==='EEXIST') verifyOutput(output,digest); else throw e; }
       const job_ref=reportedJob??asset.job_ref??'approved-local-import';
       if (asset.state==='pending') m=core.reconcile(m,{
         id:'import-start:'+asset.id+':'+digest.slice(0,12),
