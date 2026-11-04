@@ -26,16 +26,17 @@ export default async function CompanyHud({params,searchParams}:{params:Promise<{
   if (!archived) query=query.neq('status','archived');
   const filters: NonNullable<Parameters<typeof countRows>[2]> = [['eq','settings->operations->>client_lead_id',id]];
   if (tool) filters.push(['eq','module',tool]);
-  const [projects, active, draft, notes] = await Promise.all([
+  const [projects, active, draft, notes, canonicalClient] = await Promise.all([
     run<ProjectRow[]>(query.order('updated_at',{ascending:false}).order('id').range(page*50,page*50+49)),
     countRows(supabase,'os_projects',[...filters,['eq','status','active']]),
     countRows(supabase,'os_projects',[...filters,['eq','status','draft']]),
     run<{id:string;body:string;created_at:string}[]>(supabase.from('crm_activities').select('id,body,created_at').eq('lead_id',id).order('created_at',{ascending:false}).limit(5)),
+    run<{id:string}|null>(supabase.from('crm_clients').select('id').eq('origin_lead_id',id).neq('status','archived').maybeSingle()),
   ]);
   const path=`/admin/workspace/clients/${id}`;
   const pagination=(n:number)=>`${path}?${new URLSearchParams({...tool?{tool}:{},...archived?{archived:'1'}:{},page:String(n)})}`;
   return <Suite active={tool?SERVICES[tool].slug:'crm'}><main className={s.hud} data-service={tool??'website'}>
-    <header className={s.header}><div><p className={s.eyebrow}>Avalon / {tool?SERVICES[tool].name:pick(lang,'Empresas','Companies')}</p><h1>{company.data?.company??pick(lang,'Ficha de empresa','Company profile')}</h1><p className={s.description}>{pick(lang,'Servicios, productos y contexto compartido de esta empresa.','Services, products and shared context for this company.')}</p></div><div className={s.actions}><Link className={s.button} href={tool?`/admin/workspace/${SERVICES[tool].slug}`:'/admin/dashboard'}>{pick(lang,'Volver a la herramienta','Back to the tool')}</Link><Link className={s.button} href={`/admin/workspace/crm/leads?lead=${id}`}>{pick(lang,'Abrir ficha CRM','Open CRM record')}</Link></div></header>
+    <header className={s.header}><div><p className={s.eyebrow}>Avalon / {tool?SERVICES[tool].name:pick(lang,'Empresas','Companies')}</p><h1>{company.data?.company??pick(lang,'Ficha de empresa','Company profile')}</h1><p className={s.description}>{pick(lang,'Servicios, productos y contexto compartido de esta empresa.','Services, products and shared context for this company.')}</p></div><div className={s.actions}><Link className={s.button} href={tool?`/admin/workspace/${SERVICES[tool].slug}`:'/admin/dashboard'}>{pick(lang,'Volver a la herramienta','Back to the tool')}</Link><Link className={s.button} href={`/admin/workspace/crm/leads?lead=${id}`}>{pick(lang,'Abrir ficha CRM','Open CRM record')}</Link>{canonicalClient.data && <Link className={s.button} href={`/admin/workspace/crm/clients/${canonicalClient.data.id}`}>{pick(lang,'Cliente 360°','Client 360°')}</Link>}</div></header>
     <Flash lang={lang} ok={typeof p.ok==='string'?p.ok:undefined} error={typeof p.error==='string'?p.error:undefined}/>
     {company.error?<DbNotice lang={lang} error={company.error}/>:<dl className={s.detail}><dt>{pick(lang,'Contacto','Contact')}</dt><dd>{company.data?.contact||'\u2014'}</dd><dt>Email</dt><dd>{company.data?.email||'\u2014'}</dd><dt>{pick(lang,'Tel\u00e9fono','Phone')}</dt><dd>{company.data?.phone||'\u2014'}</dd><dt>{pick(lang,'Origen del cliente','Client source')}</dt><dd>{company.data?.source||'\u2014'}</dd></dl>}
     <div className={s.stats}><div className={s.stat}>{pick(lang,'Proyectos activos','Active projects')}<strong>{active.error?'\u2014':active.count}</strong></div><div className={s.stat}>{pick(lang,'En preparaci\u00f3n','In preparation')}<strong>{draft.error?'\u2014':draft.count}</strong></div><div className={s.stat}>{pick(lang,'Proyectos del filtro','Projects in this filter')}<strong>{projects.error?'\u2014':projects.count}</strong></div></div>
