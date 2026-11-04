@@ -1,0 +1,10 @@
+.bridge { max-width: 1100px; margin: auto; color: #e8f0ff; overflow-wrap: anywhere; }
+.bridge h1 { font-size: clamp(2rem,5vw,3.4rem); color: #b4dfff; }
+.bridge p { line-height: 1.6; }
+.bridge input, .bridge textarea, .bridge select { display: block; box-sizing: border-box; width: 100%; max-width: 640px; margin: 8px 0; background: #111c32; border: 1px solid #54678c; border-radius: 8px; padding: 12px; color: #eef5ff; font: inherit; }
+.bridge button { background: linear-gradient(110deg,#6741cf,#23579a); border: 1px solid #8674db; border-radius: 8px; padding: 12px 18px; color: #fff; cursor: pointer; }
+.bridge button:disabled { opacity: .5; cursor: default; }
+.bridge a { color: #8adfff; }
+.bridge :focus-visible { outline: 2px solid #92e7ff; outline-offset: 4px; }
+.bridge fieldset { min-width: 0; }
+@media (prefers-reduced-motion: no-preference) { .bridge button { transition: filter .15s ease; } .bridge button:hover { filter: brightness(1.12); } }

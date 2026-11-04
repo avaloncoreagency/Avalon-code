@@ -1,5 +1,6 @@
 "use server";
 import { operations } from "@/lib/os/project-operations";
+import { exactCompanyName, parseCreativeRef, resolveOrCreateProductLead } from "@/lib/os/creative-company";
 import { revalidatePath } from "next/cache";
 import { back, field, ownerForAction, uuidField } from "@/lib/os/actions";
 import { mapDbError } from "@/lib/os/data";
@@ -50,11 +51,51 @@ export async function createProject(form: FormData) {
   const description = cleanText(field(form, "description"), { max: 2000 });
   if (!name.ok) back(base, { error: name.error });
   if (!description.ok) back(base, { error: description.error });
+  // Existing owner-led project flow remains unchanged when Higgsfield fields
+  // are absent. Agents without an authorized owner session cannot write here.
+  const metadata = await projectOperations(form, supabase);
+  let companyName: string;
+  let creativeRef: string;
+  try {
+    companyName = exactCompanyName(field(form, "company_name"));
+    creativeRef = parseCreativeRef(field(form, "higgsfield_ref"));
+  } catch { back(base, { error: "invalid" }); }
+  if (creativeRef && (!metadata.url && !metadata.repository || !companyName && !metadata.client_lead_id))
+    back(base, { error: "invalid" });
+
+  if (creativeRef) {
+    // A stable Higgsfield website/job ID is a replay guard, NOT proof of
+    // completed generation. Without a DB unique index it is not a lock.
+    const existing = await supabase.from("os_projects").select("id")
+      .eq("module", moduleKey.value)
+      .eq("settings->creative->>external_ref", creativeRef).limit(2);
+    if (existing.error) back(base, { error: mapDbError(existing.error) });
+    if (existing.data?.length === 1) back(`${base}/${existing.data[0].id}`, { ok: "existing" });
+    if ((existing.data?.length ?? 0) > 1) back(base, { error: "conflict" });
+  }
+
+  let leadId = metadata.client_lead_id;
+  if (!leadId && companyName) {
+    const resolved = await resolveOrCreateProductLead(supabase, userId, companyName);
+    if (!resolved.ok) back(base, { error: resolved.error === "ambiguous" ? "conflict" : "unavailable" });
+    leadId = resolved.id;
+  }
+  const settings = {
+    ...initialSettings(moduleKey.value, form),
+    operations: { ...metadata, client_lead_id: leadId },
+    ...(creativeRef ? { creative: { provider: "higgsfield", external_ref: creativeRef,
+      state: "reference_only", added_at: new Date().toISOString() } } : {}),
+  };
   const { data, error, status } = await supabase.from("os_projects")
-    .insert({ module: moduleKey.value, name: name.value, description: description.value, status: "draft", settings: { ...initialSettings(moduleKey.value, form), operations: await projectOperations(form, supabase) }, created_by: userId })
+    .insert({ module: moduleKey.value, name: name.value, description: description.value, status: "draft",
+      settings, created_by: userId })
     .select("id").single();
   if (error || !data) back(base, { error: mapDbError(error, status) });
   revalidatePath(base);
+  if (leadId) {
+    revalidatePath(`/admin/workspace/clients/${leadId}`);
+    revalidatePath("/admin/workspace/crm/leads");
+  }
   back(`${base}/${data.id}`, { ok: "created" });
 }
 

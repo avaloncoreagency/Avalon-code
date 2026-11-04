@@ -1,0 +1,362 @@
+diff --git a/src/app/admin/workspace/crm/clients/[id]/page.tsx b/src/app/admin/workspace/crm/clients/[id]/page.tsx
+index d8e51a6..e38985a 100644
+--- a/src/app/admin/workspace/crm/clients/[id]/page.tsx
++++ b/src/app/admin/workspace/crm/clients/[id]/page.tsx
+@@ -11,6 +11,7 @@ import { label, money } from "@/lib/sales/domain";
+ import { ClientWorkspace } from "@/components/sales/client-workspace";
+ import { addClientActivity, addContact, updateClient, updateClientNotes } from "../actions";
+ import s from "@/components/sales/sales.module.css";
++import { loadAllRows, emptyLoaded, summarizeClientFinance, financeNotice, type FinanceSale, type FinanceCost } from "@/lib/sales/client-finance";
+ export const dynamic = "force-dynamic";
+ 
+ type Client = { id: string; client_code: string; legal_name: string; trade_name: string; website: string; industry: string; country: string; location: string; source: string; notes: string; owner_id: string; origin_lead_id: string | null; status: string; created_at: string; version: number };
+@@ -50,13 +51,17 @@ export default async function Client360({ params, searchParams }: { params: Prom
+   const ownerList = owners.data ?? [];
+   const now = new Date().toISOString();
+   const allProjects = [...(projects.data ?? []), ...(legacy.data ?? [])];
+-  const byCurrency = new Map<string, { contracted: number; collected: number; recurring: number }>();
+-  for (const sale of sales.data ?? []) {
+-    const m = byCurrency.get(sale.currency) ?? { contracted: 0, collected: 0, recurring: 0 };
+-    m.contracted += Number(sale.total); m.recurring += Number(sale.recurring_monthly);
+-    m.collected += sale.crm_payments.reduce((x, y) => x + Number(y.amount), 0);
+-    byCurrency.set(sale.currency, m);
+-  }
++  // Totals are computed from EVERY confirmed sale and expense (exact-count pagination), never from the 100-row display list.
++  const [financeSales, financeCosts] = financeAllowed ? await Promise.all([
++    loadAllRows<FinanceSale>((from, to) => supabase.from("crm_sales")
++      .select("id,currency,total,recurring_monthly,status,contract_status,crm_payments(amount)", { count: "exact" })
++      .eq("client_id", id).order("sold_on", { ascending: false }).order("id").range(from, to)),
++    loadAllRows<FinanceCost>((from, to) => supabase.from("crm_client_costs")
++      .select("id,amount,currency", { count: "exact" })
++      .eq("client_id", id).order("incurred_on", { ascending: false }).order("id").range(from, to)),
++  ]) : [emptyLoaded<FinanceSale>(), emptyLoaded<FinanceCost>()];
++  const finance = summarizeClientFinance({ sales: financeSales, costs: financeCosts });
++  const financeWarning = financeAllowed ? financeNotice(finance, lang) : null;
+   const openTasks = (tasks.data ?? []).filter(t => OPEN.includes(t.status));
+   const alerts = [
+     ...openTasks.filter(t => t.due_at && t.due_at < now).map(t => ({ key: `o-${t.id}`, text: `${pick(lang, "Vencida", "Overdue")}: ${t.title}`, href: `/admin/workspace/crm/tasks?task=${t.id}` })),
+@@ -72,14 +77,15 @@ export default async function Client360({ params, searchParams }: { params: Prom
+     <OkFlash lang={lang} code={q(p, "ok")} /><ErrorFlash lang={lang} code={q(p, "error")} />
+     {client.error ? <Unavailable lang={lang} code={client.error} /> : c && <>
+       <section className={s.stats} aria-label={pick(lang, "Resumen del cliente", "Client summary")}>
+-        {financeAllowed && [...byCurrency.entries()].map(([cur, m]) => <div key={cur} className={s.stat}><span>{pick(lang, "Contratado", "Contracted")} · {cur}</span><strong>{money(lang, m.contracted, cur)}</strong><small>{pick(lang, "Cobrado", "Collected")} {money(lang, m.collected, cur)} · {pick(lang, "Recurrente/mes", "Recurring/mo")} {money(lang, m.recurring, cur)}</small></div>)}
++        {financeAllowed && financeWarning && <p role="alert" className={s.notice} data-testid="finance-partial">{financeWarning}</p>}
++        {financeAllowed && finance.currencies.map(m => <div key={m.currency} className={s.stat}><span>{pick(lang, finance.complete ? "Contratado" : "Contratado (subtotal parcial)", finance.complete ? "Contracted" : "Contracted (partial subtotal)")} · {m.currency}</span><strong>{money(lang, m.contractedCents / 100, m.currency)}</strong><small>{pick(lang, "Cobrado", "Collected")} {money(lang, m.collectedCents / 100, m.currency)} · {pick(lang, "Recurrente/mes", "Recurring/mo")} {money(lang, m.recurringCents / 100, m.currency)}{m.cancelledContracts > 0 && ` · ${m.cancelledContracts} ${pick(lang, "contrato(s) cancelado(s) incluido(s)", "cancelled contract(s) included")}`}</small></div>)}
+         <div className={s.stat}><span>{pick(lang, "Proyectos activos", "Active projects")}</span><strong>{allProjects.filter(x => x.status === "active").length}</strong><small>{allProjects.length} {pick(lang, "en total", "total")}</small></div>
+         <div className={s.stat}><span>{pick(lang, "Tareas abiertas", "Open tasks")}</span><strong>{openTasks.length}</strong><small>{(tasks.data ?? []).filter(t => t.status === "done").length} {pick(lang, "hechas", "done")}</small></div>
+         <div className={s.stat}><span>{pick(lang, "Alertas", "Alerts")}</span><strong>{alerts.length}</strong><small>{pick(lang, "Responsable", "Owner")}: {ownerName(ownerList, c.owner_id)}</small></div>
+       </section>
+ 
+       <ClientWorkspace supabase={supabase} clientId={c.id} lang={lang} sales={sales.data ?? []}
+-        financeAllowed={financeAllowed}
++        finance={finance} financeAllowed={financeAllowed}
+         demo={c.id === "eb442ca9-8991-4dd0-b7e9-648513613d5a"} />
+       {alerts.length > 0 && <section className={s.panel} aria-labelledby="alerts"><h2 id="alerts">{pick(lang, "Alertas", "Alerts")}</h2><ul className={s.list}>{alerts.map(a => <li key={a.key} className={s.notice} data-severity="urgent"><Link href={a.href}>{a.text}</Link></li>)}</ul></section>}
+ 
+diff --git a/src/components/sales/client-workspace.tsx b/src/components/sales/client-workspace.tsx
+index 312c3c1..1de17a0 100644
+--- a/src/components/sales/client-workspace.tsx
++++ b/src/components/sales/client-workspace.tsx
+@@ -5,6 +5,7 @@ import { pick, formatDate, type Lang } from "@/lib/i18n";
+ import { money } from "@/lib/sales/domain";
+ import { saveClientWorkspace, createClientJournalEntry, reviseClientJournalEntry, appendClientCost } from "@/app/admin/workspace/crm/clients/workspace-actions";
+ import s from "./sales.module.css";
++import { financeNotice, type FinanceSummary } from "@/lib/sales/client-finance";
+ 
+ type Workspace = { client_id: string; package_name: string; development_stage: string; next_step: string; version: number };
+ type Journal = { id: string; kind: string; title: string; body: string; version: number; updated_at: string };
+@@ -18,8 +19,8 @@ const kinds: [string, string, string][] = [
+   ["milestone","Hito","Milestone"],["decision","Decisión","Decision"]
+ ];
+ 
+-export async function ClientWorkspace({ supabase, clientId, lang, sales, financeAllowed, demo }: {
+-  supabase: SupabaseClient; clientId: string; lang: Lang; sales: Sale[]; financeAllowed: boolean; demo: boolean;
++export async function ClientWorkspace({ supabase, clientId, lang, sales, finance, financeAllowed, demo }: {
++  supabase: SupabaseClient; clientId: string; lang: Lang; sales: Sale[]; finance: FinanceSummary; financeAllowed: boolean; demo: boolean;
+ }) {
+   const [workspace, journal, costs, revisions, detailRevisions] = await Promise.all([
+     run<Workspace | null>(supabase.from("crm_client_workspace").select("client_id,package_name,development_stage,next_step,version").eq("client_id",clientId).maybeSingle()),
+@@ -34,17 +35,7 @@ export async function ClientWorkspace({ supabase, clientId, lang, sales, finance
+     : { data: [] as Line[], error: null };
+   const pending = [workspace,journal,costs,revisions,detailRevisions].some(x=>x.error==="schema_pending");
+   const failed = [workspace,journal,costs,revisions,detailRevisions].some(x=>!!x.error && x.error!=="schema_pending");
+-  const revenue = new Map<string,{ contracted:number; collected:number; recurring:number; expenses:number }>();
+-  const ledger = (currency: string) => {
+-    const v = revenue.get(currency) ?? {contracted:0,collected:0,recurring:0,expenses:0};
+-    revenue.set(currency,v);return v;
+-  };
+-  for (const x of sales) {
+-    const v = ledger(x.currency);v.contracted+=Number(x.total);
+-    v.collected+=x.crm_payments.reduce((a,y)=>a+Number(y.amount),0);
+-    v.recurring+=Number(x.recurring_monthly);
+-  }
+-  for (const x of costs.data??[]) ledger(x.currency).expenses+=Number(x.amount);
++  const financeWarning = financeNotice(finance, lang);
+   const w = workspace.data;
+   return <section className={s.panel} id="internal-workspace" aria-label={pick(lang,"Expediente interno del cliente","Internal client dossier")}>
+     <header><div><h2>{pick(lang,"Expediente interno · Staff","Internal dossier · Staff")}</h2>
+@@ -66,14 +57,16 @@ export async function ClientWorkspace({ supabase, clientId, lang, sales, finance
+     {failed && <p role="alert" className={s.notice}>{pick(lang,"No fue posible leer parte del expediente. Verifica los permisos y la base de datos.","Part of the dossier could not be loaded. Verify permissions and database.")}</p>}
+     {!(pending||failed) && <>
+       {financeAllowed && <div className={s.stats}>
+-        {[...revenue.entries()].map(([currency,totals])=><div key={currency} className={s.stat}>
+-          <span>{pick(lang,"Rentabilidad registrada","Recorded profitability")} · {currency}</span>
+-          <strong>{money(lang,totals.collected-totals.expenses,currency)}</strong>
+-          <small>{pick(lang,"Cobrado","Collected")}: {money(lang,totals.collected,currency)}</small>
+-          <small>{pick(lang,"Gastos","Expenses")}: {money(lang,totals.expenses,currency)}</small>
+-          <small>{pick(lang,"Contratado","Contracted")}: {money(lang,totals.contracted,currency)} · MRR {money(lang,totals.recurring,currency)}</small>
++        {financeWarning && <p role="alert" className={s.notice} data-testid="finance-partial">{financeWarning}</p>}
++        {finance.currencies.map(m=><div key={m.currency} className={s.stat}>
++          {finance.complete
++            ? <><span>{pick(lang,"Rentabilidad registrada","Recorded profitability")} · {m.currency}</span><strong>{money(lang,(m.profitCents??0)/100,m.currency)}</strong></>
++            : <><span>{pick(lang,"Subtotal parcial (no es la rentabilidad)","Partial subtotal (not the profitability)")} · {m.currency}</span><strong>{money(lang,m.subtotalProfitCents/100,m.currency)}</strong></>}
++          <small>{pick(lang,"Cobrado","Collected")}: {money(lang,m.collectedCents/100,m.currency)}</small>
++          <small>{pick(lang,"Gastos","Expenses")}: {money(lang,m.expensesCents/100,m.currency)}</small>
++          <small>{pick(lang,"Contratado","Contracted")}: {money(lang,m.contractedCents/100,m.currency)} · MRR {money(lang,m.recurringCents/100,m.currency)}</small>
+         </div>)}
+-        {revenue.size===0 && <p className={s.muted}>{pick(lang,"Sin movimientos financieros registrados.","No recorded financial transactions.")}</p>}
++        {finance.empty && <p className={s.muted}>{pick(lang,"Sin movimientos financieros registrados.","No recorded financial transactions.")}</p>}
+       </div>}
+       <div className={s.columns}>
+         <section aria-labelledby="workspace-package">
+diff --git a/tests/sales-client-workspace-financial.test.cjs b/tests/sales-client-workspace-financial.test.cjs
+new file mode 100644
+index 0000000..add04ca
+--- /dev/null
++++ b/tests/sales-client-workspace-financial.test.cjs
+@@ -0,0 +1,235 @@
++// KENJI #98: executable financial-summary regression for PR #78.
++// Synthetic client: 101 paid sales at USD 100 each + 201 expenses at USD 10 each.
++// True collected-minus-expenses = USD 8,090.00, never USD 8,000.00.
++// No connected Supabase, secrets, HTTP, user accounts, or production writes.
++const { test } = require("node:test");
++const assert = require("node:assert/strict");
++const fs = require("node:fs");
++const vm = require("node:vm");
++const ts = require("typescript");
++
++const PAGE = "src/app/admin/workspace/crm/clients/[id]/page.tsx";
++const WORKSPACE = "src/components/sales/client-workspace.tsx";
++const pageSource = fs.readFileSync(PAGE, "utf8");
++const workspaceSource = fs.readFileSync(WORKSPACE, "utf8");
++const clientId = "00000000-0000-4000-8000-0000000000aa";
++
++const fixtures = {
++  sales: Array.from({ length: 101 }, (_, index) => ({
++    id: "sale-" + String(index + 1),
++    sale_number: "SYN-" + String(index + 1),
++    currency: "USD",
++    total: "100.00",
++    recurring_monthly: "0.00",
++    crm_payments: [{ amount: "100.00" }],
++  })),
++  costs: Array.from({ length: 201 }, (_, index) => ({
++    id: "cost-" + String(index + 1),
++    amount: "10.00",
++    currency: "USD",
++    category: "QA",
++    memo: "synthetic expense",
++    incurred_on: "2026-11-03",
++    created_at: "2026-11-03T12:00:00Z",
++  })),
++};
++
++// Read the actual parent query contract instead of assuming the parent always
++// passes a complete set. PR #78 uses .limit(100) on crm_sales.
++function parentSaleLimit() {
++  const query = pageSource.match(/from\(["']crm_sales["']\)[\s\S]{0,600}?\.limit\((\d+)\)/);
++  return query ? Number(query[1]) : Number.POSITIVE_INFINITY;
++}
++
++function table(rows) {
++  let first = 0;
++  let lastExclusive = Number.POSITIVE_INFINITY;
++  const query = {
++    select() { return this; },
++    eq() { return this; },
++    in() { return this; },
++    order() { return this; },
++    limit(number) {
++      lastExclusive = Math.min(lastExclusive, first + number);
++      return this;
++    },
++    range(start, end) {
++      first = start;
++      lastExclusive = end + 1;
++      return this;
++    },
++    maybeSingle() {
++      return Promise.resolve({ data: rows[first] ?? null, error: null, count: rows.length });
++    },
++    then(resolve, reject) {
++      const selected = rows.slice(first, lastExclusive);
++      return Promise.resolve({ data: selected, error: null, count: rows.length }).then(resolve, reject);
++    },
++  };
++  return query;
++}
++
++// Supabase query simulation respects limit/range; it DOES NOT conveniently
++// return the hidden 201st expense when the component requests only 200.
++function syntheticDb(costRows) {
++  const records = {
++    crm_client_workspace: [{
++      client_id: clientId, package_name: "", development_stage: "",
++      next_step: "", version: 1,
++    }],
++    crm_client_journal: [],
++    crm_client_costs: costRows,
++    crm_client_journal_revisions: [],
++    crm_client_workspace_revisions: [],
++    crm_sale_lines: [],
++  };
++  return { from(name) {
++    assert.ok(Object.hasOwn(records, name), "Unexpected financial query: " + name);
++    return table(records[name]);
++  } };
++}
++
++// Runtime-import the actual TSX module. All UI helpers are local stubs, while
++// DB pagination, render branches and finance arithmetic are real component code.
++const financeLib = (() => {
++  const out = ts.transpileModule(fs.readFileSync("src/lib/sales/client-finance.ts", "utf8"), { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 } }).outputText;
++  const m = { exports: {} };
++  vm.runInNewContext(out, { module: m, exports: m.exports, Number, String, Array, Set, Map, Math });
++  return m.exports;
++})();
++
++function loadWorkspace() {
++  const output = ts.transpileModule(workspaceSource, {
++    compilerOptions: {
++      module: ts.ModuleKind.CommonJS,
++      target: ts.ScriptTarget.ES2022,
++      jsx: ts.JsxEmit.ReactJSX,
++      esModuleInterop: true,
++    },
++    fileName: WORKSPACE,
++  }).outputText;
++  const mod = { exports: {} };
++  const jsx = (type, props) => ({ type, props: props ?? {} });
++  const styles = new Proxy({}, { get: (_target, name) => String(name) });
++  const actions = {
++    saveClientWorkspace() {},
++    createClientJournalEntry() {},
++    reviseClientJournalEntry() {},
++    appendClientCost() {},
++  };
++  const mocks = {
++    "react/jsx-runtime": { jsx, jsxs: jsx, Fragment: Symbol.for("react.fragment") },
++    "next/link": { __esModule: true, default: function Link() {} },
++    "@/lib/os/data": { run: async (query) => await query },
++    "@/lib/i18n": { pick: (_lang, es) => es, formatDate: () => "2026-11-03" },
++    "@/lib/sales/client-finance": financeLib,
++    "@/lib/sales/domain": {
++      money: (_lang, amount, currency) =>
++        currency + " " + Number(amount).toFixed(2),
++    },
++    "@/app/admin/workspace/crm/clients/workspace-actions": actions,
++    "./sales.module.css": { __esModule: true, default: styles },
++  };
++  vm.runInNewContext(output, {
++    module: mod,
++    exports: mod.exports,
++    require: (name) => {
++      assert.ok(Object.hasOwn(mocks, name), "Unexpected component dependency: " + name);
++      return mocks[name];
++    },
++  }, { filename: WORKSPACE });
++  assert.equal(typeof mod.exports.ClientWorkspace, "function");
++  return mod.exports.ClientWorkspace;
++}
++
++function textOf(node) {
++  if (node == null || typeof node === "boolean") return "";
++  if (Array.isArray(node)) return node.map(textOf).join(" ");
++  if (typeof node !== "object") return String(node);
++  return textOf(node.props?.children);
++}
++
++function financialStatNodes(node, found = []) {
++  if (Array.isArray(node)) {
++    for (const item of node) financialStatNodes(item, found);
++  } else if (node && typeof node === "object" && node.props) {
++    if (node.type === "div" && node.props.className === "stat") {
++      const text = textOf(node);
++      if (text.includes("Rentabilidad") || text.includes("profitability") ||
++          text.includes("cobrado") || text.includes("Collected")) found.push(text);
++    }
++    financialStatNodes(node.props.children, found);
++  }
++  return found;
++}
++
++async function renderFixture(saleRows, costRows) {
++  const sales = saleRows.slice(0, parentSaleLimit());
++  const render = loadWorkspace();
++  // The parent page now reads EVERY sale/expense through loadAllRows (range + exact count).
++  const pager = rows => (from, to) => Promise.resolve({ data: rows.slice(from, to + 1), error: null, count: rows.length });
++  const finance = financeLib.summarizeClientFinance({
++    sales: await financeLib.loadAllRows(pager(saleRows)),
++    costs: await financeLib.loadAllRows(pager(costRows)),
++  });
++  const tree = await render({ clientId, lang: "es", sales, finance, supabase: syntheticDb(costRows), financeAllowed: true, demo: false });
++  return { stats: financialStatNodes(tree), all: textOf(tree), usedSales: sales.length };
++}
++
++test("KENJI: a small complete dossier keeps its exact collected-minus-expenses result", async () => {
++  const result = await renderFixture(fixtures.sales.slice(0, 2), fixtures.costs.slice(0, 2));
++  assert.ok(result.stats.some(row => row.includes("USD 180.00")),
++    "2 collected sales (USD 200) - 2 expenses (USD 20) should show USD 180");
++});
++
++test("KENJI: 101 sales + 201 expenses cannot masquerade as complete USD 8,000 profitability", async () => {
++  const result = await renderFixture(fixtures.sales, fixtures.costs);
++  const stats = result.stats.join(" | ");
++  const claimedTotal = /Rentabilidad registrada|Recorded profitability/i.test(stats);
++  // Accept either a COMPLETE correct computation or an honest incomplete state
++  // that does NOT present the partial 100/200-page arithmetic as a full total.
++  if (claimedTotal) {
++    assert.match(stats, /USD 8090\.00/,
++      "Displayed complete profitability must include the 101st sale and 201st expense. " +
++      "Parent supplied " + result.usedSales + "/101 sales. Rendered: " + stats);
++    assert.doesNotMatch(stats, /USD 8000\.00/,
++      "Truncated pages may never be labeled as recorded total profitability.");
++  } else {
++    assert.match(result.all, /parcial|incomplet|partial|incomplete|no disponible|unavailable/i,
++      "Without complete totals, clearly mark the financial result as incomplete.");
++    assert.doesNotMatch(stats, /USD 8000\.00/,
++      "An incomplete state must not present the truncated balance as a full total.");
++  }
++});
++
++test("HARU: the 101/201 dossier displays the TRUE total USD 8090.00 as recorded profitability", async () => {
++  const result = await renderFixture(fixtures.sales, fixtures.costs);
++  const stats = result.stats.join(" | ");
++  assert.match(stats, /Rentabilidad registrada/);
++  assert.match(stats, /USD 8090\.00/);
++  assert.doesNotMatch(stats, /Subtotal parcial/);
++  assert.doesNotMatch(result.all, /no se calcula/, "no incompleteness warning when everything was read");
++});
++
++test("HARU: when a source could not be fully read the UI shows a labelled subtotal and a warning, never 'Rentabilidad registrada'", async () => {
++  const render = loadWorkspace();
++  const finance = financeLib.summarizeClientFinance({
++    sales: { rows: fixtures.sales.slice(0, 100), complete: false, failed: false, total: 101 },
++    costs: { rows: fixtures.costs.slice(0, 200), complete: false, failed: false, total: 201 },
++  });
++  const tree = await render({ clientId, lang: "es", sales: fixtures.sales.slice(0, 100), finance, supabase: syntheticDb(fixtures.costs), financeAllowed: true, demo: false });
++  const text = textOf(tree);
++  assert.doesNotMatch(text, /Rentabilidad registrada/, "a partial figure never carries the profitability label");
++  assert.match(text, /Subtotal parcial \(no es la rentabilidad\)/);
++  assert.match(text, /USD 8000\.00/, "the subtotal is shown, but under its own name");
++  assert.match(text, /Se leyeron 100 de 101 ventas\. Se leyeron 200 de 201 gastos\./);
++  assert.match(text, /La rentabilidad no se calcula hasta tener los datos completos/);
++});
++
++test("HARU: an empty client shows the honest empty state", async () => {
++  const render = loadWorkspace();
++  const finance = financeLib.summarizeClientFinance({ sales: financeLib.emptyLoaded(), costs: financeLib.emptyLoaded() });
++  const tree = await render({ clientId, lang: "es", sales: [], finance, supabase: syntheticDb([]), financeAllowed: true, demo: false });
++  assert.match(textOf(tree), /Sin movimientos financieros registrados/);
++  assert.doesNotMatch(textOf(tree), /Rentabilidad registrada/);
++});

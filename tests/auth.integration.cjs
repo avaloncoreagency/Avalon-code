@@ -87,7 +87,7 @@ test('OAuth PKCE, SSR cookies, owner gate, refresh and logout over HTTP', { time
   await new Promise(resolve => reservation.close(resolve));
   origin = `http://localhost:${port}`;
   const next = spawn(process.execPath, [require.resolve('next/dist/bin/next'), 'start', '-p', String(port)], {
-    env: { ...process.env, GH_TOKEN: '', GITHUB_TOKEN: '', BRIDGE_GITHUB_TOKEN: '', BRIDGE_VERCEL_TOKEN: '', BRIDGE_SUPABASE_TOKEN: '', APP_ORIGIN: origin, NEXT_PUBLIC_SUPABASE_URL: remoteOrigin, NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: 'synthetic-publishable-key', AUTH_PASSWORD_LOGIN_ENABLED: 'false' },
+    env: { ...process.env, BRIDGE_PUBLIC_READ_DISABLED: 'true', GH_TOKEN: '', GITHUB_TOKEN: '', BRIDGE_GITHUB_TOKEN: '', BRIDGE_VERCEL_TOKEN: '', BRIDGE_SUPABASE_TOKEN: '', APP_ORIGIN: origin, NEXT_PUBLIC_SUPABASE_URL: remoteOrigin, NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: 'synthetic-publishable-key', AUTH_PASSWORD_LOGIN_ENABLED: 'false' },
     stdio: ['ignore', 'pipe', 'pipe'],
   });
   let output = '';

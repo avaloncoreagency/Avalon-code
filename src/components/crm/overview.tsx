@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { CrmNavigation } from "./navigation";
+import { COMMON_UNITS, canonicalUnit, latestPerUnit } from "@/lib/crm/usage-units";
 import s from "./crm.module.css";
 
 type UsageRow = {
@@ -96,25 +97,28 @@ export function CrmOverview() {
         <p className={s.muted}>Las API de consumo no están conectadas. Los valores registrados manualmente son históricos, no balances en tiempo real ni costos calculados. Nunca se muestra 0 cuando el valor es desconocido; suscripciones y facturación API se registran por separado indicando la fuente.</p>
         <div className={s.cards}>
           {providers.map((provider) => {
-            const rows = (data?.usage ?? []).filter((item) => item.provider === provider && item.mode === "manual");
-            const latest = rows[0];
+            const rows = (data?.usage ?? []).filter((item) => item.provider === provider && item.mode === "manual" && isNumber(item.amount));
+            const perUnit = latestPerUnit(rows);
             return (
               <div className={s.card} key={provider}>
                 <strong>{LABELS[provider]}</strong>
-                {!data && !error ? <p>Consultando registros…</p> : (() => {
-                  if (!latest || !isNumber(latest.amount)) return <><p className={s.muted}>Estado: Sin datos</p><p>No disponible · registra un consumo manual desde el panel oficial del proveedor.</p></>;
+                {!data && !error ? <p>Consultando registros…</p> : perUnit.length === 0 ? (
+                  <><p className={s.muted}>Estado: Sin datos</p><p>No disponible · registra un consumo manual desde el panel oficial del proveedor. Unidades habituales: {COMMON_UNITS.join(", ")}.</p></>
+                ) : perUnit.map((latest) => {
+                  const unit = canonicalUnit(latest.unit) || "unidades";
+                  const amount = latest.amount as number;
                   const limit = isNumber(latest.limit_value) ? latest.limit_value : null;
-                  const pct = limit ? Math.round((latest.amount / limit) * 100) : null;
+                  const pct = limit ? Math.round((amount / limit) * 100) : null;
                   const stale = latest.period_end ? new Date(latest.period_end).getTime() < Date.now() : false;
                   const alert = pct !== null && pct >= (latest.threshold ?? 80);
-                  return <>
+                  return <div key={unit} data-unit={unit}>
                     <p className={s.muted}>Estado: {stale ? "Fuente desactualizada (periodo cerrado)" : "Actualización manual"} · Automático: no conectado</p>
-                    <p>Consumido: <strong>{latest.amount.toLocaleString("es")} {latest.unit || "unidades"}</strong></p>
-                    <p>Límite: {limit !== null ? `${limit.toLocaleString("es")} ${latest.unit ?? ""}` : "desconocido"} · Restante: {limit !== null ? `${Math.max(0, limit - latest.amount).toLocaleString("es")} ${latest.unit ?? ""}` : "desconocido"}</p>
+                    <p>Consumido: <strong>{amount.toLocaleString("es")} {unit}</strong></p>
+                    <p>Límite: {limit !== null ? `${limit.toLocaleString("es")} ${unit}` : "desconocido"} · Restante: {limit !== null ? `${Math.max(0, limit - amount).toLocaleString("es")} ${unit}` : "desconocido"}</p>
                     {pct !== null && <p role={alert ? "alert" : undefined}>{alert ? "⚠ " : ""}{pct}% usado (umbral {latest.threshold ?? 80}%)</p>}
                     <p className={s.muted}>Periodo: {latest.period_start ? new Date(latest.period_start).toLocaleDateString("es") : "—"} – {latest.period_end ? new Date(latest.period_end).toLocaleDateString("es") : "—"} · Fuente: {latest.source || "—"}</p>
-                  </>;
-                })()}
+                  </div>;
+                })}
               </div>
             );
           })}

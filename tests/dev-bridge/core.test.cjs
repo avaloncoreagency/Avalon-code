@@ -49,7 +49,7 @@ test('detects CI/deployment failures, divergence, overlaps, migration drift and 
 test('resume requires unique Issue, linked PR, fresh branch and exact next action',()=>{
  const s=fixture();let pkg=b.resume(s,8,'samuel','org/repo',sha);assert.ok(validate(pkg),JSON.stringify(validate.errors));
  assert.equal(pkg.original_owner,'miguel');assert.equal(pkg.resuming_owner,'samuel');assert.match(pkg.deployment_status,/health UNKNOWN/);
- assert.throws(()=>b.resume(s,9,'samuel','org/repo',sha),/Missing issue/);
+ assert.throws(()=>b.resume(s,9,'samuel','org/repo',sha),/Missing (?:active )?issue/);
  assert.throws(()=>b.resume(s,8,'samuel','org/repo',base),/advanced/);
  s.github.data.issues[0].body='';assert.throws(()=>b.resume(s,8,'samuel','org/repo',sha),/Next action/);
  s.github.data.pulls=[];assert.throws(()=>b.resume(s,8,'samuel','org/repo',sha),/Missing linked/);
@@ -87,4 +87,198 @@ test('GitHub adapter correlates Issues/PR/files/CI and ignores older incremental
  }};
  const data=await b.github({repo:'org/repo',githubToken:'opaque'},now(),s.github.data,api);
  assert.equal(data.issues[0].owner,'miguel');assert.equal(data.issues[0].title,'Demo');assert.equal(data.pulls[0].ci,'FAILED');assert.deepEqual(data.pulls[0].issues,[8]);assert.equal(data.pulls[0].behind,1);assert.deepEqual(data.migrations,['123']);
+});
+
+test('shared cooperation keeps unlabeled PRs visible without inventing owner identity',()=>{
+ const state=fixture();const g=state.github.data;
+ const original=g.pulls[0];original.updated_at='2026-11-03T18:00:00Z';
+ g.pulls.push({...original,number:87,title:'Higgsfield creative bridge draft',
+   branch:'feat/higgsfield',issues:[],updated_at:'2026-11-03T19:00:00Z',
+   files:['src/lib/auth/access.ts','docs/sql/creative-bridge-registration.sql']});
+ const view=b.collaboration(g);
+ assert.equal(view.total,2);
+ assert.deepEqual(view.assigned.miguel.map(x=>x.pr.number),[11]);
+ assert.equal(view.assigned.miguel[0].next_action,'Run focused tests');
+ assert.equal(view.assigned.samuel.length,0);
+ assert.deepEqual(view.unassigned.map(p=>p.number),[87]);
+ assert.equal(view.overlap_total,1);
+ assert.deepEqual(view.overlaps[0],{left:87,right:11,files:['src/lib/auth/access.ts']});
+ assert.deepEqual(view.creative.map(p=>p.number),[87]);
+ // More than one conflicting Issue owner makes the PR unassigned.
+ g.issues.push({...g.issues[0],number:9,id:'github:org/repo#9',owner:'samuel'});
+ g.pulls[0].issues=[8,9];
+ const ambiguous=b.collaboration(g);
+ assert.equal(ambiguous.assigned.miguel.length,0);
+ assert.equal(ambiguous.unassigned.length,2);
+ assert.equal(b.collaboration(null).total,0);
+});
+test('GitHub CI ignores Vercel deployment failures and keeps the deployment source separate',async()=>{
+ const calls=[];const s=fixture(),sha=s.github.data.pulls[0].head_sha;
+ const api={
+  pages:async path=>{
+   calls.push(path);
+   if(path.includes('/issues?'))return [];
+   if(path.includes('/pulls?'))return [{number:11}];
+   if(path.includes('/pulls/11/files'))return [{filename:'src/lib/dev-bridge/core.ts'}];
+   return [];
+  },
+  get:async path=>{
+   calls.push(path);
+   if(path.endsWith('/pulls/11'))return {title:'Live bridge',html_url:'https://github.com/org/repo/pull/11',
+     head:{sha,ref:'feat/bridge'},base:{sha:base,ref:'main'},body:'Refs #8',mergeable:true,
+     updated_at:'2026-11-03T19:00:00Z'};
+   if(path.includes('check-runs'))return {total_count:2,check_runs:[
+     {name:'Dev Bridge validate',conclusion:'success',app:{slug:'github-actions'}},
+     {name:'Vercel',conclusion:'failure',app:{slug:'vercel'}}]};
+   if(path.includes('/compare/'))return {ahead_by:0};
+   if(path.includes('/git/trees/'))return {tree:[]};
+   throw Error('Unexpected API call '+path);
+  }
+ };
+ const g=await b.github({repo:'org/repo',githubToken:'synthetic'},undefined,undefined,api);
+ assert.equal(g.pulls[0].ci,'PASSED');
+ assert.equal(g.pulls[0].updated_at,'2026-11-03T19:00:00Z');
+ assert.ok(!calls.some(p=>p.includes('/status?')),'Vercel commit status should not be mislabeled as CI');
+});
+test('Dev Bridge auto refresh is read-only and schedule is hourly',()=>{
+ const fs=require('node:fs');
+ const auto=fs.readFileSync('src/app/admin/dev-bridge/bridge-auto-refresh.tsx','utf8');
+ assert.match(auto,/document.visibilityState === 'visible'/);
+ assert.match(auto,/router.refresh\(\)/);
+ assert.doesNotMatch(auto,/fetch\(|writeFile|issueNewTurn/);
+ const workflow=fs.readFileSync('.github/workflows/dev-bridge-sync.yml','utf8');
+ assert.match(workflow,/cron: '17 \* \* \* \*'/);
+});
+
+test('real GitHub PR list avoids redundant detail/history calls and preserves UNKNOWN mergeability',async()=>{
+ const sha='a'.repeat(40), base='b'.repeat(40), paths=[];
+ const api={
+  pages:async path=>{
+   paths.push(path);
+   if(path.includes('/issues?'))return [
+     {number:8,state:'closed',title:'Completed work',comments:0,labels:[{name:'owner:miguel'}],
+       body:'Next action: outdated',updated_at:now(),html_url:'https://github.com/org/repo/issues/8'},
+     {number:95,state:'open',title:'Current teamwork',comments:0,
+       labels:[{name:'owner:miguel'},{name:'module:dashboard'}],
+       body:'Next action: Verify exact SHA',updated_at:now(),
+       html_url:'https://github.com/org/repo/issues/95'}];
+   if(path.includes('/pulls?'))return [{number:96,title:'Cooperate',body:'Refs #95',
+     html_url:'https://github.com/org/repo/pull/96',updated_at:now(),
+     head:{sha,ref:'feat/bridge'},base:{sha:base,ref:'main'}}];
+   if(path.includes('/branches'))return [{name:'main',commit:{sha:base}}];
+   if(path.includes('/commits?'))return [];
+   if(path.includes('/pulls/96/files'))return [{filename:'src/lib/dev-bridge/core.ts'}];
+   if(path.includes('/pulls/96/reviews'))return [];
+   throw Error('Unexpected page '+path);
+  },
+  get:async path=>{
+   paths.push(path);
+   if(path.includes('/check-runs'))return {total_count:1,check_runs:[{
+     app:{slug:'github-actions'},name:'Dev Bridge validate',conclusion:'success'}]};
+   if(path.includes('/compare/'))return {ahead_by:2};
+   if(path.includes('/git/trees/'))return {tree:[]};
+   throw Error('Unexpected request '+path);
+  }
+ };
+ const g=await b.github({repo:'org/repo',githubToken:'synthetic'},undefined,undefined,api);
+ assert.equal(g.pulls[0].ci,'PASSED');
+ assert.equal(g.pulls[0].conflict,null, 'list endpoint does not prove mergeability');
+ assert.equal(g.pulls[0].behind,2);
+ assert.equal(g.issues.find(i=>i.number===8).open,false);
+ assert.equal(g.issues.find(i=>i.number===95).open,true);
+ assert.ok(!paths.some(p=>/\/pulls\/96(?:\?|$)|\/pulls\/96\/commits|\/issues\/8\/comments|\/issues\/95\/comments/.test(p)),
+   'do not duplicate PR details/commits or fetch known-empty Issue comments');
+ const snapshot=fixture();snapshot.github.data=g;
+ assert.equal(b.collaboration(g).assigned.miguel[0].issue.number,95);
+ assert.equal(b.findings(snapshot).some(f=>f.id==='owner:8'),false);
+ assert.throws(()=>b.resume(snapshot,8,'samuel','org/repo',sha),/active issue/);
+ const pkg=b.resume(snapshot,95,'samuel','org/repo',sha);
+ assert.ok(validate(pkg),JSON.stringify(validate.errors));
+});
+
+test('PR Issue linkage reads both owners in Refs #95 and #96; cannot silently attribute only first',()=>{
+ assert.deepEqual(b.issueRefsFromBody('Refs #95 and #96'),[95,96]);
+ assert.deepEqual(b.issueRefsFromBody('Refs #95, fixes #95, closes #96'),[95,96]);
+ assert.deepEqual(b.issueRefsFromBody('A changed image linked in the body #123, no explicit work item'),[]);
+ const data=fixture().github.data;
+ data.issues=[{...data.issues[0],number:95,owner:'miguel'},
+   {...data.issues[0],number:96,owner:'samuel'}];
+ data.pulls[0].issues=b.issueRefsFromBody('Refs #95 and #96');
+ assert.deepEqual(b.collaboration(data).unassigned.map(x=>x.number),[11]);
+});
+
+test('public GitHub fallback uses only 3 unprivileged reads; no fabricated CI, file scan or resume',async()=>{
+ const requests=[];
+ const api={
+  pages:async p=>{
+   requests.push(p);
+   if(p.includes('/issues?state=open'))return [
+     {number:95,state:'open',title:'Public Dev Bridge',
+       labels:[{name:'owner:miguel'},{name:'module:dashboard'}],
+       body:'Next action: Verify feature PR SHA',html_url:'https://github.com/org/repo/issues/95',updated_at:now()},
+   ];
+   if(p.includes('/pulls?state=open'))return [{number:96,title:'Public PR',
+     body:'Refs #95',head:{ref:'feat/pr',sha},base:{ref:'main',sha:base},
+     html_url:'https://github.com/org/repo/pull/96',updated_at:now()}];
+   throw Error('Unexpected public page '+p);
+  },
+  get:async p=>{
+    requests.push(p);
+    if(p==='/repos/org/repo/branches/main')return {commit:{sha:base}};
+    throw Error('Unexpected public request '+p);
+  },
+ };
+ const result=await b.github({repo:'org/repo'},undefined,undefined,api);
+ assert.equal(result.coverage,'summary');
+ assert.equal(requests.length,3,'no per-PR file, check or commit reads without token');
+ assert.deepEqual(result.pulls[0].files,[]);
+ assert.equal(result.pulls[0].ci,'UNKNOWN');
+ assert.equal(result.pulls[0].conflict,null);
+ assert.equal(result.branches[0].sha,base);
+ assert.equal(b.collaboration(result).assigned.miguel[0].pr.number,96);
+ const state=fixture();state.github.data=result;
+ assert.ok(b.findings(state).some(x=>x.id==='source:github_limited'));
+ assert.equal(b.findings(state).some(x=>x.id.startsWith('migration:')),false);
+ assert.throws(()=>b.resume(state,95,'samuel','org/repo',sha),/Authenticated full GitHub/);
+});
+test('anonymous Api never invents an Authorization header and token env fallback skips empty strings',async()=>{
+ let auth;
+ const api=new b.Api('https://fixture.test','',async (_url,opts)=>{
+   auth=opts.headers.Authorization;
+   return Response.json({ok:true});
+ });
+ assert.deepEqual(await api.get('/snapshot'),{ok:true});
+ assert.equal(auth,undefined);
+ const key=process.env.BRIDGE_GITHUB_TOKEN,gh=process.env.GH_TOKEN;
+ try{
+  process.env.BRIDGE_GITHUB_TOKEN='';
+  process.env.GH_TOKEN='synthetic-scoped-token';
+  assert.equal(b.config().githubToken,'synthetic-scoped-token');
+ }finally{
+  if(key===undefined)delete process.env.BRIDGE_GITHUB_TOKEN;else process.env.BRIDGE_GITHUB_TOKEN=key;
+  if(gh===undefined)delete process.env.GH_TOKEN;else process.env.GH_TOKEN=gh;
+ }
+});
+
+test('isolated integration can disable public GitHub network without giving false owner evidence',async()=>{
+ const old=process.env.BRIDGE_PUBLIC_READ_DISABLED;
+ let calls=0;
+ try{
+   process.env.BRIDGE_PUBLIC_READ_DISABLED='true';
+   await assert.rejects(()=>b.github({repo:'org/repo'},undefined,undefined,{
+     pages:async()=>{calls++;return [];},
+     get:async()=>{calls++;return {};},
+   }),/public read disabled/);
+   assert.equal(calls,0);
+ }finally{
+   if(old===undefined)delete process.env.BRIDGE_PUBLIC_READ_DISABLED;
+   else process.env.BRIDGE_PUBLIC_READ_DISABLED=old;
+ }
+ const fs=require('node:fs');
+ const page=fs.readFileSync('src/app/admin/dev-bridge/page.tsx','utf8');
+ assert.match(page,/publicOnly/);
+ assert.match(page,/completeGithub/);
+ assert.match(page,/Descarga de continuación bloqueada/);
+ const runtime=fs.readFileSync('src/lib/dev-bridge/runtime.ts','utf8');
+ assert.match(runtime,/if \(!c\.githubToken\) throw Error/);
 });

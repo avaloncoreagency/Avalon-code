@@ -5,6 +5,7 @@ import type { ProjectRow, AuditRow, Loaded } from '@/lib/os/data';
 import type { ProductMetric } from '@/lib/os/client-hud-data';
 import { saveProductOperation } from '@/app/admin/workspace/products/actions';
 import { DbNotice, Flash, statusLabel } from './ui';
+import type { ReactNode } from 'react';
 import s from './client-hud.module.css';
 
 const STATUS: Record<RequestState,[string,string]> = {
@@ -15,7 +16,7 @@ function validLink(value:unknown) {try{return safeLink(value);}catch{return '';}
 function Fields({project,operation}:{project:ProjectRow;operation:string}) {
   return <><input type="hidden" name="id" value={project.id}/><input type="hidden" name="version" value={project.version}/><input type="hidden" name="operation" value={operation}/></>;
 }
-export function ProductHud({lang,project,company,metrics,audit,ok,error}:{lang:Lang;project:ProjectRow;company:CompanyRecord|null;metrics:ProductMetric[];audit:Loaded<AuditRow[]>;ok?:string;error?:string}) {
+export function ProductHud({lang,project,company,metrics,audit,ok,error,context}:{lang:Lang;project:ProjectRow;company:CompanyRecord|null;metrics:ProductMetric[];audit:Loaded<AuditRow[]>;ok?:string;error?:string;context?:ReactNode}) {
   let valid = true;
   let state;
   try { state = readProductState(project.settings.client_hud); } catch { valid=false; state=readProductState(undefined); }
@@ -26,6 +27,11 @@ export function ProductHud({lang,project,company,metrics,audit,ok,error}:{lang:L
   const value=project.settings.operations;
   const op=value&&typeof value==='object'&&!Array.isArray(value)?value as Record<string,unknown>:{};
   const liveUrl=validLink(op.url), repository=validLink(op.repository);
+  const creativeRaw = project.settings.creative;
+  const creative = creativeRaw && typeof creativeRaw === "object" && !Array.isArray(creativeRaw)
+    ? creativeRaw as Record<string, unknown> : null;
+  const generatedWithHiggsfield = creative?.provider === "higgsfield";
+  const higgsfieldRef = typeof creative?.external_ref === "string" ? creative.external_ref.slice(0, 120) : "";
   const latest=latestChecks(state.checks);
   const pending=state.requests.filter(r=>!['done','cancelled'].includes(r.status));
   const urgent=pending.filter(r=>r.priority==='urgent');
@@ -38,10 +44,11 @@ export function ProductHud({lang,project,company,metrics,audit,ok,error}:{lang:L
     <Flash lang={lang} ok={ok} error={error}/>
     {!valid&&<p role="alert" className={s.notice}>{pick(lang,'Los datos operativos guardados necesitan revisi\u00f3n. La edici\u00f3n est\u00e1 bloqueada para no sobrescribirlos.','Saved operations data needs review. Editing is blocked to prevent overwriting it.')}</p>}
     {project.status==='archived'&&<p className={s.notice}>{pick(lang,'Proyecto archivado: consulta disponible, cambios bloqueados.','Archived project: read-only, changes disabled.')}</p>}
+    {context}
     <nav className={s.tabs} aria-label={pick(lang,'Secciones del producto','Product sections')}>{[['overview','Resumen','Overview'],['monitor','Monitoreo','Monitoring'],['checks','Pruebas','Tests'],['requests','Cambios y mejoras','Changes and improvements'],['resources','Conexiones y archivos','Connections and files'],['history','Historial','History']].map(([id,es,en])=><a className={s.button} key={id} href={`#${id}`}>{pick(lang,es,en)}</a>)}</nav>
     <div className={s.stats}>{metrics.map(m=><div className={s.stat} key={m.en}>{pick(lang,m.es,m.en)}<strong>{m.value??'\u2014'}</strong></div>)}<div className={s.stat}>{pick(lang,'Solicitudes abiertas','Open requests')}<strong>{valid?pending.length:'\u2014'}</strong></div><div className={s.stat}>{pick(lang,'Pruebas manuales fallidas','Failed manual checks')}<strong>{valid?failures.length:'\u2014'}</strong></div></div>
     <p className={s.muted}>{pick(lang,'Las cifras reflejan registros de Avalon. No son ventas cobradas, visitas web, uptime ni actividad en vivo de proveedores. Un guion significa que el dato no pudo verificarse.','Figures reflect Avalon records, not collected revenue, website visits, uptime or live provider activity. A dash means the data could not be verified.')}</p>
-    <section id="overview" className={s.panel}><h2>{pick(lang,'Ficha del producto contratado','Contracted product record')}</h2><dl className={s.detail}><dt>{pick(lang,'Empresa','Company')}</dt><dd>{company?.company||pick(lang,'Vinculaci\u00f3n pendiente de verificaci\u00f3n','Link pending verification')}</dd><dt>{pick(lang,'Responsable','Responsible')}</dt><dd>{typeof op.responsible==='string'&&op.responsible||'\u2014'}</dd><dt>{pick(lang,'Versi\u00f3n de ficha','Record version')}</dt><dd>{project.version}</dd><dt>{pick(lang,'Actualizado','Updated')}</dt><dd>{formatDate(lang,project.updated_at,true)}</dd><dt>{pick(lang,'Referencia de proyecto','Project reference')}</dt><dd>{project.id}</dd></dl>
+    <section id="overview" className={s.panel}><h2>{pick(lang,'Ficha del producto contratado','Contracted product record')}</h2><dl className={s.detail}><dt>{pick(lang,'Empresa','Company')}</dt><dd>{company?.company||pick(lang,'Vinculaci\u00f3n pendiente de verificaci\u00f3n','Link pending verification')}</dd><dt>{pick(lang,'Responsable','Responsible')}</dt><dd>{typeof op.responsible==='string'&&op.responsible||'\u2014'}</dd><dt>{pick(lang,'Versi\u00f3n de ficha','Record version')}</dt><dd>{project.version}</dd><dt>{pick(lang,'Actualizado','Updated')}</dt><dd>{formatDate(lang,project.updated_at,true)}</dd><dt>{pick(lang,'Referencia de proyecto','Project reference')}</dt><dd>{project.id}</dd>{generatedWithHiggsfield&&<><dt>{pick(lang,'Origen creativo','Creative source')}</dt><dd>Higgsfield · {higgsfieldRef} · {pick(lang,'Referencia registrada; publicación no verificada','Reference registered; publication not verified')}</dd></>}</dl>
       <details className={s.row} open><summary>{pick(lang,'Objetivos, alcance y entregables','Objectives, scope and deliverables')}</summary><form action={saveProductOperation} className={s.form}><Fields project={project} operation="brief"/>{[['objective','Objetivo del cliente','Client objective'],['scope','Alcance contratado','Contracted scope'],['deliverables','Entregables y enlaces de referencia (sin claves)','Deliverables and reference links (no keys)'],['acceptance','Criterios para aprobar la entrega','Delivery acceptance criteria']].map(([key,es,en])=><label className={s.field} key={key}>{pick(lang,es,en)}<textarea name={key} defaultValue={state.brief[key as keyof typeof state.brief]} maxLength={2000} rows={3} disabled={disabled}/></label>)}<label className={s.field}>{pick(lang,'Fecha objetivo','Target date')}<input name="deadline" type="date" defaultValue={state.brief.deadline} disabled={disabled}/></label><button className={s.button} disabled={disabled}>{pick(lang,'Guardar ficha','Save record')}</button></form></details>
     </section>
     <section id="monitor" className={s.panel}><h2>{pick(lang,'Monitoreo y atenci\u00f3n','Monitoring and attention')}</h2><div className={s.columns}><div><h3>{pick(lang,'Urgente','Urgent')}</h3>{urgent.length||failures.length?<ul className={s.list}>{urgent.map(r=><li key={r.id}><a href="#requests">{r.title}</a></li>)}{failures.map(c=><li key={c.id}><a href="#checks">{pick(lang,names(c.check),namesEn(c.check))}</a> <span className={s.tag} data-tone="failed">{pick(lang,'Fallo registrado manualmente','Manually recorded failure')}</span></li>)}</ul>:<p className={s.muted}>{pick(lang,'Sin alertas urgentes en los registros disponibles.','No urgent alerts in the available records.')}</p>}</div><div><h3>{pick(lang,'Disponibilidad y rendimiento externos','External availability and performance')}</h3><p className={s.notice}>{pick(lang,'No conectado. Registrar una URL no activa monitoreo continuo ni confirma que el servicio est\u00e9 disponible.','Not connected. Saving a URL does not enable continuous monitoring or confirm service availability.')}</p>{liveUrl&&<a className={s.button} href={liveUrl} target="_blank" rel="noopener noreferrer">{pick(lang,'Abrir producto para revisarlo','Open product for review')}</a>}</div></div></section>

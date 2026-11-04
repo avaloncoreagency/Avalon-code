@@ -5,8 +5,16 @@ import {
   GEOAPIFY_PLACES_URL, GEOAPIFY_FREE_MAX_RADIUS_M, validGeoapifyKey,
   geoapifyPlacesRequest, normalizeGeoapifyPlaces,
 } from "./radar-geoapify";
+import { dailySearchLimit, quotaMessage, quotaState, utcDayStartIso, type QuotaState } from "./radar-quota";
 
-export type SearchOutcome = { ok: true; run: { run_id: string; found: number; inserted: number; updated: number; replayed: boolean } } | { ok: false; status: number; error: string; blocked?: "provider" };
+export type SearchOutcome = { ok: true; run: { run_id: string; found: number; inserted: number; updated: number; replayed: boolean } } | { ok: false; status: number; error: string; blocked?: "provider" | "quota" };
+
+/** Searches already recorded today (UTC). Null when the radar tables are unavailable, so callers never invent a figure. */
+export async function radarQuota(db: SupabaseClient): Promise<QuotaState | null> {
+  const { count, error } = await db.from("crm_radar_runs").select("id", { count: "exact", head: true }).gte("started_at", utcDayStartIso());
+  if (error || count === null) return null;
+  return quotaState(count, dailySearchLimit(process.env.AVALON_RADAR_DAILY_SEARCH_LIMIT));
+}
 
 /** Commercial-compatible free plan takes priority when explicitly configured.
  *  No silent production fallback to the public Overpass community instance.
@@ -33,9 +41,16 @@ export function radarEndpoint():
 
 /** One bounded query to the provider, persisted through the idempotent ingest RPC (never approves). */
 export async function searchAndIngest(db: SupabaseClient, area: RadarArea, runKey: string, campaignId: string | null = null, limit?: number): Promise<SearchOutcome> {
+  // A run that already exists is replayed from our own record: the provider is NOT queried again (no credits spent).
+  const known = await db.from("crm_radar_runs").select("id,found,inserted,updated").eq("idempotency_key", runKey).maybeSingle();
+  if (known.data) return { ok: true, run: { run_id: known.data.id, found: known.data.found, inserted: known.data.inserted, updated: known.data.updated, replayed: true } };
   const endpoint = radarEndpoint();
   if ("error" in endpoint) return { ok: false, status: 503, error: endpoint.error, blocked: "provider" };
   try {
+    if (endpoint.provider === "geoapify") {
+      const quota = await radarQuota(db);
+      if (quota?.blocked) return { ok: false, status: 429, error: quotaMessage(quota), blocked: "quota" };
+    }
     const geoapify = endpoint.provider === "geoapify";
     if (geoapify && area.radiusM > GEOAPIFY_FREE_MAX_RADIUS_M) return {
       ok: false, status: 400, error: "Geoapify Free limita cada búsqueda a 5 km para proteger la cuota gratuita. Reduce el radio.",
@@ -80,7 +95,20 @@ export async function searchAndIngest(db: SupabaseClient, area: RadarArea, runKe
     const { data, error } = await db.rpc("crm_radar_ingest", { places, run_key: runKey, campaign: campaignId });
     if (error) return { ok: false, status: 503, error: error.code === "PGRST202" ? "La migración del radar (20261102190000) no está aplicada en este entorno." : "No se pudieron guardar los resultados." };
     return { ok: true, run: data };
-  } catch {
-    return { ok: false, status: 503, error: "No se pudo consultar el mapa (tiempo agotado o red). No se muestran resultados inventados." };
+  } catch (cause) {
+    return providerFailure(cause, endpoint.provider === "geoapify" ? 12 : endpoint.licensed ? 65 : 16);
   }
+}
+
+/**
+ * Each way the provider call can fail gets its own visible state. A timeout is not a network error and neither is a
+ * malformed answer; none of them retries automatically (that would spend credits) or shows invented businesses.
+ */
+export function providerFailure(cause: unknown, timeoutSeconds: number): Extract<SearchOutcome, { ok: false }> {
+  const name = (cause as { name?: string } | null)?.name;
+  if (name === "TimeoutError" || name === "AbortError")
+    return { ok: false, status: 504, error: `El proveedor no respondió a tiempo (${timeoutSeconds} s). No se reintenta automáticamente ni se muestran resultados inventados; vuelve a intentarlo en unos minutos.` };
+  if (cause instanceof SyntaxError)
+    return { ok: false, status: 502, error: "El proveedor devolvió una respuesta que no se pudo interpretar. No se guardó nada ni se muestran resultados inventados." };
+  return { ok: false, status: 503, error: "No se pudo conectar con el proveedor de búsqueda (red). No se muestran resultados inventados." };
 }
