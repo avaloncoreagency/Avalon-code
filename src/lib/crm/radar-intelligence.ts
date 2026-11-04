@@ -49,7 +49,9 @@ const goodSource = (value?: string): string | undefined => {
     const u = new URL(value);
     if (u.protocol !== "https:" || u.username || u.password || u.port || u.hostname.split(".").length < 2)
       return undefined;
-    if (/\b(localhost|internal|local|invalid)\b/i.test(u.hostname)) return undefined;
+    if (/\b(localhost|internal|local|invalid)\b/i.test(u.hostname) ||
+        /^\d{1,3}(?:\.\d{1,3}){3}$/.test(u.hostname) || u.hostname.startsWith("["))
+      return undefined;
     return u.href;
   } catch { return undefined; }
 };
@@ -173,7 +175,7 @@ export function buildRadarIntelligence(p: RadarIntelProfile, report: ResearchRep
       identity && report?.confidence === "medium" ? "medium" :
       report?.confidence === "low" || p.stars !== null ? "low" : "none",
     facts,
-    questions: questions.map(s => s.replace("nuevos clientes", "nuevos clientes")).slice(0, 3),
+    questions: questions.slice(0, 3),
     nextAction: nextAction + (canPromote ? "" : " Canal de verificación sugerido: " + communication + "."),
     promoteReady: canPromote,
     disclaimer: "Análisis automático basado en reglas y fuentes guardadas; no es una IA generativa. Ausencia de datos ≠ ausencia de servicios. Las estrellas y la confianza son indicadores distintos.",
