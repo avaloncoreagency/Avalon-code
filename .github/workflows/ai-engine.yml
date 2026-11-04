@@ -1,0 +1,147 @@
+name: Avalon AI Engine
+
+# offline       — every change to the engine: unit, PostgreSQL (PGlite) and REN-pipeline tests. No secrets, no network calls to AI.
+# live-smoke    — real calls to GroqCloud, Cloudflare Workers AI and OpenRouter (free tiers only, synthetic prompts):
+#                 free-model discovery, selection, forced failover, resume and $0 evidence. Runs on manual dispatch, or on a
+#                 same-repository PR carrying the label `ai-engine:live` (labels require write access).
+# ren-dev-task  — REN's autonomous low-risk task against `main`: own branch + DRAFT PR, never merges. Dispatch mode=ren or
+#                 label `ai-engine:ren-run`. Requires live-smoke to pass first.
+# Secrets (Settings → Secrets and variables → Actions): GROQ_API_KEY, CLOUDFLARE_ACCOUNT_ID, CLOUDFLARE_API_TOKEN,
+# OPENROUTER_API_KEY. Kill switch: repository variable AVALON_AI_ENGINE_DISABLED=true.
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, labeled]
+    paths:
+      - 'src/lib/ai-engine/**'
+      - 'scripts/ai-engine/**'
+      - 'tests/ai-engine*'
+      - 'supabase/migrations/*ai_engine*.sql'
+      - '.github/workflows/ai-engine.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'src/lib/ai-engine/**'
+      - 'scripts/ai-engine/**'
+      - 'tests/ai-engine*'
+      - 'supabase/migrations/*ai_engine*.sql'
+  workflow_dispatch:
+    inputs:
+      mode:
+        description: 'smoke = live provider test; ren = smoke + REN autonomous task'
+        type: choice
+        options: [smoke, ren]
+        default: smoke
+
+permissions:
+  contents: read
+
+concurrency:
+  group: avalon-ai-engine-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  offline:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22.18.0'
+          cache: npm
+      - run: npm ci
+      - run: npm ci --prefix tests/qa
+      - run: node --test tests/ai-engine.test.cjs
+      - run: node --test tests/ai-engine.database.cjs tests/ai-engine-ren.pipeline.cjs
+        env:
+          NODE_PATH: ./tests/qa/node_modules
+
+  live-smoke:
+    needs: offline
+    if: >-
+      vars.AVALON_AI_ENGINE_DISABLED != 'true' && (
+        github.event_name == 'workflow_dispatch' ||
+        (github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository &&
+         contains(github.event.pull_request.labels.*.name, 'ai-engine:live')))
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
+      CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22.18.0'
+          cache: npm
+      - run: npm ci
+      - name: Report which secrets are configured (names only)
+        run: |
+          for k in GROQ_API_KEY CLOUDFLARE_ACCOUNT_ID CLOUDFLARE_API_TOKEN OPENROUTER_API_KEY; do
+            if [ -n "${!k}" ]; then echo "$k: configurado"; else echo "::warning::$k no está configurado"; fi
+          done
+      - run: node scripts/ai-engine/smoke.cjs .ai-engine/smoke-evidence.json
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: ai-engine-smoke-evidence
+          path: .ai-engine/smoke-evidence.json
+          if-no-files-found: ignore
+
+  ren-dev-task:
+    needs: live-smoke
+    if: >-
+      vars.AVALON_AI_ENGINE_DISABLED != 'true' && (
+        (github.event_name == 'workflow_dispatch' && inputs.mode == 'ren') ||
+        (github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository &&
+         contains(github.event.pull_request.labels.*.name, 'ai-engine:ren-run')))
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    permissions:
+      contents: write        # push REN's own branch only
+      pull-requests: write   # open a DRAFT PR; this workflow never merges
+    env:
+      GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
+      CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
+      GITHUB_TOKEN: ${{ github.token }}
+      NODE_PATH: ${{ github.workspace }}/target/tests/qa/node_modules
+    steps:
+      # The engine comes from this ref; REN works on a clean checkout of main so its PR contains only its own fix.
+      - uses: actions/checkout@v4
+        with:
+          path: engine
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+          path: target
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22.18.0'
+      - run: npm ci --prefix engine
+      - run: npm ci --prefix target && npm ci --prefix target/tests/qa
+      - name: Restore REN state and memory
+        uses: actions/cache/restore@v4
+        with:
+          path: .ai-engine-state
+          key: ai-engine-ren-${{ github.run_id }}
+          restore-keys: ai-engine-ren-
+      - name: REN autonomous task
+        working-directory: target
+        run: node ../engine/scripts/ai-engine/ren-dev-task.cjs --state ../.ai-engine-state/state.json --evidence ../.ai-engine-state/ren-evidence.json
+      - name: Save REN state and memory
+        if: always()
+        uses: actions/cache/save@v4
+        with:
+          path: .ai-engine-state
+          key: ai-engine-ren-${{ github.run_id }}
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: ai-engine-ren-evidence
+          path: .ai-engine-state/ren-evidence.json
+          if-no-files-found: ignore
