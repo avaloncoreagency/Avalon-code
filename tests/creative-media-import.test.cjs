@@ -48,7 +48,7 @@ test('Higgsfield media handoff requires approval and verified bytes; replay is i
   // An asset marked "ready" is NOT real proof if the published binary vanished.
   fs.unlinkSync(out);
   assert.equal(run(flags).status,2);
-  assert.equal(fs.existsSync(out),false);
+  assert.throws(()=>fs.readFileSync(out),{code:'ENOENT'});
   fs.writeFileSync(out,bytes);
   assert.equal(run(flags).status,0);
   // Tampering in public storage is detected, never silently accepted.

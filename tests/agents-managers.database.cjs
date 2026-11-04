@@ -25,7 +25,7 @@ function client(db) {
       is(c, v) { f.push([`${c} is null`]); return b; }, in(c, vs) { f.push([`${c} = any($)`, vs]); return b; },
       order(c) { ord = ` order by ${c}`; return b; }, limit(n) { lim = ` limit ${Number(n)}`; return b; },
       then(res, rej) {
-        const params = []; const where = f.map(([s, v]) => v === undefined ? s : (params.push(v), s.replace('$', '$' + params.length))).join(' and ');
+        const params = []; const where = f.map(([s, v]) => v === undefined ? s : (params.push(v), s.split('$').join('$' + params.length))).join(' and ');
         return db.query(`select ${cols} from public.${table}${where ? ' where ' + where : ''}${ord}${lim}`, params)
           .then(r => ({ data: r.rows, error: null }), e => ({ data: null, error: { code: e.code || 'x', message: e.message } })).then(res, rej);
       },
@@ -36,7 +36,7 @@ function client(db) {
     from: qb,
     rpc: (name, args) => {
       const keys = Object.keys(args || {});
-      const call = `select public.${name}(${keys.map((k, i) => `${k.replace(/^p_/, 'p_')} => $${i + 1}${k === 'p_result' || k === 'p_evidence' ? '::jsonb' : ''}`).join(',')}) as r`;
+      const call = `select public.${name}(${keys.map((k, i) => `${k} => $${i + 1}${k === 'p_result' || k === 'p_evidence' ? '::jsonb' : ''}`).join(',')}) as r`;
       return db.query(call, keys.map(k => typeof args[k] === 'object' && args[k] !== null ? JSON.stringify(args[k]) : args[k]))
         .then(r => ({ data: r.rows[0].r, error: null }), e => ({ data: null, error: { code: e.code || 'x', message: e.message } }));
     },
