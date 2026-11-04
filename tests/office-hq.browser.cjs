@@ -45,7 +45,7 @@ test('Avalon HQ 3D: owner-only, ten stations, real manager data, actions, light 
   const cookieName = 'sb-127-auth-token', cookieValue = s => `base64-${Buffer.from(JSON.stringify(s)).toString('base64url')}`;
   const get = (p, s) => fetch(origin + p, { redirect: 'manual', headers: { cookie: s ? `${cookieName}=${cookieValue(s)}` : '' } });
 
-  for (const route of ['/admin/workspace/crm/office/hq', '/admin/workspace/crm/office/manager-activity']) {
+  for (const route of ['/admin/workspace/crm/office', '/admin/workspace/crm/office/hq', '/admin/workspace/crm/office/manager-activity']) {
     assert.equal((await get(route)).status, 307, route + ' signed out');
     assert.notEqual((await get(route, outsider)).status, 200, route + ' non-owner');
     assert.equal((await get(route, miguel)).status, 200, route + ' owner: ' + output.slice(-1500));
