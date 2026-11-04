@@ -35,23 +35,57 @@ export async function saveStaffAvailability(form: FormData) {
   const { user, supabase } = await requireOwner();
   const timezone = str(form, "timezone");
   try { new Intl.DateTimeFormat("en", { timeZone: timezone }).format(new Date()); }
-  catch { finish("invalid"); }
-  if (timezone.length > 80) finish("invalid");
+  catch { finish("availability-invalid"); }
+  if (timezone.length > 80) finish("availability-invalid");
+
   const weekly_hours: Record<string, [string, string]> = {};
   for (const day of days) {
     if (str(form, day + "_enabled") !== "on") continue;
     const start = str(form, day + "_start");
     const end = str(form, day + "_end");
-    if (!time.test(start) || !time.test(end) || start >= end) finish("invalid");
+    if (!time.test(start) || !time.test(end) || start >= end) finish("availability-invalid");
     weekly_hours[day] = [start, end];
   }
   const quiet_start = str(form, "quiet_start");
   const quiet_end = str(form, "quiet_end");
-  if (!time.test(quiet_start) || !time.test(quiet_end)) finish("invalid");
-  const { error } = await supabase.from("office_availability")
-    .upsert({ user_id: user.id, timezone, weekly_hours, quiet_start, quiet_end }, { onConflict: "user_id" });
-  if (error) finish("failed");
-  finish("saved");
+  if (!time.test(quiet_start) || !time.test(quiet_end)) finish("availability-invalid");
+
+  const changes = { timezone, weekly_hours, quiet_start, quiet_end };
+  const returning = "user_id,timezone,weekly_hours,quiet_start,quiet_end";
+  // The table permits INSERT of user_id but deliberately forbids UPDATE of
+  // user_id. An UPSERT includes the conflict key in its UPDATE payload; write
+  // only permitted columns on an existing row, or INSERT a new row instead.
+  const updated = await supabase.from("office_availability")
+    .update(changes).eq("user_id", user.id).select(returning).maybeSingle();
+  if (updated.error) finish("availability-failed");
+
+  let persisted = updated.data;
+  if (!persisted) {
+    const inserted = await supabase.from("office_availability")
+      .insert({ user_id: user.id, ...changes }).select(returning).maybeSingle();
+    if (inserted.error || !inserted.data) finish("availability-failed");
+    persisted = inserted.data;
+  }
+
+  // Supabase mutations without .select() can report no error even when zero
+  // rows were affected. Never acknowledge success until the returned record
+  // matches the values submitted by this authenticated owner.
+  const stored = persisted.weekly_hours;
+  const hoursMatch = !!stored && typeof stored === "object" && !Array.isArray(stored) &&
+    Object.keys(stored).length === Object.keys(weekly_hours).length &&
+    days.every(day => {
+      const expected = weekly_hours[day];
+      const actual = (stored as Record<string, unknown>)[day];
+      return expected
+        ? Array.isArray(actual) && actual.length === 2 &&
+            actual[0] === expected[0] && actual[1] === expected[1]
+        : actual === undefined;
+    });
+  if (persisted.user_id !== user.id || persisted.timezone !== timezone ||
+      persisted.quiet_start !== quiet_start || persisted.quiet_end !== quiet_end || !hoursMatch)
+    finish("availability-failed");
+
+  finish("availability-saved");
 }
 
 export async function addStaffTimeOff(form: FormData) {

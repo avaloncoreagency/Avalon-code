@@ -30,7 +30,8 @@ export default async function ProfilePage({ searchParams }: { searchParams: Prom
   const schedule = (prefs?.weekly_hours ?? {}) as Record<string, string[]>;
   const weekdays = [["mon","Lunes"],["tue","Martes"],["wed","Miércoles"],["thu","Jueves"],["fri","Viernes"],["sat","Sábado"],["sun","Domingo"]] as const;
   const profileName = staff?.display_name || displayName(user);
-  const profileMessage = profileStatus === "saved" ? "Cambios guardados." : profileStatus === "invalid" ? "Revisa los datos y horarios." : profileStatus === "failed" ? "No se pudo guardar. Comprueba el estado de la base de datos." : "";
+  const profileOk = profileStatus === "saved" || profileStatus === "availability-saved";
+  const profileMessage = profileStatus === "availability-saved" ? "Disponibilidad guardada y verificada." : profileStatus === "availability-failed" ? "No se pudo confirmar el guardado de tus horarios. Ningún cambio se ha verificado." : profileStatus === "availability-invalid" ? "Revisa los horarios y la zona horaria seleccionados." : profileStatus === "saved" ? "Cambios guardados." : profileStatus === "invalid" ? "Revisa los datos y horarios." : profileStatus === "failed" ? "No se pudo guardar. Comprueba el estado de la base de datos." : "";
   const provider = typeof user.app_metadata?.provider === "string" ? user.app_metadata.provider : "—";
   const passwordEnabled = true;
   return (
@@ -61,7 +62,7 @@ export default async function ProfilePage({ searchParams }: { searchParams: Prom
           <a className={ui.quickLink} href="#identity">Seguridad</a>
         </nav>
 
-        {profileMessage && <p role={profileStatus === "saved" ? "status" : "alert"} data-error={profileStatus !== "saved"} className={ui.notice}>{profileMessage}</p>}
+        {profileMessage && <p role={profileOk ? "status" : "alert"} data-error={!profileOk} className={ui.notice}>{profileMessage}</p>}
         <div className={ui.mainGrid}>
           <div className={ui.stack}>
             <section className={ui.sectionCard} id="staff-identity" aria-labelledby="staff-identity-title">
@@ -112,6 +113,8 @@ export default async function ProfilePage({ searchParams }: { searchParams: Prom
                 </div>
               </div>
               {availability.error ? <p className={ui.notice} data-error="true" role="alert">No se pudieron cargar los horarios en este entorno.</p> :
+              <>
+              {!prefs && <p className={ui.notice} role="status">Aún no has guardado tu disponibilidad. Los horarios mostrados son valores iniciales, no horarios confirmados.</p>}
               <form action={saveStaffAvailability} className={ui.form}>
                 <label className={ui.field}>Zona horaria
                   <select name="timezone" defaultValue={prefs?.timezone ?? "America/New_York"}>
@@ -149,7 +152,7 @@ export default async function ProfilePage({ searchParams }: { searchParams: Prom
                   <p className={ui.help}>Tu horario se muestra en Oficina al consultar tu perfil.</p>
                   <button type="submit" className={ui.primary}>Guardar disponibilidad</button>
                 </div>
-              </form>}
+              </form></>}
               <div className={ui.timeOffHeader} id="time-off">
                 <h3>Ausencias y días libres</h3>
                 <p>Marca vacaciones y fechas en las que no estarás disponible.</p>
