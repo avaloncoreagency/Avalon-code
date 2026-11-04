@@ -10,8 +10,8 @@ const ROUTE = "src/app/admin/auth/confirm/route.ts";
 const ORIGIN = "https://isolated.example.invalid";
 const USER = "00000000-0000-4000-8000-000000000001";
 
-function harness({ verifyOtp, originFailure = false, grantFailure = false, clientFailure = false } = {}) {
-  const observed = { verified: [], grants: [], clients: 0 };
+function harness({ verifyOtp, originFailure = false, grantFailure = false, clientFailure = false, clearFailure = false, signOutFailure = false } = {}) {
+  const observed = { verified: [], grants: [], clients: 0, clears: 0, signOuts: [] };
   const mocks = {
     "next/server": {
       NextResponse: {
@@ -36,6 +36,11 @@ function harness({ verifyOtp, originFailure = false, grantFailure = false, clien
               observed.verified.push(input);
               return verifyOtp(input);
             },
+            signOut: async options => {
+              observed.signOuts.push(options);
+              if (signOutFailure) throw Error("synthetic local session revocation failure");
+              return { error: null };
+            },
           },
         };
       },
@@ -50,6 +55,10 @@ function harness({ verifyOtp, originFailure = false, grantFailure = false, clien
       grantPasswordFlow: async (id, purpose) => {
         if (grantFailure) throw Error("synthetic private AUTH_FLOW_SECRET/cookie failure");
         observed.grants.push({ id, purpose });
+      },
+      clearPasswordFlow: async () => {
+        observed.clears++;
+        if (clearFailure) throw Error("synthetic cookie cleanup failure");
       },
     },
   };
@@ -110,6 +119,8 @@ test("recovery: consumed token cannot be replayed, even after one successful use
   assert.equal(new URL(accepted.headers.get("location")).pathname, "/admin/reset-password");
   assert.equal(accepted.headers.get("cache-control"), "private, no-store");
   assert.deepEqual(app.observed.grants, [{ id: USER, purpose: "recovery" }]);
+  assert.deepEqual(app.observed.signOuts, [], "successful recovery must preserve its temporary session");
+  assert.equal(app.observed.clears, 0, "successful recovery must preserve the flow proof");
   assertSafeRejection(await app.call(params));
   assert.equal(app.observed.verified.length, 2);
   assert.deepEqual(app.observed.grants, [{ id: USER, purpose: "recovery" }],
@@ -160,6 +171,8 @@ test("recovery: cookie/signing grant failure fails closed after verified OTP", a
   assertSafeRejection(response);
   assert.deepEqual(app.observed.verified, [{ token_hash: "synthetic-token", type: "recovery" }]);
   assert.deepEqual(app.observed.grants, [], "failed cookie signing must never mint a grant");
+  assert.equal(app.observed.clears, 1, "failed grant must remove any partial password-flow cookie");
+  assert.deepEqual(app.observed.signOuts, [{ scope: "local" }], "failed grant must revoke local Auth session");
   assert.ok(!response.headers.get("location").includes(USER), "verified user ID must remain private");
 });
 
@@ -207,6 +220,8 @@ test("recovery: consumed OTP remains unusable after a failed grant and retry", a
   assertSafeRejection(await app.call(params));
   assert.equal(app.observed.verified.length, 2);
   assert.deepEqual(app.observed.grants, [], "replayed OTP must never mint a password-flow grant");
+  assert.equal(app.observed.clears, 1, "cleanup only follows the initially verified OTP");
+  assert.deepEqual(app.observed.signOuts, [{ scope: "local" }]);
 });
 
 test("recovery: malformed provider response fails closed without granting access", async () => {
@@ -240,4 +255,32 @@ test("recovery: an untrusted or malformed provider user ID cannot mint a passwor
     assert.deepEqual(app.observed.verified, [{ token_hash: "synthetic-token", type: "recovery" }]);
     assert.deepEqual(app.observed.grants, [], "invalid user ID must not mint a recovery grant");
   }
+});
+
+
+test("recovery: malformed URL-decoded OTP hashes never reach Supabase", async () => {
+  const app = harness({
+    verifyOtp: async () => { throw Error("malformed input must not touch provider"); },
+  });
+  for (const token_hash of [" ", " synthetic-token", "synthetic-token ", "synthetic\n-token", "synthetic\t-token", "synthetic\u0000-token", "synthetic\u007f-token"]) {
+    assertSafeRejection(await app.call({ type: "recovery", token_hash }));
+  }
+  assert.equal(app.observed.clients, 0);
+  assert.deepEqual(app.observed.verified, []);
+  assert.deepEqual(app.observed.grants, []);
+});
+
+test("recovery: cleanup exceptions cannot expose a consumed OTP or private cookie diagnostics", async () => {
+  const app = harness({
+    grantFailure: true,
+    clearFailure: true,
+    signOutFailure: true,
+    verifyOtp: async () => ({ data: { user: { id: USER } }, error: null }),
+  });
+  const response = await app.call({ type: "recovery", token_hash: "synthetic-token" });
+  assertSafeRejection(response);
+  assert.equal(app.observed.clears, 1, "cleanup of any partial proof was attempted");
+  assert.deepEqual(app.observed.signOuts, [{ scope: "local" }], "local session revoke was attempted");
+  assert.deepEqual(app.observed.grants, []);
+  assert.ok(!response.headers.get("location").includes(USER));
 });
