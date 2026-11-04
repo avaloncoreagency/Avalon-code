@@ -23,6 +23,9 @@ export async function updateSession(request: NextRequest) {
   }
   // The callback exchanges its own PKCE code; do not refresh an old identity first.
   if (path === "/admin/auth/callback" || path === "/admin/auth/confirm") return finish(response);
+  // Exactly one external machine endpoint. It enforces its own HMAC, clock, payload,
+  // environment and database gates; no cookie-based owner session is accepted.
+  if (path === "/api/creative-bridge/deliveries" && request.method === "POST") return finish(response);
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const key = process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY;
   let owner: OwnerState = { state: "none" };
