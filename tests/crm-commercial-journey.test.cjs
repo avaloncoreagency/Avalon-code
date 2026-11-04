@@ -67,10 +67,10 @@ test("one synthetic sale payload keeps the exact Radar-origin lead without side 
 
 test("client project library, meetings and converted prospect return to the exact CRM lead", () => {
   const library = read("src/app/admin/workspace/clients/[id]/page.tsx");
-  assert.match(library, /\\/admin\\/workspace\\/crm\\/leads\\?lead=\\$\\{id\\}/);
-  assert.match(crm, /\\/admin\\/workspace\\/crm\\/leads\\?lead=\\$\\{row\\.lead_id\\}/);
-  assert.doesNotMatch(library, /\\/admin\\/workspace\\/crm\\?lead=/);
-  assert.doesNotMatch(crm, /\\/admin\\/workspace\\/crm\\?lead=/);
+  assert.ok(library.includes('/admin/workspace/crm/leads?lead=${id}'));
+  assert.ok(crm.includes('/admin/workspace/crm/leads?lead=${row.lead_id}'));
+  assert.ok(!library.includes('/admin/workspace/crm?lead='));
+  assert.ok(!crm.includes('/admin/workspace/crm?lead='));
   const context = read("src/components/os/project-context.tsx");
-  assert.match(context, /\\/admin\\/workspace\\/crm\\/clients\\/\\$\\{client\\.id\\}/, "product library retains Client 360 link");
+  assert.ok(context.includes('/admin/workspace/crm/clients/${client.id}'), "product library retains Client 360 link");
 });
