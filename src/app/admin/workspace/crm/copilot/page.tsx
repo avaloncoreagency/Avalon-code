@@ -55,8 +55,10 @@ export default async function SalesCopilotPage({ searchParams }: Props) {
           .select("label")
           .eq("id", row.stage_id)
           .maybeSingle();
-        if (stageError) unavailable = true;
-        else stage = clean(stageRow?.label, 100) || stage;
+        // RLS-hidden, deleted or malformed stages must not be presented as verified context.
+        const verifiedStage = clean(stageRow?.label, 100);
+        if (stageError || !verifiedStage) unavailable = true;
+        else stage = verifiedStage;
       }
       const company = clean(row.company, 160);
       if (!company) unavailable = true;
