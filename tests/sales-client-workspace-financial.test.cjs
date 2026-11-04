@@ -355,10 +355,10 @@ test("KENJI: distinct 101st sale and 201st cost must survive pagination without 
   // truncating both ledgers would incorrectly report USD 8,000.00.
   const result = await renderFixture(sales, costs);
   const stats = result.stats.join(" | ");
-  assert.match(stats, /Rentabilidad registrada[^|]*USD 8164\\.64/,
+  assert.match(stats, /Rentabilidad registrada[^|]*USD 8164\.64/,
     "Exact-count pages must include the actual trailing sale and expense, " +
     "not a repeated earlier row or truncated subtotal. Rendered: " + stats);
-  assert.doesNotMatch(stats, /USD (?:8000|8090)\\.00/,
+  assert.doesNotMatch(stats, /USD (?:8000|8090)\.00/,
     "Uniform or truncated financial totals must not pass this sentinel fixture");
 });
 
