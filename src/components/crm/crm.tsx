@@ -198,7 +198,7 @@ export function Crm({ section = "leads", focusLeadId }: { section?: CrmSection; 
                       {String(row.participants || "Sin participantes")}
                       <br />
                       {row.lead_id && (
-                        <Link href={`/admin/workspace/crm?lead=${row.lead_id}`}>
+                        <Link href={`/admin/workspace/crm/leads?lead=${row.lead_id}`}>
                           Abrir lead
                         </Link>
                       )}
@@ -252,7 +252,7 @@ export function Crm({ section = "leads", focusLeadId }: { section?: CrmSection; 
                         ))}
                       </details>
                       {row.lead_id && (
-                        <Link href={`/admin/workspace/crm?lead=${row.lead_id}`}>
+                        <Link href={`/admin/workspace/crm/leads?lead=${row.lead_id}`}>
                           Ver lead convertido
                         </Link>
                       )}
