@@ -48,7 +48,10 @@ export default async function SalesCopilotPage({ searchParams }: Props) {
       .maybeSingle();
     if (error) unavailable = true;
     else if (!row) missing = true; // Identical for an absent or RLS-hidden lead.
-    else {
+    else if (row.id !== leadId) {
+      // Defense in depth: never render evidence for a different lead, even after an unexpected DB response.
+      unavailable = true;
+    } else {
       let stage: string | null = null;
       if (typeof row.stage_id !== "string" || !uuid.test(row.stage_id)) {
         // A lead without a valid stage must not produce an apparently verified CRM snapshot.
