@@ -147,13 +147,16 @@ async function main() {
       `- Modelo: \`${fix.provider}:${fix.model}\` — intentos: ${fix.attempts.map(a => `${a.provider}:${a.outcome}`).join(', ')}`,
       `- Verificación: ${verify.checks.map(c => `\`${c.cmd}\` ${c.ok ? '✅' : '❌'} ${c.tail}`).join(' · ')}`,
       `- Coste de inferencia: **$0** (solo cuotas gratuitas)`, '', `> ${fix.explanation}`, '', `Ejecución: ${env.GITHUB_SERVER_URL || ''}/${env.GITHUB_REPOSITORY || ''}/actions/runs/${env.GITHUB_RUN_ID || ''}`].join('\n');
-    const res = await fetch(`https://api.github.com/repos/${env.GITHUB_REPOSITORY}/pulls`, {
-      method: 'POST', headers: { authorization: `Bearer ${env.GITHUB_TOKEN}`, accept: 'application/vnd.github+json', 'content-type': 'application/json' },
-      body: JSON.stringify({ title: `chore(ren): corregir avisos ESLint en ${target.file}`, head: branch, base: 'main', body, draft: true }),
-    });
-    const j = await res.json();
-    if (!res.ok) { step('publish', { branch, error: j.message }, 'failed'); return finish('failed', `file=${target.file} rama ${branch} publicada pero PR no creado: ${j.message}`); }
-    pub = { branch, pr: j.html_url, number: j.number, sha: sh('git', ['rev-parse', 'HEAD']).trim() };
+    // gh CLI (preinstalled on GitHub runners, authenticated by GH_TOKEN) creates the DRAFT PR; the body goes through stdin.
+    let url = '';
+    try {
+      const out = sh('gh', ['pr', 'create', '--draft', '--base', 'main', '--head', branch, '--title', `chore(ren): corregir avisos ESLint en ${target.file}`, '--body-file', '-'], { input: body, stdio: ['pipe', 'pipe', 'pipe'] });
+      url = (/https:\/\/github\.com\/[\w.-]+\/[\w.-]+\/pull\/\d+/.exec(out) || [''])[0];
+    } catch (e) {
+      step('publish', { branch, error: String(e.stderr || e.message).slice(0, 200) }, 'failed');
+      return finish('failed', `file=${target.file} rama ${branch} publicada pero PR no creado`);
+    }
+    pub = { branch, pr: url, sha: sh('git', ['rev-parse', 'HEAD']).trim() };
     step('publish', pub);
   }
   return finish('succeeded', `file=${target.file} corregido (${verify.warningsBefore}→${verify.warningsAfter}), pruebas verdes, PR borrador ${pub.pr}`);

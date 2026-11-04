@@ -108,7 +108,7 @@ jobs:
       CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
       CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
       OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
-      GITHUB_TOKEN: ${{ github.token }}
+      GH_TOKEN: ${{ github.token }}
       NODE_PATH: ${{ github.workspace }}/target/tests/qa/node_modules
     steps:
       # The engine comes from this ref; REN works on a clean checkout of main so its PR contains only its own fix.

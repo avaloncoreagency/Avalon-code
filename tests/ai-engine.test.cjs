@@ -12,7 +12,8 @@ function fleet(behave = {}) {
   const calls = [];
   const f = async (url, init) => {
     const u = String(url), body = init && init.body ? JSON.parse(init.body) : null;
-    const p = u.includes('groq.com') ? 'groq' : u.includes('cloudflare.com') ? 'cloudflare' : u.includes('openrouter.ai') ? 'openrouter' : 'other';
+    const HOSTS = { 'api.groq.com': 'groq', 'api.cloudflare.com': 'cloudflare', 'openrouter.ai': 'openrouter' };
+    const p = HOSTS[new URL(u).hostname] || 'other';
     calls.push({ p, u, body });
     if (u.endsWith('/models') && p === 'groq') return json(200, { data: E.PROVIDERS.groq.models.map(m => ({ id: m.id, active: true })) });
     if (u.includes('/ai/models/search')) return json(200, { result: E.PROVIDERS.cloudflare.models.map(m => ({ name: m.name || m.id })) });

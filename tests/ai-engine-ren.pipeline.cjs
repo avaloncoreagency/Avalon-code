@@ -14,12 +14,12 @@ const FAKE = `
 const real = globalThis.fetch; const fs = require('node:fs'); const log = process.env.FAKE_LOG;
 const j = (s, b, h = {}) => new Response(JSON.stringify(b), { status: s, headers: { 'content-type': 'application/json', ...h } });
 globalThis.fetch = async (url, init) => {
-  const u = String(url); fs.appendFileSync(log, u + '\\n');
-  if (u.includes('groq.com') && u.endsWith('/models')) return j(200, { data: [{ id: 'openai/gpt-oss-120b' }] });
-  if (u.includes('groq.com')) return j(429, {}, { 'retry-after': '60' });
+  const u = String(url), host = new URL(u).hostname; fs.appendFileSync(log, u + '\\n');
+  if (host === 'api.groq.com' && u.endsWith('/models')) return j(200, { data: [{ id: 'openai/gpt-oss-120b' }] });
+  if (host === 'api.groq.com') return j(429, {}, { 'retry-after': '60' });
   if (u.includes('/ai/models/search')) return j(200, { result: [{ name: '@cf/meta/llama-3.3-70b-instruct-fp8-fast' }] });
-  if (u.includes('openrouter.ai')) return j(503, {});
-  if (u.includes('cloudflare.com') && u.endsWith('/chat/completions')) {
+  if (host === 'openrouter.ai') return j(503, {});
+  if (host === 'api.cloudflare.com' && u.endsWith('/chat/completions')) {
     const user = JSON.parse(init.body).messages[1].content;
     const lines = Object.fromEntries([...user.matchAll(/^\\s*(\\d+)\\| (.*)$/gm)].map(m => [Number(m[1]), m[2]]));
     const warn = [...user.matchAll(/línea (\\d+) \\[[^\\]]+\\] '([^']+)'/g)].map(m => [Number(m[1]), m[2]]);
