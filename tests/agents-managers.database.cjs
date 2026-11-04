@@ -109,8 +109,10 @@ test('kill switch stops every manager and a broken executor is recorded as faile
   await db.query('select crm_agent_set_kill_switch(true)');
   for (const k of ['ren', 'shin', 'haru', 'sora', 'kenji']) assert.deepEqual({ ...await runManager(c, k, new Date()) }, { run_id: (await db.query('select id from crm_agent_runs where manager_key=$1', [k])).rows[0].id, status: 'blocked', error_code: 'kill_switch' });
   await db.query('select crm_agent_set_kill_switch(false)');
-  const broken = { ...c, from: () => { throw new Error('boom'); } };
-  const r = await runManager(broken, 'haru', new Date(Date.now() + 3600e3 * 24));
+  // A capability without an adapter fails closed and is recorded, never reported as completed.
+  await db.exec("reset role; insert into crm_agent_capabilities(manager_key,capability,title) values('haru','no_adapter','x');");
+  await asOwner(db);
+  const r = await runManager(c, 'haru', new Date(Date.now() + 3600e3 * 24), 'no_adapter');
   assert.deepEqual({ status: r.status, error_code: r.error_code }, { status: 'failed', error_code: 'executor_error' });
 });
 

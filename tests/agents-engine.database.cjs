@@ -25,7 +25,7 @@ const claim = (one, id) => one('select crm_agent_claim($1) r', [id]).then(r => r
 test('engine: allowlist, idempotency, claim → complete, never re-executed', { timeout: 120000 }, async t => {
   const { db, as, one, q } = await setup(); t.after(() => db.close());
   await as(MIGUEL);
-  assert.equal((await q('select count(*)::int n from crm_agent_capabilities'))[0].n, 5);
+  assert.equal((await q('select count(*)::int n from crm_agent_capabilities'))[0].n, 6, 'five read capabilities + HARU followup_tasks');
   const id = await enqueue(one);
   assert.equal((await one('select status, executor_kind, requested_by from crm_agent_runs where id=$1', [id])).requested_by, MIGUEL);
   assert.equal(await enqueue(one), id, 'same key returns the same run');

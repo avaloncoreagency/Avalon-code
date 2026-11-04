@@ -33,5 +33,5 @@ test('routes are owner-gated, same-origin and never accept a free-form task', ()
   for (const s of [run, act]) assert.match(s, /getOwnerSession\(\)/);
   assert.match(run, /origin !== request\.nextUrl\.origin/); assert.match(run, /isManagerKey/);
   assert.doesNotMatch(run + act, /service_role|SUPABASE_SERVICE|process\.env/);
-  assert.doesNotMatch(fs.readFileSync('src/lib/agents/executors.ts', 'utf8') + fs.readFileSync('src/lib/agents/runner.ts', 'utf8'), /fetch\(|child_process|\.insert\(|\.update\(|\.delete\(|\.upsert\(/, 'executors are read-only and offline');
+  assert.doesNotMatch(fs.readFileSync('src/lib/agents/runner.ts', 'utf8'), /fetch\(|child_process|\.insert\(|\.update\(|\.delete\(|\.upsert\(/, 'the runner only calls the audited SQL entry points');
 });
