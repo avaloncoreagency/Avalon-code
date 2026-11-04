@@ -56,3 +56,20 @@ Applies to Codex, ChatGPT and other repo-aware agents. Detailed playbook: `docs/
 - If Graphify is unavailable, stale, misses the needed code or costs more context than direct inspection, switch immediately to targeted git/GitHub lookups; do not loop or block progress.
 - Limit exploration to a small number of targeted calls before choosing files. Report succinctly: files changed, tests actually run/results, open risks, next checkpoint; no invented token-savings percentages.
 - Never send credentials, private customer data or secrets to graph queries, memory or agent logs. Graphify memory notes can require separate human review before other agents can recall them.
+
+
+## Visual requests: Higgsfield -> Avalon delivery gate (2026-11-03)
+- For any requested Higgsfield image/video, redesign, futuristic animation or creative update, read `docs/HIGGSFIELD_TO_AVALON.md` before coding. Generation is NOT delivery.
+- The required deliverable is actual media/code incorporated into the relevant Avalon Next.js route and reviewable on isolated Preview. A prompt, link, concept, screenshot, completed Higgsfield job or green CI by itself is NOT a completed app change.
+- If external media is inaccessible (expired CDN URL, download blocked or missing connector), report BLOCKED with the exact reason and do not claim installation; deliver only independently useful CSS/HTML improvements with truthful scope.
+- Before paid generation, estimate cost and respect the explicitly approved budget; never spend without authorization. Never copy credentials to client, commit secrets, hotlink expiring signed URLs, weaken owner gating/RLS, or modify production.
+- Every visual PR must state source/job ID or "no generated asset", actual route/files changed, desktop/mobile Preview proof on exact SHA, reduced-motion handling, tests executed, remaining blockers, cost and rollback. Without browser evidence, status remains "PR pendiente de aceptación visual".
+- Coordinate shared shell changes by PR; do not overwrite other agents' branches or declare the entire suite redesigned after a partial change.
+
+- For Higgsfield websites/ecommerce/CRMs built for a named client, target the existing module library (`website`/`ecommerce`/`crm_creator`) and preserve source site/job ID, stable HTTPS link and exact company identity. Register with Avalon only under an authorized owner session, using the client/product handoff in `docs/HIGGSFIELD_TO_AVALON.md`. Link an existing CRM lead or create a minimal new-stage lead, never a sale or fake contact. If no authorized app access, leave a machine-readable handoff and status PENDING REGISTRATION; do not claim automatic sync.
+
+### Codex and Claude Code: signed delivery handback
+- Once a Higgsfield website, ecommerce project or CRM creation is **actually completed**, has a stable authorized URL/repository and passed the requested checks, use the matching library classification and prepare the private JSON manifest specified in `docs/CREATIVE_BRIDGE_SETUP.md`.
+- If the **agent's own** scoped bridge key and staging endpoint are configured, submit it with `npm run creative:submit -- /private/path/to/manifest.json`. This does not require a human owner login. Read the returned Avalon product/company paths, verify them in the authorized application, and report `reference_only` until visual QA; do not call a missing credential or disabled endpoint a success.
+- Never use Miguel/Samuel owner cookies, Supabase service_role credentials, raw production secrets or an invented Higgsfield job ID to bypass the bridge. Store the manifest and integration secrets outside the repository; never attach customer data to a public PR.
+- The signed registration bridge is **disabled by default** and its database SQL is **review-only** until an isolated staging test and separate security/production approval. A registered link does not automatically install generated images or code into Avalon; for private app visual work, ship an ordinary actual media/React/CSS PR and test the rendered Preview.
