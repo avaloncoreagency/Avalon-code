@@ -187,3 +187,24 @@ test("recovery: provider error with a user object must never grant password acce
   assert.deepEqual(app.observed.verified, [{ token_hash: "synthetic-token", type: "recovery" }]);
   assert.deepEqual(app.observed.grants, [], "an Auth error must override any partial identity");
 });
+
+test("recovery: consumed OTP remains unusable after a failed grant and retry", async () => {
+  let consumed = false;
+  const app = harness({
+    grantFailure: true,
+    verifyOtp: async () => {
+      if (consumed) return { data: { user: null }, error: { message: "OTP consumed" } };
+      consumed = true;
+      return { data: { user: { id: USER } }, error: null };
+    },
+  });
+  const params = { type: "recovery", token_hash: "synthetic-token" };
+  assertSafeRejection(await app.call(params));
+  assert.ok(consumed, "first attempt must consume the provider OTP before the cookie failure");
+  assert.deepEqual(app.observed.grants, [], "a failed grant must not authorize password setup");
+
+  // Reusing that same OTP must not recover access after the downstream failure.
+  assertSafeRejection(await app.call(params));
+  assert.equal(app.observed.verified.length, 2);
+  assert.deepEqual(app.observed.grants, [], "replayed OTP must never mint a password-flow grant");
+});
