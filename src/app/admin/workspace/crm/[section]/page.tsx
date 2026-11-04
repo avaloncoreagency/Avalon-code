@@ -4,18 +4,23 @@ import { Crm } from "@/components/crm/crm";
 import {
   sections as crmSections,
   type Section as CrmSection,
+  uuid,
 } from "@/lib/crm/domain";
 export const dynamic = "force-dynamic";
 export default async function CrmSectionPage({
   params,
+  searchParams,
 }: {
   params: Promise<{ section: string }>;
+  searchParams: Promise<{ lead?: string | string[] }>;
 }) {
-  const { section } = await params;
+  const [{ section }, query] = await Promise.all([params, searchParams]);
+  const focusLeadId = section === "leads" && typeof query.lead === "string" && uuid.test(query.lead)
+    ? query.lead : undefined;
   if (!crmSections.some((item) => item.slug === section)) notFound();
   return (
     <Suite active="crm">
-      <Crm section={section as CrmSection} />
+      <Crm section={section as CrmSection} focusLeadId={focusLeadId} />
     </Suite>
   );
 }
