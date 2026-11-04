@@ -28,6 +28,12 @@ export async function ProjectsIndex({lang,module,base,projects,noun,createFields
       <input type="hidden" name="module" value={module}/>
       <label className={s.field}><span>{pick(lang,'Nombre del producto','Product name')} *</span><input className={s.input} name="name" required maxLength={120} autoComplete="off"/></label>
       <label className={s.field}><span>{pick(lang,'Descripci\u00f3n','Description')}</span><textarea className={s.textarea} name="description" maxLength={2000} rows={3}/></label>
+      <details className={s.row}><summary>{pick(lang,'Entregas Higgsfield y empresa del CRM','Higgsfield deliveries and CRM company')}</summary>
+        <p className={s.meta}>{pick(lang,'Si ya seleccionaste la empresa en la ficha operativa, no repitas su nombre. Si es una empresa nueva, escribe su nombre exacto: Avalon vinculará una ficha coincidente o abrirá un lead nuevo en etapa Nuevo. No se registra una venta.','If you already selected an existing company, leave the name blank. For a new company, enter its exact name: Avalon links an exact unique match or creates a new lead at New stage. This does not record a sale.')}</p>
+        <label className={s.field}><span>{pick(lang,'Empresa nueva o por identificar (nombre exacto)','New company or company to match (exact name)')}</span><input className={s.input} name="company_name" maxLength={200} autoComplete="organization" /></label>
+        <label className={s.field}><span>{pick(lang,'ID real de sitio/trabajo Higgsfield (opcional)','Real Higgsfield site/job ID (optional)')}</span><input className={s.input} name="higgsfield_ref" maxLength={120} autoComplete="off" placeholder="e.g. site-12345" /></label>
+        <p className={s.meta}>{pick(lang,'Para registrar una entrega Higgsfield debes incluir ese ID, una URL HTTPS del proyecto o repositorio en la ficha operativa, y una empresa. La referencia sola no demuestra que el producto esté publicado.','For a Higgsfield delivery provide the ID, an HTTPS project or repository URL in operations, and a company. A reference alone does not prove the product is live.')}</p>
+      </details>
       <OperationsFields lang={lang} companies={choices.data??undefined}/>{createFields}
       <div className={s.actions}><button className={s.btnPrimary} type="submit" disabled={Boolean(projects.error)}>{pick(lang,'Crear','Create')}</button></div>
       {projects.error==='schema_pending'&&<p className={s.meta}>{pick(lang,'Disponible cuando se aplique la migraci\u00f3n de m\u00f3dulos.','Available once the module migration is applied.')}</p>}

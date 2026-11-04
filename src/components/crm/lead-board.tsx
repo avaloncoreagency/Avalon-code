@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, type DragEvent } from "react";
+import Link from "next/link";
 import type { Row, Stage } from "@/lib/crm/domain";
 import { followUpState, groupPipeline } from "@/lib/crm/kanban";
 import s from "./lead-board.module.css";
@@ -119,6 +120,7 @@ export function LeadBoard({ stages, leads, total, page, busy, currentOwnerId, on
                       <div className={s.actions}>
                         <button type="button" disabled={busy} onClick={() => onDetail(lead)}>Ficha</button>
                         <button type="button" disabled={busy} onClick={() => onEdit(lead)}>Editar</button>
+                         <Link href={`/admin/workspace/clients/${String(lead.id)}`} draggable={false}>Proyectos</Link>
                       </div>
                     </article>
                   );

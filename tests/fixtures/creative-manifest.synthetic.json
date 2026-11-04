@@ -1,0 +1,16 @@
+{
+  "schema_version": 1,
+  "task_id": "github:avaloncoreagency/Avalon-code#87",
+  "project_ref": "synthetic-project",
+  "owner": "miguel",
+  "agent": "codex",
+  "branch": "feature/synthetic-demo",
+  "head_sha": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+  "ci": "UNKNOWN",
+  "next_action": "Replace synthetic SHA with verified source before resuming",
+  "delivery": null,
+  "assets": [],
+  "events": [],
+  "receipt": null,
+  "history": []
+}
