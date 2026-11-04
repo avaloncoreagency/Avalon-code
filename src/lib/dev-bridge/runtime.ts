@@ -10,7 +10,9 @@ let pending: Promise<Snapshot> | undefined;
 let resumeCheckedAt = 0;
 const validate = new Ajv().compile(resumeSchema);
 export async function snapshot(): Promise<Snapshot> {
-  if (last && Date.now() - Date.parse(last.at) < 300_000) return last;
+  // Tokenless public summaries are rate-limited by GitHub. Cache them longer.
+  const ttl = config().githubToken ? 300_000 : 900_000;
+  if (last && Date.now() - Date.parse(last.at) < ttl) return last;
   if (pending) return pending;
   pending = sync(config(), last).then(value => { last = value; return value; }).finally(() => { pending = undefined; });
   return pending;
@@ -19,6 +21,7 @@ export async function packageFor(issue: number, owner: Owner) {
   if (Date.now() - resumeCheckedAt < 10_000) throw Error('Espera diez segundos antes de generar otro paquete.');
   resumeCheckedAt = Date.now();
   const c = config();
+  if (!c.githubToken) throw Error('El resumen público de GitHub no permite transferencias. Configura acceso de solo lectura para generar el paquete.');
   const s = await snapshot();
   if (freshness(s.github).status !== 'VERIFIED') throw Error('GitHub no está verificado; no se puede reanudar con seguridad.');
   const p = s.github.data?.pulls.find(p => p.issues.includes(issue));

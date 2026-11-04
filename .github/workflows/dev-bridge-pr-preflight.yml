@@ -1,0 +1,28 @@
+name: Dev Bridge PR handoff preflight
+on:
+  pull_request:
+    types: [opened, reopened, synchronize, ready_for_review, edited]
+permissions:
+  contents: read
+  issues: read
+  pull-requests: read
+concurrency:
+  group: dev-bridge-preflight-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+jobs:
+  metadata:
+    # Do not execute an arbitrary external contributor branch with GitHub credentials.
+    if: github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22.18.0'
+      - name: Read-only PR collaboration preflight
+        run: node scripts/dev-bridge/pr-preflight.cjs
+        env:
+          GH_TOKEN: ${{ github.token }}
