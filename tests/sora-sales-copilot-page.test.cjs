@@ -31,7 +31,8 @@ function harness({ owner = true, record = row, listError = null, stageError = nu
         limit: async () => ({ data: listError ? null : [row], error: listError }),
         maybeSingle: async () => table === 'crm_stages'
           ? { data: (stageError || stageMissing) ? null : { label: stageLabel }, error: stageError }
-          : { data: record, error: null },
+          : { data: record?.archived && q.filters.some(([key, value]) => key === 'archived' && value === false)
+            ? null : record, error: null },
       };
       return builder;
     },
@@ -140,4 +141,14 @@ test('a missing or unusable RLS stage never becomes a Copilot analysis', async (
     assert.equal(h.coreCalls.length, 0);
     assert.deepEqual(h.reads.map(q => q.table), ['crm_leads', 'crm_leads', 'crm_stages']);
   }
+});
+
+test('archived lead cannot be analyzed through a bookmarked UUID', async () => {
+  const h = harness({ record: { ...row, company: 'Archived Synthetic Studio', archived: true } });
+  const display = collect(await h.render({ searchParams: Promise.resolve({ lead: ID }) }));
+  assert.match(display, /Lead no disponible o sin permiso de lectura/);
+  assert.doesNotMatch(display, /Archived Synthetic Studio/);
+  assert.doesNotMatch(display, /Hechos comprobados/);
+  assert.equal(h.coreCalls.length, 0);
+  assert.ok(h.reads[1].filters.some(([key, value]) => key === 'archived' && value === false));
 });
