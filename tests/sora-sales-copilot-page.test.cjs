@@ -18,7 +18,7 @@ function collect(tree) {
   if (typeof tree === 'object') return collect(tree.props?.children);
   return String(tree);
 }
-function harness({ owner = true, record = row, listError = null, stageError = null } = {}) {
+function harness({ owner = true, record = row, listError = null, stageError = null, stageMissing = false, stageLabel = 'New lead' } = {}) {
   const reads = [], coreCalls = [];
   const supabase = {
     from(table) {
@@ -30,7 +30,7 @@ function harness({ owner = true, record = row, listError = null, stageError = nu
         order() { return builder; },
         limit: async () => ({ data: listError ? null : [row], error: listError }),
         maybeSingle: async () => table === 'crm_stages'
-          ? { data: stageError ? null : { label: 'New lead' }, error: stageError }
+          ? { data: (stageError || stageMissing) ? null : { label: stageLabel }, error: stageError }
           : { data: record, error: null },
       };
       return builder;
@@ -128,4 +128,16 @@ test('RLS-denied stage lookup fails closed without making up a Copilot result', 
   assert.doesNotMatch(display, /Hechos comprobados/);
   assert.equal(h.coreCalls.length, 0);
   assert.deepEqual(h.reads.map(q => q.table), ['crm_leads', 'crm_leads', 'crm_stages']);
+});
+
+
+test('a missing or unusable RLS stage never becomes a Copilot analysis', async () => {
+  for (const options of [{ stageMissing: true }, { stageLabel: '\u200b\u202e' }]) {
+    const h = harness(options);
+    const display = collect(await h.render({ searchParams: Promise.resolve({ lead: ID }) }));
+    assert.match(display, /No se pudo verificar el registro/);
+    assert.doesNotMatch(display, /Hechos comprobados/);
+    assert.equal(h.coreCalls.length, 0);
+    assert.deepEqual(h.reads.map(q => q.table), ['crm_leads', 'crm_leads', 'crm_stages']);
+  }
 });
