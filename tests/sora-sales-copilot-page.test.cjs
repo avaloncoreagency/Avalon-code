@@ -18,9 +18,12 @@ function collect(tree) {
   if (typeof tree === 'object') return collect(tree.props?.children);
   return String(tree);
 }
-function harness({ owner = true, record = row, listError = null, stageError = null, stageMissing = false, stageLabel = 'New lead' } = {}) {
+function harness({ owner = true, record = row, listError = null, leadError = null, stageError = null, stageMissing = false, stageLabel = 'New lead' } = {}) {
   const reads = [], coreCalls = [];
+  // Throw on any write path: the former empty `methods` array could never catch an accidental write.
+  const forbidWrite = operation => { throw new Error('Unexpected read-only Copilot write: ' + operation); };
   const supabase = {
+    rpc() { return forbidWrite('rpc'); },
     from(table) {
       const q = { table, fields: [], filters: [], methods: [] };
       reads.push(q);
@@ -29,10 +32,14 @@ function harness({ owner = true, record = row, listError = null, stageError = nu
         eq(key, value) { q.filters.push([key, value]); return builder; },
         order() { return builder; },
         limit: async () => ({ data: listError ? null : [row], error: listError }),
+        insert() { return forbidWrite(table + '.insert'); },
+        update() { return forbidWrite(table + '.update'); },
+        upsert() { return forbidWrite(table + '.upsert'); },
+        delete() { return forbidWrite(table + '.delete'); },
         maybeSingle: async () => table === 'crm_stages'
           ? { data: (stageError || stageMissing) ? null : { label: stageLabel }, error: stageError }
-          : { data: record?.archived && q.filters.some(([key, value]) => key === 'archived' && value === false)
-            ? null : record, error: null },
+          : { data: leadError ? null : record?.archived && q.filters.some(([key, value]) => key === 'archived' && value === false)
+            ? null : record, error: leadError },
       };
       return builder;
     },
@@ -88,7 +95,8 @@ test('owner sees only RLS business fields; zero fabricated facts, zero AI calls 
   assert.equal(h.coreCalls[0].options.adapter, null);
   assert.deepEqual(h.reads.map(q => q.table), ['crm_leads', 'crm_leads', 'crm_stages']);
   assert.ok(h.reads.every(q => q.fields.every(fields => !/email|phone|contact|notes|payments|cost/i.test(fields))));
-  assert.ok(h.reads.every(q => !q.methods.some(m => /insert|update|delete|rpc/i.test(m))));
+  // Write and RPC APIs in this harness throw immediately if invoked during rendering.
+  assert.ok(h.reads.every(q => q.fields.length > 0));
 });
 
 test('invalid and RLS-hidden lead IDs produce no Copilot draft', async () => {
@@ -101,6 +109,15 @@ test('invalid and RLS-hidden lead IDs produce no Copilot draft', async () => {
   const missingOutput = collect(await hidden.render({ searchParams: Promise.resolve({ lead: ID }) }));
   assert.match(missingOutput, /Lead no disponible o sin permiso de lectura/);
   assert.equal(hidden.coreCalls.length, 0);
+});
+
+test('RLS denial on selected lead lookup fails closed, without analysis or stage reads', async () => {
+  const h = harness({ leadError: { code: '42501', message: 'permission denied' } });
+  const display = collect(await h.render({ searchParams: Promise.resolve({ lead: ID }) }));
+  assert.match(display, /No se pudo verificar el registro/);
+  assert.doesNotMatch(display, /Hechos comprobados|Synthetic Bakery/);
+  assert.equal(h.coreCalls.length, 0);
+  assert.deepEqual(h.reads.map(q => q.table), ['crm_leads', 'crm_leads']);
 });
 
 test('database lookup failure does not show a made-up analysis', async () => {
