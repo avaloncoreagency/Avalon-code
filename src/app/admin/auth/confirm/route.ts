@@ -13,6 +13,11 @@ const parseLinkType = (value: string | null): LinkType | null =>
 
 const NO_STORE = { "Cache-Control": "private, no-store", "Referrer-Policy": "no-referrer" };
 
+// Supabase Auth IDs are UUIDs. Reject malformed provider results before
+// signing a password-flow grant, including truthy non-string values.
+const isVerifiedAuthUuid = (value: unknown): value is string =>
+  typeof value === "string" && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(value);
+
 export async function GET(request: NextRequest) {
   // Resolve the origin first: a misconfigured APP_ORIGIN must fail closed with a
   // controlled 503, never an unhandled 500 after the email token was consumed.
@@ -28,7 +33,8 @@ export async function GET(request: NextRequest) {
   try {
     const client = await createClient();
     const { data, error } = await client.auth.verifyOtp({ token_hash: tokenHash, type: linkType });
-    verifiedUserId = !error && data.user ? data.user.id : null;
+    const userId = !error ? data?.user?.id : null;
+    verifiedUserId = isVerifiedAuthUuid(userId) ? userId : null;
   } catch { /* Fail closed without exposing tokens. */ }
   // Only a Supabase-verified identity reaches this point. It unlocks password
   // setup for that same account; dashboard access still requires membership.
