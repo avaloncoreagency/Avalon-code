@@ -49,8 +49,11 @@ export default async function SalesCopilotPage({ searchParams }: Props) {
     if (error) unavailable = true;
     else if (!row) missing = true; // Identical for an absent or RLS-hidden lead.
     else {
-      let stage = pick(lang, "Etapa no verificada", "Unverified stage");
-      if (row.stage_id) {
+      let stage: string | null = null;
+      if (typeof row.stage_id !== "string" || !uuid.test(row.stage_id)) {
+        // A lead without a valid stage must not produce an apparently verified CRM snapshot.
+        unavailable = true;
+      } else {
         const { data: stageRow, error: stageError } = await supabase
           .from("crm_stages")
           .select("label")
@@ -63,7 +66,7 @@ export default async function SalesCopilotPage({ searchParams }: Props) {
       }
       const company = clean(row.company, 160);
       if (!company) unavailable = true;
-      else selected = { company, stage };
+      else if (stage) selected = { company, stage };
     }
   }
 
