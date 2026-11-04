@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
+import { buildRadarIntelligence, formatRadarBriefForCopy, type RadarIntelProfile } from "@/lib/crm/radar-intelligence";
 import type { ResearchReport, ResearchSignal } from "@/lib/crm/radar-research";
 import s from "./radar-research.module.css";
 
@@ -8,6 +9,9 @@ type Props = {
   prospectId: string;
   businessName: string;
   initialWebsite: string;
+  profile: RadarIntelProfile;
+  promoting: boolean;
+  onPromote: () => void;
   onChanged: () => void;
 };
 
@@ -20,13 +24,24 @@ const confidenceName: Record<ResearchReport["confidence"], string> = {
   none: "No evaluable", low: "Baja", medium: "Media", high: "Alta",
 };
 
-export function RadarResearchPanel({ prospectId, businessName, initialWebsite, onChanged }: Props) {
+export function RadarResearchPanel({ prospectId, businessName, initialWebsite, profile, promoting, onPromote, onChanged }: Props) {
   const [url, setUrl] = useState(initialWebsite || "");
   const [report, setReport] = useState<ResearchReport | null>(null);
   const [loading, setLoading] = useState(true);
   const [running, setRunning] = useState(false);
   const [error, setError] = useState("");
   const [message, setMessage] = useState("");
+  const [copied, setCopied] = useState(false);
+  const intelligence = useMemo(() => buildRadarIntelligence(profile, report), [profile, report]);
+
+  async function copyBrief() {
+    try {
+      await navigator.clipboard.writeText(formatRadarBriefForCopy(profile, intelligence));
+      setCopied(true);
+    } catch {
+      setError("No se pudo copiar automáticamente; puedes seleccionar el texto del diagnóstico.");
+    }
+  }
 
   useEffect(() => {
     const controller = new AbortController();
@@ -35,6 +50,7 @@ export function RadarResearchPanel({ prospectId, businessName, initialWebsite, o
     setLoading(true);
     setError("");
     setMessage("");
+    setCopied(false);
     void fetch("/admin/workspace/crm/radar/research?id=" + encodeURIComponent(prospectId),
       { cache: "no-store", signal: controller.signal })
       .then(async response => {
@@ -104,6 +120,39 @@ export function RadarResearchPanel({ prospectId, businessName, initialWebsite, o
       {loading && <p className={s.muted} role="status">Cargando informe anterior…</p>}
       {error && <p className={s.error} role="alert">{error}</p>}
       {message && <p className={s.success} role="status">{message}</p>}
+      {!loading && <section className={s.analyst} aria-label="Analista de leads de Avalon">
+        <p className={s.analystEyebrow}>AVALON · ANALISTA COMERCIAL INTERNO</p>
+        <h5>{intelligence.headline}</h5>
+        <p>{intelligence.explanation}</p>
+        <div className={s.analystStatus}>
+          <span>Estrellas: {profile.stars_override ?? profile.stars ?? "Pendiente"}</span>
+          <span>Confianza: {confidenceName[intelligence.confidence]}</span>
+          <span>Modo: {profile.stars_override != null ? "Revisión humana" : "Análisis por evidencia"}</span>
+        </div>
+        {intelligence.facts.length > 0 && <div className={s.analystEvidence}>
+          <strong>Lo que sabemos y cómo lo comprobamos</strong>
+          <ul>{intelligence.facts.map((fact, index) => <li key={index}>
+            <b>{fact.title}.</b> {fact.description}{" "}
+            {fact.source_url && <a href={fact.source_url} target="_blank" rel="noopener noreferrer nofollow">Fuente</a>}
+          </li>)}</ul>
+        </div>}
+        <div className={s.analystAction}>
+          <strong>Siguiente acción recomendada</strong>
+          <p>{intelligence.nextAction}</p>
+        </div>
+        {intelligence.questions.length > 0 && <details className={s.analystQuestions}>
+          <summary>Preguntas inteligentes para confirmar la oportunidad</summary>
+          <ol>{intelligence.questions.map((question, index) => <li key={index}>{question}</li>)}</ol>
+        </details>}
+        <div className={s.analystButtons}>
+          {intelligence.promoteReady && <button type="button" disabled={promoting}
+            onClick={onPromote}>★ Pasar a Nuevo lead</button>}
+          <button type="button" className={s.copyButton} onClick={() => void copyBrief()}>
+            {copied ? "Diagnóstico copiado" : "Copiar diagnóstico y preguntas"}
+          </button>
+        </div>
+        <small className={s.analystDisclaimer}>{intelligence.disclaimer}</small>
+      </section>}
       {report && <div className={s.results}>
         <div className={s.stats}>
           <strong>{report.status === "complete" ? "Investigación completada" :
