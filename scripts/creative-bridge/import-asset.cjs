@@ -30,6 +30,13 @@ function mediaExtension(bytes) {
     if (bytes.readUInt32LE(4)!==bytes.length-8) throw Error('media');
     return 'webp';
   }
+  // GLB (glTF 2.0 binary): magic, version 2, declared length == file size, first chunk is JSON.
+  if (bytes.toString('ascii',0,4)==='glTF') {
+    if (bytes.readUInt32LE(4)!==2 || bytes.readUInt32LE(8)!==bytes.length || bytes.length<28 ||
+        bytes.readUInt32LE(12)<2 || bytes.readUInt32LE(12)>bytes.length-20 || bytes.toString('ascii',16,20)!=='JSON') throw Error('media');
+    JSON.parse(bytes.toString('utf8',20,20+bytes.readUInt32LE(12)).replace(/[\u0000 ]+$/,''));
+    return 'glb';
+  }
   if (bytes.toString('ascii',4,8)==='ftyp') {
     const box=bytes.readUInt32BE(0);
     if (box<16 || box>bytes.length) throw Error('media');
@@ -74,7 +81,7 @@ try {
     if (!asset) throw Error('identity');
     if (reportedJob && asset.job_ref && asset.job_ref!==reportedJob) throw Error('job_mismatch');
     const bytes=safeFileBytes(source),ext=mediaExtension(bytes);
-    if ((ext==='mp4')!==(asset.kind==='video')) throw Error('kind');
+    if ((ext==='mp4')!==(asset.kind==='video') || (ext==='glb')!==(asset.kind==='model')) throw Error('kind');
     if (asset.kind==='video'&&!m.assets.some(a=>a.kind==='image'&&a.state==='ready'&&a.storage_ref===asset.reduced_motion_ref&&a.public_path)) throw Error('fallback');
     const digest=sha256(bytes);
     const root=cp.execFileSync('git',['rev-parse','--show-toplevel'],{encoding:'utf8'}).trim();
