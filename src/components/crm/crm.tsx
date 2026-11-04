@@ -71,7 +71,7 @@ function Metric({ label, value }: { label: string; value: string }) {
     </div>
   );
 }
-export function Crm({ section = "leads" }: { section?: CrmSection }) {
+export function Crm({ section = "leads", focusLeadId }: { section?: CrmSection; focusLeadId?: string }) {
   const entity: Entity =
     section === "calendar"
       ? "events"
@@ -95,6 +95,8 @@ export function Crm({ section = "leads" }: { section?: CrmSection }) {
       row: Row | null;
     } | null>(null),
     [detail, setDetail] = useState<Row | null>(null);
+  const focusedLead = section === "leads" ? focusLeadId : undefined;
+  const currentPage = focusedLead ? 0 : page;
   const [calendarView, setCalendarView] = useState("month"),
     [day, setDay] = useState(() => new Date().toISOString().slice(0, 10)),
     [zone, setZone] = useState("UTC");
@@ -108,9 +110,10 @@ export function Crm({ section = "leads" }: { section?: CrmSection }) {
     setLoading(true);
     setError("");
     const params = new URLSearchParams({
-      ...filters,
+      ...(focusedLead ? {} : filters),
       entity: section === "kpis" ? "kpis" : entity,
-      page: String(page),
+      page: String(currentPage),
+      ...(focusedLead ? { id: focusedLead } : {}),
     });
     fetch(`${endpoint}?${params}`, { signal: controller.signal })
       .then(async (r) => {
@@ -128,7 +131,7 @@ export function Crm({ section = "leads" }: { section?: CrmSection }) {
         if (!controller.signal.aborted) setLoading(false);
       });
     return () => controller.abort();
-  }, [entity, section, filters, page, revision]);
+  }, [entity, section, filters, currentPage, focusedLead, revision]);
   async function mutate(body: unknown) {
     setBusy(true);
     setError("");
@@ -167,7 +170,7 @@ export function Crm({ section = "leads" }: { section?: CrmSection }) {
       <div className={s.tableWrap}>
         <table className={s.table}>
           <caption>
-            {current.label} · página {page + 1}
+            {current.label} · página {currentPage + 1}
           </caption>
           <thead>
             <tr>
@@ -274,6 +277,7 @@ export function Crm({ section = "leads" }: { section?: CrmSection }) {
                         <button onClick={() => setDetail(row)}>
                           Notas e historial
                         </button>
+                        {!row.archived && <Link href={`/admin/workspace/crm/sales/new?lead=${encodeURIComponent(String(row.id))}`}>Registrar venta</Link>}
                         <button
                           disabled={busy}
                           onClick={() => {
@@ -351,6 +355,7 @@ export function Crm({ section = "leads" }: { section?: CrmSection }) {
         </div>
       </header>
       <CrmNavigation active={section} />
+      {focusedLead && <p className={s.notice} role="status">Oportunidad enlazada desde el Radar. <Link href="/admin/workspace/crm/leads">Ver todo el pipeline</Link></p>}
       {section === "hunter" && <TitanRadar onChanged={reload} />}
       <p className={s.muted}>
         Datos persistidos de la agencia. Valores comerciales estimados en USD;
@@ -375,7 +380,7 @@ export function Crm({ section = "leads" }: { section?: CrmSection }) {
         </div>
       )}
       {notice && <p role="status">{notice}</p>}
-      <section className={s.panel} aria-label="Filtros">
+      <section className={s.panel} aria-label="Filtros" hidden={Boolean(focusedLead)}>
         <form
           className={s.filters}
           onSubmit={(e) => {
@@ -534,7 +539,7 @@ export function Crm({ section = "leads" }: { section?: CrmSection }) {
                   stages={stages}
                   leads={rows}
                   total={data.count ?? rows.length}
-                  page={page}
+                  page={currentPage}
                   busy={busy}
                   currentOwnerId={data.userId}
                   onEdit={(lead) => edit(lead)}
@@ -779,19 +784,19 @@ export function Crm({ section = "leads" }: { section?: CrmSection }) {
             {section !== "kpis" && (
               <>
                 <p role="status">
-                  {data.count ?? 0} registros · página {page + 1}. Tablero,
+                  {data.count ?? 0} registros · página {currentPage + 1}. Tablero,
                   calendario y tabla muestran hasta 50 registros de esta página.
                 </p>
                 {!rows.length && <p>No hay registros para estos filtros.</p>}
                 <div className={s.actions}>
                   <button
-                    disabled={page === 0}
+                    disabled={currentPage === 0}
                     onClick={() => setPage((p) => p - 1)}
                   >
                     Anterior
                   </button>
                   <button
-                    disabled={(page + 1) * 50 >= (data.count ?? 0)}
+                    disabled={(currentPage + 1) * 50 >= (data.count ?? 0)}
                     onClick={() => setPage((p) => p + 1)}
                   >
                     Siguiente
