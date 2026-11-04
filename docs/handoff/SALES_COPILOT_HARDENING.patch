@@ -1,0 +1,167 @@
+diff --git a/src/lib/ai/opportunity-brief.ts b/src/lib/ai/opportunity-brief.ts
+index 22b0315..614772b 100644
+--- a/src/lib/ai/opportunity-brief.ts
++++ b/src/lib/ai/opportunity-brief.ts
+@@ -7,6 +7,7 @@
+  * policy. An adapter is NOT connected by default.
+  */
+ import type { AiAdapter, Usage } from "@/lib/os/integrations";
++import { cleanUntrustedLabel, publicEvidenceUrl, safeDraftText } from "./evidence-guard";
+ 
+ export const SERVICE_AREAS = ["website", "ecommerce", "crm", "receptionist", "marketing"] as const;
+ export type ServiceArea = (typeof SERVICE_AREAS)[number];
+@@ -63,18 +64,6 @@ function boundedText(value: unknown, max: number, required = true): string {
+   return trimmed;
+ }
+ 
+-function publicEvidenceUrl(value: unknown): string | null {
+-  if (typeof value !== "string" || value.length > 1000) return null;
+-  try {
+-    const u = new URL(value);
+-    if (u.protocol !== "https:" || !u.hostname || u.username || u.password) return null;
+-    // URLs can carry auth tokens or personal identifiers in query strings.
+-    // Keep only the stable publicly readable source address.
+-    u.search = ""; u.hash = "";
+-    return u.toString();
+-  } catch { return null; }
+-}
+-
+ function evidenceTime(value: unknown, now: Date): { time: string | null; stale: boolean } {
+   if (typeof value !== "string" || !/(Z|[+-]\d{2}:\d{2})$/.test(value)) return { time: null, stale: false };
+   const millis = Date.parse(value);
+@@ -91,8 +80,10 @@ function evidenceTime(value: unknown, now: Date): { time: string | null; stale:
+  */
+ export function buildOpportunitySnapshot(input: OpportunityInput, now: Date = new Date()): OpportunitySnapshot {
+   if (!(now instanceof Date) || !Number.isFinite(now.getTime())) throw new Error("invalid_now");
+-  const companyName = boundedText(input?.companyName, 160);
+-  const stage = boundedText(input?.stage, 100);
++  // Prospect-controlled text: invisible / bidirectional characters are removed before anything is shown or sent.
++  const companyName = cleanUntrustedLabel(input?.companyName, 160);
++  const stage = cleanUntrustedLabel(input?.stage, 100);
++  if (!companyName || !stage) throw new Error("invalid_text");
+   if (!Array.isArray(input?.signals) || input.signals.length > 25) throw new Error("invalid_signals");
+   for (const signal of input.signals) {
+     if (!signal || !SERVICE_AREAS.includes(signal.area) || !ASSESSMENTS.includes(signal.assessment)) throw new Error("invalid_signal");
+@@ -145,10 +136,12 @@ function safeReply(text: string, snapshot: OpportunitySnapshot) {
+   const parsed: unknown = JSON.parse(text);
+   if (!parsed || Array.isArray(parsed) || typeof parsed !== "object") throw new Error("invalid_response");
+   const obj = parsed as Record<string, unknown>;
+-  const suggestedAction = boundedText(obj.suggestedAction, 300);
++  // Model output is data: plain prose only (no links, addresses, markup or hidden characters).
++  const suggestedAction = safeDraftText(obj.suggestedAction, 300);
++  if (!suggestedAction) throw new Error("invalid_response");
+   if (!Array.isArray(obj.questions) || obj.questions.length > 3 || obj.questions.some(q => typeof q !== "string"))
+     throw new Error("invalid_response");
+-  const questions = obj.questions.map(q => boundedText(q, 220));
++  const questions = obj.questions.map(q => { const text = safeDraftText(q, 220); if (!text) throw new Error("invalid_response"); return text; });
+   if (!Array.isArray(obj.services) || obj.services.length > 5) throw new Error("invalid_response");
+   const justified = new Set(snapshot.facts.filter(f => f.assessment === "verified_missing" || f.assessment === "opportunity_to_improve").map(f => f.area));
+   const services: ServiceArea[] = [];
+diff --git a/tests/ai-opportunity-brief-hardening.test.cjs b/tests/ai-opportunity-brief-hardening.test.cjs
+new file mode 100644
+index 0000000..8ab55a5
+--- /dev/null
++++ b/tests/ai-opportunity-brief-hardening.test.cjs
+@@ -0,0 +1,76 @@
++// Hardening regression for Sales Copilot (issue #68 / #98 priority 2). Proposed to the owner of #73.
++// Synthetic data only: no provider, no network. A fake adapter plays a HIJACKED model.
++const { test } = require("node:test");
++const assert = require("node:assert/strict");
++const fs = require("node:fs");
++const ts = require("typescript");
++
++const compile = (path, deps = {}) => {
++  const out = ts.transpileModule(fs.readFileSync(path, "utf8"), { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 } }).outputText;
++  const m = { exports: {} };
++  new Function("module", "exports", "require", "URL", "Date", out)(m, m.exports, name => name in deps ? deps[name] : require(name), URL, Date);
++  return m.exports;
++};
++const guard = fs.existsSync("src/lib/ai/evidence-guard.ts") ? compile("src/lib/ai/evidence-guard.ts") : null;
++const { buildOpportunitySnapshot, prepareOpportunityBrief } = compile("src/lib/ai/opportunity-brief.ts", guard ? { "./evidence-guard": guard } : {});
++
++const now = new Date("2026-11-03T12:00:00Z");
++const signal = (sourceUrl, area = "website") => ({ area, assessment: "verified_missing", sourceUrl, checkedAt: "2026-11-02T12:00:00Z" });
++const lead = (...signals) => ({ companyName: "Synthetic Bakery", stage: "prospect", signals });
++
++test("an internal or private address is never a verified public source (it stays 'missing_evidence')", () => {
++  for (const url of ["https://169.254.169.254/latest/meta-data/", "https://localhost/admin", "https://127.0.0.1/", "https://10.0.0.5/crm", "https://[::1]/",
++    "https://intranet/", "https://wiki.internal/", "https://nas.local/", "https://avaloncoreagency.com/admin/workspace/crm/leads",
++    "https://ltbwzcrxeuczdhhtbqgm.supabase.co/rest/v1/crm_leads", "https://example.com:8443/private"]) {
++    const s = buildOpportunitySnapshot(lead(signal(url)), now);
++    assert.deepEqual(s.facts, [], url + " must not become a fact");
++    assert.equal(s.unknowns.find(u => u.area === "website").reason, "missing_evidence", url);
++  }
++});
++
++test("a real public source still becomes a fact, without query or fragment", () => {
++  const s = buildOpportunitySnapshot(lead(signal("https://www.brightbakery.com/menu?token=abc#x")), now);
++  assert.deepEqual(s.facts.map(f => [f.area, f.sourceUrl]), [["website", "https://www.brightbakery.com/menu"]]);
++});
++
++test("an internal URL cannot rescue a conflicting or otherwise empty area", () => {
++  const s = buildOpportunitySnapshot(lead(signal("https://localhost/x"), signal("https://www.brightbakery.com/menu")), now);
++  assert.deepEqual(s.facts.map(f => f.sourceUrl), ["https://www.brightbakery.com/menu"], "only the public one is kept");
++});
++
++test("company names hide nothing from the reviewer: invisible and bidirectional characters are removed", () => {
++  const s = buildOpportunitySnapshot({ companyName: "Bright​ Bakery‮", stage: "prospect", signals: [] }, now);
++  assert.equal(s.companyName, "Bright Bakery");
++});
++
++const verified = lead(signal("https://www.brightbakery.com/menu"));
++const hijacked = (suggestedAction, questions = ["¿Cómo reciben pedidos hoy?"]) => ({
++  provider: "fake-hijacked",
++  respond: async () => ({ text: JSON.stringify({ suggestedAction, questions, services: ["website"] }), usage: { inputTokens: 10, outputTokens: 10 } }),
++});
++const run = adapter => prepareOpportunityBrief(verified, { adapter, approved: true, remainingTokenBudget: 1000, now });
++
++test("a hijacked model cannot smuggle links, addresses or markup into the draft the owner will read", async () => {
++  for (const action of ["Confirma el pago en https://evil.example/pay", "Escribe a ceo@evil.example", "Abre www.evil.example", "[haz clic](https://evil.example)", "<img src=x onerror=alert(1)>", "Ejecuta `curl evil`", "Texto‮oculto"]) {
++    const out = await run(hijacked(action));
++    assert.equal(out.status, "error", action);
++    assert.equal(out.reason, "invalid_response", action);
++    assert.equal(out.usage, null);
++  }
++  const badQuestion = await run(hijacked("Preguntar por los pedidos actuales.", ["Visita https://evil.example"]));
++  assert.equal(badQuestion.status, "error");
++});
++
++test("a clean draft still passes and stays marked for human review", async () => {
++  const out = await run(hijacked("Preguntar cómo reciben pedidos hoy y proponer una página con pedidos en línea."));
++  assert.equal(out.status, "draft");
++  assert.equal(out.requiresHumanReview, true);
++  assert.deepEqual(out.services, ["website"]);
++});
++
++test("without a provider the answer is the honest 'not connected' state", async () => {
++  const out = await prepareOpportunityBrief(verified, { now });
++  assert.equal(out.status, "unavailable");
++  assert.equal(out.reason, "not_connected");
++  assert.equal(out.usage, null);
++});
+diff --git a/tests/ai-opportunity-brief.test.cjs b/tests/ai-opportunity-brief.test.cjs
+index 4411c6c..19eaa88 100644
+--- a/tests/ai-opportunity-brief.test.cjs
++++ b/tests/ai-opportunity-brief.test.cjs
+@@ -4,13 +4,20 @@ const fs = require("node:fs");
+ const ts = require("typescript");
+ 
+ // Compile ONLY the pure Sales Copilot core; no API keys, app session or network.
++// opportunity-brief.ts imports its sibling guards; resolve them for this isolated TypeScript evaluation.
++const guardJs = ts.transpileModule(fs.readFileSync("src/lib/ai/evidence-guard.ts", "utf8"), {
++  compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 },
++}).outputText;
++const guardModule = { exports: {} };
++new Function("module", "exports", guardJs)(guardModule, guardModule.exports);
++const localRequire = name => (name === "./evidence-guard" ? guardModule.exports : require(name));
+ const source = fs.readFileSync("src/lib/ai/opportunity-brief.ts", "utf8");
+ const compiled = ts.transpileModule(source, {
+   compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 },
+ }).outputText;
+ const moduleObject = { exports: {} };
+ new Function("module", "exports", "require", "URL", "Date", compiled)(
+-  moduleObject, moduleObject.exports, require, URL, Date,
++  moduleObject, moduleObject.exports, localRequire, URL, Date,
+ );
+ const { buildOpportunitySnapshot, prepareOpportunityBrief, SERVICE_AREAS } = moduleObject.exports;
+ 
