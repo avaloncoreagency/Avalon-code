@@ -1,0 +1,75 @@
+diff --git a/scripts/creative-bridge/import-asset.cjs b/scripts/creative-bridge/import-asset.cjs
+index 6c532d2..9260ec9 100644
+--- a/scripts/creative-bridge/import-asset.cjs
++++ b/scripts/creative-bridge/import-asset.cjs
+@@ -40,13 +40,11 @@ function mediaExtension(bytes) {
+ function safeFileBytes(filename) {
+   // lstat + O_NOFOLLOW + fstat prevents a symlink from publishing local secrets.
+   if (typeof filename!=='string' || !filename) throw Error('source');
+-  const info=fs.lstatSync(filename);
+-  if (!info.isFile() || info.size<24 || info.size>MAX_BYTES) throw Error('size');
++  // Open first (O_NOFOLLOW refuses a symlink), then validate the OPEN descriptor: no check-then-use window.
+   const fd=fs.openSync(filename,fs.constants.O_RDONLY|fs.constants.O_NOFOLLOW);
+   try {
+     const open=fs.fstatSync(fd);
+-    if (!open.isFile() || open.size<24 || open.size>MAX_BYTES ||
+-        open.ino!==info.ino || open.dev!==info.dev) throw Error('source_changed');
++    if (!open.isFile() || open.size<24 || open.size>MAX_BYTES) throw Error('size');
+     const bytes=Buffer.alloc(open.size);
+     let offset=0;
+     while (offset<bytes.length) {
+@@ -59,9 +57,10 @@ function safeFileBytes(filename) {
+   } finally { fs.closeSync(fd); }
+ }
+ function verifyOutput(filename,digest) {
+-  const entry=fs.lstatSync(filename);
+-  if (!entry.isFile() || entry.isSymbolicLink() || entry.size>MAX_BYTES ||
+-      sha256(safeFileBytes(filename))!==digest) throw Error('published_asset_unavailable');
++  // safeFileBytes refuses symlinks and non-regular files on the opened descriptor itself.
++  let ok=false;
++  try { ok=sha256(safeFileBytes(filename))===digest; } catch { ok=false; }
++  if (!ok) throw Error('published_asset_unavailable');
+ }
+ 
+ try {
+diff --git a/scripts/creative-bridge/private-files.cjs b/scripts/creative-bridge/private-files.cjs
+index c82c897..c4a33ce 100644
+--- a/scripts/creative-bridge/private-files.cjs
++++ b/scripts/creative-bridge/private-files.cjs
+@@ -1,5 +1,5 @@
+ const fs=require('node:fs');const path=require('node:path');const cp=require('node:child_process');
+ function privatePath(value){if(!value)throw Error('path');const lexical=path.resolve(value);const parent=fs.realpathSync(path.dirname(lexical));const candidate=path.join(parent,path.basename(lexical));const result=fs.existsSync(candidate)?fs.realpathSync(candidate):candidate;const root=cp.execFileSync('git',['rev-parse','--show-toplevel'],{encoding:'utf8'}).trim();if(result===root||result.startsWith(root+path.sep))throw Error('private');return result;}
+-function read(value){const p=privatePath(value);if(fs.statSync(p).size>262144)throw Error('size');return JSON.parse(fs.readFileSync(p,'utf8'));}
++function read(value){const p=privatePath(value);const fd=fs.openSync(p,fs.constants.O_RDONLY|fs.constants.O_NOFOLLOW);try{const info=fs.fstatSync(fd);if(!info.isFile()||info.size>262144)throw Error('size');return JSON.parse(fs.readFileSync(fd,'utf8'));}finally{fs.closeSync(fd);}}
+ function atomic(p,value){const tmp=p+'.'+process.pid+'.tmp';try{fs.writeFileSync(tmp,JSON.stringify(value,null,2)+'\n',{mode:0o600,flag:'wx'});fs.renameSync(tmp,p);}finally{if(fs.existsSync(tmp))fs.unlinkSync(tmp);}}
+ module.exports={privatePath,read,atomic};
+diff --git a/scripts/creative-bridge/submit.mjs b/scripts/creative-bridge/submit.mjs
+index b5786bb..1b465ec 100644
+--- a/scripts/creative-bridge/submit.mjs
++++ b/scripts/creative-bridge/submit.mjs
+@@ -2,7 +2,7 @@
+ // One job -> one signed handoff. No owner cookies, no Supabase keys in agents.
+ // Usage: npm run creative:submit -- /private/path/to/handoff.json
+ import { createHmac, createHash } from "node:crypto";
+-import { readFile, stat } from "node:fs/promises";
++import { open } from "node:fs/promises";
+ import { resolve } from "node:path";
+ 
+ const MAX_BYTES = 8192;
+@@ -23,9 +23,13 @@ if (!manifestPath || !endpointText || !keyId || !secretText) {
+     const key = Buffer.from(secretText, "base64");
+     if (key.length < 32 || key.toString("base64") !== secretText) throw Error("invalid_integration_key");
+     const fullPath = resolve(manifestPath);
+-    const info = await stat(fullPath);
+-    if (!info.isFile() || info.size > MAX_BYTES) throw Error("invalid_manifest_size");
+-    const original = await readFile(fullPath);
++    const handle = await open(fullPath, "r");
++    let original;
++    try {
++      const info = await handle.stat();
++      if (!info.isFile() || info.size > MAX_BYTES) throw Error("invalid_manifest_size");
++      original = await handle.readFile();
++    } finally { await handle.close(); }
+     // Canonical compact JSON is signed and transmitted byte-identically.
+     const body = Buffer.from(JSON.stringify(JSON.parse(original.toString("utf8"))), "utf8");
+     if (body.byteLength > MAX_BYTES) throw Error("invalid_manifest_size");
