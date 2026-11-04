@@ -208,3 +208,22 @@ test("recovery: consumed OTP remains unusable after a failed grant and retry", a
   assert.equal(app.observed.verified.length, 2);
   assert.deepEqual(app.observed.grants, [], "replayed OTP must never mint a password-flow grant");
 });
+
+test("recovery: malformed provider response fails closed without granting access", async () => {
+  // Provider transport adapters can return incomplete/undefined data during
+  // outages or SDK contract regressions. None may authorize password reset.
+  const malformedResponses = [
+    null,
+    undefined,
+    { data: null, error: null },
+    { data: undefined, error: null },
+    { data: {}, error: null },
+  ];
+  for (const result of malformedResponses) {
+    const app = harness({ verifyOtp: async () => result });
+    const response = await app.call({ type: "recovery", token_hash: "synthetic-token" });
+    assertSafeRejection(response);
+    assert.deepEqual(app.observed.verified, [{ token_hash: "synthetic-token", type: "recovery" }]);
+    assert.deepEqual(app.observed.grants, [], "malformed provider data cannot grant password flow");
+  }
+});
