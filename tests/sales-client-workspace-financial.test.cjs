@@ -340,6 +340,28 @@ test("KENJI: denied expense ledger cannot appear as complete profitability", asy
 });
 
 
+// A uniform fixture can hide an off-by-one error: repeating sale #100 in
+// place of sale #101 (or cost #200 instead of #201) preserves the row count
+// AND the dollar total. Distinct trailing amounts make that false-green
+// impossible, even when PostgREST reports an exact count.
+test("KENJI: distinct 101st sale and 201st cost must survive pagination without duplicated rows", async () => {
+  const sales = fixtures.sales.map((row, index) => index === 100
+    ? { ...row, total: "177.77", crm_payments: [{ amount: "177.77" }] }
+    : row);
+  const costs = fixtures.costs.map((row, index) => index === 200
+    ? { ...row, amount: "13.13" } : row);
+  // 100*100 + 177.77 - (200*10 + 13.13) = USD 8,164.64.
+  // Repeating the preceding rows would falsely report USD 8,090.00;
+  // truncating both ledgers would incorrectly report USD 8,000.00.
+  const result = await renderFixture(sales, costs);
+  const stats = result.stats.join(" | ");
+  assert.match(stats, /Rentabilidad registrada[^|]*USD 8164\\.64/,
+    "Exact-count pages must include the actual trailing sale and expense, " +
+    "not a repeated earlier row or truncated subtotal. Rendered: " + stats);
+  assert.doesNotMatch(stats, /USD (?:8000|8090)\\.00/,
+    "Uniform or truncated financial totals must not pass this sentinel fixture");
+});
+
 // Symmetric failure mode to denied expenses: if the sales ledger is denied,
 // a negative costs-only subtotal is NOT certified as the client's full profit.
 // A successful read of costs alone does not prove that zero sales exist.
