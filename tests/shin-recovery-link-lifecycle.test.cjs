@@ -227,3 +227,17 @@ test("recovery: malformed provider response fails closed without granting access
     assert.deepEqual(app.observed.grants, [], "malformed provider data cannot grant password flow");
   }
 });
+
+test("recovery: an untrusted or malformed provider user ID cannot mint a password grant", async () => {
+  // Auth user IDs are UUIDs. A partial/buggy SDK result must not turn an
+  // arbitrary truthy value into the subject of a signed recovery cookie.
+  for (const id of [undefined, null, "", " ", "not-a-uuid", USER + " ", 123, { value: USER }]) {
+    const app = harness({
+      verifyOtp: async () => ({ data: { user: { id } }, error: null }),
+    });
+    const response = await app.call({ type: "recovery", token_hash: "synthetic-token" });
+    assertSafeRejection(response);
+    assert.deepEqual(app.observed.verified, [{ token_hash: "synthetic-token", type: "recovery" }]);
+    assert.deepEqual(app.observed.grants, [], "invalid user ID must not mint a recovery grant");
+  }
+});
