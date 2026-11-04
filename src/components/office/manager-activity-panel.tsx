@@ -31,7 +31,8 @@ export function ManagerActivityPanel({lang}:{lang:string}) {
       return r?.manager_key===key && Object.hasOwn(labels,r.status) &&
        (r.result_summary===null || typeof r.result_summary==="string" && r.result_summary.length<=2000) &&
        Array.isArray(r.evidence_refs) && r.evidence_refs.length<=20 &&
-       r.evidence_refs.every((e:{type:unknown;id:unknown})=>typeof e.type==="string" && typeof e.id==="string");
+       r.evidence_refs.every((e:{type:unknown;id:unknown;label?:unknown}|null)=>e!==null && typeof e.type==="string" && typeof e.id==="string" && (e.label===undefined || typeof e.label==="string")) &&
+       [r.task_title,r.error_code,r.updated_at].every(v=>v===null || typeof v==="string");
      }))throw Error("invalid_contract");
    setRuns(data.managers);setState("connected");
   } catch { if(!signal?.aborted){setRuns([]);setState("disconnected");} }
