@@ -8,3 +8,10 @@
 .bridge :focus-visible { outline: 2px solid #92e7ff; outline-offset: 4px; }
 .bridge fieldset { min-width: 0; }
 @media (prefers-reduced-motion: no-preference) { .bridge button { transition: filter .15s ease; } .bridge button:hover { filter: brightness(1.12); } }
+
+/* Owner-only catalog filters; responsive without client-side data transfer. */
+.filters { display: grid; grid-template-columns: repeat(auto-fit,minmax(min(100%,220px),1fr)); align-items: end; gap: 12px; padding: 16px; border: 1px solid #435374; border-radius: 12px; }
+.filters label { min-width: 0; }
+.filters input, .filters select { max-width: none; }
+.filters button { min-height: 44px; }
+@media (max-width: 480px) { .filters { grid-template-columns: 1fr; padding: 12px; } }
