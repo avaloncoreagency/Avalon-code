@@ -61,15 +61,15 @@ test("Timezone conversion honors local calendar day and DST", () => {
 test("Avatar, staff directory, header and floorplan reuse the same presence rules", () => {
   const avatar = read("src/components/office/presence-avatar.tsx");
   const office = read("src/components/office/office.tsx");
-  const floor = read("src/components/office/iso-office.tsx");
+  const floor = read("src/components/office/hq-3d.tsx"); // the ONE office (IsoOffice merged into Avalon HQ)
   const header = read("src/components/suite/chrome.tsx");
   const endpoint = read("src/app/admin/api/staff-presence/route.ts");
   const directory = read("src/app/admin/workspace/crm/office/api/route.ts");
   assert.match(avatar, /data-presence=\{state\}/);
   assert.match(office, /PresenceAvatar/);
   assert.match(office, /presenceName/);
-  assert.match(floor, /s\.lampBusy/);
-  assert.match(floor, /s\.lampInactive/);
+  assert.match(floor, /PRESENCE_COLOR: Record<HqPerson\["presence"\], number> = \{ active: [^,]+, busy: [^,]+, inactive: [^}]+\}/);
+  assert.match(office, /presence: m\.presence\?\.state \?\? "inactive"/, "the 3D HQ receives the same presence state as the directory");
   assert.match(header, /initialPresence/);
   assert.match(header, /staff-presence/);
   assert.match(endpoint, /getOwnerSession\(\)/);

@@ -50,7 +50,7 @@ export default async function ProfilePage({ searchParams }: { searchParams: Prom
           </div>
           <div className={ui.heroSide}>
             <div className={ui.heroLinks}>
-              <Link className={ui.heroLink} href="/admin/workspace/crm/office">Ver Oficina <span aria-hidden="true">↗</span></Link>
+              <Link className={ui.heroLink} href="/admin/workspace/crm/office/hq">Ver Oficina <span aria-hidden="true">↗</span></Link>
             </div>
           </div>
         </header>

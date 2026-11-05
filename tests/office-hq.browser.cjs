@@ -45,11 +45,16 @@ test('Avalon HQ 3D: owner-only, ten stations, real manager data, actions, light 
   const cookieName = 'sb-127-auth-token', cookieValue = s => `base64-${Buffer.from(JSON.stringify(s)).toString('base64url')}`;
   const get = (p, s) => fetch(origin + p, { redirect: 'manual', headers: { cookie: s ? `${cookieName}=${cookieValue(s)}` : '' } });
 
-  for (const route of ['/admin/workspace/crm/office', '/admin/workspace/crm/office/hq', '/admin/workspace/crm/office/manager-activity']) {
+  for (const route of ['/admin/workspace/crm/office', '/admin/workspace/crm/office/hq', '/admin/workspace/crm/office/manager-activity', '/admin/workspace/crm/office/executive']) {
     assert.equal((await get(route)).status, 307, route + ' signed out');
     assert.notEqual((await get(route, outsider)).status, 200, route + ' non-owner');
-    assert.equal((await get(route, miguel)).status, 200, route + ' owner: ' + output.slice(-1500));
+    if (route === '/admin/workspace/crm/office') {
+      const r = await get(route, miguel); // ONE office: the old route redirects to the official HQ (no broken links)
+      assert.equal(r.status, 307); assert.match(r.headers.get('location') || '', /\/admin\/workspace\/crm\/office\/hq$/);
+    } else assert.equal((await get(route, miguel)).status, 200, route + ' owner: ' + output.slice(-1500));
   }
+  const exec = await (await get('/admin/workspace/crm/office/executive', miguel)).json();
+  assert.equal(exec.runs.received, exec.runs.pending + exec.runs.active + exec.runs.completed + exec.runs.failed_or_blocked, 'executive counts add up from real rows');
   const activity = await (await get('/admin/workspace/crm/office/manager-activity', miguel)).json();
   assert.deepEqual(activity.managers.map(m => m.status), ['completed', 'completed', 'completed', 'completed', 'completed'], 'real runs, no invented states');
 
@@ -67,7 +72,12 @@ test('Avalon HQ 3D: owner-only, ten stations, real manager data, actions, light 
   await page.goto(origin + '/admin/workspace/crm/office/hq');
   await page.getByRole('heading', { name: 'Avalon HQ' }).waitFor();
   await page.locator('canvas').waitFor({ timeout: 30000 });
+  // Higgsfield models (optimized derivatives) must actually load; record real measurements.
+  await page.waitForFunction(() => window.__hqPerf && window.__hqPerf.modelsMs !== null, null, { timeout: 90000 });
   await page.waitForTimeout(2500);
+  const perfDesktop = await page.evaluate(() => window.__hqPerf);
+  assert.equal(await page.locator('section[aria-label="Avalon HQ"]').count(), 1, 'exactly one 3D office on the page');
+  assert.equal(await page.locator('canvas').count(), 1, 'one WebGL scene, no second office');
   for (const n of ['REN', 'SHIN', 'HARU', 'SORA', 'KENJI', 'Estación 6', 'Estación 10']) await page.getByRole('button', { name: new RegExp('^' + n) }).first().waitFor();
   await page.screenshot({ path: path.join(EVIDENCE, 'hq-desktop-overview.png') });
   await page.getByRole('button', { name: /^HARU/ }).click();
@@ -87,15 +97,31 @@ test('Avalon HQ 3D: owner-only, ten stations, real manager data, actions, light 
   await page.waitForTimeout(1500);
   await page.getByRole('button', { name: /^SHIN/ }).click();
   await page.getByRole('button', { name: 'Ejecutar su tarea ahora' }).click();
-  await page.getByText(/Resultado: completed/).waitFor();
+  await page.getByText(/Resultado: completed/).waitFor({ timeout: 60000 });
   // Light view keeps every station reachable without WebGL.
+  // Owners appear in the same scene with their real presence; tapping one opens the directory profile drawer.
+  await page.getByRole('button', { name: '← Vista general' }).click();
+  await page.getByRole('button', { name: 'Dirección', exact: true }).click(); await page.waitForTimeout(4500);
+  await page.screenshot({ path: path.join(EVIDENCE, 'hq-desktop-direction.png') });
+  await page.locator('button[aria-label$="Abrir perfil"]').first().click();
+  await page.getByRole('dialog').waitFor({ timeout: 30000 });
+  await page.keyboard.press('Escape');
+  await page.locator('section[aria-labelledby="exec-title"]').scrollIntoViewIfNeeded();
+  await page.getByText('Completadas con evidencia').waitFor();
+  await page.screenshot({ path: path.join(EVIDENCE, 'hq-desktop-executive.png'), fullPage: true });
+  await page.evaluate(() => window.scrollTo(0, 0));
   await page.getByRole('button', { name: 'Vista ligera' }).click();
-  assert.equal(await page.locator('ol li').count(), 10);
+  assert.equal(await page.locator('section[aria-label="Avalon HQ"] ol').first().locator('li').count(), 10);
   await page.screenshot({ path: path.join(EVIDENCE, 'hq-desktop-light.png') });
 
   const phone = await open({ ...devices['iPhone 13'] });
   await phone.goto(origin + '/admin/workspace/crm/office/hq');
-  await phone.locator('canvas').waitFor({ timeout: 30000 }); await phone.waitForTimeout(2500);
+  await phone.locator('canvas').waitFor({ timeout: 30000 });
+  await phone.waitForFunction(() => window.__hqPerf && window.__hqPerf.modelsMs !== null, null, { timeout: 90000 }); await phone.waitForTimeout(2500);
+  const perfPhone = await phone.evaluate(() => window.__hqPerf);
+  assert.equal(perfPhone.tier, 'mobile');
+  fs.writeFileSync(path.join(EVIDENCE, 'hq-perf.json'), JSON.stringify({ desktop: perfDesktop, iphone13: perfPhone, note: 'SwiftShader (software GPU) in CI: absolute times are pessimistic; draw calls/triangles are device-independent' }, null, 2));
+  console.log('HQ_PERF', JSON.stringify({ desktop: perfDesktop, iphone13: perfPhone }));
   await phone.screenshot({ path: path.join(EVIDENCE, 'hq-iphone-overview.png') });
   await phone.getByRole('button', { name: /^SORA/ }).tap();
   await phone.getByRole('heading', { name: 'SORA' }).waitFor(); await phone.waitForTimeout(1200);
