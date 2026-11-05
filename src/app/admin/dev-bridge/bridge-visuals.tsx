@@ -25,11 +25,25 @@ export function SourceCard({
   limited?: boolean;
 }) {
   const current = freshness(fact).status;
-  const state: State = current === "VERIFIED" ? (limited ? "pending" : "verified") : "unknown";
+  // Keep provider errors distinct from a never-checked source. A stale cached
+  // result is not a current provider success, even if older data is available.
+  // Never render fact.error: it can contain internal diagnostics.
+  const failedRead = Boolean(fact.error);
+  const state: State = current === "VERIFIED"
+    ? (limited ? "pending" : "verified")
+    : current === "STALE" ? "pending" : failedRead ? "blocked" : "unknown";
+  const label = current === "VERIFIED"
+    ? (limited ? "Parcial" : "Lectura verificada")
+    : current === "STALE" ? "Desactualizado"
+      : failedRead ? "Error de conexión" : "Desconocido";
   const description = current === "STALE"
-    ? "Última lectura desactualizada; no confirma el estado actual."
+    ? failedRead
+      ? "La consulta falló. Solo hay datos anteriores; el estado actual no está verificado."
+      : "Última lectura desactualizada; no confirma el estado actual."
     : current !== "VERIFIED"
-      ? "Sin lectura actual confirmada. Comprueba la conexión."
+      ? failedRead
+        ? "No se pudo consultar al proveedor; no hay lectura actual confirmada."
+        : "Sin lectura actual confirmada. Comprueba la conexión."
       : name === "github" && limited
         ? "Consulta pública limitada: no verifica CI, conflictos ni handoffs."
         : name === "github"
@@ -39,7 +53,7 @@ export function SourceCard({
             : "Metadatos de esquema; no se consultan clientes ni credenciales.";
   const sourceName = { github: "GitHub", vercel: "Vercel", supabase: "Supabase" }[name];
   return <article className={s.sourceCard}>
-    <div className={s.sourceTop}><strong>{sourceName}</strong><BridgeStatus state={state} label={current === "VERIFIED" ? (limited ? "Parcial" : "Lectura verificada") : "Desconocido"} /></div>
+    <div className={s.sourceTop}><strong>{sourceName}</strong><BridgeStatus state={state} label={label} /></div>
     <p>{description}</p>
     <small>Última lectura verificada: <time dateTime={fact.verified_at ?? undefined}>{fact.verified_at ?? "Sin registro"}</time></small>
   </article>;
