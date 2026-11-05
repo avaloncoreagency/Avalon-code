@@ -30,7 +30,8 @@ test('the CRM has a real static route and the dynamic module segment never rende
 test('every HUD module card points at an existing static route', () => {
   const modules = read('src/components/suite/modules.ts');
   const hrefs = [...modules.matchAll(/href: "([^"]+)"/g)].map(m => m[1]);
-  assert.equal(hrefs.length, 6);
+  assert.equal(hrefs.length, 7); // CRM + six product workspaces
+  assert.ok(hrefs.includes('/admin/workspace/ai-chatbots'), 'AI Chatbots module is navigable');
   for (const href of hrefs) assert.ok(fs.existsSync(path.join('src/app', href, 'page.tsx')), `${href} has a page`);
   assert.doesNotMatch(read('src/components/suite/module-cards.tsx'), /Samuel|external/);
 });
