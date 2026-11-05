@@ -44,7 +44,7 @@ test('REN pipeline: discover → AI fix with failover → verify → resumable (
   const log = path.join(dir, 'calls.log');
   const state = path.join(dir, 'state.json'), evidence = path.join(dir, 'ev.json');
   const env = { ...process.env, GROQ_API_KEY: 'fake', CLOUDFLARE_ACCOUNT_ID: 'fake', CLOUDFLARE_API_TOKEN: 'fake', OPENROUTER_API_KEY: 'fake',
-    FAKE_LOG: log, NODE_PATH: path.join(repo, 'tests/qa/node_modules'), NODE_OPTIONS: `--require ${path.join(dir, 'fake.cjs')}`, GITHUB_STEP_SUMMARY: '' };
+    FAKE_LOG: log, AVALON_REN_BRANCHES: '', NODE_PATH: path.join(repo, 'tests/qa/node_modules'), NODE_OPTIONS: `--require ${path.join(dir, 'fake.cjs')}`, GITHUB_STEP_SUMMARY: '' };
   delete env.NODE_TEST_CONTEXT;
   const run = () => cp.execFileSync('node', ['scripts/ai-engine/ren-dev-task.cjs', '--state', state, '--evidence', evidence, '--no-push'], { cwd: wt, env, encoding: 'utf8' });
 
@@ -66,4 +66,25 @@ test('REN pipeline: discover → AI fix with failover → verify → resumable (
   const ev2 = JSON.parse(fs.readFileSync(evidence, 'utf8'));
   assert.ok(['discover', 'fix', 'verify'].every(s => ev2.steps[s].resumed), JSON.stringify(ev2.steps));
   assert.equal(fs.readFileSync(log, 'utf8'), '');
+});
+
+test('REN does not redo a file that already has a REN branch: it picks the next low-risk task', { timeout: 900000 }, async t => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'ren-second-'));
+  const wt = path.join(dir, 'wt');
+  cp.execFileSync('git', ['worktree', 'add', '--detach', wt, 'HEAD'], { cwd: repo, stdio: 'ignore' });
+  t.after(() => { cp.execFileSync('git', ['worktree', 'remove', '--force', wt], { cwd: repo, stdio: 'ignore' }); fs.rmSync(dir, { recursive: true, force: true }); });
+  fs.symlinkSync(path.join(repo, 'node_modules'), path.join(wt, 'node_modules'));
+  if (fs.existsSync(path.join(repo, 'tests/qa/node_modules'))) fs.symlinkSync(path.join(repo, 'tests/qa/node_modules'), path.join(wt, 'tests/qa/node_modules'));
+  fs.writeFileSync(path.join(dir, 'fake.cjs'), FAKE);
+  const env = { ...process.env, GROQ_API_KEY: 'fake', CLOUDFLARE_ACCOUNT_ID: 'fake', CLOUDFLARE_API_TOKEN: 'fake', OPENROUTER_API_KEY: 'fake', FAKE_LOG: path.join(dir, 'calls.log'),
+    AVALON_REN_BRANCHES: 'ren/auto-20261105-tests-agents-managers-database-cjs', NODE_PATH: path.join(repo, 'tests/qa/node_modules'), NODE_OPTIONS: `--require ${path.join(dir, 'fake.cjs')}`, GITHUB_STEP_SUMMARY: '' };
+  delete env.NODE_TEST_CONTEXT;
+  const evidence = path.join(dir, 'ev.json');
+  cp.execFileSync('node', ['scripts/ai-engine/ren-dev-task.cjs', '--state', path.join(dir, 's.json'), '--evidence', evidence, '--no-push'], { cwd: wt, env, encoding: 'utf8' });
+  const ev = JSON.parse(fs.readFileSync(evidence, 'utf8'));
+  assert.equal(ev.status, 'succeeded', ev.note);
+  assert.notEqual(ev.steps.discover.output.file, 'tests/agents-managers.database.cjs', 'the already-published file is skipped');
+  assert.match(ev.steps.discover.output.file, /^tests\//);
+  assert.equal(ev.steps.verify.output.warningsAfter, 0);
+  assert.ok(ev.steps.verify.output.checks.every(c => c.ok), JSON.stringify(ev.steps.verify.output.checks));
 });

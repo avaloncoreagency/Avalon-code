@@ -20,6 +20,12 @@ const ALLOWED = p => /^(tests|scripts)\//.test(p) && !/^scripts\/ai-engine\//.te
 const sh = (cmd, args, opt = {}) => cp.execFileSync(cmd, args, { encoding: 'utf8', maxBuffer: 64 << 20, ...opt });
 const shOk = (cmd, args) => { try { return { ok: true, out: sh(cmd, args, { stdio: ['ignore', 'pipe', 'pipe'] }) }; } catch (e) { return { ok: false, out: String(e.stdout || '') + String(e.stderr || '') }; } };
 const now = () => new Date().toISOString();
+/** Remote REN branches (ren/auto-YYYYMMDD-<slug>). Injectable for tests: AVALON_REN_BRANCHES="a,b" (empty = none). */
+function publishedRenBranches() {
+  if (env.AVALON_REN_BRANCHES !== undefined) return env.AVALON_REN_BRANCHES.split(',').filter(Boolean);
+  const r = shOk('git', ['ls-remote', '--heads', 'origin', 'ren/auto-*']);
+  return r.ok ? r.out.split('\n').map(l => (l.split('refs/heads/')[1] || '').trim()).filter(Boolean) : [];
+}
 
 function lint(target = '.') {
   const r = shOk('npx', ['eslint', target, '-f', 'json']);
@@ -106,7 +112,10 @@ async function main() {
   if (!target) {
     const recent = new Set(E.recall(store.load(), 'ren', 50).filter(m => !(m.text.startsWith('edit_rejected') || m.text.includes('sin proveedor') || m.text.includes('edición rechazada'))).map(m => (/file=(\S+)/.exec(m.text) || [])[1]).filter(Boolean));
     const by = warningsByFile(lint('.'));
-    const files = Object.keys(by).sort().filter(f => !recent.has(f));
+    // Never redo work that already has a REN branch/PR (its fix is not on main yet, so lint still reports the file).
+    const published = publishedRenBranches();
+    const slugOf = f => f.replace(/[^a-z0-9]+/gi, '-').toLowerCase().slice(0, 40);
+    const files = Object.keys(by).sort().filter(f => !recent.has(f) && !published.some(b => b.endsWith('-' + slugOf(f))));
     if (!files.length) { step('discover', null); return finish('succeeded', 'Sin tareas de bajo riesgo pendientes (0 avisos permitidos sin intentar).'); }
     const file = files[0];
     target = { file, warnings: by[file], sha256: createHash('sha256').update(fs.readFileSync(file)).digest('hex'), candidates: files.length };
