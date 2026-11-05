@@ -114,8 +114,7 @@ function projectGallery(
     version: project.version, updatedAt: date(project.updated_at),
     state: projectState(assets, sourceState, invalidManifest),
     clientKey, clientLabel,
-    clientHref: clientId ? `/admin/workspace/crm/clients/${clientId}`
-      : leadId ? `/admin/workspace/clients/${leadId}` : null,
+    clientHref: clientId ? `/admin/workspace/crm/clients/${clientId}` : null,
     leadHref: leadId ? `/admin/workspace/clients/${leadId}` : null,
     saleHref: value(creative.verified_sale_id)
       ? `/admin/workspace/crm/sales/${value(creative.verified_sale_id)}` : null,
