@@ -216,3 +216,41 @@ img.avatar { background: var(--navy); }
 .presenceDrawerLabel[data-presence="active"] { color:#9defcb; }
 .presenceDrawerLabel[data-presence="busy"] { color:#ffd788; }
 .presenceDrawerLabel[data-presence="inactive"] { color:#ffa8b7; }
+
+/* REN 0352-A — single-HQ shortcut navigation and truthful run status in the preserved staff panels. */
+.quickNav {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding: 6px 4px 1px;
+}
+.quickNav a {
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+  padding: 9px 14px;
+  border: 1px solid rgba(115, 175, 230, .29);
+  border-radius: 12px;
+  background: linear-gradient(130deg, rgba(21, 47, 79, .68), rgba(19, 21, 55, .84));
+  color: #dceeff;
+  font: 600 12px/1.35 system-ui, sans-serif;
+  text-decoration: none;
+  transition: border-color .18s ease, background .18s ease;
+}
+.quickNav a:hover { border-color: rgba(34, 230, 255, .7); background: rgba(27, 70, 101, .72); }
+.quickNav a:focus-visible { outline: 2px solid #8cf1ff; outline-offset: 2px; }
+.directory, .kpis, .panelBox { scroll-margin-top: 85px; }
+.statusRow[data-status="running"] .statusDot { background: #22e6ff; box-shadow: 0 0 8px rgba(34, 230, 255, .38); }
+.statusRow[data-status="completed"] .statusDot { background: #2fd39a; }
+.statusRow[data-status="queued"] .statusDot { background: #8f7cff; }
+.statusRow[data-status="failed"] .statusDot { background: #ff5a6e; }
+.statusRow[data-status="blocked"] .statusDot { background: #ffb347; }
+.statusRow[data-status="stale"] .statusDot { background: #9aa3c7; }
+.statusRow[data-status="unavailable"] .statusDot { background: #6f78a3; }
+.statusRow small { display: block; margin-top: 7px; color: #a2b8d6; font-size: 12px; }
+@media (max-width: 700px) {
+  .quickNav { flex-wrap: nowrap; overflow-x: auto; gap: 7px; scrollbar-width: thin; padding: 4px 2px 7px; scroll-snap-type: x proximity; }
+  .quickNav a { white-space: nowrap; flex: 0 0 auto; min-height: 44px; padding: 10px 13px; scroll-snap-align: start; }
+  .directory, .kpis, .panelBox { scroll-margin-top: 64px; }
+}
+@media (prefers-reduced-motion: reduce) { .quickNav a { transition: none; } }
