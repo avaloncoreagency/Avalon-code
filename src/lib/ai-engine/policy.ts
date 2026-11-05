@@ -79,3 +79,44 @@ export function ownerOnlyRequests(raw: string): Action[] {
   if (/borra|elimina|delete|purge/i.test(text)) out.push("delete_data");
   return out;
 }
+
+// ─── Order lifecycle (P0-A) ─────────────────────────────────────────────────────────────────────────────────────────────
+// An order is NEVER "done" because a manager finished a generic routine. A diagnosis is a diagnosis; a requested change is
+// only "implemented" when an executor produced a change (commit/PR) and only "verified" when its checks passed.
+export type OrderState =
+  | "received" | "classified" | "waiting" | "running" | "diagnosed" | "needs_implementation"
+  | "implemented" | "verified" | "blocked" | "failed" | "needs_owner";
+export const ORDER_LABEL: Record<OrderState, string> = {
+  received: "avalon:task", classified: "avalon:task", waiting: "avalon:task", running: "avalon:in-progress",
+  diagnosed: "avalon:diagnosed", needs_implementation: "avalon:needs-implementation", implemented: "avalon:implemented",
+  verified: "avalon:verified", blocked: "avalon:blocked", failed: "avalon:failed", needs_owner: "avalon:needs-owner",
+};
+/** Labels that mean "the system already produced a terminal answer": intake does not pick these up again. */
+export const TERMINAL_LABELS = ["avalon:diagnosed", "avalon:needs-implementation", "avalon:implemented", "avalon:verified", "avalon:failed", "avalon:needs-owner", "avalon:blocked", "avalon:done"];
+
+export type Intent = "diagnose" | "change";
+/** Does the order ask for a change (fix/implement/merge…) or only for a review? Ambiguous orders count as changes. */
+export function classifyIntent(raw: string): Intent {
+  const text = stripMeta(raw);
+  const change = /\b(arregl|corrig|fix|implement|a[nñ]ad|agreg|cambi|elimin|quit|fusion|unific|cre[ae]|mejor|actualiz|migr|refactor|redise[nñ]|integr|conect)/i.test(text);
+  const diagnose = /\b(revis|audit|verific|comprob|analiz|diagn|inform|report|estado|consult|mide|medir|lista)/i.test(text);
+  return change || !diagnose ? "change" : "diagnose";
+}
+
+export type ExecutionResult = {
+  status: string; // runManager status
+  checks?: { ok?: boolean; exit?: number | null }[];
+  change?: { pr?: string; commit?: string } | null; // only implementation executors set this
+};
+/** Final state of an order after one execution attempt. Pure and conservative. */
+export function orderOutcome(intent: Intent, r: ExecutionResult, ownerOnly: Action[] = []): { state: OrderState; reason: string } {
+  if (ownerOnly.length) return { state: "needs_owner", reason: "owner_only:" + ownerOnly.join(",") };
+  if (r.status === "skipped") return { state: "waiting", reason: "not_run" };
+  if (r.status !== "succeeded") return { state: "failed", reason: r.status };
+  const evidence = Array.isArray(r.checks) && r.checks.length > 0 && r.checks.every(c => typeof c.exit === "number");
+  if (!evidence) return { state: "blocked", reason: "no_verifiable_evidence" };
+  const allGreen = r.checks!.every(c => c.ok !== false && c.exit === 0);
+  if (intent === "diagnose") return { state: "diagnosed", reason: allGreen ? "diagnosis_clean" : "diagnosis_found_issues" };
+  if (!r.change) return { state: "needs_implementation", reason: "diagnosis_only_no_change_executor" };
+  return allGreen ? { state: "verified", reason: "change_and_checks_passed" } : { state: "implemented", reason: "change_made_checks_not_green" };
+}

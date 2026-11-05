@@ -25,6 +25,11 @@ test('AI engine schema: 10 profiles, inert reserved seats, $0-only ledger, servi
   assert.ok(profiles.every(p => p.ai_enabled === false));
   assert.equal((await q(`select ai_enabled from crm_agent_settings`))[0].ai_enabled, false);
 
+  // Public control signal: anon gets ONLY switches + suspended keys; nothing else of the tables.
+  await db.exec(`reset role; set role anon`);
+  assert.deepEqual((await q(`select crm_ai_public_control() c`))[0].c, { kill_switch: false, automatic_enabled: false, ai_enabled: false, suspended: [] });
+  await fails(`select * from crm_ai_worker_profiles`, /permission denied/);
+  await fails(`select * from crm_agent_settings`, /permission denied/);
   await as(X); // operator, not owner: sees nothing
   assert.equal((await q(`select * from crm_ai_worker_profiles`)).length, 0);
   await fails(`insert into crm_ai_usage(day,provider) values(current_date,'groq')`, /permission denied/);
@@ -58,4 +63,8 @@ test('AI engine schema: 10 profiles, inert reserved seats, $0-only ledger, servi
   await db.exec(`reset role; update crm_agent_settings set kill_switch = true`);
   await svc();
   await fails(`update crm_ai_tasks set status='running' where id='task-0001'`, /ai_disabled/);
+  await db.exec(`reset role; set role anon`);
+  const c = (await q(`select crm_ai_public_control() c`))[0].c;
+  assert.equal(c.kill_switch, true, 'the kill switch reaches every executor through the public control');
+  assert.deepEqual(c.suspended, ['haru']);
 });

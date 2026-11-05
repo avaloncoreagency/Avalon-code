@@ -77,6 +77,13 @@ function validateEdits(lines, edits, allowed) {
 }
 
 async function main() {
+  // Same operational control as the managers: Avalon kill switch / suspension / repository switch.
+  const control = require('./operate.cjs').readControl();
+  console.log('control', JSON.stringify({ source: control.source, killSwitch: control.killSwitch, suspended: control.suspended, reason: control.reason }));
+  if (control.killSwitch || control.suspended.includes('ren') || (env.AVALON_SUSPENDED || '').split(',').includes('ren')) {
+    console.log(JSON.stringify({ status: 'skipped', reason: control.killSwitch ? control.reason : 'ren_suspended' }));
+    return;
+  }
   const store = new E.FileStore(STATE);
   const s0 = store.load();
   const runId = 'ren-dev:' + now().slice(0, 10);

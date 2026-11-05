@@ -3,7 +3,7 @@
 -- recorded, and the worker stops the provider before it would be).
 -- PREPARED — not applied to any remote database. Writes are service_role only (server worker); owners read through RLS.
 -- AI is OFF by default: crm_agent_settings.ai_enabled = false until an owner turns it on.
--- Rollback: drop the four tables and the three functions below; alter table crm_agent_settings drop column ai_enabled.
+-- Rollback: drop the four tables and the four functions below; alter table crm_agent_settings drop column ai_enabled.
 begin;
 
 alter table public.crm_agent_settings add column ai_enabled boolean not null default false;
@@ -125,6 +125,17 @@ begin
 end $$;
 revoke all on function public.crm_ai_set_suspended(text, boolean) from public, anon;
 grant execute on function public.crm_ai_set_suspended(text, boolean) to authenticated;
+-- ONE operational control for every executor. The GitHub Actions worker has no database credentials: it calls this with
+-- the PUBLIC publishable key and obeys it (unreachable → it stops). Exposes only switches and suspended manager keys.
+create function public.crm_ai_public_control() returns jsonb language sql stable security definer set search_path = '' as $$
+  select jsonb_build_object(
+    'kill_switch', coalesce((select s.kill_switch from public.crm_agent_settings s where s.id = 'avalon'), true),
+    'automatic_enabled', coalesce((select s.automatic_enabled from public.crm_agent_settings s where s.id = 'avalon'), false),
+    'ai_enabled', coalesce((select s.ai_enabled from public.crm_agent_settings s where s.id = 'avalon'), false),
+    'suspended', coalesce((select jsonb_agg(p.key order by p.key) from public.crm_ai_worker_profiles p where p.suspended), '[]'::jsonb));
+$$;
+revoke all on function public.crm_ai_public_control() from public;
+grant execute on function public.crm_ai_public_control() to anon, authenticated, service_role;
 revoke all on function crm_private.ai_assert_worker_allowed() from public, anon, authenticated;
 
 commit;

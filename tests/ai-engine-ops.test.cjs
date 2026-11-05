@@ -107,3 +107,104 @@ test('kill switch and suspension stop runs; a busy manager is not run twice conc
     assert.equal((await OPS.runManager(h.store, 'kenji', 'ops:kenji:L-extra', {})).reason, 'hourly_limit');
   } finally { h.restore(); }
 });
+
+// ─── P0-A: orders are never "done" without the requested result ─────────────────────────────────────────────────────────
+test('order lifecycle: a diagnosis is not an implementation; only a change with green checks is verified', () => {
+  assert.equal(P.classifyIntent('Arreglar la doble oficina'), 'change');
+  assert.equal(P.classifyIntent('Revisar que las tablas tengan RLS'), 'diagnose');
+  assert.equal(P.classifyIntent('Haz algo con la oficina'), 'change', 'ambiguous orders count as changes (fail-safe)');
+  const green = { status: 'succeeded', checks: [{ ok: true, exit: 0 }] };
+  assert.equal(P.orderOutcome('diagnose', green).state, 'diagnosed');
+  assert.deepEqual(P.orderOutcome('change', green), { state: 'needs_implementation', reason: 'diagnosis_only_no_change_executor' });
+  assert.equal(P.orderOutcome('change', { ...green, change: { pr: 'x' } }).state, 'verified');
+  assert.equal(P.orderOutcome('change', { status: 'succeeded', checks: [{ ok: false, exit: 1 }], change: { pr: 'x' } }).state, 'implemented');
+  assert.equal(P.orderOutcome('change', { status: 'succeeded', checks: [] }).state, 'blocked');
+  assert.equal(P.orderOutcome('diagnose', { status: 'failed' }).state, 'failed');
+  assert.equal(P.orderOutcome('diagnose', { status: 'skipped' }).state, 'waiting');
+  assert.equal(P.orderOutcome('change', green, ['production_change']).state, 'needs_owner');
+  assert.ok(!Object.values(P.ORDER_LABEL).includes('avalon:done'), 'the ambiguous avalon:done label is no longer produced');
+});
+
+// ─── One control for every executor ─────────────────────────────────────────────────────────────────────────────────────
+test('control: scheduled runs fail closed without Avalon control; unreachable control stops everything; Avalon switches are obeyed', async () => {
+  const withEnv = async (vars, fn) => { const saved = {}; for (const [k, v] of Object.entries(vars)) { saved[k] = process.env[k]; if (v === undefined) delete process.env[k]; else process.env[k] = v; } try { return await fn(); } finally { for (const [k, v] of Object.entries(saved)) { if (v === undefined) delete process.env[k]; else process.env[k] = v; } } };
+  const none = { AVALON_SUPABASE_URL: undefined, AVALON_SUPABASE_PUBLISHABLE_KEY: undefined, AVALON_AI_ENGINE_DISABLED: undefined };
+  assert.equal((await withEnv({ ...none, GITHUB_EVENT_NAME: 'schedule' }, () => OPS.readControl())).killSwitch, true);
+  assert.equal((await withEnv({ ...none, GITHUB_EVENT_NAME: 'workflow_dispatch' }, () => OPS.readControl())).killSwitch, false);
+  assert.equal((await withEnv({ ...none, AVALON_AI_ENGINE_DISABLED: 'true' }, () => OPS.readControl())).killSwitch, true);
+  // The fake Supabase runs in a CHILD process: readControl() uses a synchronous curl that would block an in-process server.
+  const cp = require('node:child_process');
+  const replyFile = path.join(os.tmpdir(), `ctl-${process.pid}.json`);
+  const setReply = r => fs.writeFileSync(replyFile, JSON.stringify(r));
+  setReply({ kill_switch: true, automatic_enabled: true, ai_enabled: true, suspended: ['haru', 'Bad Key'] });
+  const child = cp.spawn(process.execPath, ['-e', `const fs=require('fs');require('http').createServer((q,r)=>{r.setHeader('content-type','application/json');r.end(fs.readFileSync(${JSON.stringify(replyFile)}))}).listen(0,'127.0.0.1',function(){console.log(this.address().port)})`]);
+  const port = await new Promise(r => child.stdout.once('data', d => r(String(d).trim())));
+  const url = `http://127.0.0.1:${port}`;
+  const local = { AVALON_SUPABASE_URL: url, AVALON_SUPABASE_PUBLISHABLE_KEY: 'pk', no_proxy: '127.0.0.1', NO_PROXY: '127.0.0.1' };
+  try {
+    const on = await withEnv({ ...local, GITHUB_EVENT_NAME: 'schedule' }, () => OPS.readControl());
+    assert.deepEqual([on.source, on.killSwitch, on.suspended], ['avalon', true, ['haru']], 'only well-formed manager keys are taken');
+    setReply({ kill_switch: false, suspended: [] });
+    assert.equal((await withEnv({ ...local, GITHUB_EVENT_NAME: 'schedule' }, () => OPS.readControl())).killSwitch, false);
+    setReply({ code: 'PGRST202', message: 'not found' });
+    assert.equal((await withEnv({ ...local, GITHUB_EVENT_NAME: 'schedule' }, () => OPS.readControl())).reason, 'avalon_control_rpc_missing');
+    setReply({ unexpected: 1 });
+    assert.equal((await withEnv(local, () => OPS.readControl())).killSwitch, true, 'malformed answer → fail closed');
+  } finally { child.kill(); fs.rmSync(replyFile, { force: true }); }
+  assert.equal((await withEnv({ AVALON_SUPABASE_URL: 'http://127.0.0.1:9', AVALON_SUPABASE_PUBLISHABLE_KEY: 'pk', no_proxy: '127.0.0.1', NO_PROXY: '127.0.0.1' }, () => OPS.readControl())).reason, 'avalon_control_unreachable');
+  // The control reaches runManager: Avalon kill switch / suspension block before any work.
+  const h = harness();
+  try {
+    assert.equal((await OPS.runManager(h.store, 'ren', 'ops:ren:C1', { control: { killSwitch: true, suspended: [] } })).reason, 'kill_switch');
+    assert.equal((await OPS.runManager(h.store, 'haru', 'ops:haru:C1', { control: { killSwitch: false, suspended: ['haru'] } })).reason, 'manager_suspended');
+    assert.deepEqual(h.calls, []);
+  } finally { h.restore(); }
+});
+
+// ─── Intake end to end with a fake GitHub CLI (P0-A + P0-B) ─────────────────────────────────────────────────────────────
+test('intake: diagnosis → diagnosed, change without executor → needs-implementation, stuck in-progress recovered, exception never leaves in-progress', async () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'gh-'));
+  const log = path.join(dir, 'calls.jsonl');
+  const old = new Date(Date.now() - 2 * 3600e3).toISOString(), fresh = new Date().toISOString();
+  const issues = [
+    { number: 201, title: 'Revisar RLS de las tablas nuevas', body: 'Solo diagnóstico de seguridad', labels: [{ name: 'avalon:task' }], updatedAt: fresh },
+    { number: 202, title: 'Arreglar la doble oficina', body: 'Hay dos escenas visuales', labels: [{ name: 'avalon:task' }], updatedAt: fresh },
+    { number: 203, title: 'Revisar pruebas del CRM', body: 'quedó colgada', labels: [{ name: 'avalon:task' }, { name: 'avalon:in-progress' }], updatedAt: old },
+    { number: 204, title: 'Revisar algo', body: 'está en curso ahora mismo', labels: [{ name: 'avalon:task' }, { name: 'avalon:in-progress' }], updatedAt: fresh },
+    { number: 205, title: 'Ya respondida', body: '', labels: [{ name: 'avalon:task' }, { name: 'avalon:diagnosed' }], updatedAt: old },
+  ];
+  fs.writeFileSync(path.join(dir, 'gh'), `#!/usr/bin/env node
+const fs=require('fs');const a=process.argv.slice(2);let input='';try{input=fs.readFileSync(0,'utf8')}catch{}
+fs.appendFileSync(${JSON.stringify(log)},JSON.stringify({a,input})+'\\n');
+if(a[0]==='issue'&&a[1]==='list'){process.stdout.write(${JSON.stringify(JSON.stringify(issues))});}
+`, { mode: 0o755 });
+  const h = harness({ PATH: dir + path.delimiter + process.env.PATH });
+  try {
+    const out = await OPS.intake(h.store, { killSwitch: false, suspended: [] });
+    const byIssue = Object.fromEntries(out.map(r => [r.issue, r.orderState || r.status]));
+    assert.deepEqual(byIssue, { 201: 'diagnosed', 202: 'needs_implementation', 203: 'diagnosed' }, 'fresh in-progress (204) and answered (205) orders are not picked');
+    const calls = fs.readFileSync(log, 'utf8').trim().split('\n').map(JSON.parse);
+    const labelsAdded = calls.filter(c => c.a[1] === 'edit').map(c => [c.a[2], c.a[c.a.indexOf('--add-label') + 1]]);
+    assert.ok(labelsAdded.some(([n, l]) => n === '202' && l === 'avalon:needs-implementation'));
+    assert.ok(!labelsAdded.some(([, l]) => l === 'avalon:done'), 'never avalon:done');
+    const comment202 = calls.find(c => c.a[1] === 'comment' && c.a[2] === '202').input;
+    assert.match(comment202, /implementación pendiente/);
+    const orders = h.store.load().ops.orders;
+    assert.deepEqual(orders[202].history.map(x => x.state), ['received', 'classified', 'running', 'needs_implementation']);
+    // Exception during execution: the order returns to the queue, never stays "in progress".
+    OPS.setExecutors({ ren: async () => { throw new Error('boom'); }, shin: async () => { throw new Error('boom'); }, haru: async () => { throw new Error('boom'); }, sora: async () => { throw new Error('boom'); }, kenji: async () => { throw new Error('boom'); } });
+    issues.splice(0, issues.length, { number: 206, title: 'Revisar seguridad', body: '', labels: [{ name: 'avalon:task' }], updatedAt: fresh });
+    fs.writeFileSync(path.join(dir, 'gh'), fs.readFileSync(path.join(dir, 'gh'), 'utf8').replace(/process\.stdout\.write\(.*\);\}/, `process.stdout.write(${JSON.stringify(JSON.stringify(issues))});}`));
+    fs.writeFileSync(log, '');
+    const out2 = await OPS.intake(h.store, { killSwitch: false, suspended: [] });
+    assert.equal(out2[0].reason, 'exception');
+    const last = fs.readFileSync(log, 'utf8').trim().split('\n').map(JSON.parse).filter(c => c.a[1] === 'edit').at(-1).a;
+    assert.equal(last[last.indexOf('--add-label') + 1], 'avalon:task');
+    assert.ok(last.includes('avalon:in-progress'), 'in-progress label removed');
+    assert.equal(h.store.load().ops.orders[206].state, 'waiting');
+    // Kill switch: intake does nothing at all.
+    fs.writeFileSync(log, '');
+    assert.equal((await OPS.intake(h.store, { killSwitch: true, suspended: [] }))[0].reason, 'kill_switch');
+    assert.equal(fs.readFileSync(log, 'utf8'), '');
+  } finally { h.restore(); fs.rmSync(dir, { recursive: true, force: true }); }
+});
