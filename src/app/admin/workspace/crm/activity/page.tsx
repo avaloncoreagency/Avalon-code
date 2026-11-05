@@ -9,7 +9,7 @@ import s from "@/components/sales/sales.module.css";
 export const dynamic = "force-dynamic";
 
 type Event = { id: number; correlation_id: string | null; event_type: string; module: string; actor_id: string | null; client_id: string | null; sale_id: string | null; project_id: string | null; task_id: string | null; entity: string; from_state: string | null; to_state: string | null; result: string; source: string; detail: string; created_at: string };
-const MODULES = ["crm", "sales", "website", "ecommerce", "crm_creator", "receptionist", "marketing", "automation"];
+const MODULES = ["crm", "sales", "website", "ecommerce", "crm_creator", "receptionist", "marketing", "chatbots", "automation"];
 const PAGE = 60;
 
 export default async function ActivityCenter({ searchParams }: { searchParams: Promise<Query> }) {

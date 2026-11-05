@@ -20,7 +20,7 @@ const TABLE_LABEL: Record<string, [string, string]> = {
 const OP_LABEL: Record<string, [string, string]> = { INSERT: ["creó", "created"], UPDATE: ["actualizó", "updated"], DELETE: ["eliminó", "deleted"] };
 const MODULE_HREF: Record<string, string> = {
   website: "/admin/workspace/website-designer", ecommerce: "/admin/workspace/ecommerce-designer", crm_creator: "/admin/workspace/crm-creator",
-  receptionist: "/admin/workspace/ai-receptionist", marketing: "/admin/workspace/marketing-hub",
+  receptionist: "/admin/workspace/ai-receptionist", marketing: "/admin/workspace/marketing-hub", chatbots: "/admin/workspace/ai-chatbots",
 };
 
 export default async function DashboardPage() {
@@ -57,6 +57,7 @@ export default async function DashboardPage() {
     crm_creator: stat("crm_creator", "plantillas CRM", "CRM blueprints"),
     receptionist: stat("receptionist", "asistentes", "assistants"),
     marketing: stat("marketing", "campañas", "campaigns"),
+    chatbots: stat("chatbots", "chatbots", "chatbots"),
   };
   const overdue = upcoming.data?.filter(i => i.planned_for < today && OPEN_CONTENT(i.status)) ?? [];
   const activeProjects = projects.data?.filter(p => p.status === "active").length ?? null;

@@ -4,6 +4,7 @@ export const SERVICES = {
   ecommerce: { name: 'E-commerce Designer', slug: 'ecommerce-designer', checks: ['catalog', 'inventory', 'checkout-sandbox', 'order-sandbox'], labels: ['Cat\u00e1logo', 'Inventario', 'Checkout de pruebas', 'Pedido de pruebas'], labelsEn: ['Catalog', 'Inventory', 'Sandbox checkout', 'Sandbox order'] },
   crm_creator: { name: 'CRM Creator', slug: 'crm-creator', checks: ['permissions', 'pipeline', 'forms', 'automations'], labels: ['Permisos', 'Pipeline', 'Formularios', 'Automatizaciones'], labelsEn: ['Permissions', 'Pipeline', 'Forms', 'Automations'] },
   receptionist: { name: 'AI Receptionist', slug: 'ai-receptionist', checks: ['knowledge', 'handoff', 'hours', 'privacy'], labels: ['Base de conocimiento', 'Transferencia humana', 'Horarios', 'Privacidad'], labelsEn: ['Knowledge base', 'Human handoff', 'Business hours', 'Privacy'] },
+  chatbots: { name: 'AI Chatbots', slug: 'ai-chatbots', checks: ['knowledge', 'widget', 'handoff', 'privacy'], labels: ['Conocimiento', 'Widget web', 'Transferencia humana', 'Privacidad'], labelsEn: ['Knowledge', 'Web widget', 'Human handoff', 'Privacy'] },
   marketing: { name: 'Marketing Hub', slug: 'marketing-hub', checks: ['creative', 'links', 'attribution', 'schedule'], labels: ['Creativos', 'Enlaces', 'Atribuci\u00f3n', 'Programaci\u00f3n'], labelsEn: ['Creative assets', 'Links', 'Attribution', 'Scheduling'] },
 } as const;
 export type Service = keyof typeof SERVICES;

@@ -1,6 +1,7 @@
 import { Suite } from "@/components/suite/suite";
 import { PageHeader, Flash, param, type SearchParams } from "@/components/os/ui";
 import { ProjectsIndex } from "@/components/os/projects";
+import { ModuleSectionTabs } from "@/components/os/module-sections";
 import { requireOwner } from "@/lib/auth/session";
 import { getLang } from "@/lib/i18n-server";
 import { pick } from "@/lib/i18n";
@@ -18,6 +19,7 @@ export default async function WebsiteDesignerPage({ searchParams }: { searchPara
     <Suite active="website-designer">
       <PageHeader eyebrow="Website Designer" title={pick(lang, "Proyectos web", "Web projects")}
         description={pick(lang, "Gestiona webs de clientes, responsables, repositorios y tareas. Las páginas locales son recursos de Avalon; editar o publicar un sitio externo requiere su conexión autorizada.", "Manage client websites, owners, repositories and tasks. Local pages are Avalon resources; editing or publishing an external site requires its authorized connection.")} />
+      <ModuleSectionTabs base="/admin/workspace/website-designer" lang={lang} active="library" />
       <Flash lang={lang} ok={param(params, "ok")} error={param(params, "error")} />
       <ProjectsIndex lang={lang} module="website" base="/admin/workspace/website-designer" projects={projects} noun={{ es: "proyectos web", en: "web projects" }} showArchived={showArchived} />
     </Suite>

@@ -2,6 +2,7 @@ import Link from "next/link";
 import { Suite } from "@/components/suite/suite";
 import { PageHeader, Flash, param, type SearchParams } from "@/components/os/ui";
 import { ProjectsIndex } from "@/components/os/projects";
+import { ModuleSectionTabs } from "@/components/os/module-sections";
 import s from "@/components/os/os.module.css";
 import { requireOwner } from "@/lib/auth/session";
 import { getLang } from "@/lib/i18n-server";
@@ -30,6 +31,7 @@ export default async function MarketingHubPage({ searchParams }: { searchParams:
           {pick(lang, "Abrir puente Higgsfield → Avalon", "Open Higgsfield → Avalon bridge")}
         </Link>
       </section>
+      <ModuleSectionTabs base="/admin/workspace/marketing-hub" lang={lang} active="library" />
       <Flash lang={lang} ok={param(params, "ok")} error={param(params, "error")} />
       <ProjectsIndex lang={lang} module="marketing" base="/admin/workspace/marketing-hub" projects={projects} noun={{ es: "campañas", en: "campaigns" }} showArchived={showArchived}
         createFields={<label className={s.field}><span>{pick(lang, "Objetivo", "Goal")}</span><input className={s.input} name="goal" maxLength={500} /></label>} />
