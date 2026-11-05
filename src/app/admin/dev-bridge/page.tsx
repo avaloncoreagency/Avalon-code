@@ -14,7 +14,8 @@ export default async function DevBridge() {
   const publicOnly = github?.coverage === 'summary';
   const completeGithub = freshness(state.github).status === 'VERIFIED' && !publicOnly;
   const owners: Owner[] = ['miguel', 'samuel'];
-  const team = collaboration(state.github.status === 'VERIFIED' ? github ?? null : null);
+  const githubFresh = freshness(state.github).status === 'VERIFIED';
+  const team = collaboration(githubFresh ? github ?? null : null);
   return <Suite active="dev-bridge"><div className={s.bridge}><BridgeAutoRefresh />
     <header className={s.hero}>
       <div className={s.heroTop}>
@@ -41,7 +42,7 @@ export default async function DevBridge() {
     <section className={s.section} aria-label="Cooperación entre Miguel y Samuel">
       <h2>Centro de cooperación · Miguel + Samuel</h2>
       <p>La fuente de verdad son las Issues y los PRs de GitHub. Ningún nombre de rama, autor de commit o agente IA demuestra quién es el dueño del trabajo. El traspaso no fusiona ramas ni cambia permisos.</p>
-      {state.github.status !== 'VERIFIED' ? <p>UNKNOWN: no se puede afirmar quién está trabajando ni qué PRs son actuales. Reconecta GitHub antes de reanudar.</p> : <>
+      {!githubFresh ? <p>Desconocido: no hay lectura actual verificada de GitHub. Las asignaciones y los posibles solapamientos requieren nueva comprobación antes de reanudar.</p> : <>
         <div className={s.sources}>
           <article className={s.card}><small>PRs ABIERTOS</small><h2 className={s.metric}>{team.total}</h2><p>Trabajo propuesto; no equivale a un despliegue.</p></article>
           <article className={s.card}><small>CON RESPONSABLE EXPLÍCITO</small><h2 className={s.metric}>{team.assigned.miguel.length + team.assigned.samuel.length}</h2><p>Asignados mediante Issue etiquetada, no por autor o rama.</p></article>
@@ -105,12 +106,13 @@ export default async function DevBridge() {
     <section className={s.section} aria-label="PR abiertos y CI">
       <div className={s.sectionTitle}><div><small>GITHUB</small><h2>PR abiertos y sus verificaciones</h2></div><span className={s.muted}>{github?.pulls.length ?? 0} PR visibles</span></div>
       <p className={s.muted}>CI corresponde a checks de GitHub, no al build de Vercel. Una coincidencia de archivos no es un conflicto de merge confirmado.</p>
+      {!githubFresh ? <p className={s.noticeText}>Los PR mostrados proceden de una lectura antigua o desconocida. No son una confirmación actual y no permiten preparar handoffs.</p> : null}
       <div className={s.desktopTable}><div className={s.scroll} tabIndex={0} role="region" aria-label="Tabla de pull requests desplazable horizontalmente">
         <table><thead><tr><th>PR / rama / SHA</th><th>CI</th><th>Integración</th><th>Archivos</th></tr></thead><tbody>{github?.pulls.map(p =>
           <tr key={p.number}><td><a href={p.url}>#{p.number} {p.title}</a><span className={s.muted}>{p.branch}</span><Sha value={p.head_sha} /></td>
           <td><CiStatus code={p.ci} /></td>
           <td>{publicOnly ? 'Desconocido' : p.conflict === null ? 'Conflicto desconocido' : p.conflict ? 'Conflicto confirmado' : 'Sin conflicto detectado'}
-            <span className={s.muted}>{publicOnly ? 'Desfase desconocido' : `${p.behind} commits de diferencia reportados`}</span></td>
+            <span className={s.muted}>{publicOnly ? 'Desfase desconocido' : `${p.behind} commits de diferencia reportada`}</span></td>
           <td>{publicOnly ? 'Desconocido' : <details><summary>{p.files.length} archivos</summary><ul>{p.files.map(f => <li key={f}>{f}</li>)}</ul></details>}</td></tr>
         )}</tbody></table>
       </div></div>
