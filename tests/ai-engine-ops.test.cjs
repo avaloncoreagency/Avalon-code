@@ -120,6 +120,10 @@ test('order lifecycle: a diagnosis is not an implementation; only a change with 
   assert.equal(P.classifyIntent('Arreglar la doble oficina'), 'change');
   assert.equal(P.classifyIntent('Revisar que las tablas tengan RLS'), 'diagnose');
   assert.equal(P.classifyIntent('Haz algo con la oficina'), 'change', 'ambiguous orders count as changes (fail-safe)');
+  // Regression (real Issue #140): a review whose body mentions "integración" / "se añade" is still a review.
+  assert.equal(P.classifyIntent('Verificar SHA-256 … se añade un análisis con IA', 'Orden: revisar la integridad de los modelos 3D de Higgsfield y la integración con Geoapify'), 'diagnose');
+  assert.equal(P.classifyIntent('Hay dos escenas visuales', 'Orden: arreglar la doble oficina de Avalon HQ'), 'change');
+  assert.equal(P.classifyIntent('detalle', 'Tarea: integrar Geoapify en el calendario'), 'change');
   const green = { status: 'succeeded', checks: [{ ok: true, exit: 0 }] };
   assert.equal(P.orderOutcome('diagnose', green).state, 'diagnosed');
   assert.deepEqual(P.orderOutcome('change', green), { state: 'needs_implementation', reason: 'diagnosis_only_no_change_executor' });

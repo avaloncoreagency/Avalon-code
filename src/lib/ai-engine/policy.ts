@@ -96,10 +96,19 @@ export const ORDER_LABEL: Record<OrderState, string> = {
 export const TERMINAL_LABELS = ["avalon:diagnosed", "avalon:needs-implementation", "avalon:implemented", "avalon:verified", "avalon:failed", "avalon:needs-owner", "avalon:blocked", "avalon:done"];
 
 export type Intent = "diagnose" | "change";
-/** Does the order ask for a change (fix/implement/merge…) or only for a review? Ambiguous orders count as changes. */
-export function classifyIntent(raw: string): Intent {
+const CHANGE_VERB = /^(arregl|corrig|fix|implement|a[nñ]ad|agreg|cambi|elimin|quit|fusion|unific|cre[ae]|mejor|actualiz|migr|refactor|redise[nñ]|integr[ae]|conect[ae])/i;
+const DIAGNOSE_VERB = /^(revis|audit|verific|comprob|compru|analiz|diagnost|inform|report|consult|med[ií]r?|mide|list|valid)/i;
+/**
+ * Does the order ask for a change or only for a review? The imperative verb at the start of the TITLE decides (after an
+ * optional "Orden:"/"Tarea:" prefix) — nouns like "integración" in the body do not turn a review into a change (Issue
+ * #140). Without a clear title verb, any change verb in the text wins; ambiguous orders count as changes (fail-safe).
+ */
+export function classifyIntent(raw: string, title = ""): Intent {
+  const head = stripMeta(title || raw.split("\n")[0]).replace(/^\s*(orden|tarea|task|order)\s*[:\-–]\s*/i, "").trim();
+  if (CHANGE_VERB.test(head)) return "change";
+  if (DIAGNOSE_VERB.test(head)) return "diagnose";
   const text = stripMeta(raw);
-  const change = /\b(arregl|corrig|fix|implement|a[nñ]ad|agreg|cambi|elimin|quit|fusion|unific|cre[ae]|mejor|actualiz|migr|refactor|redise[nñ]|integr|conect)/i.test(text);
+  const change = /\b(arregl|corrig|fix|implement|a[nñ]ad|agreg|cambi|elimin|quit|fusion|unific|cre[ae]|mejor|actualiz|migr|refactor|redise[nñ])/i.test(text);
   const diagnose = /\b(revis|audit|verific|comprob|analiz|diagn|inform|report|estado|consult|mide|medir|lista)/i.test(text);
   return change || !diagnose ? "change" : "diagnose";
 }

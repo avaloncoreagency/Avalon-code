@@ -211,7 +211,7 @@ async function intake(store, control) {
       continue;
     }
     const route = P.routeTask(i.body || '', i.title);
-    const intent = P.classifyIntent(text);
+    const intent = P.classifyIntent(text, i.title);
     const ownerOnly = P.ownerOnlyRequests(text);
     setState(store, n, 'classified', `${route.manager}/${intent}`);
     if (ownerOnly.length) {
