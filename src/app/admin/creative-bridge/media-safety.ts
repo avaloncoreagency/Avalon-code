@@ -1,4 +1,5 @@
 import type { Asset } from '@/lib/creative-bridge/continuity';
+import type { CreativeCatalogState } from './catalog';
 
 /**
  * Preview only registered, checksum-shaped LOCAL media routes.
@@ -12,6 +13,11 @@ export function safeCreativeMediaPath(asset: Asset): string | null {
   if (!extension) return null;
   const expected = new RegExp('^/creative-bridge/' + asset.sha256 + '\\.' + extension + '$', 'i');
   return expected.test(asset.public_path) ? asset.public_path : null;
+}
+
+/** A blocked/pending/reference-only project must not render media from a ready asset. */
+export function previewPathForStatus(status: CreativeCatalogState, asset: Asset): string | null {
+  return status === 'imported' ? safeCreativeMediaPath(asset) : null;
 }
 
 export function safeReducedMotionImage(video: Asset, assets: readonly Asset[]): Asset | null {

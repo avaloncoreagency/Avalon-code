@@ -1,12 +1,17 @@
 import Image from 'next/image';
 import type {Asset} from '@/lib/creative-bridge/continuity';
+import type {CreativeCatalogState} from './catalog';
 import {pick, type Lang} from '@/lib/i18n';
-import {safeCreativeMediaPath, safeReducedMotionImage} from './media-safety';
+import {previewPathForStatus, safeCreativeMediaPath, safeReducedMotionImage} from './media-safety';
 import styles from './media.module.css';
 
 /** No remote/signed media links, unsupported formats or unvalidated reduced-motion posters. */
-export function CreativeAsset({asset,assets,lang}:{asset:Asset;assets:Asset[];lang:Lang}){
- const path=safeCreativeMediaPath(asset);
+export function CreativeAsset({asset,assets,lang,status}:{asset:Asset;assets:Asset[];lang:Lang;status:CreativeCatalogState}){
+ if(status !== 'imported')return <p>{asset.id}: {pick(lang,
+  'Vista previa retenida: proyecto pendiente, bloqueado o solo referencia.',
+  'Preview withheld: project is pending, blocked, or reference only.'
+ )}</p>;
+ const path=previewPathForStatus(status,asset);
  if(!path)return <p>{asset.id}: {pick(lang,
   asset.state === 'ready' ? 'Vista previa no disponible: ruta o formato no admitido' : 'Recurso no incorporado',
   asset.state === 'ready' ? 'Preview unavailable: unsupported path or format' : 'Resource not imported'
