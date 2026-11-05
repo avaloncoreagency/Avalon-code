@@ -101,6 +101,13 @@ test('source cards distinguish verified, stale, unknown and failed reads without
   assert.match(failed, /No se pudo consultar al proveedor/);
   assert.doesNotMatch(failed, /private-secret-and-key|internal error/);
 
+  // A partially failed refresh may leave a VERIFIED timestamp in its cache.
+  // The source card must not claim success when error evidence is present.
+  const inconsistent = render('VERIFIED', 'Bearer synthetic-provider-secret');
+  assert.match(inconsistent, /Error de conexión/);
+  assert.match(inconsistent, /No se pudo consultar al proveedor/);
+  assert.doesNotMatch(inconsistent, /Lectura verificada|synthetic-provider-secret|Bearer/);
+
   // A stale RLS flag might remain in the snapshot object. It is not safe to
   // present that old flag as a current/verified Supabase result.
   const renderEvidence = (status, error) => renderToStaticMarkup(React.createElement(
