@@ -130,12 +130,14 @@ export default async function DevBridge() {
     <section className={s.section} aria-label="Despliegues de Vercel">
       <div className={s.sectionTitle}><div><small>VERCEL</small><h2>Despliegues</h2></div><BridgeStatus state={freshness(state.vercel).status === 'VERIFIED' ? 'verified' : 'unknown'} label={freshness(state.vercel).status === 'VERIFIED' ? 'Metadatos disponibles' : 'Sin verificación actual'} /></div>
       <p className={s.muted}>Un build READY no verifica la autenticación ni el funcionamiento del sitio. No se consultan variables ni logs privados.</p>
+      <VerifiedSourceOnly fact={state.vercel}>
       <div className={s.deployments}>{state.vercel.data?.slice(0, 12).map(d => <article className={s.deployment} key={d.id}>
         <div className={s.sourceTop}><strong>{d.environment === 'production' ? 'Producción' : 'Vista previa'}</strong><BuildStatus code={d.state} /></div>
         <p>{d.branch || 'Rama desconocida'}</p><Sha value={d.sha} />
         {d.url ? <a href={d.url} rel="noopener noreferrer">Abrir despliegue ↗</a> : <span className={s.muted}>Enlace no disponible</span>}
       </article>)}</div>
       {!state.vercel.data?.length ? <p className={s.muted}>No se obtuvieron despliegues verificables.</p> : null}
+      </VerifiedSourceOnly>
     </section>
     <section className={s.section} aria-label="Metadatos de Supabase">
       <div className={s.sectionTitle}><div><small>SUPABASE</small><h2>Metadatos de la base de datos</h2></div><BridgeStatus state={freshness(state.supabase).status === 'VERIFIED' ? 'verified' : 'unknown'} label={freshness(state.supabase).status === 'VERIFIED' ? 'Lectura verificada' : 'Desconocido'} /></div>
