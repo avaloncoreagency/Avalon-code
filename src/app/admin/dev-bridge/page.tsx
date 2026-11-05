@@ -12,9 +12,12 @@ export default async function DevBridge() {
   const state = await snapshot();
   const github = state.github.data;
   const publicOnly = github?.coverage === 'summary';
-  const completeGithub = freshness(state.github).status === 'VERIFIED' && !publicOnly;
+  const completeGithub = freshness(state.github).status === 'VERIFIED' && !publicOnly && !state.github.error;
   const owners: Owner[] = ['miguel', 'samuel'];
-  const githubFresh = freshness(state.github).status === 'VERIFIED';
+  const githubFresh = freshness(state.github).status === 'VERIFIED' && !state.github.error;
+  // Lists claiming ownership and handoff readiness need full, fresh metadata.
+  // A public-only or failed refresh cannot confirm whether an Issue has a PR.
+  const verifiedGithub = completeGithub ? github : null;
   const team = collaboration(githubFresh ? github ?? null : null);
   return <Suite active="dev-bridge"><div className={s.bridge}><BridgeAutoRefresh />
     <header className={s.hero}>
@@ -92,18 +95,22 @@ export default async function DevBridge() {
       <h2>Tareas asignadas sin PR vinculado</h2>
       <p className={s.muted}>Una Issue etiquetada puede ser trabajo activo aunque todavía no tenga rama. No se crea una asignación por adivinación.</p>
       <div className={s.workspaces}>{owners.map(owner => {
-        const linkedPrs = github?.pulls ?? [];
-        const tasks = github?.issues.filter(item => item.owner === owner && item.open !== false && !linkedPrs.some(pr => pr.issues.includes(item.number))) ?? [];
+        const linkedPrs = verifiedGithub?.pulls ?? [];
+        const tasks = verifiedGithub?.issues.filter(item => item.owner === owner && item.open !== false && !linkedPrs.some(pr => pr.issues.includes(item.number))) ?? [];
         return <article className={s.card} key={owner}><small>{owner === 'miguel' ? 'MIGUEL' : 'SAMUEL'}</small>
-          <h3>{tasks.length} tareas sin PR</h3>
-          {tasks.length ? <ul className={s.simpleList}>{tasks.slice(0, 8).map(item =>
+          <h3>{completeGithub ? `${tasks.length} tareas sin PR` : 'Estado desconocido'}</h3>
+          {!completeGithub ? <p className={s.noticeText} role="status">No se pueden comprobar tareas sin PR con una lectura incompleta, antigua o fallida de GitHub.</p>
+            : tasks.length ? <ul className={s.simpleList}>{tasks.slice(0, 8).map(item =>
             <li key={item.id}><a href={item.url}>#{item.number} · {item.title}</a><span className={s.muted}>Estado reportado: {item.state}</span></li>
           )}</ul> : <p>Sin tareas verificadas de este tipo.</p>}
-          {tasks.length > 8 ? <p className={s.muted}>Hay {tasks.length - 8} tareas adicionales en GitHub.</p> : null}
+          {completeGithub && tasks.length > 8 ? <p className={s.muted}>Hay {tasks.length - 8} tareas adicionales en GitHub.</p> : null}
         </article>;
       })}</div>
     </section>
-    <section className={s.section}><h2>Integración compartida</h2><p>Conflictos, dependencias y checkpoints se revisan en las Issues canónicas.</p><ul>{github?.issues.filter(i=>i.labels.includes('type:integration')||i.labels.includes('type:handoff')).map(i=><li key={i.id}><a href={i.url}>#{i.number} {i.title}</a> · {i.state}</li>)}</ul><p>Próximo release: UNKNOWN hasta aprobación de los propietarios.</p></section>
+    <section className={s.section}><h2>Integración compartida</h2><p>Conflictos, dependencias y checkpoints se revisan en las Issues canónicas.</p>
+      {!completeGithub ? <p className={s.noticeText} role="status">Issues de integración: estado desconocido hasta obtener lectura completa y actual de GitHub.</p>
+        : <ul>{verifiedGithub?.issues.filter(i=>i.labels.includes('type:integration')||i.labels.includes('type:handoff')).map(i=><li key={i.id}><a href={i.url}>#{i.number} {i.title}</a> · {i.state}</li>)}</ul>}
+      <p>Próximo release: UNKNOWN hasta aprobación de los propietarios.</p></section>
     <section className={s.section} aria-label="PR abiertos y CI">
       <div className={s.sectionTitle}><div><small>GITHUB</small><h2>PR abiertos y sus verificaciones</h2></div><span className={s.muted}>{github?.pulls.length ?? 0} PR visibles</span></div>
       <p className={s.muted}>CI corresponde a checks de GitHub, no al build de Vercel. Una coincidencia de archivos no es un conflicto de merge confirmado.</p>
