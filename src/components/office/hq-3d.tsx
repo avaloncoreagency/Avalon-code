@@ -8,6 +8,7 @@
 // procedural furniture is only a fallback if a model cannot load.
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { isHqTap, trackHqPointerMove, type HqPointerStart } from "@/lib/office/hq-tap";
+import { parseHqActivity } from "./hq-activity-guard";
 import Link from "next/link";
 import type * as THREE from "three";
 import { HQ_STATIONS, stationView, type StationView } from "@/lib/office/hq-layout";
@@ -64,7 +65,9 @@ export function Hq3d({ team = [], onSelectPerson, onActivityChange }: { team?: H
     try {
       const r = await fetch(ACTIVITY_URL, { cache: "no-store" });
       if (!r.ok) throw new Error(String(r.status));
-      const next = await r.json() as HqActivity;
+      const next = parseHqActivity(await r.json());
+      // Reject partial/malformed HTTP 200 data rather than rendering false idle or running statuses.
+      if (!next) throw new Error("invalid_hq_activity");
       // Slow/failed older requests must not overwrite newer real telemetry.
       if (sequence !== activitySequence.current) return;
       setActivity(next); setActivityError(false); activityListener.current?.(next);
