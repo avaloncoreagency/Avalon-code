@@ -146,3 +146,5 @@
 @media (prefers-reduced-motion: reduce) {
   .bridge * { scroll-behavior: auto; animation-duration: .01ms !important; transition-duration: .01ms !important; }
 }
+
+.noticeText { padding: 10px 13px; color: #ffdfad; border-left: 3px solid #e7b765; background: #302920; border-radius: 4px; }
