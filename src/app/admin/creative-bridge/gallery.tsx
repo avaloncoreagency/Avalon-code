@@ -130,7 +130,7 @@ export function CreativeGallery({ projects }: { projects: GalleryProject[] }) {
                 <Link href={project.serviceHref}>Biblioteca del servicio</Link>
                 {project.clientHref ? <Link href={project.clientHref}>Cliente 360°</Link> : null}
                 {project.leadHref ? <Link href={project.leadHref}>Empresa en CRM</Link> : null}
-                {project.saleHref ? <Link href={project.saleHref}>Venta confirmada</Link> : null}
+                {project.saleHref ? <Link href={project.saleHref}>Consultar venta vinculada</Link> : null}
               </nav>
             </article>)}
           </div>
