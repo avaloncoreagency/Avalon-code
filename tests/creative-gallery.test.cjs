@@ -65,7 +65,7 @@ test("creative gallery: project states never equate a receipt with delivered med
 test("creative gallery: client + service + state + search filters use stable IDs", () => {
   const items = [
     view(),
-    view({ id: "00000000-0000-4000-8000-000000000002", module: "ecommerce",
+    view({ id: "00000000-0000-4000-8000-000000000002", name: "Another product", module: "ecommerce",
       service: "E-commerce Designer", clientKey: "client:two", clientLabel: "Another Company",
       state: "imported", sourceRef: "hf-second" }),
   ];
