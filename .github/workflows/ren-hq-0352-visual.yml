@@ -44,8 +44,17 @@ jobs:
           npm test
       - name: Build exact PR HEAD without any production credentials
         run: npm run build
-      - name: Use existing Playwright Chromium for synthetic owner-only browser QA
-        run: node tests/qa/node_modules/playwright/cli.js install --with-deps chromium
+      - name: Reuse runner Chrome for synthetic owner-only browser QA
+        run: |
+          if command -v google-chrome >/dev/null 2>&1; then
+            echo "CHROME_PATH=$(command -v google-chrome)" >> "$GITHUB_ENV"
+            echo "Using preinstalled runner Chrome; no download required"
+          elif command -v chromium >/dev/null 2>&1; then
+            echo "CHROME_PATH=$(command -v chromium)" >> "$GITHUB_ENV"
+            echo "Using preinstalled runner Chromium; no download required"
+          else
+            node tests/qa/node_modules/playwright/cli.js install --with-deps chromium
+          fi
       - name: HQ 3D desktop, iPhone, one scene, real-data drawers and screenshots
         run: node --test tests/office-hq.browser.cjs
       - name: Publish synthetic visual captures and performance metrics (short retention)
