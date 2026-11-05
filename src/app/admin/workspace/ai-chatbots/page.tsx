@@ -23,7 +23,9 @@ export default async function ChatbotsLibrary({ searchParams }: { searchParams: 
       <ModuleSectionTabs base="/admin/workspace/ai-chatbots" lang={lang} active="library" />
       <Flash lang={lang} ok={param(query, "ok")} error={param(query, "error")} />
       <Panel title={pick(lang, "Estado del módulo", "Module status")} id="chatbots-status">
-        <p className={s.meta}>{pick(lang, "La biblioteca requiere la migración de AI Chatbots preparada en este PR. No se genera ni se simula ninguna conversación.", "The library needs the AI Chatbots migration prepared in this PR. No conversations are generated or simulated.")}</p>
+        <p className={s.meta}>{projects.error === "schema_pending"
+          ? pick(lang, "La biblioteca requiere la migración de AI Chatbots antes de registrar proyectos. No se generan conversaciones.", "The library needs the AI Chatbots migration before projects can be registered. No conversations are generated.")
+          : pick(lang, "Esta es la biblioteca de proyectos. El motor de conversaciones y el widget web todavía no están conectados.", "This is the project library. The conversation engine and web widget are not connected yet.")}</p>
       </Panel>
       <ProjectsIndex lang={lang} module="chatbots" base="/admin/workspace/ai-chatbots" projects={projects}
         noun={{ es: "chatbots registrados", en: "registered chatbots" }} showArchived={showArchived} />
