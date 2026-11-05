@@ -10,6 +10,7 @@ export async function productMetrics(client: SupabaseClient, project: ProjectRow
     return {es,en,value:result.error?null:result.count};
   };
   switch (project.module) {
+    case 'chatbots': return []; // No chat/inference telemetry until a real provider is integrated.
     case 'website': return Promise.all([count('os_website_pages','P\u00e1ginas guardadas','Saved pages'),count('os_website_pages','Publicadas internamente','Internally published','published')]);
     case 'ecommerce': return Promise.all([count('os_store_products','Productos guardados','Saved products'),count('os_store_products','Productos activos','Active products','active')]);
     case 'receptionist': return [await count('os_receptionist_entries','Entradas de conocimiento','Knowledge entries')];
