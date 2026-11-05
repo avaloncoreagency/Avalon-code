@@ -18,7 +18,7 @@ const NOW='2026-11-02T13:00:00.000Z';
 const req={title:'Fix contact form',details:'Validate error messages in staging',priority:'normal'};
 const apply=(s={},action='request',input=req,service='website',id=B)=>d.applyProductAction(s,service,action,input,A,NOW,id);
 const project=(id,client,name='Product')=>({id,module:'website',name,description:'Client product',status:'active',settings:{operations:{client_lead_id:client},secret_not_for_cards:'private'},updated_at:NOW});
-test('five tools have separate useful checklists',()=>{assert.equal(Object.keys(d.SERVICES).length,5);assert.ok(d.SERVICES.ecommerce.checks.includes('checkout-sandbox'));assert.ok(d.SERVICES.receptionist.checks.includes('handoff'));});
+test('six tools have separate useful checklists',()=>{assert.equal(Object.keys(d.SERVICES).length,6);assert.ok(d.SERVICES.ecommerce.checks.includes('checkout-sandbox'));assert.ok(d.SERVICES.receptionist.checks.includes('handoff'));assert.ok(d.SERVICES.chatbots.checks.includes('privacy'));});
 test('empty state has no fabricated results',()=>{const s=d.readProductState(undefined);assert.equal(s.requests.length,0);assert.equal(s.checks.length,0);});
 test('same company reference groups multiple products',()=>{const g=d.groupCompanies([project(B,A),project(C,A)],[{id:A,company:'Company A'}]);assert.equal(g.length,1);assert.equal(g[0].active,2);assert.equal(g[0].name,'Company A');});
 test('identical company names never merge distinct CRM IDs',()=>{const g=d.groupCompanies([project(B,A),project(C,B)],[{id:A,company:'Same'},{id:B,company:'Same'}]);assert.equal(g.length,2);});
