@@ -79,3 +79,14 @@ test('iPhone and keyboard controls remain accessible without new image or paid d
   assert.match(office, /href="#office-directory"/);
   assert.match(office, /href="#office-kpis"/);
 });
+
+test('only the newest GitHub activity response is rendered after iPhone tab resume', () => {
+  assert.match(hq, /const activitySequence = useRef\(0\)/);
+  assert.match(hq, /const sequence = \+\+activitySequence\.current/);
+  assert.equal((hq.match(/sequence !== activitySequence\.current/g) || []).length, 2,
+    'success and network error must both ignore superseded responses');
+  assert.match(hq, /document\.addEventListener\("visibilitychange", onActivityVisibility\)/);
+  assert.match(hq, /document\.removeEventListener\("visibilitychange", onActivityVisibility\)/);
+  assert.match(hq, /activitySequence\.current\+\+; \/\/ Invalidate responses/);
+  assert.match(hq, /if \(document\.visibilityState === "visible"\) void load\(\)/);
+});

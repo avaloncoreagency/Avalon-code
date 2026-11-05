@@ -36,6 +36,8 @@ export function Hq3d({ team = [], onSelectPerson, onActivityChange }: { team?: H
   const mount = useRef<HTMLDivElement>(null);
   const [activity, setActivity] = useState<Activity | null>(null);
   const [activityError, setActivityError] = useState(false);
+  // Only the most recently requested manager snapshot may update the 3D scene.
+  const activitySequence = useRef(0);
   const [selected, setSelected] = useState<string | null>(null);
   const [cameraPreset, setCameraPreset] = useState<Preset | null>("overview");
   const [lite, setLite] = useState<boolean | null>(null);
@@ -56,19 +58,32 @@ export function Hq3d({ team = [], onSelectPerson, onActivityChange }: { team?: H
   const teamKey = people.map(p => `${p.id}:${p.presence}`).join("|");
 
   const load = useCallback(async () => {
+    const sequence = ++activitySequence.current;
     try {
       const r = await fetch(ACTIVITY_URL, { cache: "no-store" });
       if (!r.ok) throw new Error(String(r.status));
       const next = await r.json() as HqActivity;
+      // Slow/failed older requests must not overwrite newer real telemetry.
+      if (sequence !== activitySequence.current) return;
       setActivity(next); setActivityError(false); activityListener.current?.(next);
-    } catch { setActivity(null); setActivityError(true); activityListener.current?.(null); }
+    } catch {
+      if (sequence !== activitySequence.current) return;
+      setActivity(null); setActivityError(true); activityListener.current?.(null);
+    }
   }, []);
 
   useEffect(() => {
     setLite(!supportsWebGL() || new URLSearchParams(location.search).get("vista") === "ligera");
-    load();
-    const t = setInterval(() => { if (document.visibilityState === "visible") load(); }, 20000);
-    return () => clearInterval(t);
+    void load();
+    // Safari may suspend intervals while backgrounded; refresh immediately on return.
+    const onActivityVisibility = () => { if (document.visibilityState === "visible") void load(); };
+    document.addEventListener("visibilitychange", onActivityVisibility);
+    const t = setInterval(onActivityVisibility, 20000);
+    return () => {
+      activitySequence.current++; // Invalidate responses that finish after unmount.
+      clearInterval(t);
+      document.removeEventListener("visibilitychange", onActivityVisibility);
+    };
   }, [load]);
 
   // Build the scene once; data changes only re-tint lights and redraw the real-data screens.
