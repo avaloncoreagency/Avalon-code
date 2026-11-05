@@ -4,9 +4,9 @@ import Link from "next/link";
 import { useEffect, useState } from "react";
 import {
   ACTIVITY_API, LEDGER, MANAGER_KEYS, MANAGER_ROLES, ORDERS_API, WORKFLOW_API,
-  activityLabel, isManagerKey, parseLedgerComments, readActivity, readPublicOrders,
+  activityLabel, parseLedgerComments, readActivity, readPublicOrders,
   safeDate, stageLabel, type ActivityFeed, type LedgerEntry, type ManagerKey, type PublicOrder,
-  type OrderStage,
+
 } from "@/lib/office/manager-operations-ui";
 import s from "./manager-operations.module.css";
 
