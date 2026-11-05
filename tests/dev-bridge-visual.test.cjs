@@ -131,3 +131,43 @@ test('Supabase migrations and RLS are displayed only through the verified-source
   assert.match(section, /Ver RLS reportado/);
   assert.match(section, /Ver funciones reportadas/);
 });
+
+
+test('cached Vercel deployment details are not rendered as current after a failed refresh', () => {
+  const sectionStart = page.indexOf('aria-label="Despliegues de Vercel"');
+  const sectionEnd = page.indexOf('aria-label="Metadatos de Supabase"', sectionStart);
+  assert.ok(sectionStart > 0 && sectionEnd > sectionStart);
+  const section = page.slice(sectionStart, sectionEnd);
+  const start = section.indexOf('<VerifiedSourceOnly fact={state.vercel}>');
+  const end = section.indexOf('</VerifiedSourceOnly>', start);
+  assert.ok(start >= 0 && end > start, 'Vercel list must be guarded by provider freshness');
+  const guarded = section.slice(start, end);
+  assert.match(guarded, /className=\{s\.deployments\}/);
+  assert.match(guarded, /<BuildStatus code=\{d\.state\}/);
+  assert.match(guarded, /Abrir despliegue/);
+
+  const ts = require('typescript');
+  const React = require('react');
+  const { renderToStaticMarkup } = require('react-dom/server');
+  const compiled = ts.transpileModule(visuals, {
+    compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022, jsx: ts.JsxEmit.ReactJSX, esModuleInterop: true },
+  }).outputText;
+  const loaded = { exports: {} };
+  new Function('require', 'module', 'exports', compiled)(
+    name => name === '@/lib/dev-bridge/core' ? { freshness: fact => fact }
+      : name === './bridge.module.css' ? new Proxy({}, { get: (_target, key) => String(key) }) : require(name),
+    loaded, loaded.exports,
+  );
+  const render = (status, error) => renderToStaticMarkup(React.createElement(
+    loaded.exports.VerifiedSourceOnly,
+    { fact: { status, checked_at: '2026-11-05T12:00:00.000Z', verified_at: '2026-11-04T12:00:00.000Z',
+      data: [{ id: 'old-preview', state: 'READY' }], error } },
+    React.createElement('a', { href: 'https://synthetic-preview.invalid' }, 'Build listo: cached Vercel deployment'),
+  ));
+  assert.match(render('VERIFIED'), /Build listo: cached Vercel deployment/);
+  for (const [status, error] of [['STALE', 'synthetic provider secret'], ['UNKNOWN', null], ['VERIFIED', 'synthetic failed refresh']]) {
+    const html = render(status, error);
+    assert.match(html, /Metadatos no verificados actualmente/);
+    assert.doesNotMatch(html, /Build listo: cached Vercel deployment|synthetic-preview\.invalid|synthetic provider secret|synthetic failed refresh/);
+  }
+});
