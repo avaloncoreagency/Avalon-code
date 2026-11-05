@@ -121,3 +121,13 @@ test('quick drag, pinch and cancelled pointer cannot raycast a workstation as a 
   assert.match(hq, /addEventListener\("pointercancel", onCancel\)/);
   assert.match(hq, /removeEventListener\("pointercancel", onCancel\)/);
 });
+
+
+test('lost pointer capture and Safari window blur clear stale workstation gestures', () => {
+  assert.match(hq, /const onLostCapture = \(e: PointerEvent\) => \{ activePointers\.delete\(e\.pointerId\); tapStart = null; \}/);
+  assert.match(hq, /const onWindowBlur = \(\) => \{ activePointers\.clear\(\); tapStart = null; \}/);
+  assert.match(hq, /addEventListener\("lostpointercapture", onLostCapture\)/);
+  assert.match(hq, /removeEventListener\("lostpointercapture", onLostCapture\)/);
+  assert.match(hq, /window\.addEventListener\("blur", onWindowBlur\)/);
+  assert.match(hq, /window\.removeEventListener\("blur", onWindowBlur\)/);
+});

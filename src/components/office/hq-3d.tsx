@@ -378,6 +378,12 @@ export function Hq3d({ team = [], onSelectPerson, onActivityChange }: { team?: H
       renderer.domElement.addEventListener("pointerup", onUp);
       const onCancel = (e: PointerEvent) => { activePointers.delete(e.pointerId); tapStart = null; };
       renderer.domElement.addEventListener("pointercancel", onCancel);
+      // Safari can lose pointer capture during tab/app switches without pointerup/cancel.
+      // Clear the gesture so a stale finger cannot block the next station tap.
+      const onLostCapture = (e: PointerEvent) => { activePointers.delete(e.pointerId); tapStart = null; };
+      const onWindowBlur = () => { activePointers.clear(); tapStart = null; };
+      renderer.domElement.addEventListener("lostpointercapture", onLostCapture);
+      window.addEventListener("blur", onWindowBlur);
       const fly = (pos: THREE.Vector3, look: THREE.Vector3) => {
         if (reduced) { camera.position.copy(pos); controls.target.copy(look); invalidate(); return; }
         flight = { from: camera.position.clone(), to: pos, lookFrom: controls.target.clone(), lookTo: look, t0: performance.now() }; invalidate();
@@ -464,6 +470,8 @@ export function Hq3d({ team = [], onSelectPerson, onActivityChange }: { team?: H
         renderer.domElement.removeEventListener("pointerdown", onDown); renderer.domElement.removeEventListener("pointermove", onMove);
         renderer.domElement.removeEventListener("pointerup", onUp);
         renderer.domElement.removeEventListener("pointercancel", onCancel);
+        renderer.domElement.removeEventListener("lostpointercapture", onLostCapture);
+        window.removeEventListener("blur", onWindowBlur);
         controls.dispose(); envTex.dispose(); pmrem.dispose();
         scene.traverse(o => { const m = o as THREE.Mesh; m.geometry?.dispose(); const mat = m.material; (Array.isArray(mat) ? mat : mat ? [mat] : []).forEach(x => { (x as THREE.MeshStandardMaterial).map?.dispose(); x.dispose(); }); });
         renderer.dispose(); el.replaceChildren(); api.current = null;
