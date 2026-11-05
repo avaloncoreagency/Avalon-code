@@ -4,7 +4,7 @@ import { requireOwner } from '@/lib/auth/session';
 import { snapshot } from '@/lib/dev-bridge/runtime';
 import { collaboration, freshness, type Owner } from '@/lib/dev-bridge/core';
 import { BridgeAutoRefresh } from './bridge-auto-refresh';
-import { BridgeStatus, BuildStatus, CiStatus, Sha, SourceCard } from './bridge-visuals';
+import { BridgeStatus, BuildStatus, CiStatus, Sha, SourceCard, VerifiedSourceOnly } from './bridge-visuals';
 import s from './bridge.module.css';
 export const dynamic = 'force-dynamic';
 export default async function DevBridge() {
@@ -139,11 +139,13 @@ export default async function DevBridge() {
     </section>
     <section className={s.section} aria-label="Metadatos de Supabase">
       <div className={s.sectionTitle}><div><small>SUPABASE</small><h2>Metadatos de la base de datos</h2></div><BridgeStatus state={freshness(state.supabase).status === 'VERIFIED' ? 'verified' : 'unknown'} label={freshness(state.supabase).status === 'VERIFIED' ? 'Lectura verificada' : 'Desconocido'} /></div>
+      <VerifiedSourceOnly fact={state.supabase}>
       <p>Proyecto: <code>{state.supabase.data?.ref ?? 'Desconocido'}</code> · {state.supabase.data?.status ?? 'Sin estado disponible'}</p>
       <div className={s.metaLine}><span>{state.supabase.data?.migrations.length ?? 0} migraciones reportadas</span><span>{state.supabase.data?.rls.length ?? 0} tablas inspeccionadas</span></div>
       <details><summary>Ver migraciones reportadas</summary><ul>{state.supabase.data?.migrations.map(m => <li key={m}><code>{m}</code></li>)}</ul></details>
       <details><summary>Ver RLS reportado</summary><ul>{state.supabase.data?.rls.map(r => <li key={r.table}>{r.table}: <BridgeStatus state={r.enabled ? 'verified' : 'blocked'} label={r.enabled ? 'RLS habilitado' : 'RLS deshabilitado'} /></li>)}</ul></details>
       <details><summary>Ver funciones reportadas</summary><ul>{state.supabase.data?.functions.map(f => <li key={f.name}>{f.name}: {f.status}</li>)}</ul></details>
+      </VerifiedSourceOnly>
       <p className={s.muted}>Las políticas, el aislamiento de clientes, el runtime y las autorizaciones requieren pruebas adicionales. Esta vista no consulta datos personales ni secretos.</p>
     </section>
     <footer className={s.muted}>Fuente de verdad: Issues y commits de GitHub, junto a docs/dev-bridge. Una caché o una captura de esta vista nunca reemplaza las verificaciones del SHA y de los permisos actuales.</footer>
