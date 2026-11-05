@@ -134,10 +134,12 @@ test('control: scheduled runs fail closed without Avalon control; unreachable co
   assert.equal((await withEnv({ ...none, AVALON_AI_ENGINE_DISABLED: 'true' }, () => OPS.readControl())).killSwitch, true);
   // The fake Supabase runs in a CHILD process: readControl() uses a synchronous curl that would block an in-process server.
   const cp = require('node:child_process');
-  const replyFile = path.join(os.tmpdir(), `ctl-${process.pid}.json`);
+  const ctlDir = fs.mkdtempSync(path.join(os.tmpdir(), 'ctl-'));
+  const replyFile = path.join(ctlDir, 'reply.json');
   const setReply = r => fs.writeFileSync(replyFile, JSON.stringify(r));
   setReply({ kill_switch: true, automatic_enabled: true, ai_enabled: true, suspended: ['haru', 'Bad Key'] });
-  const child = cp.spawn(process.execPath, ['-e', `const fs=require('fs');require('http').createServer((q,r)=>{r.setHeader('content-type','application/json');r.end(fs.readFileSync(${JSON.stringify(replyFile)}))}).listen(0,'127.0.0.1',function(){console.log(this.address().port)})`]);
+  // Fixed server code; the reply file path is passed as an argument, never interpolated into code.
+  const child = cp.spawn(process.execPath, ['-e', "const fs=require('fs');const f=process.argv[1];require('http').createServer((q,r)=>{r.setHeader('content-type','application/json');r.end(fs.readFileSync(f))}).listen(0,'127.0.0.1',function(){console.log(this.address().port)})", replyFile]);
   const port = await new Promise(r => child.stdout.once('data', d => r(String(d).trim())));
   const url = `http://127.0.0.1:${port}`;
   const local = { AVALON_SUPABASE_URL: url, AVALON_SUPABASE_PUBLISHABLE_KEY: 'pk', no_proxy: '127.0.0.1', NO_PROXY: '127.0.0.1' };
@@ -150,7 +152,7 @@ test('control: scheduled runs fail closed without Avalon control; unreachable co
     assert.equal((await withEnv({ ...local, GITHUB_EVENT_NAME: 'schedule' }, () => OPS.readControl())).reason, 'avalon_control_rpc_missing');
     setReply({ unexpected: 1 });
     assert.equal((await withEnv(local, () => OPS.readControl())).killSwitch, true, 'malformed answer → fail closed');
-  } finally { child.kill(); fs.rmSync(replyFile, { force: true }); }
+  } finally { child.kill(); fs.rmSync(ctlDir, { recursive: true, force: true }); }
   assert.equal((await withEnv({ AVALON_SUPABASE_URL: 'http://127.0.0.1:9', AVALON_SUPABASE_PUBLISHABLE_KEY: 'pk', no_proxy: '127.0.0.1', NO_PROXY: '127.0.0.1' }, () => OPS.readControl())).reason, 'avalon_control_unreachable');
   // The control reaches runManager: Avalon kill switch / suspension block before any work.
   const h = harness();

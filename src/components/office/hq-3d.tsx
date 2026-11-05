@@ -315,7 +315,9 @@ export function Hq3d({ team = [], onSelectPerson }: { team?: HqPerson[]; onSelec
       let lastViews: Record<string, StationView> = {}; let lastActivity: Activity | null = null;
 
       // ── Interaction ───────────────────────────────────────────────────────────────────────────────────────────────
-      let target: THREE.Vector3 | null = null; let targetLook: THREE.Vector3 | null = null;
+      // Time-based camera flights (same duration on any device, unlike a per-frame lerp on a slow GPU).
+      let flight: { from: THREE.Vector3; to: THREE.Vector3; lookFrom: THREE.Vector3; lookTo: THREE.Vector3; t0: number } | null = null;
+      const FLIGHT_MS = 750;
       const ray = new T.Raycaster(); const ptr = new T.Vector2(); let downAt = 0;
       const onDown = () => { downAt = performance.now(); };
       const onUp = (e: PointerEvent) => {
@@ -331,7 +333,7 @@ export function Hq3d({ team = [], onSelectPerson }: { team?: HqPerson[]; onSelec
       renderer.domElement.addEventListener("pointerup", onUp);
       const fly = (pos: THREE.Vector3, look: THREE.Vector3) => {
         if (reduced) { camera.position.copy(pos); controls.target.copy(look); invalidate(); return; }
-        target = pos; targetLook = look; invalidate();
+        flight = { from: camera.position.clone(), to: pos, lookFrom: controls.target.clone(), lookTo: look, t0: performance.now() }; invalidate();
       };
       const PRESETS: Record<Preset, [THREE.Vector3, THREE.Vector3]> = {
         overview: [home.clone(), mobile ? new T.Vector3(0, 0, 0) : new T.Vector3(0, 1, -1.5)],
@@ -386,9 +388,11 @@ export function Hq3d({ team = [], onSelectPerson }: { team?: HqPerson[]; onSelec
           for (const st of Object.values(stations)) st.halo.opacity = st.animate ? 0.55 + Math.sin(t * 4) * 0.35 : 0.55;
         }
         let moving = false;
-        if (target && targetLook) {
-          camera.position.lerp(target, 0.09); controls.target.lerp(targetLook, 0.09); moving = true;
-          if (camera.position.distanceTo(target) < 0.04) target = targetLook = null;
+        if (flight) {
+          const k = Math.min(1, (performance.now() - flight.t0) / FLIGHT_MS);
+          const e = k < 0.5 ? 4 * k * k * k : 1 - Math.pow(-2 * k + 2, 3) / 2; // ease-in-out cubic
+          camera.position.lerpVectors(flight.from, flight.to, e); controls.target.lerpVectors(flight.lookFrom, flight.lookTo, e);
+          moving = k < 1; if (k >= 1) flight = null;
         }
         const changed = controls.update();
         renderer.render(scene, camera); labels.render(scene, camera);

@@ -14,7 +14,7 @@ const MIGUEL = '00000000-0000-4000-8000-0000000000a1';
 const SAMUEL = '00000000-0000-4000-8000-0000000000b2';
 const OUTSIDER = '00000000-0000-4000-8000-0000000000c3';
 const EVIDENCE = process.env.EVIDENCE_DIR || '../evidence';
-const ROUTES = ['/admin/dashboard', '/admin/workspace/crm', '/admin/workspace/crm/calendar', '/admin/workspace/crm/settings', '/admin/workspace/crm/sales', '/admin/workspace/crm/sales/new', '/admin/workspace/crm/clients', '/admin/workspace/crm/tasks', '/admin/workspace/crm/notifications', '/admin/workspace/crm/activity', '/admin/workspace/crm/office'];
+const ROUTES = ['/admin/dashboard', '/admin/workspace/crm', '/admin/workspace/crm/calendar', '/admin/workspace/crm/settings', '/admin/workspace/crm/sales', '/admin/workspace/crm/sales/new', '/admin/workspace/crm/clients', '/admin/workspace/crm/tasks', '/admin/workspace/crm/notifications', '/admin/workspace/crm/activity', '/admin/workspace/crm/office/hq']; // /crm/office redirects to the single Avalon HQ
 
 test('Nova Restaurant through the real app: one form, three departments, no duplicates', { timeout: 240000 }, async t => {
   const db = new PGlite();

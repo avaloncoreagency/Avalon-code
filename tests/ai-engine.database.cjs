@@ -25,6 +25,13 @@ test('AI engine schema: 10 profiles, inert reserved seats, $0-only ledger, servi
   assert.ok(profiles.every(p => p.ai_enabled === false));
   assert.equal((await q(`select ai_enabled from crm_agent_settings`))[0].ai_enabled, false);
 
+  // SHIN's posture review keeps flagging any OTHER anon-callable definer function (the control RPC is the only new exception).
+  await db.exec(`reset role; create function public.rogue_definer() returns int language sql security definer set search_path = '' as 'select 1'; grant execute on function public.rogue_definer() to anon;`);
+  const posture = (await q(`select public.crm_agent_security_posture_internal() p`))[0].p;
+  const anonFinding = posture.findings.find(f => /definidor ejecutables por anon/.test(f.finding));
+  assert.ok(anonFinding && /rogue_definer/.test(anonFinding.finding) && !/crm_ai_public_control/.test(anonFinding.finding), JSON.stringify(posture.findings));
+  await db.exec(`drop function public.rogue_definer();`);
+  await as(M);
   // Public control signal: anon gets ONLY switches + suspended keys; nothing else of the tables.
   await db.exec(`reset role; set role anon`);
   assert.deepEqual((await q(`select crm_ai_public_control() c`))[0].c, { kill_switch: false, automatic_enabled: false, ai_enabled: false, suspended: [] });

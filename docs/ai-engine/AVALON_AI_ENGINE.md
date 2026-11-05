@@ -36,8 +36,8 @@ Las claves son secretos de servidor (nunca `NEXT_PUBLIC_*`, comprobado en el gua
 |---|---|---|---|---|
 | REN | Dirección y desarrollo | plan diario; tareas de desarrollo de bajo riesgo | `operations_plan` (SQL), worker de desarrollo (rama + PR borrador, requiere revisión) | code+json, calidad ≥3 |
 | SHIN | Seguridad | postura de seguridad | `security_posture` (SQL) | reasoning |
-| HARU | CRM | seguimientos vencidos = tareas | `crm_followups`, `followup_tasks` (escritura interna) | rápido |
-| SORA | Lead Hunter | cola del Radar 4–5★ | `radar_review_queue` | json |
+| HARU | CRM y producto | seguimientos vencidos = tareas; 13 etapas, calendario y tareas | `crm_followups`, `followup_tasks` (escritura interna), pruebas CRM/calendario/tareas | rápido |
+| SORA | Integraciones (Radar, Geoapify, Higgsfield Bridge) | cola del Radar; integridad SHA-256 de recursos publicados; clave Geoapify privada | `radar_review_queue` + comprobación de integraciones | json |
 | KENJI | Calidad y costos | calidad de datos; coste IA = 0 | `data_quality_cost`, libro de uso IA | rápido |
 | Puestos 6–10 | Próxima incorporación — Equipo de Samuel | — | — | — (la base impide asignarles ejecutores o IA) |
 
@@ -96,6 +96,21 @@ dos veces a la vez, y reanudación tras caída (punto de control antes de trabaj
   analiza) → si pide algo del nivel propietario se marca `avalon:needs-owner` sin ejecutar → si no, ejecuta y responde en el Issue
   (`avalon:in-progress` → `avalon:done`).
 - Con proveedores configurados, cada manager añade un análisis de IA gratuita sobre sus hechos; sin ellos lo indica (`not_configured`).
+
+## Ciclo de vida de una orden (P0-A)
+Recibida → clasificada (manager + intención) → en ejecución → **diagnosticada** (`avalon:diagnosed`) / **implementación
+pendiente** (`avalon:needs-implementation`) / implementada (`avalon:implemented`, cambio sin verificación verde) /
+**verificada** (`avalon:verified`, cambio + pruebas en verde) / bloqueada / fallida / requiere propietario. Una rutina
+terminada nunca marca una orden como hecha; `avalon:done` ya no se produce. Una excepción devuelve la orden a la cola
+(máx. 3 intentos, luego `avalon:failed`); una orden atascada en curso >30 min se recupera (P0-B).
+
+## Un solo control operativo
+El interruptor de emergencia y las suspensiones de Avalon (Supabase, botón «Detener todo» de Avalon HQ) son la única
+fuente de verdad. GitHub Actions (rutina, recepción de órdenes y REN) los lee con `crm_ai_public_control()` y la clave
+**publicable** (variables de repositorio `AVALON_SUPABASE_URL`, `AVALON_SUPABASE_PUBLISHABLE_KEY`). Control inalcanzable
+o respuesta anómala → se detiene todo. Control no conectado (variables sin definir o migración sin aplicar) → las
+ejecuciones **programadas** no corren; una ejecución manual (etiqueta/dispatch, requiere permiso de escritura) sí, y lo
+indica. La variable `AVALON_AI_ENGINE_DISABLED=true` sigue funcionando como segundo freno.
 
 ## Rollback
 Variable `AVALON_AI_ENGINE_DISABLED=true` (para todo), borrar los secretos, revertir el PR. Base de datos: no aplicada; si se aplica,
