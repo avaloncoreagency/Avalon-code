@@ -9,11 +9,17 @@ const asRecord = (v: unknown): Record<string, unknown> | null =>
 const optionalString = (v: unknown) => v === null || typeof v === "string";
 
 /** A successful HTTP response is not evidence unless it includes the actual five run records. */
-export function parseHqActivity(payload: unknown): HqActivity | null {
+export function parseHqActivity(payload: unknown, nowMs = Date.now()): HqActivity | null {
   const root = asRecord(payload);
   const meta = asRecord(root?.meta);
   if (!meta || typeof meta.kill_switch !== "boolean" ||
       typeof meta.automatic_enabled !== "boolean" || typeof meta.executor_kind !== "string") return null;
+  // A syntactically valid 200 response can still be an old replay or a future-dated
+  // snapshot. The server stamps generated_at on every owner-only activity response.
+  // Fail closed rather than lighting desks for unverifiable stale telemetry.
+  if (typeof meta.generated_at !== "string" || !Number.isFinite(nowMs)) return null;
+  const generatedMs = Date.parse(meta.generated_at);
+  if (!Number.isFinite(generatedMs) || Math.abs(nowMs - generatedMs) > 120_000) return null;
   const managers = root?.managers;
   if (!Array.isArray(managers) || managers.length !== MANAGERS.length) return null;
   const seen = new Set<string>();

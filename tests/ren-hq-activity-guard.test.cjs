@@ -16,6 +16,7 @@ const row = key => ({ manager_key: key, run_id: null, status: "idle",
   result_summary: "", evidence_refs: [], error_code: null, updated_at: null });
 const valid = () => ({ managers: keys.map(row), meta: {
   kill_switch: false, automatic_enabled: false, executor_kind: "deterministic",
+  generated_at: new Date().toISOString(),
 }});
 
 test("verified five-manager activity is accepted without inventing executions", () => {
@@ -49,4 +50,18 @@ test("HQ discards untrusted payload before updating state or parent directory", 
   assert.match(hq, /if \(!next\) throw new Error\("invalid_hq_activity"\)/);
   assert.ok(hq.indexOf('if (!next) throw new Error("invalid_hq_activity")') < hq.indexOf('setActivity(next)'));
   assert.match(hq, /setActivity\(null\); setActivityError\(true\); activityListener\.current\?\.\(null\)/);
+});
+
+test("old, future or missing server timestamps cannot light the HQ from a replayed HTTP 200", () => {
+  const now = Date.parse("2026-11-05T23:00:00.000Z");
+  const fresh = valid(); fresh.meta.generated_at = new Date(now).toISOString();
+  assert.equal(parseHqActivity(fresh, now), fresh);
+  const expired = valid(); expired.meta.generated_at = new Date(now - 120_001).toISOString();
+  const future = valid(); future.meta.generated_at = new Date(now + 120_001).toISOString();
+  const missing = valid(); delete missing.meta.generated_at;
+  const invalid = valid(); invalid.meta.generated_at = "not-a-date";
+  for (const sample of [expired, future, missing, invalid]) {
+    assert.equal(parseHqActivity(sample, now), null);
+  }
+  assert.equal(parseHqActivity(fresh, Number.NaN), null, "invalid device clock fails closed");
 });
