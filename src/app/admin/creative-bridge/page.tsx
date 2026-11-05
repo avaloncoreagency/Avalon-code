@@ -147,7 +147,7 @@ export default async function CreativeBridge() {
   const clientNames = new Map(clientRows.map(c => [c.id, c.legal_name]));
   const gallery = rows.map(p => projectGallery(p, names, clientNames));
   return <Suite>
-    <main className={styles.bridge}>
+    <section className={styles.bridge} aria-label="Creative Bridge">
       <header className={styles.hero}>
         <div className={styles.heroBadge}>AVALON OS / HIGGSFIELD</div>
         <h1>Avalon Creative Bridge</h1>
@@ -174,6 +174,6 @@ export default async function CreativeBridge() {
         {!projects.error ? <CreativeControls projects={rows} leads={leadRows} sales={saleRows} /> : null}
       </section>
       <p className={styles.disclaimer}>La generación Higgsfield, aprobación humana, entrega firmada, integridad SHA-256 y publicación externa son controles independientes. La biblioteca no los sustituye.</p>
-    </main>
+    </section>
   </Suite>;
 }
