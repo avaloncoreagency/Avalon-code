@@ -57,7 +57,7 @@ export default async function DevBridge() {
                 <p><strong>Próximo paso reportado:</strong> {next_action ?? 'No registrado en la Issue.'}</p>
                 {completeGithub && next_action ? <a className={s.action} href={`/api/dev-bridge/resume?issue=${issue.number}&as=${owner === 'miguel' ? 'samuel' : 'miguel'}`}>
                   Preparar paquete para {owner === 'miguel' ? 'Samuel' : 'Miguel'} ↓
-                </a> : <p className={s.muted}>Handoff pendiente: falta lectura completa o un “Next action” registrado.</p>}
+                </a> : <p className={s.muted}>Descarga de continuación bloqueada: falta lectura completa o un “Next action” registrado.</p>}
               </div>) : <p>Sin PR vinculado a una Issue de {owner}. No significa que esté inactivo.</p>}
           </article>)}
         </div>
