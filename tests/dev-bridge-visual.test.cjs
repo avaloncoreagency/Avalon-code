@@ -100,4 +100,34 @@ test('source cards distinguish verified, stale, unknown and failed reads without
   assert.match(failed, /Error de conexión/);
   assert.match(failed, /No se pudo consultar al proveedor/);
   assert.doesNotMatch(failed, /private-secret-and-key|internal error/);
+
+  // A stale RLS flag might remain in the snapshot object. It is not safe to
+  // present that old flag as a current/verified Supabase result.
+  const renderEvidence = (status, error) => renderToStaticMarkup(React.createElement(
+    loaded.exports.VerifiedSourceOnly,
+    { fact: { status, error } },
+    React.createElement('strong', null, 'synthetic RLS enabled'),
+  ));
+  assert.match(renderEvidence('VERIFIED'), /synthetic RLS enabled/);
+  for (const [status, error] of [
+    ['STALE', null],
+    ['UNKNOWN', null],
+    ['VERIFIED', 'synthetic internal provider secret'],
+  ]) {
+    const html = renderEvidence(status, error);
+    assert.match(html, /Metadatos no verificados actualmente/);
+    assert.doesNotMatch(html, /synthetic RLS enabled|synthetic internal provider secret/);
+  }
+});
+
+test('Supabase migrations and RLS are displayed only through the verified-source gate', () => {
+  assert.match(page, /<VerifiedSourceOnly fact=\{state\.supabase\}>/);
+  assert.match(page, /<\/VerifiedSourceOnly>/);
+  const supabaseStart = page.indexOf('<VerifiedSourceOnly fact={state.supabase}>');
+  const supabaseEnd = page.indexOf('</VerifiedSourceOnly>', supabaseStart);
+  assert.ok(supabaseStart >= 0 && supabaseEnd > supabaseStart);
+  const section = page.slice(supabaseStart, supabaseEnd);
+  assert.match(section, /Ver migraciones reportadas/);
+  assert.match(section, /Ver RLS reportado/);
+  assert.match(section, /Ver funciones reportadas/);
 });
