@@ -18,7 +18,8 @@ export default async function DevBridge() {
   // Keep cached PRs available to the data layer, but do not present old
   // CI/commit evidence as currently verified when a provider refresh fails.
   const visiblePulls = githubFresh ? (github?.pulls ?? []) : [];
-  const visibleCommits = githubFresh ? (github?.commits ?? []) : [];
+  // Public-summary coverage verifies PR titles, not a full commit feed.
+  const visibleCommits = completeGithub ? (github?.commits ?? []) : [];
   // Lists claiming ownership and handoff readiness need full, fresh metadata.
   // A public-only or failed refresh cannot confirm whether an Issue has a PR.
   const verifiedGithub = completeGithub ? github : null;
