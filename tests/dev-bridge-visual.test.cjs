@@ -214,7 +214,7 @@ test('Dev Bridge does not present cached Issue ownership or integration claims a
     url: 'https://example.invalid/cached-commit',
     date: '2026-11-01', author: 'SYNTHETIC_CACHED_AUTHOR_DO_NOT_SHOW',
   };
-  const run = async (status, error, coverage = 'full', findings = []) => {
+  const run = async (status, error, coverage = 'full', findings = [], sourceOverrides = {}) => {
     const synthetic = {
       at: '2026-11-05T16:00:00.000Z',
       github: {
@@ -224,8 +224,8 @@ test('Dev Bridge does not present cached Issue ownership or integration claims a
         verified_at: '2026-11-05T15:59:00.000Z',
         data: { coverage, issues: [issue], pulls: [oldPull], commits: [oldCommit] },
       },
-      vercel: { status: 'UNKNOWN', data: null, verified_at: null },
-      supabase: { status: 'UNKNOWN', data: null, verified_at: null },
+      vercel: sourceOverrides.vercel ?? { status: 'UNKNOWN', data: null, verified_at: null },
+      supabase: sourceOverrides.supabase ?? { status: 'UNKNOWN', data: null, verified_at: null },
       findings,
     };
     const loaded = { exports: {} };
@@ -294,6 +294,19 @@ test('Dev Bridge does not present cached Issue ownership or integration claims a
   ]);
   assert.match(unavailable, /Lectura no verificada/);
   assert.doesNotMatch(unavailable, /Reportado por proveedor/);
+
+  // Inconsistent provider responses can keep a VERIFIED timestamp and an
+  // error simultaneously. Section headings must agree with the safe source
+  // cards and not advertise verified Vercel/Supabase metadata.
+  const inconsistentProviders = await run('UNKNOWN', undefined, 'full', [], {
+    vercel: { status: 'VERIFIED', error: 'Bearer synthetic-vercel-private', data: [],
+      checked_at: '2026-11-05T16:00:00.000Z', verified_at: '2026-11-05T15:59:00.000Z' },
+    supabase: { status: 'VERIFIED', error: 'Bearer synthetic-supabase-private', data: null,
+      checked_at: '2026-11-05T16:00:00.000Z', verified_at: '2026-11-05T15:59:00.000Z' },
+  });
+  assert.match(inconsistentProviders, /Sin verificación actual/);
+  assert.match(inconsistentProviders, /Desconocido/);
+  assert.doesNotMatch(inconsistentProviders, /Metadatos disponibles|Lectura verificada|synthetic-vercel-private|synthetic-supabase-private/);
 
   // Genuine current provider evidence must keep its original provenance.
   const failedCI = await run('VERIFIED', undefined, 'full', [
