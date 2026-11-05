@@ -15,3 +15,8 @@
 .filters input, .filters select { max-width: none; }
 .filters button { min-height: 44px; }
 @media (max-width: 480px) { .filters { grid-template-columns: 1fr; padding: 12px; } }
+
+/* SORA 0352-D: safe owner-only navigation to the four existing module libraries. */
+.libraryLinks { display: grid; grid-template-columns: repeat(auto-fit,minmax(min(100%,180px),1fr)); gap: 10px; margin: 12px 0 20px; }
+.libraryLinks a { display: flex; align-items: center; justify-content: center; min-height: 44px; padding: 10px; box-sizing: border-box; border: 1px solid #54678c; border-radius: 10px; background: #111c32; text-align: center; }
+@media (max-width: 480px) { .libraryLinks { grid-template-columns: 1fr 1fr; gap: 8px; } }

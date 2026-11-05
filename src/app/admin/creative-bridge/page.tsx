@@ -5,10 +5,14 @@ import Link from 'next/link';
 import {Suite} from '@/components/suite/suite';
 import {requireOwner} from '@/lib/auth/session';
 import {CreativeControls} from './controls';
+import {getLang} from '@/lib/i18n-server';
+import {pick} from '@/lib/i18n';
+import {CREATIVE_LIBRARY_LINKS} from './library-navigation';
 import {creativeStatus,filterLibrary} from './catalog';
 export const dynamic='force-dynamic';
 export default async function CreativeBridge({searchParams}:{searchParams:Promise<{q?:string;state?:string;client?:string}>}){
  const {supabase}=await requireOwner();
+ const lang=await getLang();
  const [projects,leads,sales]=await Promise.all([
   supabase.from('os_projects').select('id,name,module,version,client_id,settings,updated_at').eq('settings->creative->>provider','higgsfield').order('updated_at',{ascending:false}).limit(100),
   supabase.from('crm_leads').select('id,company').eq('archived',false).order('company').limit(100),
@@ -26,7 +30,7 @@ export default async function CreativeBridge({searchParams}:{searchParams:Promis
  const selectedClient=typeof params?.client==='string'?params.client:'';
  const searchText=typeof params?.q==='string'?params.q.slice(0,80):'';
  const leadNames=new Map((leads.data??[]).map(l=>[l.id,l.company]));
- return <Suite><section className={styles.bridge}><h1>Avalon Creative Bridge</h1><p>Proyectos digitales, bibliotecas y CRM. Registrar un borrador o una Preview no confirma una venta ni publica cambios.</p><p>Se muestran los últimos 100 productos creativos y hasta 100 tarjetas activas. Las referencias de recursos no conceden acceso a sus plataformas.</p>
+ return <Suite><section className={styles.bridge}><h1>Avalon Creative Bridge</h1><nav aria-label={pick(lang,'Bibliotecas relacionadas','Related libraries')} className={styles.libraryLinks}>{CREATIVE_LIBRARY_LINKS.map(link=><Link key={link.id} href={link.href}>{pick(lang,link.es,link.en)}</Link>)}</nav><p>Proyectos digitales, bibliotecas y CRM. Registrar un borrador o una Preview no confirma una venta ni publica cambios.</p><p>Se muestran los últimos 100 productos creativos y hasta 100 tarjetas activas. Las referencias de recursos no conceden acceso a sus plataformas.</p>
  {projects.error||leads.error||sales.error?<p role="alert">No se pudo leer el bridge. Revisa conexión, permisos y migraciones aprobadas.</p>:<><CreativeControls projects={projects.data??[]} leads={leads.data??[]} sales={sales.data??[]}/><h2>Biblioteca por cliente y proyecto</h2><form method="get" action="/admin/creative-bridge" className={styles.filters}>
  <label>Buscar proyecto<input type="search" name="q" defaultValue={searchText} maxLength={80} placeholder="Nombre del proyecto"/></label>
  <label>Estado<select name="state" defaultValue={selectedState}><option value="">Todos</option><option value="imported">Importado local</option><option value="pending">Pendiente</option><option value="blocked">Bloqueado</option><option value="reference_only">Solo referencia</option></select></label>
