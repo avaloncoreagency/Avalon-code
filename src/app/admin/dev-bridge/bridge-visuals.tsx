@@ -25,7 +25,7 @@ export function SourceCard({
   limited?: boolean;
 }) {
   const current = freshness(fact).status;
-  const state: State = current === "VERIFIED" ? "verified" : "unknown";
+  const state: State = current === "VERIFIED" ? (limited ? "pending" : "verified") : "unknown";
   const description = current === "STALE"
     ? "Última lectura desactualizada; no confirma el estado actual."
     : current !== "VERIFIED"
