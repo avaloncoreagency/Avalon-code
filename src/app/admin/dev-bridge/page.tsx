@@ -15,6 +15,10 @@ export default async function DevBridge() {
   const completeGithub = freshness(state.github).status === 'VERIFIED' && !publicOnly && !state.github.error;
   const owners: Owner[] = ['miguel', 'samuel'];
   const githubFresh = freshness(state.github).status === 'VERIFIED' && !state.github.error;
+  // Keep cached PRs available to the data layer, but do not present old
+  // CI/commit evidence as currently verified when a provider refresh fails.
+  const visiblePulls = githubFresh ? (github?.pulls ?? []) : [];
+  const visibleCommits = githubFresh ? (github?.commits ?? []) : [];
   // Lists claiming ownership and handoff readiness need full, fresh metadata.
   // A public-only or failed refresh cannot confirm whether an Issue has a PR.
   const verifiedGithub = completeGithub ? github : null;
@@ -112,27 +116,27 @@ export default async function DevBridge() {
         : <ul>{verifiedGithub?.issues.filter(i=>i.labels.includes('type:integration')||i.labels.includes('type:handoff')).map(i=><li key={i.id}><a href={i.url}>#{i.number} {i.title}</a> · {i.state}</li>)}</ul>}
       <p>Próximo release: UNKNOWN hasta aprobación de los propietarios.</p></section>
     <section className={s.section} aria-label="PR abiertos y CI">
-      <div className={s.sectionTitle}><div><small>GITHUB</small><h2>PR abiertos y sus verificaciones</h2></div><span className={s.muted}>{github?.pulls.length ?? 0} PR visibles</span></div>
+      <div className={s.sectionTitle}><div><small>GITHUB</small><h2>PR abiertos y sus verificaciones</h2></div><span className={s.muted}>{githubFresh ? `${visiblePulls.length} PR visibles` : 'PRs sin lectura actual'}</span></div>
       <p className={s.muted}>CI corresponde a checks de GitHub, no al build de Vercel. Una coincidencia de archivos no es un conflicto de merge confirmado.</p>
       {!githubFresh ? <p className={s.noticeText}>Los PR mostrados proceden de una lectura antigua o desconocida. No son una confirmación actual y no permiten preparar handoffs.</p> : null}
       <div className={s.desktopTable}><div className={s.scroll} tabIndex={0} role="region" aria-label="Tabla de pull requests desplazable horizontalmente">
-        <table><thead><tr><th>PR / rama / SHA</th><th>CI</th><th>Integración</th><th>Archivos</th></tr></thead><tbody>{github?.pulls.map(p =>
+        <table><thead><tr><th>PR / rama / SHA</th><th>CI</th><th>Integración</th><th>Archivos</th></tr></thead><tbody>{visiblePulls.map(p =>
           <tr key={p.number}><td><a href={p.url}>#{p.number} {p.title}</a><span className={s.muted}>{p.branch}</span><Sha value={p.head_sha} /></td>
-          <td><CiStatus code={p.ci} /></td>
+          <td><CiStatus code={completeGithub ? p.ci : null} /></td>
           <td>{publicOnly ? 'Desconocido' : p.conflict === null ? 'Conflicto desconocido' : p.conflict ? 'Conflicto confirmado' : 'Sin conflicto detectado'}
             <span className={s.muted}>{publicOnly ? 'Desfase desconocido' : `${p.behind} commits de diferencia reportada`}</span></td>
           <td>{publicOnly ? 'Desconocido' : <details><summary>{p.files.length} archivos</summary><ul>{p.files.map(f => <li key={f}>{f}</li>)}</ul></details>}</td></tr>
         )}</tbody></table>
       </div></div>
-      <div className={s.mobilePRs}>{github?.pulls.map(p => <article className={s.mobilePR} key={p.number}>
+      <div className={s.mobilePRs}>{visiblePulls.map(p => <article className={s.mobilePR} key={p.number}>
         <a className={s.taskTitle} href={p.url}>PR #{p.number} · {p.title}</a>
-        <div className={s.metaLine}><CiStatus code={p.ci} /><Sha value={p.head_sha} /></div>
+        <div className={s.metaLine}><CiStatus code={completeGithub ? p.ci : null} /><Sha value={p.head_sha} /></div>
         <p className={s.muted}>{p.branch}</p>
         <p>{publicOnly || p.conflict === null ? 'Integración: Desconocida' : p.conflict ? 'Conflicto de integración confirmado' : 'Sin conflicto detectado'}</p>
         {publicOnly ? <p className={s.muted}>Archivos y CI no verificados.</p> : <details><summary>Archivos tocados · {p.files.length}</summary><ul>{p.files.map(f => <li key={f}>{f}</li>)}</ul></details>}
       </article>)}</div>
-      {!github?.pulls.length ? <p className={s.muted}>Sin PRs obtenidos; la ausencia de datos no demuestra que el repositorio esté vacío.</p> : null}
-      <details><summary>Commits recientes</summary><ul>{github?.commits.slice(0, 20).map(c => <li key={c.sha}><a href={c.url}><Sha value={c.sha} /></a> · {c.date} · autor reportado: {c.author}</li>)}</ul></details>
+      {!visiblePulls.length ? <p className={s.muted}>Sin PRs verificados en la lectura actual. Esto no demuestra que el repositorio esté vacío.</p> : null}
+      <details><summary>Commits recientes</summary><ul>{visibleCommits.slice(0, 20).map(c => <li key={c.sha}><a href={c.url}><Sha value={c.sha} /></a> · {c.date} · autor reportado: {c.author}</li>)}</ul></details>
     </section>
     <section className={s.section} aria-label="Despliegues de Vercel">
       <div className={s.sectionTitle}><div><small>VERCEL</small><h2>Despliegues</h2></div><BridgeStatus state={freshness(state.vercel).status === 'VERIFIED' ? 'verified' : 'unknown'} label={freshness(state.vercel).status === 'VERIFIED' ? 'Metadatos disponibles' : 'Sin verificación actual'} /></div>
