@@ -46,3 +46,58 @@ test('mobile layout uses cards, accessible focus, min 44px actions and reduced m
   assert.match(css, /focus-visible/);
   assert.match(css, /prefers-reduced-motion: reduce/);
 });
+
+
+test('source cards distinguish verified, stale, unknown and failed reads without leaking provider errors', () => {
+  const ts = require('typescript');
+  const React = require('react');
+  const { renderToStaticMarkup } = require('react-dom/server');
+  const compiled = ts.transpileModule(visuals, {
+    compilerOptions: {
+      module: ts.ModuleKind.CommonJS,
+      target: ts.ScriptTarget.ES2022,
+      jsx: ts.JsxEmit.ReactJSX,
+      esModuleInterop: true,
+    },
+  }).outputText;
+  const loaded = { exports: {} };
+  const styles = new Proxy({}, { get: (_target, name) => String(name) });
+  const mockRequire = name => {
+    if (name === '@/lib/dev-bridge/core') return { freshness: fact => fact };
+    if (name === './bridge.module.css') return styles;
+    return require(name);
+  };
+  new Function('require', 'module', 'exports', compiled)(mockRequire, loaded, loaded.exports);
+  const render = (status, error, limited = false) => renderToStaticMarkup(React.createElement(
+    loaded.exports.SourceCard,
+    { name: 'github', limited, fact: {
+      status,
+      data: status === 'UNKNOWN' ? null : { coverage: 'summary' },
+      checked_at: '2026-11-05T15:00:00.000Z',
+      verified_at: status === 'UNKNOWN' ? null : '2026-11-05T14:00:00.000Z',
+      ...(error ? { error } : {}),
+    } },
+  ));
+
+  const fresh = render('VERIFIED');
+  assert.match(fresh, /Lectura verificada/);
+  assert.doesNotMatch(fresh, /Desactualizado|Error de conexión/);
+
+  const limited = render('VERIFIED', undefined, true);
+  assert.match(limited, /Parcial/);
+  assert.match(limited, /no verifica CI/);
+
+  const stale = render('STALE', 'Bearer do-not-display-this-token');
+  assert.match(stale, /Desactualizado/);
+  assert.match(stale, /Solo hay datos anteriores/);
+  assert.doesNotMatch(stale, /do-not-display-this-token|Bearer/);
+
+  const unknown = render('UNKNOWN');
+  assert.match(unknown, /Desconocido/);
+  assert.match(unknown, /Sin lectura actual confirmada/);
+
+  const failed = render('UNKNOWN', 'internal error with private-secret-and-key');
+  assert.match(failed, /Error de conexión/);
+  assert.match(failed, /No se pudo consultar al proveedor/);
+  assert.doesNotMatch(failed, /private-secret-and-key|internal error/);
+});
