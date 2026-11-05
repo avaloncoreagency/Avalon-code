@@ -2,7 +2,7 @@
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties, type FormEvent } from "react";
 import type { Lang } from "@/lib/i18n";
-import { Hq3d, type HqPerson } from "./hq-3d";
+import { Hq3d, type HqPerson, type HqActivity } from "./hq-3d";
 import { PresenceAvatar, presenceName } from "./presence-avatar";
 import type { StaffPresence } from "@/lib/office/presence";
 import s from "./office.module.css";
@@ -42,9 +42,11 @@ const projectHref = (project: StaffProject) =>
 const PERIODS = [["7", "7 días", "7 days"], ["30", "30 días", "30 days"], ["90", "90 días", "90 days"], ["all", "Todo", "All time"]] as const;
 const REFS = [["lead", "Lead", "Lead"], ["client", "Cliente", "Client"], ["sale", "Venta", "Sale"], ["project", "Proyecto", "Project"], ["task", "Tarea", "Task"]] as const;
 const ROLE: Record<string, [string, string]> = { owner: ["Propietario", "Owner"], admin: ["Administrador", "Admin"], operator: ["Operador", "Operator"] };
-const STATUS: Record<string, [string, string]> = {
-  available: ["Disponible", "Available"], configured_idle: ["Configurado pero no ejecutado", "Configured, not run"],
-  offline: ["Sin conexión", "Offline"], not_implemented: ["No implementado", "Not implemented"],
+// Legacy Office directory reads the same verified activity as HQ (not the stale API offline flag).
+const RUN_STATUS: Record<string, [string, string]> = {
+  idle: ["Sin ejecutar", "Not run"], queued: ["En cola", "Queued"], running: ["Ejecutando", "Running"],
+  completed: ["Última ejecución completada", "Last run completed"], failed: ["Falló", "Failed"],
+  blocked: ["Bloqueado", "Blocked"], stale: ["Ejecución antigua", "Stale run"],
 };
 
 const refHref = (type: string | null, id: string | null) =>
@@ -64,6 +66,7 @@ export function Office({ lang }: { lang: Lang }) {
   const t = useCallback((es: string, en: string) => (lang === "en" ? en : es), [lang]);
   const when = useCallback((v: string | null | undefined) => (v ? new Intl.DateTimeFormat(lang === "en" ? "en" : "es", { dateStyle: "medium", timeStyle: "short" }).format(new Date(v)) : "—"), [lang]);
   const [data, setData] = useState<Data | null>(null);
+  const [managerActivity, setManagerActivity] = useState<HqActivity | null>(null);
   const [error, setError] = useState("");
   const [period, setPeriod] = useState("30");
   const [role, setRole] = useState("all");
@@ -97,11 +100,12 @@ export function Office({ lang }: { lang: Lang }) {
 
   const selectedMember = selected?.kind === "member" ? data?.members.find(m => m.user_id === selected.id) ?? null : null;
   const selectedManager = selected?.kind === "manager" ? data?.managers.find(m => m.key === selected.key) ?? null : null;
+  const managerRun = (key: string) => managerActivity?.managers.find(m => m.manager_key === key) ?? null;
 
   // ONE office: the 3D HQ is always the first element (same tree position while loading, so it never remounts).
   const hqTeam: HqPerson[] = (data?.members ?? []).map(m => ({ id: m.user_id, name: nameOf(m), initials: initials(nameOf(m)),
     subtitle: m.title || t(...ROLE[m.role] ?? ["Miembro", "Member"]), presence: m.presence?.state ?? "inactive" }));
-  const hq = <Hq3d team={hqTeam} onSelectPerson={id => setSelected({ kind: "member", id })} />;
+  const hq = <Hq3d team={hqTeam} onSelectPerson={id => setSelected({ kind: "member", id })} onActivityChange={setManagerActivity} />;
   if (error) return <div className={s.office}>{hq}<p role="alert" className={s.alert}>{error}</p></div>;
   if (!data) return (
     <div className={s.office} aria-busy="true">
@@ -129,16 +133,23 @@ export function Office({ lang }: { lang: Lang }) {
   );
   const agentCard = (m: Manager) => (
     <button key={m.key} type="button" className={s.person} data-selected={selected?.kind === "manager" && selected.key === m.key}
-      onClick={() => setSelected({ kind: "manager", key: m.key })} aria-label={`${t("Abrir perfil de", "Open profile of")} ${m.name} (${t("manager virtual de IA", "virtual AI manager")})`}>
+      onClick={() => setSelected({ kind: "manager", key: m.key })} aria-label={`${t("Abrir ficha de", "Open details for")} ${m.name} (${t("manager de operaciones", "operations manager")})`}>
       <span className={s.agentMark} style={{ "--hue": m.hue } as CSSProperties}>{m.name.slice(0, 2)}</span>
-      <span className={s.personText}><strong>{m.name} <em className={s.aiTag}>IA</em></strong><small>{lang === "en" ? m.role.en : m.role.es}</small></span>
-      <span className={s.chips}><span data-tone="muted">{t(...STATUS[m.status])}</span>{m.registered > 0 && <span>{m.registered} {t("registradas", "logged")}</span>}</span>
+      <span className={s.personText}><strong>{m.name} <em className={s.aiTag}>OPS</em></strong><small>{lang === "en" ? m.role.en : m.role.es}</small></span>
+      <span className={s.chips}><span data-tone="muted">{managerActivity ? t(...RUN_STATUS[managerRun(m.key)?.status ?? "idle"]) : t("Estado no disponible", "Status unavailable")}</span>{m.registered > 0 && <span>{m.registered} {t("registradas", "logged")}</span>}</span>
     </button>
   );
 
   return (
     <div className={s.office}>
       {hq}
+      <nav className={s.quickNav} aria-label={t("Accesos de la oficina", "Office shortcuts")}>
+        <a href="#office-directory">{t("Equipo · mensajes · proyectos", "Team · messages · projects")}</a>
+        <a href="#office-kpis">{t("Indicadores", "Metrics")}</a>
+        <a href="#office-activity">{t("Actividad", "Activity")}</a>
+        <Link href="/admin/workspace/crm/tasks">{t("Tareas", "Tasks")}</Link>
+        <Link href="/admin/workspace/crm/office/manager-work">{t("Ejecuciones y evidencias", "Runs and evidence")}</Link>
+      </nav>
       <p className={s.sceneHint}>{t("Toca un manager, un puesto o a una persona en la sede. Dirección: verde disponible, ámbar ocupado en calendario, rojo fuera de horario (no indica conexión en línea). Los managers solo se animan durante una ejecución real.",
         "Tap a manager, a seat or a person in the HQ. Direction: green available, amber busy on the calendar, red off hours (not an online signal). Managers only animate during a real run.")}</p>
       <header className={s.hero}>
@@ -159,7 +170,7 @@ export function Office({ lang }: { lang: Lang }) {
         <label>{t("Rol", "Role")}<select value={role} onChange={e => setRole(e.target.value)}>
           <option value="all">{t("Todos", "All")}</option>
           {[...new Set(data.members.map(m => m.role))].map(r => <option key={r} value={r}>{t(...ROLE[r] ?? [r, r])}</option>)}
-          <option value="ai">{t("Managers de IA", "AI managers")}</option>
+          <option value="ai">{t("Managers operativos", "Operations managers")}</option>
         </select></label>
         <label>{t("Departamento", "Department")}<select value={department} onChange={e => setDepartment(e.target.value)} disabled={!departments.length}>
           <option value="all">{departments.length ? t("Todos", "All") : t("Sin departamentos", "No departments")}</option>
@@ -171,21 +182,21 @@ export function Office({ lang }: { lang: Lang }) {
         </select></label>
       </section>
 
-      <section className={s.directory} aria-label={t("Directorio", "Directory")}>
+      <section id="office-directory" className={s.directory} aria-label={t("Directorio", "Directory")}>
         <h2>{t("Personas", "People")} <small>{members.length}</small></h2>
         <div className={s.grid}>{members.map(card)}{!members.length && <p className={s.empty}>{t("Nadie coincide con los filtros.", "Nobody matches the filters.")}</p>}</div>
-        {managers.length > 0 && <><h2>{t("Managers virtuales de IA", "Virtual AI managers")} <small>{managers.length}</small></h2><div className={s.grid}>{managers.map(agentCard)}</div></>}
+        {managers.length > 0 && <><h2>{t("Managers operativos", "Operations managers")} <small>{managers.length}</small></h2><div className={s.grid}>{managers.map(agentCard)}</div></>}
       </section>
 
-      <section className={s.kpis} aria-label={t("Estadísticas de la Oficina", "Office statistics")}>
+      <section id="office-kpis" className={s.kpis} aria-label={t("Estadísticas de la Oficina", "Office statistics")}>
         <Kpi label={t("Miembros humanos", "Human members")} value={data.members.length} />
-        <Kpi label={t("Managers virtuales configurados", "Virtual managers configured")} value={data.managers.length} />
+        <Kpi label={t("Managers configurados", "Managers configured")} value={data.managers.length} />
         <Kpi label={t("Tareas activas", "Active tasks")} value={data.tasksReady ? (filtered ? totals.open : data.team.active) : null} />
         <Kpi label={t("Tareas vencidas", "Overdue tasks")} value={data.tasksReady ? (filtered ? totals.overdue : data.team.overdue) : null} tone={(filtered ? totals.overdue : data.team.overdue) > 0 ? "danger" : undefined} />
         <Kpi label={t("Completadas en el periodo", "Completed in period")} value={data.tasksReady ? (filtered ? totals.done : data.team.done) : null} />
         <Kpi label={t("Proyectos activos", "Active projects")} value={data.team.projects} />
-        <Kpi label={t("Agentes con integración", "Agents with integration")} value={data.managers.filter(m => m.status === "available").length} />
-        <Kpi label={t("Agentes sin conexión", "Agents offline")} value={data.managers.filter(m => m.status !== "available").length} tone="muted" />
+        <Kpi label={t("Managers con ejecuciones registradas", "Managers with recorded runs")} value={managerActivity ? managerActivity.managers.filter(m => m.run_id !== null).length : null} />
+        <Kpi label={t("Managers ejecutando ahora", "Managers running now")} value={managerActivity ? managerActivity.managers.filter(m => m.status === "running").length : null} />
       </section>
 
       <div className={s.lower}>
@@ -216,7 +227,7 @@ export function Office({ lang }: { lang: Lang }) {
       </div>
 
       {selectedMember && <MemberPanel key={selectedMember.user_id} member={selectedMember} data={data} lang={lang} when={when} onClose={() => setSelected(null)} onChanged={reload} />}
-      {selectedManager && <ManagerPanel key={selectedManager.key} manager={selectedManager} data={data} lang={lang} when={when} onClose={() => setSelected(null)} onChanged={reload} />}
+      {selectedManager && <ManagerPanel key={selectedManager.key} manager={selectedManager} execution={managerRun(selectedManager.key)} data={data} lang={lang} when={when} onClose={() => setSelected(null)} onChanged={reload} />}
     </div>
   );
 }
