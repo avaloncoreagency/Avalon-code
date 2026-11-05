@@ -22,9 +22,8 @@ jobs:
       NODE_PATH: ./tests/qa/node_modules
       HQ_BROWSER: '1'
       HQ_EVIDENCE: artifacts/hq-0352
-      NEXT_PUBLIC_SUPABASE_URL: http://127.0.0.1:54321
-      NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: synthetic-hq-test-key
-      APP_ORIGIN: http://127.0.0.1:3000
+      # Browser fixture injects a fresh synthetic bridge port into next start.
+      # Do not freeze NEXT_PUBLIC_SUPABASE_URL during next build: that hardcodes a dead port.
     steps:
       - name: Checkout exact PR HEAD (read-only, no token persistence)
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
