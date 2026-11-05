@@ -97,7 +97,7 @@ async function main() {
   // 1. Discover ----------------------------------------------------------------------------------------------------
   let target = done('discover');
   if (!target) {
-    const recent = new Set(E.recall(store.load(), 'ren', 50).filter(m => !/^edit_rejected|sin proveedor|edición rechazada/.test(m.text)).map(m => (/file=(\S+)/.exec(m.text) || [])[1]).filter(Boolean));
+    const recent = new Set(E.recall(store.load(), 'ren', 50).filter(m => !(m.text.startsWith('edit_rejected') || m.text.includes('sin proveedor') || m.text.includes('edición rechazada'))).map(m => (/file=(\S+)/.exec(m.text) || [])[1]).filter(Boolean));
     const by = warningsByFile(lint('.'));
     const files = Object.keys(by).sort().filter(f => !recent.has(f));
     if (!files.length) { step('discover', null); return finish('succeeded', 'Sin tareas de bajo riesgo pendientes (0 avisos permitidos sin intentar).'); }
