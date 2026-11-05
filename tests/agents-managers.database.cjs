@@ -18,11 +18,11 @@ function load(name) { // transpile src/lib/agents/<name>.ts; relative imports re
 // Minimal PostgREST-like builder over the caller's role (RLS applies because queries run as `authenticated`).
 function client(db) {
   const qb = table => {
-    const f = []; let cols = '*', ord = '', lim = '', single = false;
+    const f = []; let cols = '*', ord = '', lim = '';
     const b = {
       select(c) { cols = c; return b; },
       eq(c, v) { f.push([`${c} = $`, v]); return b; }, lt(c, v) { f.push([`${c} < $`, v]); return b; }, gt(c, v) { f.push([`${c} > $`, v]); return b; },
-      is(c, v) { f.push([`${c} is null`]); return b; }, in(c, vs) { f.push([`${c} = any($)`, vs]); return b; },
+      is(c) { f.push([`${c} is null`]); return b; }, in(c, vs) { f.push([`${c} = any($)`, vs]); return b; },
       order(c) { ord = ` order by ${c}`; return b; }, limit(n) { lim = ` limit ${Number(n)}`; return b; },
       then(res, rej) {
         const params = []; const where = f.map(([s, v]) => v === undefined ? s : (params.push(v), s.split('$').join('$' + params.length))).join(' and ');
