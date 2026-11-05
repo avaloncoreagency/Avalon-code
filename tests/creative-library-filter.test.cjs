@@ -3,12 +3,18 @@ const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const ts = require('typescript');
 const src = fs.readFileSync('src/app/admin/creative-bridge/catalog.ts', 'utf8');
-const js = ts.transpileModule(src, {compilerOptions:{target:ts.ScriptTarget.ES2022,module:ts.ModuleKind.CommonJS}}).outputText;
+const compile = (text) => ts.transpileModule(text, {compilerOptions:{target:ts.ScriptTarget.ES2022,module:ts.ModuleKind.CommonJS}}).outputText;
+const media = {exports:{}};
+new Function('module', 'exports', 'require', compile(fs.readFileSync('src/app/admin/creative-bridge/media-safety.ts','utf8')))(
+  media, media.exports, () => { throw Error('Unexpected media-safety runtime dependency'); });
 const m = {exports:{}};
-new Function('module', 'exports', js)(m, m.exports);
+new Function('module', 'exports', 'require', compile(src))(m, m.exports, id => {
+  if (id === './media-safety') return media.exports;
+  throw Error('Unexpected catalog runtime dependency: ' + id);
+});
 const { creativeStatus, creativeStatusLabel, filterLibrary } = m.exports;
 const sha = 'a'.repeat(64);
-const ready = {state:'ready', sha256:sha, public_path:'/creative-bridge/'+sha+'.webp'};
+const ready = {kind:'image', state:'ready', sha256:sha, public_path:'/creative-bridge/'+sha+'.webp'};
 test('only a complete, checksum-shaped local path is displayed as imported; never remote-verified',()=>{
   assert.equal(creativeStatus({ci:'PASSED',assets:[ready]}),'imported');
   assert.equal(creativeStatus({ci:'PASSED',assets:[{...ready,public_path:'https://cdn.invalid/file.webp'}]}),'reference_only');
@@ -56,4 +62,21 @@ test('creative page fails closed for unvalidated checkpoint attribution (static 
   assert.ok(page.includes('Agent claimed by checkpoint'));
   assert.ok(page.includes('Claimed SHA (not checked against GitHub)'));
   assert.ok(page.includes('No valid checkpoint'));
+});
+
+test('catalog never labels a media-path mismatch or unsupported GLB as imported', () => {
+  const invalid = [
+    {...ready, public_path:'/creative-bridge/'+sha+'.glb'},
+    {...ready, kind:'video', public_path:'/creative-bridge/'+sha+'.webp'},
+    {...ready, kind:'image', public_path:'/creative-bridge/'+sha+'.mp4'},
+    {...ready, public_path:'/creative-bridge/'+sha+'.webp?token=fake'},
+  ];
+  for (const asset of invalid) {
+    assert.equal(media.exports.safeCreativeMediaPath(asset), null);
+    assert.equal(creativeStatus({ci:'PASSED', assets:[asset]}), 'reference_only');
+  }
+  assert.equal(creativeStatus({ci:'PASSED', assets:[ready, invalid[0]]}), 'reference_only');
+  const movie = {...ready, kind:'video', public_path:'/creative-bridge/'+sha+'.mp4'};
+  assert.equal(media.exports.safeCreativeMediaPath(movie), movie.public_path);
+  assert.equal(creativeStatus({ci:'PASSED', assets:[ready, movie]}), 'imported');
 });

@@ -1,18 +1,21 @@
+import type { Asset } from '@/lib/creative-bridge/continuity';
+import { safeCreativeMediaPath } from './media-safety';
+
 /** A UI label derived from a private checkpoint, not a remote Higgsfield attestation. */
 export type CreativeCatalogState = 'imported' | 'pending' | 'blocked' | 'reference_only';
 export type CatalogCheckpoint = {
   ci: string;
-  assets: readonly { state: string; public_path?: string; sha256?: string | null }[];
+  assets: readonly Asset[];
 };
 export function creativeStatus(checkpoint: CatalogCheckpoint | null, invalidCheckpoint = false): CreativeCatalogState {
   if (invalidCheckpoint) return 'blocked';
   if (!checkpoint) return 'reference_only';
   if (checkpoint.ci === 'FAILED' || checkpoint.assets.some(a => a.state === 'failed' || a.state === 'cancelled')) return 'blocked';
   if (checkpoint.ci === 'PENDING' || checkpoint.assets.some(a => a.state === 'pending' || a.state === 'generating')) return 'pending';
-  // "Imported" is a claimed durable local path, not independently checked bytes, license or vendor job.
-  if (checkpoint.assets.length > 0 && checkpoint.assets.every(a => a.state === 'ready' &&
-      typeof a.sha256 === 'string' && /^[a-f0-9]{64}$/i.test(a.sha256) &&
-      typeof a.public_path === 'string' && a.public_path.startsWith('/creative-bridge/' + a.sha256 + '.'))) return 'imported';
+  // Keep the catalog aligned with the preview's local-path/kind allowlist: a GLB, a
+  // mismatched extension or a URL with parameters cannot be labelled imported.
+  // Passing this check still does NOT attest file bytes, license or remote publication.
+  if (checkpoint.assets.length > 0 && checkpoint.assets.every(a => safeCreativeMediaPath(a) !== null)) return 'imported';
   return 'reference_only';
 }
 export type CatalogRow<T> = { project: T; status: CreativeCatalogState };
