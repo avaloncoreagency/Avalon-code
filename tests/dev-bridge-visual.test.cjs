@@ -196,6 +196,17 @@ test('Dev Bridge does not present cached Issue ownership or integration claims a
     url: 'https://example.invalid/synthetic-issue',
     body: 'Next action: synthetic',
   };
+  const oldPull = {
+    number: 876543, title: 'SYNTHETIC_CACHED_PR_DO_NOT_SHOW',
+    url: 'https://example.invalid/cached-pr', branch: 'synthetic/stale',
+    head_sha: '0000000000000000000000000000000000000001', ci: 'PASSED',
+    behind: 0, conflict: false, files: ['stale/private.ts'], issues: [],
+  };
+  const oldCommit = {
+    sha: '0000000000000000000000000000000000000002',
+    url: 'https://example.invalid/cached-commit',
+    date: '2026-11-01', author: 'SYNTHETIC_CACHED_AUTHOR_DO_NOT_SHOW',
+  };
   const run = async (status, error, coverage = 'full') => {
     const synthetic = {
       at: '2026-11-05T16:00:00.000Z',
@@ -204,7 +215,7 @@ test('Dev Bridge does not present cached Issue ownership or integration claims a
         error,
         checked_at: '2026-11-05T16:00:00.000Z',
         verified_at: '2026-11-05T15:59:00.000Z',
-        data: { coverage, issues: [issue], pulls: [], commits: [] },
+        data: { coverage, issues: [issue], pulls: [oldPull], commits: [oldCommit] },
       },
       vercel: { status: 'UNKNOWN', data: null, verified_at: null },
       supabase: { status: 'UNKNOWN', data: null, verified_at: null },
@@ -250,11 +261,15 @@ test('Dev Bridge does not present cached Issue ownership or integration claims a
     const html = await run(status, error, coverage);
     assert.match(html, /No se pueden comprobar tareas sin PR/);
     assert.match(html, /Issues de integración: estado desconocido/);
-    assert.doesNotMatch(html, /SYNTHETIC_STALE_ISSUE_DO_NOT_SHOW|synthetic private provider error/);
+    assert.doesNotMatch(html, /SYNTHETIC_STALE_ISSUE_DO_NOT_SHOW|SYNTHETIC_CACHED_PR_DO_NOT_SHOW|SYNTHETIC_CACHED_AUTHOR_DO_NOT_SHOW|synthetic private provider error/);
+    assert.match(html, /PRs sin lectura actual/, 'a stale or failed read must not claim a current PR count');
+    assert.doesNotMatch(html, /Sin conflicto detectado|stale\/private\.ts/, 'cached CI or merge claims must not appear as current');
     assert.doesNotMatch(html, /0 tareas sin PR/, 'unknown data must not be represented as a verified zero');
   }
   const fresh = await run('VERIFIED', undefined, 'full');
   assert.match(fresh, /SYNTHETIC_STALE_ISSUE_DO_NOT_SHOW/, 'full fresh data may display the linked Issue');
+  assert.match(fresh, /SYNTHETIC_CACHED_PR_DO_NOT_SHOW/, 'verified PRs remain visible');
+  assert.match(fresh, /SYNTHETIC_CACHED_AUTHOR_DO_NOT_SHOW/, 'verified commit metadata remains visible');
   assert.match(fresh, /1 tareas sin PR/);
   assert.doesNotMatch(fresh, /Issues de integración: estado desconocido/);
 });
