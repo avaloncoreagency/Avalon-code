@@ -112,6 +112,21 @@ o respuesta anómala → se detiene todo. Control no conectado (variables sin de
 ejecuciones **programadas** no corren; una ejecución manual (etiqueta/dispatch, requiere permiso de escritura) sí, y lo
 indica. La variable `AVALON_AI_ENGINE_DISABLED=true` sigue funcionando como segundo freno.
 
+## Operación 0352 — endurecimiento
+- **Registro de inferencias:** una fila por llamada a un proveedor (manager, modelo, tokens de entrada/salida, coste = 0, resultado)
+  en el estado persistente; el libro de uso diario y las tablas `crm_ai_*` de la migración guardan el mismo formato.
+- **Concurrencia:** una sola tarea de IA a la vez (concesión de 10 min liberada siempre, también tras una caída) más el grupo de
+  concurrencia del workflow. **Cortacircuitos:** 3 fallos duros seguidos (5xx/timeout/respuesta inválida) → proveedor en pausa 15 min.
+- **Órdenes:** dependencias explícitas (`Depende de #N`): no cumplida → `waiting` (se comenta una vez); ciclo o auto-dependencia →
+  `blocked`. Cada orden guarda manager, intención, plan, límites (3 intentos, 20 min) y evidencias (comando + código de salida).
+  Cada comprobación tiene un límite de 15 min.
+- **Salida de la IA:** se revisa antes de publicarla en un Issue público; si contiene secretos o datos personales se retiene (`withheld`).
+- **REN:** no repite un archivo que ya tiene rama `ren/auto-*` (su arreglo aún no está en `main`) y toma la siguiente tarea de bajo riesgo.
+- **Programador:** `tests/ai-engine-workflow.test.cjs` fija un único cron cada 6 h, cero ejecuciones concurrentes, interruptor en cada job,
+  permisos mínimos (solo REN escribe contenido/PRs), secretos solo como `env`, control central y trabajo acotado.
+- **Higgsfield Bridge:** el importador rechaza GLB que no sean autocontenidos (URIs externas o `data:` en buffers/imágenes y extensiones
+  obligatorias no estándar). Un archivo importado **no** es un trabajo verificado remotamente por Higgsfield: el `job` lo aporta el operador.
+
 ## Rollback
 Variable `AVALON_AI_ENGINE_DISABLED=true` (para todo), borrar los secretos, revertir el PR. Base de datos: no aplicada; si se aplica,
 el bloque de rollback está en la cabecera de la migración.

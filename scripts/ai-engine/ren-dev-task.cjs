@@ -20,6 +20,33 @@ const ALLOWED = p => /^(tests|scripts)\//.test(p) && !/^scripts\/ai-engine\//.te
 const sh = (cmd, args, opt = {}) => cp.execFileSync(cmd, args, { encoding: 'utf8', maxBuffer: 64 << 20, ...opt });
 const shOk = (cmd, args) => { try { return { ok: true, out: sh(cmd, args, { stdio: ['ignore', 'pipe', 'pipe'] }) }; } catch (e) { return { ok: false, out: String(e.stdout || '') + String(e.stderr || '') }; } };
 const now = () => new Date().toISOString();
+const PR_URL = /https:\/\/github\.com\/[\w.-]+\/[\w.-]+\/pull\/\d+/;
+/** Creates the DRAFT PR with the gh CLI. "A PR for this branch already exists" is an idempotent success (resume after a failed publish). */
+function createDraftPr(branch, title, body) {
+  try {
+    const out = sh('gh', ['pr', 'create', '--draft', '--base', 'main', '--head', branch, '--title', title, '--body-file', '-'], { input: body, stdio: ['pipe', 'pipe', 'pipe'] });
+    return { url: (PR_URL.exec(out) || [''])[0] };
+  } catch (e) {
+    const err = String(e.stderr || e.message);
+    const m = PR_URL.exec(err);
+    if (/already exists/i.test(err) && m) return { url: m[0], existing: true };
+    return { error: err.slice(0, 300) };
+  }
+}
+/** One REN task per run id; a finished task never blocks the next one of the day (max 3 per day). Legacy id = task 1. */
+const MAX_TASKS_PER_DAY = 3;
+function nextRunId(state, day) {
+  let latest = 0;
+  for (const id of Object.keys(state.tasks || {})) {
+    const m = new RegExp('^ren-dev:' + day + '(?::(\\d+))?$').exec(id);
+    if (m) latest = Math.max(latest, m[1] ? Number(m[1]) : 1);
+  }
+  if (latest === 0) return { id: `ren-dev:${day}:1`, n: 1 };
+  const last = state.tasks[`ren-dev:${day}:${latest}`] || state.tasks[`ren-dev:${day}`];
+  if (last && (last.status === 'succeeded' || (last.status === 'failed' && (last.tries || 0) >= 3))) return latest >= MAX_TASKS_PER_DAY ? { id: null, n: latest } : { id: `ren-dev:${day}:${latest + 1}`, n: latest + 1 };
+  return { id: last && state.tasks[`ren-dev:${day}:${latest}`] ? `ren-dev:${day}:${latest}` : `ren-dev:${day}`, n: latest };
+}
+
 /** Remote REN branches (ren/auto-YYYYMMDD-<slug>). Injectable for tests: AVALON_REN_BRANCHES="a,b" (empty = none). */
 function publishedRenBranches() {
   if (env.AVALON_REN_BRANCHES !== undefined) return env.AVALON_REN_BRANCHES.split(',').filter(Boolean);
@@ -92,9 +119,12 @@ async function main() {
   }
   const store = new E.FileStore(STATE);
   const s0 = store.load();
-  const runId = 'ren-dev:' + now().slice(0, 10);
+  const picked = nextRunId(s0, now().slice(0, 10));
+  if (!picked.id) { console.log(JSON.stringify({ status: 'skipped', reason: 'daily_task_limit' })); return; }
+  const runId = picked.id;
   const ev = { worker: 'ren', runId, startedAt: now(), steps: {}, noPush: NO_PUSH };
   const task = s0.tasks[runId] || { id: runId, manager: 'ren', purpose: 'Tarea de desarrollo de bajo riesgo', dataClass: 'public_repo', status: 'running', attempts: [], result: null, steps: {}, createdAt: now(), updatedAt: now() };
+  task.tries = (task.tries || 0) + 1; // a task that keeps failing is abandoned after 3 runs (next run opens the next task)
   s0.tasks[runId] = task; store.save(s0);
   const step = (name, output, status = 'done') => { const s = store.load(); s.tasks[runId].steps[name] = { status, output, at: now() }; s.tasks[runId].updatedAt = now(); store.save(s); ev.steps[name] = { status, output, resumed: false }; };
   const done = name => { const st = store.load().tasks[runId].steps[name]; if (st && st.status === 'done') { ev.steps[name] = { ...st, resumed: true }; return st.output; } return null; };
@@ -212,21 +242,18 @@ async function main() {
       `- Modelo: \`${fix.provider}:${fix.model}\` — intentos: ${fix.attempts.map(a => `${a.provider}:${a.outcome}`).join(', ')}`,
       `- Verificación: ${verify.checks.map(c => `\`${c.cmd}\` ${c.ok ? '✅' : '❌'} ${c.tail}`).join(' · ')}`,
       `- Coste de inferencia: **$0** (solo cuotas gratuitas)`, '', `> ${fix.explanation}`, '', `Ejecución: ${env.GITHUB_SERVER_URL || ''}/${env.GITHUB_REPOSITORY || ''}/actions/runs/${env.GITHUB_RUN_ID || ''}`].join('\n');
-    // gh CLI (preinstalled on GitHub runners, authenticated by GH_TOKEN) creates the DRAFT PR; the body goes through stdin.
-    let url = '';
-    try {
-      const out = sh('gh', ['pr', 'create', '--draft', '--base', 'main', '--head', branch, '--title', `chore(ren): corregir avisos ESLint en ${target.file}`, '--body-file', '-'], { input: body, stdio: ['pipe', 'pipe', 'pipe'] });
-      url = (/https:\/\/github\.com\/[\w.-]+\/[\w.-]+\/pull\/\d+/.exec(out) || [''])[0];
-    } catch (e) {
-      const error = String(e.stderr || e.message).slice(0, 300);
-      console.log('pr_create_failed', error); // GitHub's own message (e.g. Actions not permitted to create PRs); no secrets
-      step('publish', { branch, error }, 'failed');
+    const made = createDraftPr(branch, `chore(ren): corregir avisos ESLint en ${target.file}`, body);
+    if (made.error) {
+      console.log('pr_create_failed', made.error); // GitHub's own message (e.g. Actions not permitted to create PRs); no secrets
+      step('publish', { branch, error: made.error }, 'failed');
       return finish('failed', `file=${target.file} rama ${branch} publicada pero PR no creado`);
     }
+    const url = made.url;
     pub = { branch, pr: url, sha: pushedSha };
     step('publish', pub);
   }
   return finish('succeeded', `file=${target.file} corregido (${verify.warningsBefore}→${verify.warningsAfter}), pruebas verdes, PR borrador ${pub.pr}`);
 }
 
-main().catch(e => { console.error('ren_failed', e.message); process.exit(1); });
+if (require.main === module) main().catch(e => { console.error('ren_failed', e.message); process.exit(1); });
+module.exports = { createDraftPr, nextRunId, validateEdits };

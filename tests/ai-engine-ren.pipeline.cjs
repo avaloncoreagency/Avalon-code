@@ -60,7 +60,10 @@ test('REN pipeline: discover → AI fix with failover → verify → resumable (
   assert.match(diff, /tests\/agents-managers\.database\.cjs \| +4 \+\+--/);
   console.log(JSON.stringify({ fix: ev.steps.fix.output.edits, verify: ev.steps.verify.output }, null, 1));
 
-  // Resume: same state file → every step is reused, no provider is called again.
+  // Interrupted task (crash before the final status): same state file → every step is reused, no provider is called again.
+  const st = JSON.parse(fs.readFileSync(state, 'utf8'));
+  for (const task of Object.values(st.tasks)) if (/^ren-dev:/.test(task.id)) task.status = 'running';
+  fs.writeFileSync(state, JSON.stringify(st));
   fs.writeFileSync(log, '');
   run();
   const ev2 = JSON.parse(fs.readFileSync(evidence, 'utf8'));
