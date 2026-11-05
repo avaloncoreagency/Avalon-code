@@ -148,7 +148,7 @@ test("existing lead reused, exact existing customer linked to Client 360 without
 });
 
 test("ambiguous leads and client identities fail closed without orphan records", {timeout:120000},async t=>{
-  const {db,as,one,submit,num}=await setup();t.after(()=>db.close());
+  const {db,as,submit,num}=await setup();t.after(()=>db.close());
   await as(OWNER);
   await db.exec(`insert into crm_leads(company,contact,source,owner_id)
     values ('Synthetic Dental LLC','A','Manual','${OWNER}'),
