@@ -111,3 +111,28 @@ Todas las consultas: owner-only, RLS, filtros por periodo, sin exposición de co
 - **No realizado aquí:** cambio de runtime, tests locales, merge, deploy, SQL mutante, activación de tokens, generación Higgsfield o gastos.
 
 **Next action:** Codex presenta el diff propuesto para una sola oficina; Claude presenta el contrato intake→mission con tests; REN consolida un único handoff en #23 y KENJI valida sin nuevos PRs redundantes.
+
+---
+
+## 9. Checkpoint REN 001-B — avance verificable de integración (2026-11-04 ET)
+
+**No altera runtime ni pretende reemplazar la implementación de Claude/Codex.** Verificados GitHub/Graphify `main@d2890bbc` y acciones de CI en la rama de Claude.
+
+### A. La recepción de tareas AI Engine existe en PR #132, pero NO despacha todavía una orden libre desde la UI de Oficina
+- [PR #132](https://github.com/avaloncoreagency/Avalon-code/pull/132) (head observado `84115a06a949f14fca13e2df5eb6ba133e15dc79`) implementa intake de GitHub Issues etiquetados `avalon:task`, rutinas por manager, selección de proveedores gratuitos y un worker limitado para REN. [Issue #135](https://github.com/avaloncoreagency/Avalon-code/issues/135) incluye una auditoría SHIN con comandos/evidencia; [#136](https://github.com/avaloncoreagency/Avalon-code/issues/136) demuestra que una solicitud de producción+eliminación queda `avalon:needs-owner` sin ejecutarse. Esto no conecta por sí solo `office_agent_requests` a `crm_agent_missions` ni convierte cada pedido libre en trabajo implementado.
+- **P0 falso cierre:** `scripts/ai-engine/operate.cjs` recibe título/cuerpo para clasificar, pero el ejecutor `M[manager]` no recibe esa orden; se utiliza para análisis de IA, no ejecución de la instrucción. Aun así, `intake()` marca `avalon:done` cuando termina la rutina. Un pedido «arregla doble Oficina» no debe quedar DONE al completar una revisión general. La aceptación exige intención soportada + acción de esa intención + evidencia exacta; en ausencia de herramienta, estado `NEEDS_IMPLEMENTATION`/handoff (nunca success). **Revisión registrada:** [comentario PR #132](https://github.com/avaloncoreagency/Avalon-code/pull/132#issuecomment-6646629638).
+- **P0 recuperación:** si falla `runManager`, `avalon:in-progress` puede permanecer y hacer que la siguiente consulta omita la orden. Implementar lease y transición recuperable; idempotencia sobre issue+capability+versión.
+- **CI nuevo:** [run 41944912603](https://github.com/avaloncoreagency/Avalon-code/actions/runs/41944912603), job `live-smoke` success (Groq/Cloudflare reales, fallback 429 simulado, OpenRouter `not_configured`) y job `managers` success; **REN dev worker failed** por `edit_expect_mismatch:21` en `tests/agents-managers.database.cjs`. Es un rechazo de seguridad válido y no debe eludirse. Revalidar archivo/SHA, acotar el reintento, no marcar terminado ni abrir PR si no se supera el gate.
+- PR #132 usa GitHub Actions y un worker de desarrollo diferente del ejecutor SQL `crm_private.agent_execute`: **no confundirlos ni convertirlos en dos fuentes canónicas de ejecución**. Mapear `source=github_action` vs `source=supabase_sql`; asignar ID/correlación solo si existe evidencia real, y nunca contar diagnósticos GitHub como pasos SQL.
+- [PR #133 de HARU](https://github.com/avaloncoreagency/Avalon-code/pull/133) contiene contrato CRM y test estático, no una conexión E2E publicada; mantener P0 de la oficina y seguridad antes de integrar visual.
+
+### B. P0 seguridad comercial comprobado en la función publicada
+- La política vigente [Issue #40](https://github.com/avaloncoreagency/Avalon-code/issues/40) exige que Miguel/Samuel aprueben manualmente un prospecto del Radar antes de enviarlo al CRM.
+- La función `public.crm_radar_worker_convert_verified(uuid)` **instalada en producción** sigue admitiendo `pending` y haciendo `UPDATE status='approved'` con un rol de servicio antes de insertar `crm_leads`. Confirmación técnica exclusivamente SELECT sobre `pg_get_functiondef` del principal: `accepts_pending=true`, `auto_approves_pending=true`, `creates_leads=true`. No se ejecutó la función ni se alteraron datos. [Handoff documentado en Issue #40](https://github.com/avaloncoreagency/Avalon-code/issues/40#issuecomment-6646635255).
+- **Responsables:** Claude prepara patch de backend SQL y test PGlite aislado; SHIN define política de autorización y rechaza suplantación de aprobación; HARU valida estados y SORA fuente/evidencias; KENJI valida negativo `pending 5★ high 2 evidencias → 0 leads`, positivo aprobado owner → 1 lead, replay sin duplicados, rechazo de no-contact/override/no-owner.
+- Ningún cambio de SQL o configuración en producción se autoriza por este documento. Cualquier reparación real requiere aprobación separada tras pruebas.
+
+### C. Estado, métricas y condiciones de avance
+- `main` seguía `d2890bbc` al inicio de este checkpoint. Graphify indexado en el mismo SHA; PR #132/#133 todavía no están en main.
+- Para declarar 'operativo': (1) una sola escena en /office, (2) libre texto de owner se guarda y registra su estado honesto, (3) intake issue no marca DONE si solo hizo una auditoría genérica, (4) no promoción de Radar pending sin política autorizada, (5) REN dev worker supera test sin soltar los guards, (6) CI, RLS, E2E iPhone y persistencia en entorno aislado al SHA exacto.
+- Siguiente acción de **REN**: revisar el nuevo head de PR #132 y #133, comprobar que el cierre falso de órdenes y la aprobación de Radar están bloqueados en tests; coordinar Codex para único componente visual sin pisar archivos reclamados.
