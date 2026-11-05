@@ -71,12 +71,13 @@ export function routeTask(text: string, title = ""): { manager: string; method: 
 export function ownerOnlyRequests(raw: string): Action[] {
   const text = stripMeta(raw);
   const out: Action[] = [];
-  if (/producci[oó]n|production|deploy|desplieg|publica/i.test(text)) out.push("production_change");
-  if (/migraci[oó]n|migration|alter table|drop /i.test(text)) out.push("migration_real_data");
-  if (/permis|rol(es)?\b|owner|admin/i.test(text) && /cambi|otorg|quit|grant|revok/i.test(text)) out.push("permission_change");
-  if (/pag(ar|o)|compr|cr[eé]dito|factur|suscrip|\$/i.test(text)) out.push("spend");
-  if (/email|correo|whatsapp|llamar|contactar|enviar a/i.test(text)) out.push("external_contact");
-  if (/borra|elimina|delete|purge/i.test(text)) out.push("delete_data");
+  // Whole words / explicit stems only: "comprueba" is not "comprar", "publicados" is not "publicar" (found on Issues #139/#140).
+  if (/\b(producci[oó]n|production|deploy|desplegar|despliega|despliegue|publicar|publ[ií]calo|publica en)\b/i.test(text)) out.push("production_change");
+  if (/\b(migraci[oó]n|migration|alter table|drop table|drop column)\b/i.test(text)) out.push("migration_real_data");
+  if (/\b(permisos?|roles?|owner|admin)\b/i.test(text) && /\b(cambi\w*|otorg\w*|quit\w*|grant|revok\w*|revoca\w*|conced\w*)\b/i.test(text)) out.push("permission_change");
+  if (/\b(pagar|pago|pagos|comprar|compra de|gastar|recargar|recarga|factura|facturaci[oó]n|suscripci[oó]n|suscribir|tarjeta)\b|\$\s?\d/i.test(text)) out.push("spend");
+  if (/\b(email|correo|whatsapp|llamar|contactar|enviar a|escribir a)\b/i.test(text)) out.push("external_contact");
+  if (/\b(borra\w*|elimina\w*|delete|purge|truncate)\b/i.test(text) && !/\belimina(r)? (la |el )?(duplicad|doble)/i.test(text)) out.push("delete_data");
   return out;
 }
 
