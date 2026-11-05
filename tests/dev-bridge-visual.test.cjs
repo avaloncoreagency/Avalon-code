@@ -171,3 +171,90 @@ test('cached Vercel deployment details are not rendered as current after a faile
     assert.doesNotMatch(html, /Build listo: cached Vercel deployment|synthetic-preview\.invalid|synthetic provider secret|synthetic failed refresh/);
   }
 });
+
+
+test('Dev Bridge does not present cached Issue ownership or integration claims as current', async () => {
+  const ts = require('typescript');
+  const React = require('react');
+  const { renderToStaticMarkup } = require('react-dom/server');
+  const compiled = ts.transpileModule(page, {
+    compilerOptions: {
+      module: ts.ModuleKind.CommonJS,
+      target: ts.ScriptTarget.ES2022,
+      jsx: ts.JsxEmit.ReactJSX,
+      esModuleInterop: true,
+    },
+  }).outputText;
+  const issue = {
+    id: 'synthetic-issue',
+    number: 987654,
+    title: 'SYNTHETIC_STALE_ISSUE_DO_NOT_SHOW',
+    owner: 'miguel',
+    open: true,
+    state: 'open',
+    labels: ['type:integration'],
+    url: 'https://example.invalid/synthetic-issue',
+    body: 'Next action: synthetic',
+  };
+  const run = async (status, error, coverage = 'full') => {
+    const synthetic = {
+      at: '2026-11-05T16:00:00.000Z',
+      github: {
+        status,
+        error,
+        checked_at: '2026-11-05T16:00:00.000Z',
+        verified_at: '2026-11-05T15:59:00.000Z',
+        data: { coverage, issues: [issue], pulls: [], commits: [] },
+      },
+      vercel: { status: 'UNKNOWN', data: null, verified_at: null },
+      supabase: { status: 'UNKNOWN', data: null, verified_at: null },
+      findings: [],
+    };
+    const loaded = { exports: {} };
+    const styles = new Proxy({}, { get: (_target, key) => String(key) });
+    const mocks = {
+      'next/link': { __esModule: true, default: ({ children, href }) => React.createElement('a', { href }, children) },
+      '@/components/suite/suite': { Suite: ({ children }) => children },
+      '@/lib/auth/session': { requireOwner: async () => {} },
+      '@/lib/dev-bridge/runtime': { snapshot: async () => synthetic },
+      '@/lib/dev-bridge/core': {
+        freshness: fact => fact,
+        collaboration: () => ({
+          assigned: { miguel: [], samuel: [] }, unassigned: [], overlaps: [],
+          overlap_total: 0, creative: [], total: 0,
+        }),
+      },
+      './bridge-auto-refresh': { BridgeAutoRefresh: () => null },
+      './bridge.module.css': styles,
+      './bridge-visuals': {
+        BridgeStatus: ({ label }) => React.createElement('span', null, label),
+        BuildStatus: () => null,
+        CiStatus: () => null,
+        Sha: () => null,
+        SourceCard: () => null,
+        VerifiedSourceOnly: ({ children }) => children,
+      },
+    };
+    new Function('require', 'module', 'exports', compiled)(
+      id => Object.hasOwn(mocks, id) ? mocks[id] : require(id), loaded, loaded.exports,
+    );
+    return renderToStaticMarkup(await loaded.exports.default());
+  };
+
+  for (const [status, error, coverage] of [
+    ['STALE', undefined, 'full'],
+    ['UNKNOWN', undefined, 'full'],
+    ['VERIFIED', 'synthetic private provider error', 'full'],
+    ['VERIFIED', undefined, 'summary'],
+  ]) {
+    const html = await run(status, error, coverage);
+    assert.match(html, /No se pueden comprobar tareas sin PR/);
+    assert.match(html, /Issues de integración: estado desconocido/);
+    assert.doesNotMatch(html, /SYNTHETIC_STALE_ISSUE_DO_NOT_SHOW|synthetic private provider error/);
+    assert.doesNotMatch(html, /0 tareas sin PR/, 'unknown data must not be represented as a verified zero');
+  }
+  const fresh = await run('VERIFIED', undefined, 'full');
+  assert.match(fresh, /SYNTHETIC_STALE_ISSUE_DO_NOT_SHOW/, 'full fresh data may display the linked Issue');
+  assert.match(fresh, /1 tareas sin PR/);
+  assert.doesNotMatch(fresh, /Issues de integración: estado desconocido/);
+});
