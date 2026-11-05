@@ -1,5 +1,5 @@
 import type { Asset } from '@/lib/creative-bridge/continuity';
-import { safeCreativeMediaPath } from './media-safety';
+import { safeCreativeMediaPath, safeReducedMotionImage } from './media-safety';
 
 /** A UI label derived from a private checkpoint, not a remote Higgsfield attestation. */
 export type CreativeCatalogState = 'imported' | 'pending' | 'blocked' | 'reference_only';
@@ -15,7 +15,11 @@ export function creativeStatus(checkpoint: CatalogCheckpoint | null, invalidChec
   // Keep the catalog aligned with the preview's local-path/kind allowlist: a GLB, a
   // mismatched extension or a URL with parameters cannot be labelled imported.
   // Passing this check still does NOT attest file bytes, license or remote publication.
-  if (checkpoint.assets.length > 0 && checkpoint.assets.every(a => safeCreativeMediaPath(a) !== null)) return 'imported';
+  // Video is cataloged as viewable only when the same local ready-image poster
+  // required by the preview is present. Never promote a video-only record.
+  if (checkpoint.assets.length > 0 && checkpoint.assets.every(a =>
+    safeCreativeMediaPath(a) !== null &&
+    (a.kind !== 'video' || safeReducedMotionImage(a, checkpoint.assets) !== null))) return 'imported';
   return 'reference_only';
 }
 export type CatalogRow<T> = { project: T; status: CreativeCatalogState };

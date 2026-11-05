@@ -76,9 +76,20 @@ test('catalog never labels a media-path mismatch or unsupported GLB as imported'
     assert.equal(creativeStatus({ci:'PASSED', assets:[asset]}), 'reference_only');
   }
   assert.equal(creativeStatus({ci:'PASSED', assets:[ready, invalid[0]]}), 'reference_only');
-  const movie = {...ready, kind:'video', public_path:'/creative-bridge/'+sha+'.mp4'};
+  const poster = {...ready, storage_ref:'poster-1'};
+  const movieSha = 'b'.repeat(64);
+  const movie = {...ready, kind:'video', sha256:movieSha, storage_ref:'video-1',
+    reduced_motion_ref:'poster-1', public_path:'/creative-bridge/'+movieSha+'.mp4'};
   assert.equal(media.exports.safeCreativeMediaPath(movie), movie.public_path);
-  assert.equal(creativeStatus({ci:'PASSED', assets:[ready, movie]}), 'imported');
+  assert.equal(creativeStatus({ci:'PASSED', assets:[poster, movie]}), 'imported');
+  // A safe MP4 path alone is NOT a playable preview: a ready local poster is required.
+  assert.equal(creativeStatus({ci:'PASSED', assets:[movie]}), 'reference_only');
+  assert.equal(creativeStatus({ci:'PASSED', assets:[ready, movie]}), 'reference_only');
+  assert.equal(creativeStatus({ci:'PASSED', assets:[poster, {...movie, reduced_motion_ref:null}]}), 'reference_only');
+  assert.equal(creativeStatus({ci:'PASSED', assets:[poster, {...movie, reduced_motion_ref:'missing'}]}), 'reference_only');
+  assert.equal(creativeStatus({ci:'PASSED', assets:[{...poster, public_path:'https://cdn.invalid/poster.webp'}, movie]}), 'reference_only');
+  assert.equal(creativeStatus({ci:'PENDING', assets:[movie]}), 'pending');
+  assert.equal(creativeStatus({ci:'FAILED', assets:[poster, movie]}), 'blocked');
 });
 
 
