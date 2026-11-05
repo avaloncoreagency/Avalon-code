@@ -25,7 +25,10 @@ export function SourceCard({
   fact: Fact<unknown>;
   limited?: boolean;
 }) {
-  const current = freshness(fact).status;
+  // An error must never display as a verified provider read, even if an
+  // inconsistent snapshot still carries VERIFIED and a recent timestamp.
+  const reported = freshness(fact).status;
+  const current = reported === "VERIFIED" && fact.error ? "UNKNOWN" : reported;
   // Keep provider errors distinct from a never-checked source. A stale cached
   // result is not a current provider success, even if older data is available.
   // Never render fact.error: it can contain internal diagnostics.
