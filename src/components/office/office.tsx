@@ -512,7 +512,7 @@ function Thread({ member, data, lang, when, onChanged }: { member: Member; data:
   );
 }
 
-function ManagerPanel({ manager, data, lang, when, onClose, onChanged }: { manager: Manager; data: Data; lang: Lang; when: (v: string | null) => string; onClose: () => void; onChanged: () => void }) {
+function ManagerPanel({ manager, execution, data, lang, when, onClose, onChanged }: { manager: Manager; execution: HqActivity["managers"][number] | null; data: Data; lang: Lang; when: (v: string | null) => string; onClose: () => void; onChanged: () => void }) {
   const t = (es: string, en: string) => (lang === "en" ? en : es);
   const [requests, setRequests] = useState<Request[] | null>(null);
   const [unavailable, setUnavailable] = useState<string | null>(null);
@@ -527,28 +527,35 @@ function ManagerPanel({ manager, data, lang, when, onClose, onChanged }: { manag
   return (
     <Drawer lang={lang} onClose={onClose}
       title={<div className={s.idRow}><span className={`${s.agentMark} ${s.agentLarge}`} style={{ "--hue": manager.hue } as CSSProperties}>{manager.name.slice(0, 2)}</span><div>
-        <p className={s.eyebrow}>{t("Manager virtual de IA · no es una persona", "Virtual AI manager · not a person")}</p>
+        <p className={s.eyebrow}>{t("Manager operativo digital · no es una persona", "Digital operations manager · not a person")}</p>
         <h2 id="office-drawer-title">{manager.name}</h2>
         <p className={s.sub}>{lang === "en" ? manager.role.en : manager.role.es}</p>
       </div></div>}>
-      <div className={s.statusRow} data-status={manager.status}>
+      <div className={s.statusRow} data-status={execution?.status ?? "unavailable"}>
         <span className={s.statusDot} aria-hidden="true" />
-        <div><strong>{t(...STATUS[manager.status])}</strong>
-          <p>{t("Avalon no tiene un backend de ejecución conectado para este manager. Nada de lo que escribas se ejecuta automáticamente.", "Avalon has no execution backend connected for this manager. Nothing you write runs automatically.")}</p></div>
+        <div>
+          <strong>{execution ? t(...RUN_STATUS[execution.status]) : t("Actividad no disponible", "Activity unavailable")}</strong>
+          <p>{execution
+            ? execution.result_summary || t("Sin resultado registrado para este manager.", "No recorded result for this manager.")
+            : t("No se pudo verificar el estado del motor; no se asume que esté activo.", "Unable to verify the engine state; activity is not assumed.")}</p>
+          {execution?.updated_at && <small>{t("Último registro:", "Last record:")} {when(execution.updated_at)}</small>}
+        </div>
       </div>
       <dl className={s.facts}>
         <dt>{t("Función", "Role")}</dt><dd>{lang === "en" ? manager.role.en : manager.role.es}</dd>
         <dt>{t("Módulos a su cargo", "Modules")}</dt><dd>{manager.modules.map(m => (lang === "en" ? m.en : m.es)).join(", ")}</dd>
-        <dt>{t("Herramientas conectadas", "Connected tools")}</dt><dd className={s.muted}>{t("Ninguna verificable desde Avalon", "None verifiable from Avalon")}</dd>
-        <dt>{t("Automatizaciones configuradas", "Configured automations")}</dt><dd className={s.muted}>{lang === "en" ? data.integration.externalNote.en : data.integration.externalNote.es}</dd>
-        <dt>{t("Últimas ejecuciones verificadas", "Last verified runs")}</dt><dd className={s.muted}>{t("Ninguna registrada", "None recorded")}</dd>
-        <dt>{t("Errores detectados", "Errors detected")}</dt><dd className={s.muted}>{t("Sin datos (no hay ejecuciones)", "No data (no runs)")}</dd>
+        <dt>{t("Fuente de actividad", "Activity source")}</dt><dd className={s.muted}>{execution ? t("Motor interno de Avalon · registro persistente", "Avalon internal engine · persisted run") : t("No disponible", "Unavailable")}</dd>
+        <dt>{t("Automatizaciones externas", "External automations")}</dt><dd className={s.muted}>{lang === "en" ? data.integration.externalNote.en : data.integration.externalNote.es}</dd>
+        <dt>{t("Última ejecución registrada", "Last recorded run")}</dt><dd className={s.muted}>{execution?.run_id
+          ? <>{when(execution.finished_at ?? execution.started_at)} · <Link href="/admin/workspace/crm/office/manager-work">{t("Ver historial", "View history")}</Link></>
+          : execution ? t("Sin ejecuciones registradas", "No recorded runs") : t("Sin datos", "No data")}</dd>
+        <dt>{t("Último error", "Latest error")}</dt><dd className={s.muted}>{execution ? execution.error_code || t("Sin error registrado", "No error recorded") : t("Sin datos", "No data")}</dd>
         <dt>{t("Consumo de IA", "AI usage")}</dt><dd><Link href="/admin/workspace/crm/ai-usage">{t("Ver centro de uso de IA", "Open AI usage center")}</Link></dd>
         <dt>{t("Requiere aprobación", "Requires approval")}</dt><dd>{t("Cualquier cambio en producción, fusiones, migraciones y gasto de créditos.", "Any production change, merges, migrations and credit spend.")}</dd>
       </dl>
       <dl className={s.stats}>
         <div><dt>{t("Solicitudes pendientes", "Open requests")}</dt><dd>{requests ? pending : "—"}</dd></div>
-        <div><dt>{t("Terminadas", "Completed")}</dt><dd>0</dd></div>
+        <div><dt>{t("Último run", "Latest run")}</dt><dd>{execution?.run_id ? execution.run_id.slice(0, 8) : "—"}</dd></div>
       </dl>
       {unavailable === "schema" ? <p className={s.notice}>{t("La bandeja de solicitudes se activa al aplicar la migración de Oficina.", "The request inbox activates once the Office migration is applied.")}</p> : <>
         <form className={s.form} onSubmit={async e => {
