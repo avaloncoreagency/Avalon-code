@@ -29,3 +29,14 @@ export function filterLibrary<T extends { name?: string | null; settings?: { ope
       (!state || row.status === state) && (!client || (client === 'unassigned' ? !lead : lead === client));
   });
 }
+
+/** A status name describes a local manifest assertion, not remote verification. */
+export function creativeStatusLabel(state: CreativeCatalogState, lang: 'es' | 'en'): string {
+  const labels: Record<CreativeCatalogState, readonly [string, string]> = {
+    imported: ['Ruta local registrada (sin verificar)', 'Registered local path (unverified)'],
+    pending: ['Pendiente', 'Pending'],
+    blocked: ['Bloqueado', 'Blocked'],
+    reference_only: ['Solo referencia', 'Reference only'],
+  };
+  return labels[state][lang === 'en' ? 1 : 0];
+}

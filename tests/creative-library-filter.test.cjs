@@ -6,7 +6,7 @@ const src = fs.readFileSync('src/app/admin/creative-bridge/catalog.ts', 'utf8');
 const js = ts.transpileModule(src, {compilerOptions:{target:ts.ScriptTarget.ES2022,module:ts.ModuleKind.CommonJS}}).outputText;
 const m = {exports:{}};
 new Function('module', 'exports', js)(m, m.exports);
-const { creativeStatus, filterLibrary } = m.exports;
+const { creativeStatus, creativeStatusLabel, filterLibrary } = m.exports;
 const sha = 'a'.repeat(64);
 const ready = {state:'ready', sha256:sha, public_path:'/creative-bridge/'+sha+'.webp'};
 test('only a complete, checksum-shaped local path is displayed as imported; never remote-verified',()=>{
@@ -34,4 +34,15 @@ test('filter by project name, status and lead UUID without cross-client results'
   assert.deepEqual(filterLibrary(entries,{client:'unassigned'}),[entries[2]]);
   assert.deepEqual(filterLibrary(entries,{state:'blocked'}),[]);
   assert.equal(filterLibrary(entries,{q:'A'.repeat(500)}).length,0);
+});
+
+test('creative catalog labels keep verified and unknown claims distinct in EN/ES', () => {
+  assert.equal(creativeStatusLabel('imported','es'), 'Ruta local registrada (sin verificar)');
+  assert.equal(creativeStatusLabel('imported','en'), 'Registered local path (unverified)');
+  assert.equal(creativeStatusLabel('pending','es'), 'Pendiente');
+  assert.equal(creativeStatusLabel('pending','en'), 'Pending');
+  assert.equal(creativeStatusLabel('blocked','es'), 'Bloqueado');
+  assert.equal(creativeStatusLabel('blocked','en'), 'Blocked');
+  assert.equal(creativeStatusLabel('reference_only','es'), 'Solo referencia');
+  assert.equal(creativeStatusLabel('reference_only','en'), 'Reference only');
 });
