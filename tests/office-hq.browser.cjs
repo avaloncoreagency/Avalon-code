@@ -42,8 +42,26 @@ test('Avalon HQ 3D: owner-only, ten stations, real manager data, actions, light 
   let output = ''; child.stdout.on('data', c => (output += c)); child.stderr.on('data', c => (output += c));
   t.after(async () => { child.kill(); await new Promise(r => child.once('exit', r)); });
   for (let i = 0; i < 150; i++) { try { if ((await fetch(origin + '/login')).status < 500) break; } catch {} if (i === 149) assert.fail(output); await new Promise(r => setTimeout(r, 100)); }
-  const cookieName = 'sb-127-auth-token', cookieValue = s => `base64-${Buffer.from(JSON.stringify(s)).toString('base64url')}`;
-  const get = (p, s) => fetch(origin + p, { redirect: 'manual', headers: { cookie: s ? `${cookieName}=${cookieValue(s)}` : '' } });
+  // Use the real @supabase/ssr cookie encoder instead of guessing its storage-key or token wire format.
+  // The issuer and the Auth/Data bridge are 100% synthetic; no production keys or accounts are used.
+  async function cookieJar(session) {
+    const jar = new Map();
+    const client = require('@supabase/ssr').createServerClient(bridge.url, 'synthetic-key', {
+      cookies: {
+        getAll: () => [...jar].map(([name, value]) => ({ name, value })),
+        setAll: values => values.forEach(({ name, value }) => jar.set(name, value)),
+      },
+    });
+    const { error } = await client.auth.setSession({ access_token: session.access_token, refresh_token: session.refresh_token });
+    assert.equal(error, null, 'synthetic session creation must use the real auth-js API');
+    assert.ok([...jar.keys()].some(name => name.endsWith('auth-token')), 'Supabase SSR wrote its real auth cookie');
+    return [...jar].map(([name, value]) => ({ name, value }));
+  }
+  const ownerCookies = await cookieJar(miguel);
+  const outsiderCookies = await cookieJar(outsider);
+  const get = (p, s) => fetch(origin + p, { redirect: 'manual', headers: {
+    cookie: (s === miguel ? ownerCookies : s === outsider ? outsiderCookies : []).map(({ name, value }) => `${name}=${value}`).join('; '),
+  } });
 
   for (const route of ['/admin/workspace/crm/office', '/admin/workspace/crm/office/hq', '/admin/workspace/crm/office/manager-activity', '/admin/workspace/crm/office/executive']) {
     assert.equal((await get(route)).status, 307, route + ' signed out');
@@ -65,7 +83,7 @@ test('Avalon HQ 3D: owner-only, ten stations, real manager data, actions, light 
   t.after(() => browser.close());
   const open = async (options) => {
     const ctx = await browser.newContext({ locale: 'es-ES', ...options });
-    await ctx.addCookies([{ name: cookieName, value: cookieValue(miguel), url: origin }]);
+    await ctx.addCookies(ownerCookies.map(({ name, value }) => ({ name, value, url: origin })));
     const page = await ctx.newPage(); page.on('pageerror', e => errors.push('pageerror: ' + e.message)); return page;
   };
   const page = await open({ viewport: { width: 1440, height: 900 }, deviceScaleFactor: 1 });
