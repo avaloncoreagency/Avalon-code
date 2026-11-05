@@ -139,5 +139,10 @@ test('WebGL context loss on iPhone retains a ten-seat accessible light HQ', () =
   assert.match(hq, /setGraphicsError\(true\); setLite\(true\)/);
   assert.match(hq, /graphicsError && <p className=\{styles\.graphicsWarning\} role="status">/);
   assert.match(sceneCss, /\.graphicsWarning \{/);
+  assert.match(hq, /const supported = supportsWebGL\(\)/);
+  assert.match(hq, /setGraphicsError\(!supported\)/);
+  assert.match(hq, /if \(lite && !supportsWebGL\(\)\) \{ setGraphicsError\(true\); return; \}/);
+  assert.match(hq, /if \(!disposed\) \{ setGraphicsError\(true\); setLite\(true\); \}/);
+  assert.match(hq, /WebGL perdió su contexto/);
   assert.match(read('tests/office-hq.browser.cjs'), /hq-iphone-context-fallback\.png/);
 });

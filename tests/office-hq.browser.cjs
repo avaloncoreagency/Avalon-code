@@ -160,7 +160,7 @@ test('Avalon HQ 3D: owner-only, ten stations, real manager data, actions, light 
   await phone.screenshot({ path: path.join(EVIDENCE, 'hq-iphone-camera-controls.png') });
   // Synthetic context-lost event exercises React fallback, not a real device GPU fault.
   await phone.locator('canvas').evaluate(canvas => canvas.dispatchEvent(new Event('webglcontextlost', { cancelable: true })));
-  await phone.getByText(/Safari interrumpió la sesión 3D/).waitFor();
+  await phone.getByText(/Vista ligera activada; las diez estaciones siguen disponibles/).waitFor();
   assert.equal(await phone.locator('canvas').count(), 0, 'iPhone falls back to light view when WebGL is lost');
   assert.equal(await phone.locator('section[aria-label="Avalon HQ"] ol').first().locator('li').count(), 10,
     'all five manager desks and five unassigned seats stay accessible');

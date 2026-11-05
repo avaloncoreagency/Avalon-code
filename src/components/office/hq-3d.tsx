@@ -75,7 +75,9 @@ export function Hq3d({ team = [], onSelectPerson, onActivityChange }: { team?: H
   }, []);
 
   useEffect(() => {
-    setLite(!supportsWebGL() || new URLSearchParams(location.search).get("vista") === "ligera");
+    const supported = supportsWebGL();
+    setGraphicsError(!supported);
+    setLite(!supported || new URLSearchParams(location.search).get("vista") === "ligera");
     void load();
     // Safari may suspend intervals while backgrounded; refresh immediately on return.
     const onActivityVisibility = () => { if (document.visibilityState === "visible") void load(); };
@@ -488,7 +490,10 @@ export function Hq3d({ team = [], onSelectPerson, onActivityChange }: { team?: H
       if (selectedRef.current) api.current.focus(selectedRef.current);
       else api.current.preset(cameraPresetRef.current ?? "overview");
       invalidate();
-    })().catch(() => setLite(true));
+    })().catch(() => {
+      // WebGL may fail even when getContext initially succeeds (GPU memory/driver).
+      if (!disposed) { setGraphicsError(true); setLite(true); }
+    });
     return () => { disposed = true; cleanup(); };
   }, [lite, chooseStation]);
 
@@ -529,7 +534,12 @@ export function Hq3d({ team = [], onSelectPerson, onActivityChange }: { team?: H
           <button type="button" disabled={busy || !activity} onClick={() => act({ kill_switch: !activity?.meta.kill_switch })} className={activity?.meta.kill_switch ? styles.danger : undefined}>
             {activity?.meta.kill_switch ? "Reanudar managers" : "Detener todo"}
           </button>
-          <button type="button" onClick={() => setLite(v => !v)}>{lite ? "Vista 3D" : "Vista ligera"}</button>
+          <button type="button" onClick={() => {
+            // A device without WebGL must not loop back to a blank 3D view.
+            if (lite && !supportsWebGL()) { setGraphicsError(true); return; }
+            setGraphicsError(false);
+            setLite(v => !v);
+          }}>{lite ? "Vista 3D" : "Vista ligera"}</button>
         </div>
       </header>
       <div className={styles.statusStrip} aria-label="Estado verificable de la oficina">
@@ -555,7 +565,7 @@ export function Hq3d({ team = [], onSelectPerson, onActivityChange }: { team?: H
       )}
       {lite !== false && (
         <div className={styles.liteWrap}>
-          {graphicsError && <p className={styles.graphicsWarning} role="status">Safari interrumpió la sesión 3D. Se activó la vista ligera; las diez estaciones siguen disponibles.</p>}
+          {graphicsError && <p className={styles.graphicsWarning} role="status">La vista 3D no está disponible o WebGL perdió su contexto. Vista ligera activada; las diez estaciones siguen disponibles.</p>}
           <h2 className={styles.liteTitle}>Managers y estaciones</h2>
           <ol className={styles.lite}>
             {HQ_STATIONS.map(s => (
