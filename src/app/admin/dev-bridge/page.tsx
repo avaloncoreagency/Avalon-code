@@ -41,7 +41,7 @@ export default async function DevBridge() {
       <div className={s.sectionTitle}><div><small>ALERTAS CON PROCEDENCIA</small><h2>Prioridades y bloqueos</h2></div>
         <BridgeStatus state={state.findings.length ? 'pending' : 'unknown'} label={state.findings.length ? 'Requiere revisión' : 'Sin diagnóstico global'} /></div>
       {state.findings.length ? <ul className={s.findingList}>{state.findings.slice(0, 15).map(f =>
-        <li key={f.id}><span className={s.findingType}>{f.claim === 'VERIFIED' ? 'Reportado por proveedor' : 'Inferencia, revisar'}</span><span>{f.message}</span></li>
+        <li key={f.id}><span className={s.findingType}>{/^source:(github|vercel|supabase)$/.test(f.id) ? 'Lectura no verificada' : f.claim === 'VERIFIED' ? 'Reportado por proveedor' : 'Inferencia, revisar'}</span><span>{f.message}</span></li>
       )}</ul> : <p className={s.muted}>No hay alertas en los metadatos disponibles. Eso no demuestra que la aplicación esté libre de fallos.</p>}
       {state.findings.length > 15 ? <p className={s.muted}>Se muestran 15 de {state.findings.length} avisos. Consulta el informe completo con bridge:report.</p> : null}
     </section>
