@@ -5,77 +5,30 @@ import { useEffect, useState } from "react";
 import { CrmNavigation } from "./navigation";
 import { COMMON_UNITS, canonicalUnit, latestPerUnit } from "@/lib/crm/usage-units";
 import s from "./crm.module.css";
+import { loadCrmOverview, type CrmOverviewSnapshot } from "@/lib/crm/overview-data";
 
-type UsageRow = {
-  id?: string;
-  provider?: string;
-  amount?: number;
-  unit?: string;
-  source?: string;
-  mode?: string;
-  period_start?: string;
-  period_end?: string;
-  created_at?: string;
-  limit_value?: number | null;
-  threshold?: number;
-};
-type KpiPayload = {
-  metrics?: { overdue?: number; pending?: number };
-};
-type UsagePayload = { rows?: UsageRow[] };
-type OverviewData = {
-  usage: UsageRow[];
-  overdue: number;
-  pending: number;
-};
 const providers = ["Codex", "Claude", "Higgsfield"] as const;
 // Subscriptions/plans and API billing are different sources; manual records state which one they are.
 const LABELS: Record<(typeof providers)[number], string> = { Codex: "ChatGPT / Codex", Claude: "Claude Code", Higgsfield: "Higgsfield" };
-const api = "/admin/workspace/crm/api";
 
 function isNumber(value: unknown): value is number {
   return typeof value === "number" && Number.isFinite(value) && value >= 0;
 }
 
 export function CrmOverview() {
-  const [data, setData] = useState<OverviewData | null>(null);
-  const [error, setError] = useState("");
+  const [data, setData] = useState<CrmOverviewSnapshot | null>(null);
   const [revision, setRevision] = useState(0);
 
   useEffect(() => {
     const controller = new AbortController();
-    Promise.all([
-      fetch(`${api}?entity=usage&page=0`, { signal: controller.signal }),
-      fetch(`${api}?entity=kpis&page=0`, { signal: controller.signal }),
-    ])
-      .then(async ([usageResponse, kpiResponse]) => {
-        if (!usageResponse.ok || !kpiResponse.ok) {
-          throw new Error("No se pudo consultar el estado del CRM.");
-        }
-        const usage = (await usageResponse.json()) as UsagePayload;
-        const kpi = (await kpiResponse.json()) as KpiPayload;
-        const overdue = kpi.metrics?.overdue;
-        const pending = kpi.metrics?.pending;
-        if (!isNumber(overdue) || !isNumber(pending)) {
-          throw new Error("Las métricas del CRM no están disponibles.");
-        }
-        if (!Array.isArray(usage.rows)) {
-          throw new Error("No se pudieron consultar los registros de consumo.");
-        }
-        if (!controller.signal.aborted) {
-          setData({
-            usage: usage.rows,
-            overdue,
-            pending,
-          });
-          setError("");
-        }
-      })
-      .catch((reason: unknown) => {
-        if (!controller.signal.aborted) {
-          setData(null);
-          setError(reason instanceof Error ? reason.message : "No se pudo cargar el CRM.");
-        }
+    loadCrmOverview(fetch, controller.signal)
+      .then(snapshot => { if (!controller.signal.aborted) setData(snapshot); })
+      .catch(() => {
+        if (!controller.signal.aborted) setData({
+          usage: null, overdue: null, pending: null,
+          usageError: "No se pudieron cargar los registros de consumo.",
+          kpiError: "Las métricas del CRM no están disponibles.",
+        });
       });
     return () => controller.abort();
   }, [revision]);
@@ -95,6 +48,7 @@ export function CrmOverview() {
       <section className={s.panel} aria-labelledby="usage-heading">
         <h2 id="usage-heading">Centro de consumo de IA · Uso de tokens y costos</h2>
         <p className={s.muted}>Las API de consumo no están conectadas. Los valores registrados manualmente son históricos, no balances en tiempo real ni costos calculados. Nunca se muestra 0 cuando el valor es desconocido; suscripciones y facturación API se registran por separado indicando la fuente.</p>
+        {data?.usageError && <p role="alert">{data.usageError} <button type="button" onClick={() => setRevision((n) => n + 1)}>Reintentar</button></p>}
         <div className={s.cards}>
           {providers.map((provider) => {
             const rows = (data?.usage ?? []).filter((item) => item.provider === provider && item.mode === "manual" && isNumber(item.amount));
@@ -102,7 +56,7 @@ export function CrmOverview() {
             return (
               <div className={s.card} key={provider}>
                 <strong>{LABELS[provider]}</strong>
-                {!data && !error ? <p>Consultando registros…</p> : perUnit.length === 0 ? (
+                {!data ? <p>Consultando registros…</p> : data.usageError ? <p className={s.muted}>Estado: No disponible por un error de consulta.</p> : perUnit.length === 0 ? (
                   <><p className={s.muted}>Estado: Sin datos</p><p>No disponible · registra un consumo manual desde el panel oficial del proveedor. Unidades habituales: {COMMON_UNITS.join(", ")}.</p></>
                 ) : perUnit.map((latest) => {
                   const unit = canonicalUnit(latest.unit) || "unidades";
@@ -129,20 +83,20 @@ export function CrmOverview() {
       <section className={s.panel} aria-labelledby="notifications-heading">
         <h2 id="notifications-heading">Notificaciones del CRM</h2>
         <p className={s.muted}>Indicadores de seguimiento de leads derivados de los registros actuales. Los avisos de ventas, entregas y tareas se guardan por propietario en el <Link className={s.link} href="/admin/workspace/crm/notifications">buzón de avisos</Link>, con confirmación de lectura.</p>
-        {error ? (
-          <p role="alert">{error} <button type="button" onClick={() => setRevision((n) => n + 1)}>Reintentar</button></p>
-        ) : !data ? (
+        {!data ? (
           <p role="status">Consultando datos autorizados del CRM…</p>
+        ) : data.kpiError ? (
+          <p role="alert">{data.kpiError} <button type="button" onClick={() => setRevision((n) => n + 1)}>Reintentar</button></p>
         ) : (
           <div className={s.grid}>
             <article className={s.card}>
               <h3>Urgentes</h3>
-              <p><strong>{data.overdue}</strong> seguimientos de leads vencidos</p>
+              <p><strong>{data.overdue ?? "—"}</strong> seguimientos de leads vencidos</p>
               <Link className={s.link} href="/admin/workspace/crm/leads">Revisar pipeline</Link>
             </article>
             <article className={s.card}>
               <h3>Normales</h3>
-              <p><strong>{data.pending}</strong> actividades de leads pendientes</p>
+              <p><strong>{data.pending ?? "—"}</strong> actividades de leads pendientes</p>
               <Link className={s.link} href="/admin/workspace/crm/calendar">Revisar calendario</Link>
             </article>
           </div>
