@@ -49,10 +49,11 @@ test('creative catalog labels keep verified and unknown claims distinct in EN/ES
 
 test('creative page fails closed for unvalidated checkpoint attribution (static integration guard)', () => {
   const page = fs.readFileSync('src/app/admin/creative-bridge/page.tsx', 'utf8');
-  assert.match(page, /checkpoint\\?\\.agent/);
-  assert.match(page, /checkpoint\\?\\.head_sha/);
-  assert.doesNotMatch(page, /p\\.settings\\?\\.creative_continuity\\?\\.(?:agent|head_sha)/);
-  assert.match(page, /Agent claimed by checkpoint/);
-  assert.match(page, /Claimed SHA \\(not checked against GitHub\\)/);
-  assert.match(page, /No valid checkpoint/);
+  assert.ok(page.includes('checkpoint?.agent'));
+  assert.ok(page.includes('checkpoint?.head_sha'));
+  assert.equal(page.includes('p.settings?.creative_continuity?.agent'), false);
+  assert.equal(page.includes('p.settings?.creative_continuity?.head_sha'), false);
+  assert.ok(page.includes('Agent claimed by checkpoint'));
+  assert.ok(page.includes('Claimed SHA (not checked against GitHub)'));
+  assert.ok(page.includes('No valid checkpoint'));
 });
