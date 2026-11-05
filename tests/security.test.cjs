@@ -249,7 +249,16 @@ test('every migration table has RLS enabled and anon revoked (default privileges
   // Single reviewed exception: the public quote form RPC (validated, honeypot, SQL-level throttling,
   // creates only pending prospects). Any other anon grant fails this test.
   const anonGrants = [...sql.matchAll(/grant [^;]* to anon[^;]*;/gi)].map(m => m[0]);
-  assert.deepEqual(anonGrants, ['grant execute on function public.crm_public_inquiry(jsonb) to anon, authenticated;'], 'no grants to anon except the reviewed public inquiry RPC');
+  assert.deepEqual(anonGrants, [
+    'grant execute on function public.crm_public_inquiry(jsonb) to anon, authenticated;',
+    // Reviewed (AI Engine): the single operational control read by the GitHub Actions worker with the publishable key.
+    'grant execute on function public.crm_ai_public_control() to anon, authenticated, service_role;',
+  ], 'no grants to anon except the reviewed public inquiry and AI control RPCs');
+  // The control RPC may expose ONLY these four switches; any other key needs a new review.
+  const ctl = fs.readFileSync('supabase/migrations/20261106090000_ai_engine.sql', 'utf8');
+  const body = ctl.slice(ctl.indexOf('create function public.crm_ai_public_control()'), ctl.indexOf('revoke all on function public.crm_ai_public_control()'));
+  assert.deepEqual([...body.matchAll(/'([a-z_]+)',/g)].map(m => m[1]), ['kill_switch', 'automatic_enabled', 'ai_enabled', 'suspended'], 'crm_ai_public_control exposes only switches');
+  assert.doesNotMatch(body, /email|phone|lead|prospect|client|token|secret/i);
   for (const m of sql.matchAll(/security definer([\s\S]*?)\$\$/gi)) assert.match(m[1], /set search_path\s*=\s*''/i, 'SECURITY DEFINER needs empty search_path');
 });
 
