@@ -80,3 +80,27 @@ test('catalog never labels a media-path mismatch or unsupported GLB as imported'
   assert.equal(media.exports.safeCreativeMediaPath(movie), movie.public_path);
   assert.equal(creativeStatus({ci:'PASSED', assets:[ready, movie]}), 'imported');
 });
+
+
+test('SORA project cards translate provenance and display remote approval as unverified in EN/ES', () => {
+  const page = fs.readFileSync('src/app/admin/creative-bridge/page.tsx','utf8');
+  const pairs = [
+    ["'Biblioteca','Library'", 'Biblioteca: {p.module}'],
+    ["'Versión','Version'", ' · Versión: {p.version}'],
+    ["'Procedencia declarada','Claimed provenance'", 'Procedencia: {p.settings?.creative?.provider'],
+    ["'Aprobación y publicación remotas: no verificadas en esta pantalla.','Remote approval and publication: not verified on this screen.'", ''],
+    ["'Cliente no visible','Client not visible'", ''],
+    ["'Sin asignar · no se creó un lead','Unassigned · no lead was created'", ''],
+    ["'Recursos registrados','Registered assets'", 'Recursos registrados: {'],
+    ["'Última actualización','Last updated'", 'Última actualización: {'],
+    ["'Rama','Branch'", 'Rama: {checkpoint.branch}'],
+    ["'CI reportada','Reported CI'", 'CI reportada: {checkpoint.ci}'],
+  ];
+  for (const [bilingual, legacy] of pairs) {
+    assert.ok(page.includes("pick(lang," + bilingual + ")"), 'Expected translated label: ' + bilingual);
+    if (legacy) assert.equal(page.includes(legacy), false, 'Remove untranslated legacy label: ' + legacy);
+  }
+  // Keep stated provenance distinct from verified remote publication.
+  assert.ok(page.includes("pick(lang,'Procedencia declarada','Claimed provenance')"));
+  assert.ok(page.includes("pick(lang,'Aprobación y publicación remotas: no verificadas en esta pantalla.','Remote approval and publication: not verified on this screen.')"));
+});
