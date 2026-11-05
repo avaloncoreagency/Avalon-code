@@ -15,6 +15,11 @@ export default async function DevBridge() {
   const completeGithub = freshness(state.github).status === 'VERIFIED' && !publicOnly && !state.github.error;
   const owners: Owner[] = ['miguel', 'samuel'];
   const githubFresh = freshness(state.github).status === 'VERIFIED' && !state.github.error;
+  // A provider error outranks a cached VERIFIED timestamp. Keep the section
+  // header consistent with SourceCard and VerifiedSourceOnly, which already
+  // refuse to render stale or failed Vercel/Supabase metadata.
+  const vercelFresh = freshness(state.vercel).status === 'VERIFIED' && !state.vercel.error;
+  const supabaseFresh = freshness(state.supabase).status === 'VERIFIED' && !state.supabase.error;
   // Keep cached PRs available to the data layer, but do not present old
   // CI/commit evidence as currently verified when a provider refresh fails.
   const visiblePulls = githubFresh ? (github?.pulls ?? []) : [];
@@ -140,7 +145,7 @@ export default async function DevBridge() {
       <details><summary>Commits recientes</summary><ul>{visibleCommits.slice(0, 20).map(c => <li key={c.sha}><a href={c.url}><Sha value={c.sha} /></a> · {c.date} · autor reportado: {c.author}</li>)}</ul></details>
     </section>
     <section className={s.section} aria-label="Despliegues de Vercel">
-      <div className={s.sectionTitle}><div><small>VERCEL</small><h2>Despliegues</h2></div><BridgeStatus state={freshness(state.vercel).status === 'VERIFIED' ? 'verified' : 'unknown'} label={freshness(state.vercel).status === 'VERIFIED' ? 'Metadatos disponibles' : 'Sin verificación actual'} /></div>
+      <div className={s.sectionTitle}><div><small>VERCEL</small><h2>Despliegues</h2></div><BridgeStatus state={vercelFresh ? 'verified' : 'unknown'} label={vercelFresh ? 'Metadatos disponibles' : 'Sin verificación actual'} /></div>
       <p className={s.muted}>Un build READY no verifica la autenticación ni el funcionamiento del sitio. No se consultan variables ni logs privados.</p>
       <VerifiedSourceOnly fact={state.vercel}>
       <div className={s.deployments}>{state.vercel.data?.slice(0, 12).map(d => <article className={s.deployment} key={d.id}>
@@ -152,7 +157,7 @@ export default async function DevBridge() {
       </VerifiedSourceOnly>
     </section>
     <section className={s.section} aria-label="Metadatos de Supabase">
-      <div className={s.sectionTitle}><div><small>SUPABASE</small><h2>Metadatos de la base de datos</h2></div><BridgeStatus state={freshness(state.supabase).status === 'VERIFIED' ? 'verified' : 'unknown'} label={freshness(state.supabase).status === 'VERIFIED' ? 'Lectura verificada' : 'Desconocido'} /></div>
+      <div className={s.sectionTitle}><div><small>SUPABASE</small><h2>Metadatos de la base de datos</h2></div><BridgeStatus state={supabaseFresh ? 'verified' : 'unknown'} label={supabaseFresh ? 'Lectura verificada' : 'Desconocido'} /></div>
       <VerifiedSourceOnly fact={state.supabase}>
       <p>Proyecto: <code>{state.supabase.data?.ref ?? 'Desconocido'}</code> · {state.supabase.data?.status ?? 'Sin estado disponible'}</p>
       <div className={s.metaLine}><span>{state.supabase.data?.migrations.length ?? 0} migraciones reportadas</span><span>{state.supabase.data?.rls.length ?? 0} tablas inspeccionadas</span></div>
