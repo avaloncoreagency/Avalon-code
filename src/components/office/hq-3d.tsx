@@ -14,7 +14,8 @@ import { HQ_ASSETS, importedAssets } from "@/lib/office/hq-assets";
 import type { ManagerActivity } from "@/lib/agents/policy";
 import styles from "./hq-3d.module.css";
 
-type Activity = { managers: ManagerActivity[]; meta: { kill_switch: boolean; automatic_enabled: boolean; executor_kind: string } };
+export type HqActivity = { managers: ManagerActivity[]; meta: { kill_switch: boolean; automatic_enabled: boolean; executor_kind: string } };
+type Activity = HqActivity;
 export type HqPerson = { id: string; name: string; initials: string; subtitle: string; presence: "active" | "busy" | "inactive" };
 type Preset = "overview" | "managers" | "team" | "direction" | "ops";
 type Perf = { firstFrameMs: number | null; modelsMs: number | null; calls: number; triangles: number; textures: number; tier: "desktop" | "mobile" };
@@ -31,11 +32,12 @@ function supportsWebGL(): boolean {
   try { const c = document.createElement("canvas"); return !!(c.getContext("webgl2") || c.getContext("webgl")); } catch { return false; }
 }
 
-export function Hq3d({ team = [], onSelectPerson }: { team?: HqPerson[]; onSelectPerson?: (id: string) => void }) {
+export function Hq3d({ team = [], onSelectPerson, onActivityChange }: { team?: HqPerson[]; onSelectPerson?: (id: string) => void; onActivityChange?: (value: HqActivity | null) => void }) {
   const mount = useRef<HTMLDivElement>(null);
   const [activity, setActivity] = useState<Activity | null>(null);
   const [activityError, setActivityError] = useState(false);
   const [selected, setSelected] = useState<string | null>(null);
+  const [cameraPreset, setCameraPreset] = useState<Preset | null>("overview");
   const [lite, setLite] = useState<boolean | null>(null);
   const [busy, setBusy] = useState(false);
   const [notice, setNotice] = useState("");
@@ -44,6 +46,10 @@ export function Hq3d({ team = [], onSelectPerson }: { team?: HqPerson[]; onSelec
   const api = useRef<{ focus: (id: string | null) => void; preset: (p: Preset) => void; update: (views: Record<string, StationView>, people: HqPerson[], act: Activity | null) => void } | null>(null);
   const teamRef = useRef(team); teamRef.current = team;
   const selectPerson = useRef(onSelectPerson); selectPerson.current = onSelectPerson;
+  const activityListener = useRef(onActivityChange); activityListener.current = onActivityChange;
+  const selectedRef = useRef(selected); selectedRef.current = selected;
+  const cameraPresetRef = useRef(cameraPreset); cameraPresetRef.current = cameraPreset;
+  const chooseStation = useCallback((id: string | null) => { setSelected(id); setCameraPreset(id ? null : "overview"); }, []);
 
   const views = useMemo(() => Object.fromEntries(HQ_STATIONS.map(s => [s.id, stationView(s, activityError ? null : activity?.managers ?? [])])), [activity, activityError]);
   const people = useMemo(() => team.slice(0, DIRECTION_SLOTS.length), [team]);
@@ -53,8 +59,9 @@ export function Hq3d({ team = [], onSelectPerson }: { team?: HqPerson[]; onSelec
     try {
       const r = await fetch(ACTIVITY_URL, { cache: "no-store" });
       if (!r.ok) throw new Error(String(r.status));
-      setActivity(await r.json()); setActivityError(false);
-    } catch { setActivityError(true); }
+      const next = await r.json() as HqActivity;
+      setActivity(next); setActivityError(false); activityListener.current?.(next);
+    } catch { setActivity(null); setActivityError(true); activityListener.current?.(null); }
   }, []);
 
   useEffect(() => {
@@ -83,7 +90,7 @@ export function Hq3d({ team = [], onSelectPerson }: { team?: HqPerson[]; onSelec
       renderer.setPixelRatio(Math.min(devicePixelRatio, mobile ? 1.5 : 2));
       renderer.setSize(el.clientWidth, el.clientHeight);
       renderer.outputColorSpace = T.SRGBColorSpace;
-      renderer.toneMapping = T.ACESFilmicToneMapping; renderer.toneMappingExposure = 1.05;
+      renderer.toneMapping = T.ACESFilmicToneMapping; renderer.toneMappingExposure = 1.12;
       renderer.shadowMap.enabled = !mobile; renderer.shadowMap.type = T.PCFSoftShadowMap;
       el.appendChild(renderer.domElement);
       const labels = new CSS2DRenderer(); labels.setSize(el.clientWidth, el.clientHeight);
@@ -109,6 +116,8 @@ export function Hq3d({ team = [], onSelectPerson }: { team?: HqPerson[]; onSelec
       key.castShadow = !mobile; key.shadow.mapSize.set(1024, 1024); key.shadow.bias = -0.0004; key.shadow.normalBias = 0.03;
       Object.assign(key.shadow.camera, { left: -16, right: 16, top: 16, bottom: -16, near: 2, far: 40 });
       scene.add(key);
+      // Low-cost, shadow-free cool fill: separates the original Higgsfield PBR models from the dark back wall.
+      const rim = new T.DirectionalLight(0x8eaaff, 0.52); rim.position.set(-8, 10, -7); scene.add(rim);
       for (const [c, x, z, i] of [[0x22e6ff, -10, -7, 30], [0x8f5cff, 10, -7, 30], [0x3d7bff, 0, 10, 26], [0xc04bd9, 0, -12, 18]] as const) {
         const l = new T.PointLight(c, i, 24, 1.7); l.position.set(x, 5.2, z); scene.add(l);
       }
@@ -128,9 +137,9 @@ export function Hq3d({ team = [], onSelectPerson }: { team?: HqPerson[]; onSelec
       }, [12, 12]);
 
       // ── Architecture ──────────────────────────────────────────────────────────────────────────────────────────────
-      const metal = new T.MeshStandardMaterial({ color: 0x9aa4c2, metalness: 0.95, roughness: 0.28 });
+      const metal = new T.MeshStandardMaterial({ color: 0xafbdd6, metalness: 0.82, roughness: 0.34 });
       const darkMetal = new T.MeshStandardMaterial({ color: 0x1b2038, metalness: 0.85, roughness: 0.35 });
-      const floor = new T.Mesh(new T.CircleGeometry(16, mobile ? 48 : 96), new T.MeshStandardMaterial({ map: floorTex.tex, color: 0xffffff, metalness: 0.35, roughness: 0.32 }));
+      const floor = new T.Mesh(new T.CircleGeometry(16, mobile ? 48 : 96), new T.MeshStandardMaterial({ map: floorTex.tex, color: 0xffffff, metalness: 0.26, roughness: 0.44 }));
       floor.rotation.x = -Math.PI / 2; floor.receiveShadow = true; scene.add(floor);
       const carpet = new T.Mesh(new T.RingGeometry(2.9, 5.2, mobile ? 48 : 96), new T.MeshStandardMaterial({ color: 0x141a3a, roughness: 0.95, metalness: 0 }));
       carpet.rotation.x = -Math.PI / 2; carpet.position.y = 0.006; carpet.receiveShadow = true; scene.add(carpet);
@@ -241,7 +250,7 @@ export function Hq3d({ team = [], onSelectPerson }: { team?: HqPerson[]; onSelec
         scene.add(g);
         stations[id] = { group: g, furniture: fallbackDesk(g, kind === "reserved" ? 0x2a1d3a : 0x1a2a5a), halo, light, screen, panel, monitorMats: [], animate: false };
       };
-      for (const s of HQ_STATIONS) addStation(s.id, s.x, s.z, s.facing, s.kind, s.label, `${s.label}: ${s.role}`, () => setSelected(s.id));
+      for (const s of HQ_STATIONS) addStation(s.id, s.x, s.z, s.facing, s.kind, s.label, `${s.label}: ${s.role}`, () => chooseStation(s.id));
       const personIds: string[] = [];
       DIRECTION_SLOTS.forEach(([x, z], i) => {
         const id = `person-${i}`; personIds.push(id);
@@ -251,12 +260,16 @@ export function Hq3d({ team = [], onSelectPerson }: { team?: HqPerson[]; onSelec
 
       // Central operations table (Higgsfield model) + hologram that turns only while real runs are in progress.
       const ops = new T.Group(); scene.add(ops);
+      // Raised satin-metal presentation platform; uses existing Three.js geometry and no external assets.
+      const opsBase = new T.Mesh(new T.CylinderGeometry(2.8, 3, 0.16, mobile ? 40 : 72),
+        new T.MeshPhysicalMaterial({ color: 0x142345, metalness: 0.62, roughness: 0.38, clearcoat: 0.55 }));
+      opsBase.position.y = 0.09; opsBase.receiveShadow = !mobile; ops.add(opsBase);
       const opsFallback = new T.Mesh(new T.CylinderGeometry(2.1, 2.3, 0.16, 64), deskMat); opsFallback.position.y = 1; ops.add(opsFallback);
       const holoMat = new T.MeshBasicMaterial({ color: 0x22e6ff, transparent: true, opacity: 0.5, toneMapped: false });
       const holo = new T.Group(); holo.position.y = 2.6; ops.add(holo);
       for (const [r, tilt] of [[1.1, 0], [0.8, 0.6], [0.55, -0.5]] as const) { const ring = new T.Mesh(new T.TorusGeometry(r, 0.012, 6, 96), holoMat); ring.rotation.x = Math.PI / 2 + tilt; holo.add(ring); }
       const opsTag = document.createElement("button"); opsTag.type = "button"; opsTag.className = `${styles.tag} ${styles.tagOps}`; opsTag.textContent = "Mesa de operaciones";
-      opsTag.addEventListener("click", () => api.current?.preset("ops"));
+      opsTag.addEventListener("click", () => { setSelected(null); setCameraPreset("ops"); api.current?.preset("ops"); });
       const opsLabel = new CSS2DObject(opsTag); opsLabel.position.set(0, 3.6, 0); ops.add(opsLabel);
 
       // ── Higgsfield models (verified imports); fallback furniture stays hidden-in-waiting ───────────────────────────
@@ -327,7 +340,7 @@ export function Hq3d({ team = [], onSelectPerson }: { team?: HqPerson[]; onSelec
         ray.setFromCamera(ptr, camera);
         const id = ray.intersectObjects(pickables.filter(p => p.parent?.visible))[0]?.object.userData.station as string | undefined;
         if (id?.startsWith("person-")) { const p = teamRef.current[Number(id.slice(7))]; if (p) selectPerson.current?.(p.id); return; }
-        setSelected(id ?? null);
+        chooseStation(id ?? null);
       };
       renderer.domElement.addEventListener("pointerdown", onDown);
       renderer.domElement.addEventListener("pointerup", onUp);
@@ -420,15 +433,18 @@ export function Hq3d({ team = [], onSelectPerson }: { team?: HqPerson[]; onSelec
         renderer.dispose(); el.replaceChildren(); api.current = null;
       };
       api.current.update(viewsRef.current, teamRef.current.slice(0, DIRECTION_SLOTS.length), activityRef.current);
+      if (selectedRef.current) api.current.focus(selectedRef.current);
+      else api.current.preset(cameraPresetRef.current ?? "overview");
       invalidate();
     })().catch(() => setLite(true));
     return () => { disposed = true; cleanup(); };
-  }, [lite]);
+  }, [lite, chooseStation]);
 
   const viewsRef = useRef(views); viewsRef.current = views;
   const activityRef = useRef(activity); activityRef.current = activity;
   useEffect(() => { api.current?.update(views, people, activity); }, [views, teamKey, activity]); // eslint-disable-line react-hooks/exhaustive-deps
-  useEffect(() => { api.current?.focus(selected); }, [selected]);
+  // A camera shortcut must not be overwritten by the old selected=null → overview effect.
+  useEffect(() => { if (selected) api.current?.focus(selected); else if (cameraPreset) api.current?.preset(cameraPreset); }, [selected, cameraPreset]);
 
   const station = HQ_STATIONS.find(s => s.id === selected) ?? null;
   const view = station ? views[station.id] : null;
@@ -440,14 +456,17 @@ export function Hq3d({ team = [], onSelectPerson }: { team?: HqPerson[]; onSelec
       const j = await r.json().catch(() => ({}));
       setNotice(r.ok ? (j.status ? `Resultado: ${j.status}${j.error_code ? ` (${j.error_code})` : ""}` : "Hecho") : (j.error ?? "No se pudo completar la acción"));
       await load();
-    } finally { setBusy(false); }
+    } catch { setNotice("No se pudo contactar el motor. No se confirma ninguna ejecución."); }
+    finally { setBusy(false); }
   }
 
   const imported = importedAssets();
+  const runningCount = activity?.managers.filter(m => m.status === "running").length ?? null;
   return (
-    <section className={styles.hq} aria-label="Avalon HQ">
+    <section className={styles.hq} data-panel-open={station ? "true" : "false"} aria-label="Avalon HQ">
       <header className={styles.bar}>
         <div>
+          <span className={styles.eyebrow}>AVALON CORE AGENCY · CONTROL ROOM</span>
           <h1>Avalon HQ</h1>
           <p>
             {activityError ? "Actividad no disponible." : activity ? `Motor de managers · automático ${activity.meta.automatic_enabled ? "activado" : "desactivado"}${activity.meta.kill_switch ? " · INTERRUPTOR DE EMERGENCIA ACTIVO" : ""}` : "Cargando actividad real…"}
@@ -461,15 +480,24 @@ export function Hq3d({ team = [], onSelectPerson }: { team?: HqPerson[]; onSelec
           <button type="button" onClick={() => setLite(v => !v)}>{lite ? "Vista 3D" : "Vista ligera"}</button>
         </div>
       </header>
+      <div className={styles.statusStrip} aria-label="Estado verificable de la oficina">
+        <span><strong>{HQ_STATIONS.filter(s => s.kind === "manager").length}</strong> estaciones de managers</span>
+        <span><strong>{HQ_STATIONS.filter(s => s.kind === "reserved").length}</strong> reservadas · sin trabajadores</span>
+        <span className={styles.liveState} data-state={activityError ? "unavailable" : runningCount && runningCount > 0 ? "running" : "idle"}>
+          {activityError ? "Estado no disponible" : runningCount === null ? "Consultando actividad…" : `${runningCount} ejecutando ahora · datos del motor`}
+        </span>
+      </div>
 
       {lite === false && (
         <div className={styles.stageWrap}>
-          <div ref={mount} className={styles.stage} role="img" aria-label="Oficina 3D: cinco managers, cinco puestos reservados, dirección y mesa de operaciones. Use las etiquetas o la vista ligera para seleccionar." />
-          <nav className={styles.cams} aria-label="Cámaras">
+          <div ref={mount} className={styles.stage} role="group" aria-label="Oficina 3D: cinco managers, cinco puestos reservados, dirección y mesa de operaciones. Use las etiquetas o la vista ligera para seleccionar." />
+          <nav className={styles.cams} aria-label="Vistas de cámara">
             {([["overview", "General"], ["managers", "Managers"], ["team", "Equipo"], ["direction", "Dirección"], ["ops", "Operaciones"]] as const).map(([p, l]) => (
-              <button key={p} type="button" onClick={() => { setSelected(null); api.current?.preset(p); }}>{l}</button>
+              <button key={p} type="button" aria-pressed={cameraPreset === p && !selected}
+                onClick={() => { setSelected(null); setCameraPreset(p); api.current?.preset(p); }}>{l}</button>
             ))}
           </nav>
+          <p className={styles.gestureHint}>Arrastra para girar · pellizca para acercar · toca una estación</p>
           {loading !== null && <p className={styles.loading} role="status">Cargando modelos 3D de Higgsfield… {loading}%</p>}
         </div>
       )}
@@ -479,7 +507,7 @@ export function Hq3d({ team = [], onSelectPerson }: { team?: HqPerson[]; onSelec
           <ol className={styles.lite}>
             {HQ_STATIONS.map(s => (
               <li key={s.id}>
-                <button type="button" onClick={() => setSelected(s.id)} className={s.kind === "reserved" ? styles.reservedCard : undefined} aria-pressed={selected === s.id}>
+                <button type="button" onClick={() => chooseStation(s.id)} className={s.kind === "reserved" ? styles.reservedCard : undefined} aria-pressed={selected === s.id}>
                   <span className={styles.dot} style={{ background: hex(views[s.id].color) }} aria-hidden />
                   <strong>{s.label}</strong><small>{s.kind === "manager" ? views[s.id].headline : s.role}</small>
                 </button>
@@ -502,10 +530,10 @@ export function Hq3d({ team = [], onSelectPerson }: { team?: HqPerson[]; onSelec
 
       {station && view && (
         <aside className={styles.panel} aria-live="polite">
-          <button type="button" className={styles.close} onClick={() => setSelected(null)}>← Vista general</button>
+          <button type="button" className={styles.close} onClick={() => { chooseStation(null); api.current?.preset("overview"); }}>← Vista general</button>
           <h2>{station.label}</h2>
           <p className={styles.role}>{station.role}</p>
-          <p className={styles.status}><span className={styles.dot} style={{ background: hex(view.color) }} aria-hidden /> {view.headline}{view.error_code ? ` · ${view.error_code}` : ""}</p>
+          <p className={styles.status}><span className={styles.dot} style={{ background: hex(view.color) }} aria-hidden /> {activityError && station.kind === "manager" ? "Estado no disponible" : view.headline}{view.error_code ? ` · ${view.error_code}` : ""}</p>
           <p>{view.detail}</p>
           {station.kind === "manager" && (
             <>
