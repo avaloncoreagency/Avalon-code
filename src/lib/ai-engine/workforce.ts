@@ -34,12 +34,18 @@ export const WORKFORCE: WorkerProfile[] = [
     executors: [sql("security_posture"), { id: "shin.explain", kind: "ai_analysis", effect: "read", ref: "security_summary", requiresApproval: false }],
     ai: { requirements: { caps: ["reasoning", "json"], minQuality: 3 }, dataClasses: ["internal_aggregate", "public_repo"] } },
   { key: "haru", name: "HARU", department: "CRM y producto", status: "active",
-    objectives: [{ id: "haru.followups", text: "Ningún seguimiento de lead vencido sin tarea interna", kpi: "seguimientos vencidos sin tarea = 0" }],
+    objectives: [
+      { id: "haru.followups", text: "Ningún seguimiento de lead vencido sin tarea interna", kpi: "seguimientos vencidos sin tarea = 0" },
+      { id: "haru.journey", text: "13 etapas, Radar→Lead, calendario y tareas verificados", kpi: "pruebas CRM/calendario/tareas en verde" },
+    ],
     executors: [sql("crm_followups"), sql("followup_tasks", "write_internal")],
     ai: { requirements: { caps: ["json"], minQuality: 2, prefer: "speed" }, dataClasses: ["internal_aggregate"] } },
-  { key: "sora", name: "SORA", department: "Lead Hunter y marketing", status: "active",
-    objectives: [{ id: "sora.radar", text: "Cola del Radar revisada: 4–5★ primero, sin contacto automático", kpi: "pendientes 4–5★ sin revisar" }],
-    executors: [sql("radar_review_queue")],
+  { key: "sora", name: "SORA", department: "Integraciones (Radar, Geoapify, Higgsfield Bridge)", status: "active",
+    objectives: [
+      { id: "sora.radar", text: "Cola del Radar revisada: 4–5★ primero, sin contacto automático", kpi: "pendientes 4–5★ sin revisar" },
+      { id: "sora.integrations", text: "Radar, Geoapify y Creative Bridge verificados; recursos publicados íntegros (SHA-256)", kpi: "fallos de integridad = 0" },
+    ],
+    executors: [sql("radar_review_queue"), { id: "sora.integrations_check", kind: "github_worker", effect: "read", ref: "scripts/ai-engine/managers.cjs#sora", requiresApproval: false }],
     ai: { requirements: { caps: ["json"], minQuality: 3 }, dataClasses: ["internal_aggregate"] } },
   { key: "kenji", name: "KENJI", department: "Calidad, pruebas y costos", status: "active",
     objectives: [

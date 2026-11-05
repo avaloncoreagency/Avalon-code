@@ -87,30 +87,52 @@ async function haru({ root }) {
   for (const t of ['crm_prospects', 'crm_leads', 'crm_tasks']) if (!objects.includes(t)) findings.push(finding('high', `Falta la tabla ${t} del flujo comercial`));
   const fk = (await db.query(`select count(*)::int n from information_schema.columns where table_schema='public' and table_name='crm_leads' and column_name='prospect_id'`)).rows[0].n;
   if (!fk) findings.push(finding('high', 'crm_leads no conserva prospect_id (Radar → Lead)'));
-  checks.push(run('node', ['--test', 'tests/crm.test.cjs', 'tests/crm-kanban.test.cjs'], { cwd: root }));
-  if (!checks.at(-1).ok) findings.push(finding('high', 'Fallan pruebas del CRM'));
+  checks.push(run('node', ['--test', 'tests/crm.test.cjs', 'tests/crm-kanban.test.cjs', 'tests/shared-calendar.test.cjs', 'tests/task-links.test.cjs'], { cwd: root }));
+  if (!checks.at(-1).ok) findings.push(finding('high', 'Fallan pruebas del CRM, calendario o tareas'));
   return { capability: 'crm_contract_check', actions: ['read', 'diagnose', 'test_isolated'], checks, findings,
     metrics: { stages: stages.length, open: open.length, terminal: terminal.length, flowTables: objects.length, radarLink: !!fk },
     stages: stages.map(s => `${s.position}:${s.id}(${s.kind})`),
-    summary: `${stages.length} etapas (${open.length} abiertas, ${terminal.length} terminales); tablas del flujo: ${objects.join(', ')}; Radar→Lead ${fk ? 'enlazado' : 'SIN enlace'}; pruebas CRM ${checks.at(-1).ok ? 'verdes' : 'en rojo'}.` };
+    summary: `${stages.length} etapas (${open.length} abiertas, ${terminal.length} terminales); tablas del flujo: ${objects.join(', ')}; Radar→Lead ${fk ? 'enlazado' : 'SIN enlace'}; pruebas CRM + calendario + tareas ${checks.at(-1).ok ? 'verdes' : 'en rojo'} (${checks.at(-1).tap.pass ?? '?'}/${checks.at(-1).tap.tests ?? '?'}).` };
 }
 
-// SORA — creative: Creative Bridge tests, published asset limits, 3D office kept separate, zero Higgsfield spend.
+// SORA — integrations: Titan Radar + Geoapify (tests, key isolation), Higgsfield Creative Bridge (tests, SHA-256 of every
+// published asset, size cap), 3D HQ assets actually imported. No credits are spent and nothing is published.
 async function sora({ root }) {
   const checks = [], findings = [];
+  checks.push(run('node', ['--test', 'tests/radar-geoapify.test.cjs', 'tests/radar-qualification.test.cjs', 'tests/radar-server-scheduler.test.cjs'], { cwd: root }));
+  if (!checks[0].ok) findings.push(finding('high', 'Fallan pruebas de Radar / Geoapify'));
   checks.push(run('node', ['--test', 'tests/creative-bridge.test.cjs', 'tests/creative-hq-bridge.test.cjs', 'tests/creative-media-import.test.cjs', 'tests/office-hq-layout.test.cjs'], { cwd: root }));
-  if (!checks[0].ok) findings.push(finding('high', 'Fallan pruebas del Creative Bridge / HQ'));
+  if (!checks[1].ok) findings.push(finding('high', 'Fallan pruebas del Creative Bridge / HQ'));
+  // Geoapify: the Places (server) key must never be public. The ONLY allowed public name is the documented, referrer-
+  // restricted map-tile key (docs/RADAR_GEOAPIFY_FREE.md).
+  const PUBLIC_TILE_KEY = 'NEXT_PUBLIC_AVALON_GEOAPIFY_MAP_KEY';
+  const walk = d => fs.readdirSync(d, { withFileTypes: true }).flatMap(e => e.isDirectory() ? walk(path.join(d, e.name)) : [path.join(d, e.name)]);
+  const leaks = [];
+  let tileKeyUsed = false;
+  for (const f of walk(path.join(root, 'src'))) {
+    for (const m of fs.readFileSync(f, 'utf8').matchAll(/NEXT_PUBLIC_\w*GEOAPIFY\w*/gi)) {
+      if (m[0] === PUBLIC_TILE_KEY) tileKeyUsed = true; else leaks.push(`${path.relative(root, f)} (${m[0]})`);
+    }
+  }
+  for (const l of leaks) findings.push(finding('high', `Clave de Geoapify no autorizada expuesta al cliente: ${l}`));
+  if (tileKeyUsed) findings.push(finding('info', `${PUBLIC_TILE_KEY} es pública por diseño (solo teselas): debe estar restringida por dominio en Geoapify`));
+  checks.push({ cmd: 'scan src/ NEXT_PUBLIC_*GEOAPIFY* (solo clave de teselas permitida)', exit: leaks.length ? 1 : 0, ok: !leaks.length, tap: {} });
+  // Every published Creative Bridge file must match the SHA-256 in its name and respect the 12 MiB cap.
   const dir = path.join(root, 'public/creative-bridge');
-  const files = fs.existsSync(dir) ? fs.readdirSync(dir).map(f => ({ f, size: fs.statSync(path.join(dir, f)).size })) : [];
-  const big = files.filter(x => x.size > 12 * 1024 * 1024);
-  for (const x of big) findings.push(finding('high', `Recurso publicado supera 12 MiB: ${x.f}`));
+  const files = fs.existsSync(dir) ? fs.readdirSync(dir) : [];
+  let bad = 0, big = 0;
+  for (const f of files) {
+    const bytes = fs.readFileSync(path.join(dir, f));
+    if (require('node:crypto').createHash('sha256').update(bytes).digest('hex') !== f.split('.')[0]) { bad++; findings.push(finding('critical', `Integridad rota: ${f} no coincide con su SHA-256`)); }
+    if (bytes.length > 12 * 1024 * 1024) { big++; findings.push(finding('high', `Recurso publicado supera 12 MiB: ${f}`)); }
+  }
+  checks.push({ cmd: `sha256 + tamaño de ${files.length} archivos en public/creative-bridge`, exit: bad || big ? 1 : 0, ok: !bad && !big, tap: {} });
   const assets = fs.readFileSync(path.join(root, 'src/lib/office/hq-assets.ts'), 'utf8');
   const imported = (assets.match(/path: "\/creative-bridge\//g) || []).length;
-  checks.push({ cmd: 'scan public/creative-bridge + src/lib/office/hq-assets.ts', exit: 0, ok: true, tap: {} });
-  if (imported === 0) findings.push(finding('info', 'HQ 3D usa geometría procedural: ningún GLB de Higgsfield importado (optimización en tarea independiente)'));
-  return { capability: 'creative_bridge_check', actions: ['read', 'diagnose', 'test_isolated'], checks, findings,
-    metrics: { publishedAssets: files.length, oversized: big.length, hqGlbImported: imported, higgsfieldCreditsSpent: 0 },
-    summary: `Creative Bridge + HQ: pruebas ${checks[0].ok ? 'verdes' : 'en rojo'} (${checks[0].tap.pass ?? '?'}/${checks[0].tap.tests ?? '?'}); ${files.length} recursos publicados, ${big.length} sobre el límite; GLB importados en HQ: ${imported}; créditos Higgsfield gastados: 0.` };
+  if (imported === 0) findings.push(finding('info', 'HQ 3D sin modelos de Higgsfield importados: geometría procedural'));
+  return { capability: 'integrations_check', actions: ['read', 'diagnose', 'test_isolated'], checks, findings,
+    metrics: { radarTests: checks[0].tap.pass ?? null, bridgeTests: checks[1].tap.pass ?? null, publishedAssets: files.length, integrityFailures: bad, oversized: big, hqGlbImported: imported, higgsfieldCreditsSpent: 0 },
+    summary: `Radar/Geoapify ${checks[0].ok ? 'verde' : 'EN ROJO'} (${checks[0].tap.pass ?? '?'}/${checks[0].tap.tests ?? '?'}); Creative Bridge/HQ ${checks[1].ok ? 'verde' : 'EN ROJO'} (${checks[1].tap.pass ?? '?'}/${checks[1].tap.tests ?? '?'}); ${files.length} recursos publicados con SHA-256 ${bad ? 'ROTO' : 'íntegro'}; GLB en HQ: ${imported}; créditos Higgsfield gastados: 0.` };
 }
 
 // KENJI — quality gate: lint, TypeScript, unit tests; regressions vs. the previous run; rejects results without evidence.

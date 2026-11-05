@@ -52,8 +52,8 @@ export function decide(manager: string, action: Action, ctx: PolicyContext): Dec
 /** Task intake: which manager owns a request. Deterministic keywords; the AI classifier may only pick among these keys. */
 export const ROUTING: { manager: string; words: RegExp }[] = [
   { manager: "shin", words: /segur|security|rls|auth|sesi[oó]n|permis|secret|vulnerab|mfa|acceso|token/i },
-  { manager: "haru", words: /crm|lead|venta|cliente|pipeline|etapa|radar|calendar|tarea|propuesta|proyecto/i },
-  { manager: "sora", words: /creativ|higgsfield|marketing|website|e-?commerce|dise[nñ]o|imagen|video|3d|oficina/i },
+  { manager: "haru", words: /crm|lead|venta|cliente|pipeline|etapa|calendar|tarea|propuesta|proyecto/i },
+  { manager: "sora", words: /integraci|radar|geoapify|higgsfield|sincroniz|creativ|marketing|website|e-?commerce|dise[nñ]o|imagen|video|3d|oficina/i },
   { manager: "kenji", words: /prueba|test|calidad|regresi|rendimiento|m[oó]vil|ci\b|lint|coste|costo|bug/i },
   { manager: "ren", words: /plan|coordin|refactor|c[oó]digo|desarroll|rama|pr\b|dependen|organiz/i },
 ];
