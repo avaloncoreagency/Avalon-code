@@ -75,7 +75,7 @@ export function readActivity(payload: unknown): ActivityFeed | null {
           typeof e.id === "string" && e.id.length <= 160 &&
           (e.label === undefined || typeof e.label === "string" && e.label.length <= 200))) return null;
   }
-  return payload as ActivityFeed;
+  return payload as unknown as ActivityFeed;
 }
 
 const plain = (s: string, max = 600) => s
@@ -90,7 +90,7 @@ export function parseLedgerComments(input: unknown): LedgerEntry[] {
   const collected: LedgerEntry[] = [];
   for (const item of input.slice(-100) as RawComment[]) {
     if (!isObj(item) || item.user?.login !== "github-actions[bot]" ||
-        !Number.isSafeInteger(item.id) || Number(item.id) <= 0 ||
+        (typeof item.id !== "number" || !Number.isSafeInteger(item.id)) || item.id <= 0 ||
         typeof item.body !== "string" || item.body.length > 40000 ||
         !validTime(item.created_at)) continue;
     const match = item.body.match(/Ejecuci[oó]n:\s*https:\/\/github\.com\/avaloncoreagency\/Avalon-code\/actions\/runs\/(\d{1,20})/i);
@@ -132,7 +132,7 @@ export function orderStage(labels: readonly string[]): OrderStage {
 export function readPublicOrders(input: unknown): PublicOrder[] {
   if (!Array.isArray(input)) return [];
   return input.slice(0, 100).flatMap((item): PublicOrder[] => {
-    if (!isObj(item) || !Number.isSafeInteger(item.number) || Number(item.number) <= 0 ||
+    if (!isObj(item) || (typeof item.number !== "number" || !Number.isSafeInteger(item.number)) || item.number <= 0 ||
         typeof item.title !== "string" || !Array.isArray(item.labels) ||
         item.pull_request || !optionalTime(item.updated_at)) return [];
     const labels = item.labels.flatMap((x: unknown) => isObj(x) && typeof x.name === "string" ? [x.name] : []);
