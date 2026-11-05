@@ -136,3 +136,15 @@ Todas las consultas: owner-only, RLS, filtros por periodo, sin exposición de co
 - `main` seguía `d2890bbc` al inicio de este checkpoint. Graphify indexado en el mismo SHA; PR #132/#133 todavía no están en main.
 - Para declarar 'operativo': (1) una sola escena en /office, (2) libre texto de owner se guarda y registra su estado honesto, (3) intake issue no marca DONE si solo hizo una auditoría genérica, (4) no promoción de Radar pending sin política autorizada, (5) REN dev worker supera test sin soltar los guards, (6) CI, RLS, E2E iPhone y persistencia en entorno aislado al SHA exacto.
 - Siguiente acción de **REN**: revisar el nuevo head de PR #132 y #133, comprobar que el cierre falso de órdenes y la aprobación de Radar están bloqueados en tests; coordinar Codex para único componente visual sin pisar archivos reclamados.
+
+## 10. Reconciliación de ramas antiguas — no merge ciego (2026-11-04 ET)
+
+Comparación read-only en GitHub de `main@d2890bbc` vs heads de PR existentes; `ahead/behind` mide divergencia de commits, NO garantiza que todas sus funciones estén ausentes en main:
+
+| PR | Head | Commits ahead/behind de main | Rutas cambiadas en PR | Decisión segura |
+|---|---|---|---|---|
+| #102 Office free GitHub | `bd454597` | +55 / -105 | 16 | El workflow `office-managers-free.yml`, `manager-workstation.tsx` y `office-manager-free-github.cjs` tienen **blob SHA idéntico** en main y en la rama; existen componentes ya incorporados. No volver a fusionar solo para activar el cron. Auditar los 13 archivos restantes antes de decidir closure o cherry-pick |
+| #109 Office isométrica | `33a7a8fc` | +11 / -102 | 4 | `iso-office.tsx` difiere del main, pero **la sede canónica es Hq3d**; no sustituir HQ 3D por esta escena antigua. Codex evalúa solo helpers que aporten valor sin restaurar segunda oficina |
+| #82 integración acumulativa | `acd01a3b` | +4 / -114 | 49 | `office.tsx` difiere del main y toca gran cantidad de rutas compartidas; no merge/rebase automático. Contrastar cambios puntuales contra código nuevo; dueño confirma cada remanente útil |
+
+Las comparaciones no prueban visualización móvil ni autorización de ninguna rama. No se borraron, cerraron o fusionaron PRs; la siguiente acción es handoff de los propietarios de sus rutas con SHA exacto.
