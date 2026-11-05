@@ -1,3 +1,4 @@
+import type { ReactNode } from "react";
 import type { Fact } from "@/lib/dev-bridge/core";
 import { freshness } from "@/lib/dev-bridge/core";
 import s from "./bridge.module.css";
@@ -57,6 +58,16 @@ export function SourceCard({
     <p>{description}</p>
     <small>Última lectura verificada: <time dateTime={fact.verified_at ?? undefined}>{fact.verified_at ?? "Sin registro"}</time></small>
   </article>;
+}
+
+/** Hide cached or failed security metadata rather than display stale RLS flags as current. */
+export function VerifiedSourceOnly({ fact, children }: { fact: Fact<unknown>; children: ReactNode }) {
+  if (freshness(fact).status !== "VERIFIED" || fact.error) {
+    return <p className={s.noticeText} role="status">
+      Metadatos no verificados actualmente. No se muestran estados anteriores como si fueran actuales.
+    </p>;
+  }
+  return <>{children}</>;
 }
 
 export function CiStatus({ code }: { code: string | undefined | null }) {
