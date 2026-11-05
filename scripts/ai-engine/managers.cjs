@@ -7,7 +7,8 @@ const cp = require('node:child_process');
 
 const run = (cmd, args, opt = {}) => {
   const t0 = Date.now();
-  const r = cp.spawnSync(cmd, args, { encoding: 'utf8', maxBuffer: 64 << 20, env: { ...process.env, NODE_TEST_CONTEXT: undefined }, ...opt });
+  // Execution limit: no single check may run longer than 15 minutes (the process is killed and the check fails).
+  const r = cp.spawnSync(cmd, args, { encoding: 'utf8', maxBuffer: 64 << 20, timeout: 15 * 60e3, killSignal: 'SIGKILL', env: { ...process.env, NODE_TEST_CONTEXT: undefined }, ...opt });
   const out = (r.stdout || '') + (r.stderr || '');
   const tap = Object.fromEntries([...out.matchAll(/^# (tests|pass|fail) (\d+)/gm)].map(m => [m[1], Number(m[2])]));
   return { cmd: [cmd, ...args].join(' '), exit: r.status, ok: r.status === 0, ms: Date.now() - t0, tap, tail: out.trim().split('\n').slice(-3).join(' | ').slice(0, 300) };

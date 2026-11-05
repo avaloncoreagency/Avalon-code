@@ -130,3 +130,19 @@ export function orderOutcome(intent: Intent, r: ExecutionResult, ownerOnly: Acti
   if (!r.change) return { state: "needs_implementation", reason: "diagnosis_only_no_change_executor" };
   return allGreen ? { state: "verified", reason: "change_and_checks_passed" } : { state: "implemented", reason: "change_made_checks_not_green" };
 }
+
+/** Execution limits of one order: attempts (see LIMITS.retries) and wall-clock per attempt. */
+export const ORDER_LIMITS = { attempts: LIMITS.retries + 1, executionMs: 20 * 60_000 };
+
+/** "Depende de #12, #15" / "Depends on #12" / "Bloqueada por #9": explicit dependencies only (never inferred). */
+export function parseDependencies(raw: string): number[] {
+  const out = new Set<number>();
+  for (const m of raw.matchAll(/(?:depende de|dependen de|depends on|bloquead[ao] por|blocked by)\s*:?\s*((?:#\d{1,6}(?:\s*(?:,|y|and|&)\s*)?)+)/gi)) {
+    for (const n of m[1].matchAll(/#(\d{1,6})/g)) out.add(Number(n[1]));
+  }
+  return [...out].sort((a, b) => a - b).slice(0, 8);
+}
+/** A dependency is satisfied when it is closed or reached a terminal SUCCESS state (diagnosed / verified). */
+export function dependencySatisfied(dep: { state: string; labels: string[] }): boolean {
+  return dep.state.toLowerCase() === "closed" || dep.labels.some(l => l === "avalon:verified" || l === "avalon:diagnosed");
+}

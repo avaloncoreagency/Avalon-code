@@ -17,8 +17,16 @@ export type TaskRecord = {
 };
 export type Usage = { requests: number; tokens: number; neurons: number; costUsd: number };
 export type MemoryEntry = { manager: string; kind: "decision" | "lesson" | "fact" | "result"; text: string; source: string; at: string };
+/** One row per provider call (success or failure): the persistent inference ledger. Tokens/cost come from the provider. */
+export type Inference = { taskId: string; manager: string; provider: ProviderId; model: string; at: string; ms: number; input: number; output: number; costUsd: number; outcome: Attempt["outcome"] };
+export const INFERENCE_LIMIT = 400;
 export type State = {
   version: 1;
+  inferences?: Inference[];
+  /** Single-flight lease: at most one AI task runs at a time (plus the workflow-level concurrency group). */
+  lease?: { taskId: string; until: string } | null;
+  /** Consecutive non-rate-limit failures per provider (circuit breaker). */
+  failures?: Partial<Record<ProviderId, number>>;
   tasks: Record<string, TaskRecord>;
   usage: Record<string, Usage>; // key = `${day}:${provider}`
   cooldownUntil: Partial<Record<ProviderId, string>>;
@@ -26,7 +34,7 @@ export type State = {
   memory: MemoryEntry[];
 };
 
-export const emptyState = (): State => ({ version: 1, tasks: {}, usage: {}, cooldownUntil: {}, blocked: {}, memory: [] });
+export const emptyState = (): State => ({ version: 1, tasks: {}, usage: {}, cooldownUntil: {}, blocked: {}, memory: [], inferences: [], lease: null, failures: {} });
 
 export interface Store {
   load(): State;

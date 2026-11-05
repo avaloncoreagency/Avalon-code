@@ -158,3 +158,50 @@ test('memory: bounded, per manager, recalled in order', () => {
   assert.equal(s.memory.length, E.MEMORY_LIMIT);
   assert.deepEqual(E.recall(s, 'ren', 2).map(m => m.text), ['n201', 'n203']);
 });
+
+// ─── Operación 0352: persistent inference ledger, concurrency lease, circuit breaker ────────────────────────────────────
+test('inference ledger: one persistent row per provider call with manager, model, tokens, cost 0 and outcome', async () => {
+  const F = fleet({ groq: () => json(429, {}, { 'retry-after': '60' }) });
+  const store = new E.MemoryStore();
+  await E.runTask(store, E.createAdapters(ENV, F.f), task({ id: 'ledger-task-0001', manager: 'haru' }), { env: ENV });
+  const rows = store.load().inferences;
+  assert.deepEqual(rows.map(r => [r.manager, r.provider, r.outcome, r.input, r.output, r.costUsd]), [['haru', 'groq', 'rate_limited', 0, 0, 0], ['haru', 'cloudflare', 'ok', 20, 10, 0]]);
+  assert.ok(rows.every(r => r.taskId === 'ledger-task-0001' && r.model && r.at));
+  assert.equal(E.totalCost(store.load()), 0);
+});
+
+test('concurrency: a live lease makes another task wait without sending anything; the lease is released and expires', async () => {
+  const F = fleet();
+  const now = new Date('2026-11-05T10:00:00Z');
+  const s = E.emptyState(); s.lease = { taskId: 'someone-else', until: new Date(now.getTime() + 60_000).toISOString() };
+  const store = new E.MemoryStore(s);
+  const r = await E.runTask(store, E.createAdapters(ENV, F.f), task({ id: 'wait-task-0001' }), { env: ENV, now: () => now });
+  assert.equal(r.task.status, 'pending');
+  assert.equal(F.calls.length, 0, 'no discovery, no inference while another task holds the lease');
+  assert.equal(store.load().tasks['wait-task-0001'], undefined, 'nothing persisted for a task that did not start');
+  // Expired lease: runs, and releases its own lease when done.
+  const later = new Date(now.getTime() + 120_000);
+  const ok = await E.runTask(store, E.createAdapters(ENV, F.f), task({ id: 'wait-task-0001' }), { env: ENV, now: () => later });
+  assert.equal(ok.task.status, 'succeeded');
+  assert.equal(store.load().lease, null);
+  // A crash inside the task still releases the lease (finally).
+  const crashing = new E.MemoryStore(undefined, 2);
+  await assert.rejects(E.runTask(crashing, E.createAdapters(ENV, fleet().f), task({ id: 'lease-crash-0001' }), { env: ENV }), /simulated_crash/);
+});
+
+test('circuit breaker: three consecutive 5xx put a provider in cooldown across tasks; a success resets the counter', async () => {
+  const now = new Date('2026-11-05T11:00:00Z');
+  const F = fleet({ groq: () => json(503, {}) });
+  const store = new E.MemoryStore();
+  for (let i = 0; i < 3; i++) await E.runTask(store, E.createAdapters(ENV, F.f), task({ id: 'brk-task-000' + i }), { env: ENV, now: () => now });
+  assert.equal(F.chats().filter(c => c.p === 'groq').length, 3);
+  assert.equal(store.load().cooldownUntil.groq, '2026-11-05T11:15:00.000Z');
+  const before = F.chats().filter(c => c.p === 'groq').length;
+  await E.runTask(store, E.createAdapters(ENV, F.f), task({ id: 'brk-task-0009' }), { env: ENV, now: () => new Date(now.getTime() + 60_000) });
+  assert.equal(F.chats().filter(c => c.p === 'groq').length, before, 'Groq is not called while its breaker is open');
+  // After the cooldown a healthy answer resets the failure counter.
+  const G = fleet();
+  const st = new E.MemoryStore(store.load());
+  await E.runTask(st, E.createAdapters(ENV, G.f), task({ id: 'brk-task-0010' }), { env: ENV, now: () => new Date(now.getTime() + 20 * 60_000) });
+  assert.equal(st.load().failures.groq, 0);
+});

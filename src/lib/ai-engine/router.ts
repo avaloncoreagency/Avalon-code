@@ -4,7 +4,7 @@
 import { PROVIDERS, estimateNeurons, type Capability, type ModelSpec, type ProviderId } from "./catalog";
 import { ProviderError, type Adapter, type ChatResult, type Msg } from "./adapters";
 import { GuardError, assertProviderAllowed, assertSendable, type DataClass } from "./guard";
-import { usageKey, utcDay, type Attempt, type State, type Store, type TaskRecord } from "./store";
+import { INFERENCE_LIMIT, usageKey, utcDay, type Attempt, type State, type Store, type TaskRecord } from "./store";
 
 export type Requirements = { caps: Capability[]; minQuality: number; minContext?: number; prefer?: "quality" | "speed" };
 export type Candidate = { provider: ProviderId; model: ModelSpec; score: number };
@@ -72,11 +72,38 @@ export async function discover(adapters: Record<ProviderId, Adapter>, s: State, 
   return { live, notes };
 }
 
+export const LEASE_MS = 10 * 60_000;
+export const BREAKER = { failures: 3, cooldownMs: 15 * 60_000 };
+
+function logInference(s: State, t: AiTask, a: Attempt, r: ChatResult | null) {
+  (s.inferences ??= []).push({ taskId: t.id, manager: t.manager, provider: a.provider, model: a.model, at: a.at, ms: a.ms, input: r?.usage.input ?? 0, output: r?.usage.output ?? 0, costUsd: r?.costUsd ?? 0, outcome: a.outcome });
+  if (s.inferences.length > INFERENCE_LIMIT) s.inferences.splice(0, s.inferences.length - INFERENCE_LIMIT);
+}
+/** Circuit breaker: three consecutive hard failures (5xx / timeout / invalid response) put the provider in a 15-minute cooldown. */
+function noteOutcome(s: State, p: ProviderId, ok: boolean, hard: boolean, now: Date) {
+  const f = (s.failures ??= {});
+  if (ok) { f[p] = 0; return; }
+  if (!hard) return;
+  f[p] = (f[p] ?? 0) + 1;
+  if (f[p]! >= BREAKER.failures) { s.cooldownUntil[p] = new Date(now.getTime() + BREAKER.cooldownMs).toISOString(); f[p] = 0; }
+}
+
 export async function runTask(store: Store, adapters: Record<ProviderId, Adapter>, t: AiTask, o: RunOptions): Promise<RunOutcome> {
   const now = o.now ?? (() => new Date());
-  const s = store.load();
-  const existing = s.tasks[t.id];
+  const s0 = store.load();
+  const existing = s0.tasks[t.id];
   if (existing?.status === "succeeded") return { task: existing, resumed: true };
+  // Concurrency: one AI task at a time. Another task's live lease means this one waits (nothing is sent, nothing is lost).
+  if (s0.lease && Date.parse(s0.lease.until) > now().getTime() && s0.lease.taskId !== t.id) {
+    const iso0 = now().toISOString();
+    return { task: existing ?? { id: t.id, manager: t.manager, purpose: t.purpose, dataClass: t.dataClass, status: "pending", attempts: [], result: null, steps: {}, createdAt: iso0, updatedAt: iso0 }, resumed: false };
+  }
+  try { return await execute(store, adapters, t, o, existing); } finally { const s = store.load(); if (s.lease?.taskId === t.id) { s.lease = null; store.save(s); } }
+}
+
+async function execute(store: Store, adapters: Record<ProviderId, Adapter>, t: AiTask, o: RunOptions, existing: TaskRecord | undefined): Promise<RunOutcome> {
+  const now = o.now ?? (() => new Date());
+  const s = store.load();
 
   // Guards first: nothing is sent if the data or the environment is not allowed.
   assertSendable(t.dataClass, t.messages.map(m => m.content));
@@ -85,6 +112,7 @@ export async function runTask(store: Store, adapters: Record<ProviderId, Adapter
   const resumed = !!existing;
   task.status = "running";
   s.tasks[t.id] = task;
+  s.lease = { taskId: t.id, until: new Date(now().getTime() + LEASE_MS).toISOString() };
   store.save(s);
 
   const { live } = await discover(adapters, s, o.env, now(), o.order);
@@ -105,7 +133,7 @@ export async function runTask(store: Store, adapters: Record<ProviderId, Adapter
     const tokens = estTokens(t.messages, t.maxTokens);
     const attempt: Attempt = { provider: c.provider, model: c.model.id, at: now().toISOString(), ms: 0, outcome: "ok" };
     if (!withinBudget(s, c.provider, day, tokens, t.maxTokens)) {
-      attempt.outcome = "budget"; task.attempts.push(attempt); deadProviders.add(c.provider); store.save(s); continue;
+      attempt.outcome = "budget"; task.attempts.push(attempt); logInference(s, t, attempt, null); deadProviders.add(c.provider); store.save(s); continue;
     }
     tried++;
     const t0 = Date.now();
@@ -114,7 +142,8 @@ export async function runTask(store: Store, adapters: Record<ProviderId, Adapter
       const r = await adapters[c.provider].chat({ model: c.model.id, messages: t.messages, maxTokens: t.maxTokens, json: t.json });
       attempt.ms = Date.now() - t0;
       addUsage(s, c.provider, day, r);
-      task.attempts.push(attempt);
+      noteOutcome(s, c.provider, true, false, now());
+      task.attempts.push(attempt); logInference(s, t, attempt, r);
       task.result = { ...r, provider: c.provider };
       task.status = "succeeded";
       task.updatedAt = now().toISOString();
@@ -131,10 +160,11 @@ export async function runTask(store: Store, adapters: Record<ProviderId, Adapter
         if (e.kind === "rate_limited") s.cooldownUntil[c.provider] = new Date(now().getTime() + e.retryAfterMs).toISOString();
         if (["rate_limited", "auth", "unavailable", "timeout", "not_configured"].includes(e.kind)) deadProviders.add(c.provider);
         addUsage(s, c.provider, day, null);
+        noteOutcome(s, c.provider, false, ["unavailable", "timeout", "invalid_response"].includes(e.kind), now());
       } else {
         attempt.outcome = "invalid_response"; attempt.code = (e as Error).message.slice(0, 80);
       }
-      task.attempts.push(attempt);
+      task.attempts.push(attempt); logInference(s, t, attempt, null);
       task.updatedAt = now().toISOString();
       store.save(s); // checkpoint every failed attempt before failing over
     }

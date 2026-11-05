@@ -48,9 +48,13 @@ async function aiAnalysis(store, manager, taskId, result, request) {
   if (r.task.status !== 'succeeded') return { status: r.task.status, attempts: r.task.attempts.map(a => `${a.provider}:${a.outcome}`) };
   let parsed = null;
   try { parsed = JSON.parse(r.task.result.text.replace(/^```(json)?\s*|\s*```$/g, '')); } catch { /* keep raw */ }
+  const analysis = String(parsed?.analysis ?? r.task.result.text).slice(0, 600);
+  const next = Array.isArray(parsed?.next) ? parsed.next.slice(0, 3).map(x => String(x).slice(0, 200)) : [];
+  // The comment goes to a PUBLIC repository: withhold model output that contains secrets or personal data.
+  const leaked = E.sensitiveFindings(analysis + '\n' + next.join('\n'));
+  if (leaked.length) return { status: 'withheld', reason: 'output_' + leaked.join(','), provider: r.task.result.provider, model: r.task.result.model };
   return { status: 'succeeded', provider: r.task.result.provider, model: r.task.result.model, resumed: r.resumed,
-    attempts: r.task.attempts.map(a => `${a.provider}:${a.outcome}`), analysis: String(parsed?.analysis ?? r.task.result.text).slice(0, 600),
-    next: Array.isArray(parsed?.next) ? parsed.next.slice(0, 3).map(x => String(x).slice(0, 200)) : [] };
+    attempts: r.task.attempts.map(a => `${a.provider}:${a.outcome}`), analysis, next };
 }
 
 /** Run one manager inside the policy, with a durable lock, bounded retries and resume. */
@@ -148,13 +152,14 @@ async function routine(store, control) {
 
 const STALE_MS = 30 * 60e3;
 const STATE_LABELS = [...new Set(Object.values(P.ORDER_LABEL))].filter(l => l !== 'avalon:task');
-function setState(store, n, state, reason) {
+function setState(store, n, state, reason, extra = {}) {
   const s = store.load();
   s.ops = s.ops || { runs: [], locks: {} };
   s.ops.orders = s.ops.orders || {};
   const o = s.ops.orders[n] = s.ops.orders[n] || { history: [], attempts: 0 };
   o.state = state; o.updatedAt = now().toISOString();
   if (state === 'running') o.attempts += 1;
+  Object.assign(o, extra);
   o.history.push({ state, reason, at: o.updatedAt });
   if (o.history.length > 30) o.history.splice(0, o.history.length - 30);
   store.save(s);
@@ -213,7 +218,33 @@ async function intake(store, control) {
     const route = P.routeTask(i.body || '', i.title);
     const intent = P.classifyIntent(text, i.title);
     const ownerOnly = P.ownerOnlyRequests(text);
-    setState(store, n, 'classified', `${route.manager}/${intent}`);
+    const deps = P.parseDependencies(text).filter(d => d !== n);
+    const prof = E.profileOf(route.manager);
+    setState(store, n, 'classified', `${route.manager}/${intent}`, { manager: route.manager, intent, dependsOn: deps,
+      plan: { executors: prof ? prof.executors.map(x => x.id) : [], steps: ['classify', 'execute', 'verify', 'record_evidence'] }, limits: P.ORDER_LIMITS });
+    if (P.parseDependencies(text).includes(n)) { setState(store, n, 'blocked', 'dependency_cycle:self'); label(n, 'blocked');
+      gh(['issue', 'comment', String(n), '--repo', REPO, '--body-file', '-'], `Estado: **blocked** — la orden depende de sí misma.\n\n_Avalon AI Engine_`);
+      out.push({ manager: route.manager, status: 'blocked', issue: n, reason: 'dependency_cycle' }); continue; }
+    let waitingOn = null, cycle = null;
+    for (const d of deps) {
+      const v = gh(['issue', 'view', String(d), '--repo', REPO, '--json', 'state,labels,body']);
+      let dep = null; try { dep = JSON.parse(v.stdout); } catch { /* unreadable dependency = not satisfied */ }
+      if (dep && P.parseDependencies(dep.body || '').includes(n)) { cycle = d; break; }
+      if (!dep || !P.dependencySatisfied({ state: dep.state, labels: (dep.labels || []).map(l => l.name) })) { waitingOn = d; break; }
+    }
+    if (cycle) {
+      setState(store, n, 'blocked', 'dependency_cycle:#' + cycle); label(n, 'blocked');
+      gh(['issue', 'comment', String(n), '--repo', REPO, '--body-file', '-'], `Estado: **blocked** — dependencia circular con #${cycle}. Un owner debe romper el ciclo.\n\n_Avalon AI Engine_`);
+      out.push({ manager: route.manager, status: 'blocked', issue: n, reason: 'dependency_cycle' });
+      continue;
+    }
+    if (waitingOn) {
+      const was = ([...store.load().ops.orders[n].history].reverse().find(h => h.state === 'waiting') || {}).reason;
+      setState(store, n, 'waiting', 'waiting_for:#' + waitingOn);
+      if (was !== 'waiting_for:#' + waitingOn) gh(['issue', 'comment', String(n), '--repo', REPO, '--body-file', '-'], `Estado: **waiting** — espera a #${waitingOn} (debe estar cerrada, diagnosticada o verificada). No se ejecutó nada.\n\n_Avalon AI Engine_`);
+      out.push({ manager: route.manager, status: 'skipped', issue: n, reason: 'waiting_for:#' + waitingOn });
+      continue;
+    }
     if (ownerOnly.length) {
       setState(store, n, 'needs_owner', ownerOnly.join(',')); label(n, 'needs_owner');
       gh(['issue', 'comment', String(n), '--repo', REPO, '--body-file', '-'], `Estado: **needs_owner** — **${route.manager.toUpperCase()}** recibió la orden, pero pide acciones que requieren autorización expresa del propietario: ${ownerOnly.join(', ')}. No se ejecutó nada.\n\n_Avalon AI Engine_`);
@@ -233,7 +264,8 @@ async function intake(store, control) {
       out.push({ manager: route.manager, status: 'failed', issue: n, reason: 'exception' });
       continue;
     }
-    setState(store, n, outcome.state, outcome.reason); label(n, outcome.state);
+    setState(store, n, outcome.state, outcome.reason, { evidence: (r.checks || []).map(c => ({ cmd: String(c.cmd).slice(0, 120), exit: c.exit })), result: { summary: r.summary, findings: (r.findings || []).length, ai: r.ai ? { status: r.ai.status, provider: r.ai.provider, model: r.ai.model } : null } });
+    label(n, outcome.state);
     gh(['issue', 'comment', String(n), '--repo', REPO, '--body-file', '-'],
       `Estado: **${outcome.state}** (${outcome.reason}) — ${STATE_TEXT[outcome.state] || ''}\n\n` + report(`Orden #${n} → ${route.manager.toUpperCase()} · intención: ${intent === 'change' ? 'cambio' : 'diagnóstico'} (enrutado por ${route.method})`, [r]));
     out.push({ ...r, issue: n, routedBy: route.method, orderState: outcome.state });

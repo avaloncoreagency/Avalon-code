@@ -221,3 +221,62 @@ if(a[0]==='issue'&&a[1]==='list'){process.stdout.write(${JSON.stringify(JSON.str
     assert.equal(fs.readFileSync(log, 'utf8'), '');
   } finally { h.restore(); fs.rmSync(dir, { recursive: true, force: true }); }
 });
+
+// ─── Operación 0352: explicit dependencies, plan and persisted evidence per order ──────────────────────────────────────
+test('orders: explicit dependencies are parsed; unmet ones wait, cycles block; plan/limits/evidence are persisted', async () => {
+  assert.deepEqual(P.parseDependencies('Depende de #12, #15 y #3. Bloqueada por #7. Mira #99 en general'), [3, 7, 12, 15]);
+  assert.deepEqual(P.parseDependencies('Sin dependencias, ver #5'), [], 'a plain mention is not a dependency');
+  assert.equal(P.dependencySatisfied({ state: 'OPEN', labels: ['avalon:needs-implementation'] }), false);
+  assert.equal(P.dependencySatisfied({ state: 'OPEN', labels: ['avalon:verified'] }), true);
+  assert.equal(P.dependencySatisfied({ state: 'CLOSED', labels: [] }), true);
+
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'gh-dep-'));
+  const log = path.join(dir, 'calls.jsonl'), data = path.join(dir, 'data.json');
+  const fresh = new Date().toISOString();
+  fs.writeFileSync(data, JSON.stringify({
+    list: [
+      { number: 301, title: 'Revisar RLS', body: 'Depende de #310', labels: [{ name: 'avalon:task' }], updatedAt: fresh },
+      { number: 302, title: 'Revisar pruebas del CRM', body: 'Depende de #311', labels: [{ name: 'avalon:task' }], updatedAt: fresh },
+      { number: 303, title: 'Revisar la seguridad', body: 'Depende de #312', labels: [{ name: 'avalon:task' }], updatedAt: fresh },
+    ],
+    view: {
+      310: { state: 'OPEN', labels: [{ name: 'avalon:needs-implementation' }], body: '' },
+      311: { state: 'OPEN', labels: [{ name: 'avalon:verified' }], body: '' },
+      312: { state: 'OPEN', labels: [{ name: 'avalon:task' }], body: 'Depende de #303' },
+    },
+  }));
+  fs.writeFileSync(path.join(dir, 'gh'), `#!/usr/bin/env node
+const fs=require('fs');const a=process.argv.slice(2);let input='';try{input=fs.readFileSync(0,'utf8')}catch{}
+fs.appendFileSync(${JSON.stringify(log)},JSON.stringify({a,input})+'\\n');
+const d=JSON.parse(fs.readFileSync(${JSON.stringify(data)},'utf8'));
+if(a[0]==='issue'&&a[1]==='list')process.stdout.write(JSON.stringify(d.list));
+if(a[0]==='issue'&&a[1]==='view')process.stdout.write(JSON.stringify(d.view[a[2]]||null));
+`, { mode: 0o755 });
+  const h = harness({ PATH: dir + path.delimiter + process.env.PATH });
+  try {
+    const out = await OPS.intake(h.store, { killSwitch: false, suspended: [] });
+    const by = Object.fromEntries(out.map(r => [r.issue, r.orderState || r.reason || r.status]));
+    assert.deepEqual(by, { 301: 'waiting_for:#310', 302: 'diagnosed', 303: 'dependency_cycle' });
+    const orders = h.store.load().ops.orders;
+    assert.equal(orders[301].state, 'waiting');
+    assert.deepEqual(orders[302].dependsOn, [311]);
+    assert.deepEqual(orders[302].plan.steps, ['classify', 'execute', 'verify', 'record_evidence']);
+    assert.deepEqual(orders[302].limits, { attempts: 3, executionMs: 20 * 60_000 });
+    assert.ok(orders[302].evidence.length && orders[302].evidence.every(e => typeof e.exit === 'number'), 'evidence persisted with exit codes');
+    assert.equal(orders[302].result.summary, 'kenji ok'.replace('kenji', orders[302].manager) , 'result persisted');
+    assert.equal(orders[303].state, 'blocked');
+    // An order that depends on itself is blocked at once (second round: at most 3 orders are processed per round).
+    const d = JSON.parse(fs.readFileSync(data, 'utf8'));
+    d.list = [{ number: 304, title: 'Revisar sesiones', body: 'Depende de #304', labels: [{ name: 'avalon:task' }], updatedAt: fresh }];
+    fs.writeFileSync(data, JSON.stringify(d));
+    const self = await OPS.intake(h.store, { killSwitch: false, suspended: [] });
+    assert.deepEqual([self[0].status, self[0].reason], ['blocked', 'dependency_cycle']);
+    d.list = [{ number: 301, title: 'Revisar RLS', body: 'Depende de #310', labels: [{ name: 'avalon:task' }], updatedAt: fresh }];
+    fs.writeFileSync(data, JSON.stringify(d));
+    // The waiting order is commented once, not on every round.
+    fs.writeFileSync(log, '');
+    await OPS.intake(h.store, { killSwitch: false, suspended: [] });
+    const comments301 = fs.readFileSync(log, 'utf8').trim().split('\n').filter(Boolean).map(JSON.parse).filter(c => c.a[1] === 'comment' && c.a[2] === '301');
+    assert.equal(comments301.length, 0);
+  } finally { h.restore(); fs.rmSync(dir, { recursive: true, force: true }); }
+});
