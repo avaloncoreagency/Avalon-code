@@ -106,6 +106,12 @@ test('Avalon HQ 3D: owner-only, ten stations, real manager data, actions, light 
   await page.locator('button[aria-label$="Abrir perfil"]').first().click();
   await page.getByRole('dialog').waitFor({ timeout: 30000 });
   await page.keyboard.press('Escape');
+  // The preserved directory uses the SAME activity as HQ rather than legacy "offline" placeholders.
+  await page.getByRole('button', { name: /Abrir ficha de HARU/ }).click();
+  const runDrawer = await page.getByRole('dialog').innerText();
+  assert.match(runDrawer, /Última ejecución completada/);
+  assert.doesNotMatch(runDrawer, /no tiene un backend de ejecución conectado/i);
+  await page.keyboard.press('Escape');
   await page.locator('section[aria-labelledby="exec-title"]').scrollIntoViewIfNeeded();
   await page.getByText('Completadas con evidencia').waitFor();
   await page.screenshot({ path: path.join(EVIDENCE, 'hq-desktop-executive.png'), fullPage: true });
@@ -126,6 +132,14 @@ test('Avalon HQ 3D: owner-only, ten stations, real manager data, actions, light 
   await phone.getByRole('button', { name: /^SORA/ }).tap();
   await phone.getByRole('heading', { name: 'SORA' }).waitFor(); await phone.waitForTimeout(1200);
   await phone.screenshot({ path: path.join(EVIDENCE, 'hq-iphone-sora.png') });
+  await phone.getByRole('button', { name: '← Vista general' }).tap();
+  const teamCamera = phone.getByRole('button', { name: 'Equipo', exact: true });
+  await teamCamera.tap();
+  assert.equal(await teamCamera.getAttribute('aria-pressed'), 'true', 'camera shortcut stays selected instead of jumping back to overview');
+  const tapHeights = await phone.locator('nav[aria-label="Vistas de cámara"] button').evaluateAll(
+    buttons => buttons.map(b => b.getBoundingClientRect().height));
+  assert.ok(tapHeights.length === 5 && tapHeights.every(h => h >= 44), 'all five iPhone camera targets are at least 44px high');
+  await phone.screenshot({ path: path.join(EVIDENCE, 'hq-iphone-camera-controls.png') });
   const reduced = await open({ viewport: { width: 1024, height: 768 }, reducedMotion: 'reduce' });
   await reduced.goto(origin + '/admin/workspace/crm/office/hq?vista=ligera');
   assert.equal(await reduced.locator('canvas').count(), 0, 'light view requested by URL');
