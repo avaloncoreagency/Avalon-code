@@ -40,7 +40,18 @@ const errorsIn = (report) => report.reduce((n, f) => n + f.errorCount, 0);
 // Models often drop indentation or are off by a line. An edit is accepted only if its `expect` matches the target line
 // (or one within ±2 lines) after whitespace normalization; the original indentation is preserved. Returns normalized edits.
 const norm = t => String(t).replace(/\s+/g, ' ').trim();
-function validateEdits(lines, edits) {
+/** Dice coefficient over character bigrams (0..1). */
+function similarity(a, b) {
+  a = norm(a); b = norm(b);
+  if (a === b) return 1;
+  if (a.length < 2 || b.length < 2) return 0;
+  const grams = t => { const m = new Map(); for (let i = 0; i < t.length - 1; i++) { const g = t.slice(i, i + 2); m.set(g, (m.get(g) || 0) + 1); } return m; };
+  const A = grams(a), B = grams(b); let both = 0;
+  for (const [g, n] of A) both += Math.min(n, B.get(g) || 0);
+  return (2 * both) / (a.length - 1 + b.length - 1);
+}
+/** `allowed` = line numbers ESLint flagged: no other line of the file may change. */
+function validateEdits(lines, edits, allowed) {
   if (!Array.isArray(edits) || !edits.length || edits.length > 8) throw new Error('edits_count');
   const seen = new Set(), out = [];
   for (const e of edits) {
@@ -48,7 +59,10 @@ function validateEdits(lines, edits) {
     if (typeof e.expect !== 'string' || !norm(e.expect)) throw new Error('edit_expect_missing:' + e.line);
     let line = 0;
     for (const d of [0, -1, 1, -2, 2]) { const n = e.line + d; if (n >= 1 && n <= lines.length && norm(lines[n - 1]) === norm(e.expect)) { line = n; break; } }
-    if (!line) throw new Error('edit_expect_mismatch:' + e.line);
+    // Long lines (template literals, backticks) are often re-typed imperfectly inside JSON: accept a close copy of a flagged line.
+    if (!line && allowed && allowed.has(e.line) && similarity(lines[e.line - 1], e.expect) >= 0.8) line = e.line;
+    if (!line) { const err = new Error('edit_expect_mismatch:' + e.line); err.detail = { sent: String(e.expect).slice(0, 160), actual: String(lines[e.line - 1] || '').slice(0, 160) }; throw err; }
+    if (allowed && !allowed.has(line)) throw new Error('edit_outside_flagged_lines:' + line);
     if (seen.has(line)) throw new Error('edit_duplicate_line:' + line);
     if (typeof e.replace_with !== 'string' || e.replace_with.length > 400 || e.replace_with.includes('\n')) throw new Error('edit_replacement');
     for (const risky of ['require(', 'import ', 'process.env', 'child_process', 'eval(', 'fetch(']) {
@@ -99,6 +113,7 @@ async function main() {
     if (createHash('sha256').update(src).digest('hex') !== target.sha256) { step('fix', { reason: 'file_changed' }, 'failed'); return finish('failed', `file=${target.file} cambió desde el descubrimiento`); }
     const numbered = src.split('\n').map((l, i) => `${String(i + 1).padStart(4)}| ${l}`).join('\n');
     const prof = E.profileOf('ren');
+    const flagged = new Set(target.warnings.map(w => w.line));
     const prior = (store.load().tasks[runId].steps.fix || {}).output || {};
     let feedback = prior.error ? `\n\nTu respuesta anterior fue rechazada (${prior.error}). Copia en "expect" la línea EXACTA tal como aparece tras "| ".` : '';
     const base = Number(prior.aiAttempt || 0);
@@ -115,9 +130,11 @@ async function main() {
       let parsed = null, error = '';
       try { parsed = JSON.parse(r.task.result.text.replace(/^```(json)?\s*|\s*```$/g, '')); } catch { error = 'respuesta_no_json'; }
       let edits = null;
-      if (parsed) { try { edits = validateEdits(src.split('\n'), parsed.edits); } catch (e) { error = e.message; } }
+      let detail = null;
+      if (parsed) { try { edits = validateEdits(src.split('\n'), parsed.edits, flagged); } catch (e) { error = e.message; detail = e.detail || null; } }
       if (!edits) {
-        step('fix', { error, aiAttempt: k, provider: r.task.result.provider, model: r.task.result.model }, 'failed');
+        step('fix', { error, detail, aiAttempt: k, provider: r.task.result.provider, model: r.task.result.model }, 'failed');
+        if (detail) console.log('rejected_edit', JSON.stringify(detail)); // public repository code only
         feedback = `\n\nTu respuesta anterior fue rechazada (${error}). Copia en "expect" la línea EXACTA tal como aparece tras "| ".`;
         continue;
       }
@@ -132,7 +149,7 @@ async function main() {
   if (!verify) {
     const original = fs.readFileSync(target.file, 'utf8');
     const lines = original.split('\n');
-    fix.edits = validateEdits(lines, fix.edits);
+    fix.edits = validateEdits(lines, fix.edits, new Set(target.warnings.map(w => w.line)));
     for (const e of [...fix.edits].sort((a, b) => b.line - a.line)) {
       if (e.replace_with === '') lines.splice(e.line - 1, 1); else lines[e.line - 1] = e.replace_with;
     }

@@ -26,7 +26,7 @@ globalThis.fetch = async (url, init) => {
     const edits = warn.map(([line, name]) => {
       const cur = lines[line];
       let next = cur.replace(new RegExp(',\\\\s*' + name + '\\\\s*=\\\\s*[^,;]+(?=;)'), '').replace(new RegExp('\\\\(([^)]*?),\\\\s*' + name + '\\\\)'), '($1)').replace(new RegExp('\\\\b' + name + ',\\\\s*'), '');
-      return { line, expect: cur.trim(), replace_with: next.trim() }; // like real models: indentation dropped
+      return { line, expect: (line === 25 ? cur.replace('= any(', '= any (') : cur).trim(), replace_with: next.trim() }; // like real models: indentation dropped, long line re-typed imperfectly
     });
     return j(200, { choices: [{ message: { content: JSON.stringify({ edits, explanation: 'Elimina variables y parámetros sin usar.' }) } }], usage: { prompt_tokens: 900, completion_tokens: 120 } });
   }
