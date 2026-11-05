@@ -90,3 +90,25 @@ test('only the newest GitHub activity response is rendered after iPhone tab resu
   assert.match(hq, /activitySequence\.current\+\+; \/\/ Invalidate responses/);
   assert.match(hq, /if \(document\.visibilityState === "visible"\) void load\(\)/);
 });
+
+
+test('quick drag, pinch and cancelled pointer cannot raycast a workstation as a tap', () => {
+  const ts = require('typescript');
+  const js = ts.transpileModule(read('src/lib/office/hq-tap.ts'), {
+    compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 },
+  }).outputText;
+  const mod = { exports: {} };
+  new Function('module', 'exports', js)(mod, mod.exports);
+  const { isHqTap } = mod.exports;
+  const start = { pointerId: 8, x: 100, y: 100, timeMs: 1000 };
+  assert.equal(isHqTap(start, 8, 107, 108, 1080, 0), true, 'small quick movement is a tap');
+  assert.equal(isHqTap(start, 8, 116, 100, 1080, 0), false, 'fast camera drag is not a tap');
+  assert.equal(isHqTap(start, 8, 100, 100, 1100, 1), false, 'remaining second finger is a pinch');
+  assert.equal(isHqTap(start, 9, 100, 100, 1100, 0), false, 'pointer mismatch rejected');
+  assert.equal(isHqTap(start, 8, 100, 100, 1400, 0), false, 'long press is not station tap');
+  assert.equal(isHqTap(null, 8, 100, 100, 1100, 0), false, 'cancelled gesture cannot select');
+  assert.match(hq, /activePointers\.size === 1 && e\.isPrimary && e\.button === 0/);
+  assert.match(hq, /isHqTap\(started, e\.pointerId/);
+  assert.match(hq, /addEventListener\("pointercancel", onCancel\)/);
+  assert.match(hq, /removeEventListener\("pointercancel", onCancel\)/);
+});

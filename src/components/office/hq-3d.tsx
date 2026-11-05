@@ -7,6 +7,7 @@
 // Models: Higgsfield GLBs imported through the Creative Bridge (optimized derivatives, see src/lib/office/hq-assets.ts);
 // procedural furniture is only a fallback if a model cannot load.
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { isHqTap, type HqPointerStart } from "@/lib/office/hq-tap";
 import Link from "next/link";
 import type * as THREE from "three";
 import { HQ_STATIONS, stationView, type StationView } from "@/lib/office/hq-layout";
@@ -346,10 +347,21 @@ export function Hq3d({ team = [], onSelectPerson, onActivityChange }: { team?: H
       // Time-based camera flights (same duration on any device, unlike a per-frame lerp on a slow GPU).
       let flight: { from: THREE.Vector3; to: THREE.Vector3; lookFrom: THREE.Vector3; lookTo: THREE.Vector3; t0: number } | null = null;
       const FLIGHT_MS = 750;
-      const ray = new T.Raycaster(); const ptr = new T.Vector2(); let downAt = 0;
-      const onDown = () => { downAt = performance.now(); };
+      const ray = new T.Raycaster(); const ptr = new T.Vector2();
+      const activePointers = new Set<number>();
+      let tapStart: HqPointerStart | null = null;
+      const onDown = (e: PointerEvent) => {
+        activePointers.add(e.pointerId);
+        // A second finger, non-primary pointer or right click cancels station picking.
+        tapStart = activePointers.size === 1 && e.isPrimary && e.button === 0
+          ? { pointerId: e.pointerId, x: e.clientX, y: e.clientY, timeMs: performance.now() } : null;
+      };
       const onUp = (e: PointerEvent) => {
-        if (performance.now() - downAt > 300) return; // a drag, not a tap
+        activePointers.delete(e.pointerId);
+        const started = tapStart;
+        tapStart = null;
+        // A fast orbit drag used to count as a tap; test distance and multi-touch too.
+        if (!isHqTap(started, e.pointerId, e.clientX, e.clientY, performance.now(), activePointers.size)) return;
         const r = renderer.domElement.getBoundingClientRect();
         ptr.set(((e.clientX - r.left) / r.width) * 2 - 1, -((e.clientY - r.top) / r.height) * 2 + 1);
         ray.setFromCamera(ptr, camera);
@@ -359,6 +371,8 @@ export function Hq3d({ team = [], onSelectPerson, onActivityChange }: { team?: H
       };
       renderer.domElement.addEventListener("pointerdown", onDown);
       renderer.domElement.addEventListener("pointerup", onUp);
+      const onCancel = (e: PointerEvent) => { activePointers.delete(e.pointerId); tapStart = null; };
+      renderer.domElement.addEventListener("pointercancel", onCancel);
       const fly = (pos: THREE.Vector3, look: THREE.Vector3) => {
         if (reduced) { camera.position.copy(pos); controls.target.copy(look); invalidate(); return; }
         flight = { from: camera.position.clone(), to: pos, lookFrom: controls.target.clone(), lookTo: look, t0: performance.now() }; invalidate();
@@ -443,6 +457,7 @@ export function Hq3d({ team = [], onSelectPerson, onActivityChange }: { team?: H
       cleanup = () => {
         cancelAnimationFrame(frame); ro.disconnect(); clearInterval(perfTimer); document.removeEventListener("visibilitychange", onVisibility);
         renderer.domElement.removeEventListener("pointerdown", onDown); renderer.domElement.removeEventListener("pointerup", onUp);
+        renderer.domElement.removeEventListener("pointercancel", onCancel);
         controls.dispose(); envTex.dispose(); pmrem.dispose();
         scene.traverse(o => { const m = o as THREE.Mesh; m.geometry?.dispose(); const mat = m.material; (Array.isArray(mat) ? mat : mat ? [mat] : []).forEach(x => { (x as THREE.MeshStandardMaterial).map?.dispose(); x.dispose(); }); });
         renderer.dispose(); el.replaceChildren(); api.current = null;
