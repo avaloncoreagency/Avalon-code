@@ -131,3 +131,13 @@ test('lost pointer capture and Safari window blur clear stale workstation gestur
   assert.match(hq, /window\.addEventListener\("blur", onWindowBlur\)/);
   assert.match(hq, /window\.removeEventListener\("blur", onWindowBlur\)/);
 });
+
+test('WebGL context loss on iPhone retains a ten-seat accessible light HQ', () => {
+  assert.match(hq, /addEventListener\("webglcontextlost", onGraphicsLost\)/);
+  assert.match(hq, /removeEventListener\("webglcontextlost", onGraphicsLost\)/);
+  assert.match(hq, /event\.preventDefault\(\)/);
+  assert.match(hq, /setGraphicsError\(true\); setLite\(true\)/);
+  assert.match(hq, /graphicsError && <p className=\{styles\.graphicsWarning\} role="status">/);
+  assert.match(sceneCss, /\.graphicsWarning \{/);
+  assert.match(read('tests/office-hq.browser.cjs'), /hq-iphone-context-fallback\.png/);
+});

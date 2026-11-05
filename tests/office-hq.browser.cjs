@@ -158,6 +158,13 @@ test('Avalon HQ 3D: owner-only, ten stations, real manager data, actions, light 
     buttons => buttons.map(b => b.getBoundingClientRect().height));
   assert.ok(tapHeights.length === 5 && tapHeights.every(h => h >= 44), 'all five iPhone camera targets are at least 44px high');
   await phone.screenshot({ path: path.join(EVIDENCE, 'hq-iphone-camera-controls.png') });
+  // Synthetic context-lost event exercises React fallback, not a real device GPU fault.
+  await phone.locator('canvas').evaluate(canvas => canvas.dispatchEvent(new Event('webglcontextlost', { cancelable: true })));
+  await phone.getByText(/Safari interrumpió la sesión 3D/).waitFor();
+  assert.equal(await phone.locator('canvas').count(), 0, 'iPhone falls back to light view when WebGL is lost');
+  assert.equal(await phone.locator('section[aria-label="Avalon HQ"] ol').first().locator('li').count(), 10,
+    'all five manager desks and five unassigned seats stay accessible');
+  await phone.screenshot({ path: path.join(EVIDENCE, 'hq-iphone-context-fallback.png') });
   const reduced = await open({ viewport: { width: 1024, height: 768 }, reducedMotion: 'reduce' });
   await reduced.goto(origin + '/admin/workspace/crm/office/hq?vista=ligera');
   assert.equal(await reduced.locator('canvas').count(), 0, 'light view requested by URL');

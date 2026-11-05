@@ -15,6 +15,7 @@
 .tagPerson { border-color: rgba(47, 211, 154, .7); }
 .tagOps { border-color: rgba(143, 124, 255, .7); color: #d8d2ff; font-weight: 500; }
 .liteWrap { padding: 4px 0 12px; }
+.graphicsWarning { margin: 10px 16px 4px; padding: 10px 12px; border-radius: 10px; border: 1px solid rgba(255, 179, 71, .45); background: rgba(90, 48, 15, .28); color: #ffe2b0; font-size: .82rem; line-height: 1.5; }
 .liteTitle { margin: 12px 16px 0; font-size: .8rem; letter-spacing: .14em; text-transform: uppercase; color: #8e97c2; }
 .perf { display: block; margin-top: 2px; color: #6f78a3; }
 .stage canvas { display: block; width: 100% !important; height: 100% !important; }

@@ -37,6 +37,7 @@ export function Hq3d({ team = [], onSelectPerson, onActivityChange }: { team?: H
   const mount = useRef<HTMLDivElement>(null);
   const [activity, setActivity] = useState<Activity | null>(null);
   const [activityError, setActivityError] = useState(false);
+  const [graphicsError, setGraphicsError] = useState(false);
   // Only the most recently requested manager snapshot may update the 3D scene.
   const activitySequence = useRef(0);
   const [selected, setSelected] = useState<string | null>(null);
@@ -109,6 +110,12 @@ export function Hq3d({ team = [], onSelectPerson, onActivityChange }: { team?: H
       renderer.toneMapping = T.ACESFilmicToneMapping; renderer.toneMappingExposure = 1.12;
       renderer.shadowMap.enabled = !mobile; renderer.shadowMap.type = T.PCFSoftShadowMap;
       el.appendChild(renderer.domElement);
+      // iOS Safari may evict WebGL under memory pressure; preserve the ten-seat light HQ.
+      const onGraphicsLost = (event: Event) => {
+        event.preventDefault();
+        if (!disposed) { setGraphicsError(true); setLite(true); }
+      };
+      renderer.domElement.addEventListener("webglcontextlost", onGraphicsLost);
       const labels = new CSS2DRenderer(); labels.setSize(el.clientWidth, el.clientHeight);
       labels.domElement.className = styles.labels; el.appendChild(labels.domElement);
 
@@ -471,6 +478,7 @@ export function Hq3d({ team = [], onSelectPerson, onActivityChange }: { team?: H
         renderer.domElement.removeEventListener("pointerup", onUp);
         renderer.domElement.removeEventListener("pointercancel", onCancel);
         renderer.domElement.removeEventListener("lostpointercapture", onLostCapture);
+        renderer.domElement.removeEventListener("webglcontextlost", onGraphicsLost);
         window.removeEventListener("blur", onWindowBlur);
         controls.dispose(); envTex.dispose(); pmrem.dispose();
         scene.traverse(o => { const m = o as THREE.Mesh; m.geometry?.dispose(); const mat = m.material; (Array.isArray(mat) ? mat : mat ? [mat] : []).forEach(x => { (x as THREE.MeshStandardMaterial).map?.dispose(); x.dispose(); }); });
@@ -547,6 +555,7 @@ export function Hq3d({ team = [], onSelectPerson, onActivityChange }: { team?: H
       )}
       {lite !== false && (
         <div className={styles.liteWrap}>
+          {graphicsError && <p className={styles.graphicsWarning} role="status">Safari interrumpió la sesión 3D. Se activó la vista ligera; las diez estaciones siguen disponibles.</p>}
           <h2 className={styles.liteTitle}>Managers y estaciones</h2>
           <ol className={styles.lite}>
             {HQ_STATIONS.map(s => (
