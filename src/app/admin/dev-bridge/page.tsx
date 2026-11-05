@@ -92,7 +92,8 @@ export default async function DevBridge() {
       <h2>Tareas asignadas sin PR vinculado</h2>
       <p className={s.muted}>Una Issue etiquetada puede ser trabajo activo aunque todavía no tenga rama. No se crea una asignación por adivinación.</p>
       <div className={s.workspaces}>{owners.map(owner => {
-        const tasks = github?.issues.filter(item => item.owner === owner && item.open !== false && !github.pulls.some(pr => pr.issues.includes(item.number))) ?? [];
+        const linkedPrs = github?.pulls ?? [];
+        const tasks = github?.issues.filter(item => item.owner === owner && item.open !== false && !linkedPrs.some(pr => pr.issues.includes(item.number))) ?? [];
         return <article className={s.card} key={owner}><small>{owner === 'miguel' ? 'MIGUEL' : 'SAMUEL'}</small>
           <h3>{tasks.length} tareas sin PR</h3>
           {tasks.length ? <ul className={s.simpleList}>{tasks.slice(0, 8).map(item =>
