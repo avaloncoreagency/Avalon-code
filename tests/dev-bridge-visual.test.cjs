@@ -214,7 +214,7 @@ test('Dev Bridge does not present cached Issue ownership or integration claims a
     url: 'https://example.invalid/cached-commit',
     date: '2026-11-01', author: 'SYNTHETIC_CACHED_AUTHOR_DO_NOT_SHOW',
   };
-  const run = async (status, error, coverage = 'full') => {
+  const run = async (status, error, coverage = 'full', findings = []) => {
     const synthetic = {
       at: '2026-11-05T16:00:00.000Z',
       github: {
@@ -226,7 +226,7 @@ test('Dev Bridge does not present cached Issue ownership or integration claims a
       },
       vercel: { status: 'UNKNOWN', data: null, verified_at: null },
       supabase: { status: 'UNKNOWN', data: null, verified_at: null },
-      findings: [],
+      findings,
     };
     const loaded = { exports: {} };
     const styles = new Proxy({}, { get: (_target, key) => String(key) });
@@ -285,4 +285,19 @@ test('Dev Bridge does not present cached Issue ownership or integration claims a
   assert.match(fresh, /PASSED/, 'full verified read may show checked CI');
   assert.match(fresh, /1 tareas sin PR/);
   assert.doesNotMatch(fresh, /Issues de integración: estado desconocido/);
+
+  // The backend describes a missing/stale provider as a finding with a
+  // VERIFIED claim. This is a verified detection of *missing telemetry*,
+  // not a current positive provider report.
+  const unavailable = await run('UNKNOWN', undefined, 'full', [
+    { id: 'source:github', severity: 'warning', claim: 'VERIFIED', message: 'github: UNKNOWN or stale telemetry' },
+  ]);
+  assert.match(unavailable, /Lectura no verificada/);
+  assert.doesNotMatch(unavailable, /Reportado por proveedor/);
+
+  // Genuine current provider evidence must keep its original provenance.
+  const failedCI = await run('VERIFIED', undefined, 'full', [
+    { id: 'ci:876543', severity: 'warning', claim: 'VERIFIED', message: 'PR #876543: failed CI' },
+  ]);
+  assert.match(failedCI, /Reportado por proveedor/);
 });
