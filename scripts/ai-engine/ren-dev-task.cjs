@@ -176,11 +176,20 @@ async function main() {
   if (!pub) {
     const slug = target.file.replace(/[^a-z0-9]+/gi, '-').toLowerCase().slice(0, 40);
     const branch = `ren/auto-${now().slice(0, 10).replace(/-/g, '')}-${slug}`;
-    sh('git', ['checkout', '-B', branch]);
-    sh('git', ['add', '--', target.file]);
-    sh('git', ['-c', 'user.name=REN (Avalon AI Engine)', '-c', 'user.email=ren-ai-engine@users.noreply.github.com', 'commit', '-m',
-      `chore(ren): fix ${verify.warningsBefore - verify.warningsAfter} ESLint warning(s) in ${target.file}\n\n${fix.explanation}\n\nAutonomous low-risk task by REN (Avalon AI Engine) via ${fix.provider}:${fix.model}. Verified: ${verify.checks.map(c => c.cmd + (c.ok ? ' ok' : ' FAIL')).join('; ')}. Inference cost: $0.`]);
-    sh('git', ['push', '-u', 'origin', branch]);
+    // Resuming on a fresh runner: if REN already pushed this branch, reuse it instead of committing again.
+    const remote = shOk('git', ['ls-remote', '--heads', 'origin', branch]);
+    let pushedSha = '';
+    if (remote.ok && remote.out.trim()) {
+      pushedSha = remote.out.trim().split(/\s+/)[0];
+      console.log('branch_already_published', branch);
+    } else {
+      sh('git', ['checkout', '-B', branch]);
+      sh('git', ['add', '--', target.file]);
+      sh('git', ['-c', 'user.name=REN (Avalon AI Engine)', '-c', 'user.email=ren-ai-engine@users.noreply.github.com', 'commit', '-m',
+        `chore(ren): fix ${verify.warningsBefore - verify.warningsAfter} ESLint warning(s) in ${target.file}\n\n${fix.explanation}\n\nAutonomous low-risk task by REN (Avalon AI Engine) via ${fix.provider}:${fix.model}. Verified: ${verify.checks.map(c => c.cmd + (c.ok ? ' ok' : ' FAIL')).join('; ')}. Inference cost: $0.`]);
+      sh('git', ['push', '-u', 'origin', branch]);
+      pushedSha = sh('git', ['rev-parse', 'HEAD']).trim();
+    }
     const body = [`**Tarea autónoma de REN (Avalon AI Engine).** No se fusiona sola: requiere revisión humana.`, '',
       `- Descubierta: ${target.candidates} archivo(s) con avisos permitidos; elegido \`${target.file}\``,
       `- Avisos: ${verify.warningsBefore} → ${verify.warningsAfter}; errores de lint: ${verify.lintErrors}`,
@@ -193,10 +202,12 @@ async function main() {
       const out = sh('gh', ['pr', 'create', '--draft', '--base', 'main', '--head', branch, '--title', `chore(ren): corregir avisos ESLint en ${target.file}`, '--body-file', '-'], { input: body, stdio: ['pipe', 'pipe', 'pipe'] });
       url = (/https:\/\/github\.com\/[\w.-]+\/[\w.-]+\/pull\/\d+/.exec(out) || [''])[0];
     } catch (e) {
-      step('publish', { branch, error: String(e.stderr || e.message).slice(0, 200) }, 'failed');
+      const error = String(e.stderr || e.message).slice(0, 300);
+      console.log('pr_create_failed', error); // GitHub's own message (e.g. Actions not permitted to create PRs); no secrets
+      step('publish', { branch, error }, 'failed');
       return finish('failed', `file=${target.file} rama ${branch} publicada pero PR no creado`);
     }
-    pub = { branch, pr: url, sha: sh('git', ['rev-parse', 'HEAD']).trim() };
+    pub = { branch, pr: url, sha: pushedSha };
     step('publish', pub);
   }
   return finish('succeeded', `file=${target.file} corregido (${verify.warningsBefore}→${verify.warningsAfter}), pruebas verdes, PR borrador ${pub.pr}`);
