@@ -12,7 +12,7 @@ const STATUS: Record<State, string> = {
 
 /** Display-only mapping: a successful API read is not a security or runtime certification. */
 export function BridgeStatus({ state, label }: { state: State; label?: string }) {
-  return <span className={`${s.status} ${s[`status_${state}`]}`} role="status">
+  return <span className={`${s.status} ${s[`status_${state}`]}`}>
     <span className={s.statusDot} aria-hidden="true" />{label ?? STATUS[state]}
   </span>;
 }
