@@ -7,7 +7,7 @@
 // Models: Higgsfield GLBs imported through the Creative Bridge (optimized derivatives, see src/lib/office/hq-assets.ts);
 // procedural furniture is only a fallback if a model cannot load.
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { isHqTap, type HqPointerStart } from "@/lib/office/hq-tap";
+import { isHqTap, trackHqPointerMove, type HqPointerStart } from "@/lib/office/hq-tap";
 import Link from "next/link";
 import type * as THREE from "three";
 import { HQ_STATIONS, stationView, type StationView } from "@/lib/office/hq-layout";
@@ -356,6 +356,10 @@ export function Hq3d({ team = [], onSelectPerson, onActivityChange }: { team?: H
         tapStart = activePointers.size === 1 && e.isPrimary && e.button === 0
           ? { pointerId: e.pointerId, x: e.clientX, y: e.clientY, timeMs: performance.now() } : null;
       };
+      // Track the entire gesture: an orbit drag that returns to its starting point is still not a tap.
+      const onMove = (e: PointerEvent) => {
+        tapStart = trackHqPointerMove(tapStart, e.pointerId, e.clientX, e.clientY);
+      };
       const onUp = (e: PointerEvent) => {
         activePointers.delete(e.pointerId);
         const started = tapStart;
@@ -370,6 +374,7 @@ export function Hq3d({ team = [], onSelectPerson, onActivityChange }: { team?: H
         chooseStation(id ?? null);
       };
       renderer.domElement.addEventListener("pointerdown", onDown);
+      renderer.domElement.addEventListener("pointermove", onMove);
       renderer.domElement.addEventListener("pointerup", onUp);
       const onCancel = (e: PointerEvent) => { activePointers.delete(e.pointerId); tapStart = null; };
       renderer.domElement.addEventListener("pointercancel", onCancel);
@@ -456,7 +461,8 @@ export function Hq3d({ team = [], onSelectPerson, onActivityChange }: { team?: H
       }, 1500);
       cleanup = () => {
         cancelAnimationFrame(frame); ro.disconnect(); clearInterval(perfTimer); document.removeEventListener("visibilitychange", onVisibility);
-        renderer.domElement.removeEventListener("pointerdown", onDown); renderer.domElement.removeEventListener("pointerup", onUp);
+        renderer.domElement.removeEventListener("pointerdown", onDown); renderer.domElement.removeEventListener("pointermove", onMove);
+        renderer.domElement.removeEventListener("pointerup", onUp);
         renderer.domElement.removeEventListener("pointercancel", onCancel);
         controls.dispose(); envTex.dispose(); pmrem.dispose();
         scene.traverse(o => { const m = o as THREE.Mesh; m.geometry?.dispose(); const mat = m.material; (Array.isArray(mat) ? mat : mat ? [mat] : []).forEach(x => { (x as THREE.MeshStandardMaterial).map?.dispose(); x.dispose(); }); });

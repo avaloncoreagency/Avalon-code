@@ -99,7 +99,7 @@ test('quick drag, pinch and cancelled pointer cannot raycast a workstation as a 
   }).outputText;
   const mod = { exports: {} };
   new Function('module', 'exports', js)(mod, mod.exports);
-  const { isHqTap } = mod.exports;
+  const { isHqTap, trackHqPointerMove } = mod.exports;
   const start = { pointerId: 8, x: 100, y: 100, timeMs: 1000 };
   assert.equal(isHqTap(start, 8, 107, 108, 1080, 0), true, 'small quick movement is a tap');
   assert.equal(isHqTap(start, 8, 116, 100, 1080, 0), false, 'fast camera drag is not a tap');
@@ -107,6 +107,15 @@ test('quick drag, pinch and cancelled pointer cannot raycast a workstation as a 
   assert.equal(isHqTap(start, 9, 100, 100, 1100, 0), false, 'pointer mismatch rejected');
   assert.equal(isHqTap(start, 8, 100, 100, 1400, 0), false, 'long press is not station tap');
   assert.equal(isHqTap(null, 8, 100, 100, 1100, 0), false, 'cancelled gesture cannot select');
+  const outAndBack = trackHqPointerMove(start, 8, 150, 100);
+  assert.equal(outAndBack, null, 'drag farther than 12px cancels a tap permanently');
+  assert.equal(isHqTap(outAndBack, 8, 100, 100, 1100, 0), false,
+    'drag back to starting pixel must not pick a workstation');
+  assert.equal(trackHqPointerMove(start, 8, 104, 103), start, 'small move is still a tap');
+  assert.equal(trackHqPointerMove(start, 9, 160, 100), start, 'other pointer does not cancel own tap');
+  assert.equal(trackHqPointerMove(start, 8, Number.NaN, 103), null, 'bad pointer coordinates fail closed');
+  assert.match(hq, /addEventListener\("pointermove", onMove\)/);
+  assert.match(hq, /removeEventListener\("pointermove", onMove\)/);
   assert.match(hq, /activePointers\.size === 1 && e\.isPrimary && e\.button === 0/);
   assert.match(hq, /isHqTap\(started, e\.pointerId/);
   assert.match(hq, /addEventListener\("pointercancel", onCancel\)/);
