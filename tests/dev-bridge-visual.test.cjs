@@ -240,7 +240,7 @@ test('Dev Bridge does not present cached Issue ownership or integration claims a
       './bridge-visuals': {
         BridgeStatus: ({ label }) => React.createElement('span', null, label),
         BuildStatus: () => null,
-        CiStatus: () => null,
+        CiStatus: ({ code }) => React.createElement('span', null, code ?? 'CI desconocido'),
         Sha: () => null,
         SourceCard: () => null,
         VerifiedSourceOnly: ({ children }) => children,
@@ -256,7 +256,6 @@ test('Dev Bridge does not present cached Issue ownership or integration claims a
     ['STALE', undefined, 'full'],
     ['UNKNOWN', undefined, 'full'],
     ['VERIFIED', 'synthetic private provider error', 'full'],
-    ['VERIFIED', undefined, 'summary'],
   ]) {
     const html = await run(status, error, coverage);
     assert.match(html, /No se pueden comprobar tareas sin PR/);
@@ -266,10 +265,17 @@ test('Dev Bridge does not present cached Issue ownership or integration claims a
     assert.doesNotMatch(html, /Sin conflicto detectado|stale\/private\.ts/, 'cached CI or merge claims must not appear as current');
     assert.doesNotMatch(html, /0 tareas sin PR/, 'unknown data must not be represented as a verified zero');
   }
+  // A verified public summary may include PR titles but cannot certify CI,
+  // merge state, touched files or a full commit feed.
+  const summary = await run('VERIFIED', undefined, 'summary');
+  assert.match(summary, /SYNTHETIC_CACHED_PR_DO_NOT_SHOW/, 'fresh public PR titles are allowed');
+  assert.match(summary, /CI desconocido/);
+  assert.doesNotMatch(summary, /SYNTHETIC_STALE_ISSUE_DO_NOT_SHOW|SYNTHETIC_CACHED_AUTHOR_DO_NOT_SHOW|PASSED|Sin conflicto detectado|stale\/private\.ts/);
   const fresh = await run('VERIFIED', undefined, 'full');
   assert.match(fresh, /SYNTHETIC_STALE_ISSUE_DO_NOT_SHOW/, 'full fresh data may display the linked Issue');
   assert.match(fresh, /SYNTHETIC_CACHED_PR_DO_NOT_SHOW/, 'verified PRs remain visible');
   assert.match(fresh, /SYNTHETIC_CACHED_AUTHOR_DO_NOT_SHOW/, 'verified commit metadata remains visible');
+  assert.match(fresh, /PASSED/, 'full verified read may show checked CI');
   assert.match(fresh, /1 tareas sin PR/);
   assert.doesNotMatch(fresh, /Issues de integración: estado desconocido/);
 });
