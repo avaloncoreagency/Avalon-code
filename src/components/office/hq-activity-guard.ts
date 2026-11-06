@@ -32,8 +32,14 @@ export function parseHqActivity(payload: unknown, nowMs = Date.now()): HqActivit
         !optionalString(m.finished_at) || !optionalString(m.error_code) ||
         !optionalString(m.updated_at) || typeof m.task_title !== "string" ||
         typeof m.result_summary !== "string" || !Array.isArray(m.evidence_refs)) return null;
-    // A claimed live execution without an identifiable run or start time must not light a desk.
-    if (m.status === "running" && (!m.run_id || !m.started_at ||
+    // All non-idle states must refer to a real run. Otherwise a malformed HTTP 200
+    // could paint a desk green for a completed execution that never existed.
+    if (m.status === "idle" ? m.run_id !== null :
+        typeof m.run_id !== "string" || m.run_id.trim().length === 0) return null;
+    if (m.status === "completed" && (typeof m.finished_at !== "string" ||
+        !Number.isFinite(Date.parse(m.finished_at)))) return null;
+    // A claimed live execution without an identifiable start time must not light a desk.
+    if (m.status === "running" && (!m.started_at ||
         !Number.isFinite(Date.parse(m.started_at as string)))) return null;
     seen.add(m.manager_key);
   }

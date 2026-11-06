@@ -65,3 +65,31 @@ test("old, future or missing server timestamps cannot light the HQ from a replay
   }
   assert.equal(parseHqActivity(fresh, Number.NaN), null, "invalid device clock fails closed");
 });
+
+test("non-idle states require a recorded run, and completed requires completion time", () => {
+  const now = Date.parse("2026-11-05T23:00:00.000Z");
+  const snapshot = valid();
+  snapshot.meta.generated_at = new Date(now).toISOString();
+  snapshot.managers[0] = { ...row("ren"), status: "completed", run_id: "synthetic-run",
+    started_at: new Date(now - 60_000).toISOString(),
+    finished_at: new Date(now - 30_000).toISOString() };
+  assert.equal(parseHqActivity(snapshot, now), snapshot, "completed execution with evidence accepted");
+
+  for (const status of ["queued", "running", "completed", "failed", "blocked", "stale"]) {
+    const noRun = structuredClone(snapshot);
+    noRun.managers[0].status = status;
+    noRun.managers[0].run_id = null;
+    assert.equal(parseHqActivity(noRun, now), null, status + " without run ID rejected");
+  }
+  const blankRun = structuredClone(snapshot);
+  blankRun.managers[0].run_id = "  ";
+  const noFinish = structuredClone(snapshot);
+  noFinish.managers[0].finished_at = null;
+  const invalidFinish = structuredClone(snapshot);
+  invalidFinish.managers[0].finished_at = "not-a-date";
+  const fakeIdle = structuredClone(snapshot);
+  fakeIdle.managers[0].status = "idle";
+  for (const sample of [blankRun, noFinish, invalidFinish, fakeIdle]) {
+    assert.equal(parseHqActivity(sample, now), null, "unverifiable execution rejected");
+  }
+});
