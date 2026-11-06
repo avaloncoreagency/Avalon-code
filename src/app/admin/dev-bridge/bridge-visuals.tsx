@@ -11,6 +11,39 @@ const STATUS: Record<State, string> = {
   unknown: "Desconocido",
 };
 
+/**
+ * External navigation derived from provider metadata is never arbitrary HTML.
+ * Fail closed for untrusted URLs instead of rendering javascript: links or
+ * hostnames that imitate a trusted GitHub/Vercel domain.
+ */
+export function verifiedProviderHref(value: unknown, source: "github" | "vercel"): string | null {
+  if (typeof value !== "string") return null;
+  try {
+    const url = new URL(value);
+    if (url.protocol !== "https:" || url.username || url.password || url.port) return null;
+    const host = url.hostname.toLowerCase();
+    const isGithub = host === "github.com";
+    const isVercel = host.endsWith(".vercel.app") || host === "vercel.app"
+      || host === "avaloncoreagency.com" || host.endsWith(".avaloncoreagency.com");
+    return (source === "github" ? isGithub : isVercel) ? url.href : null;
+  } catch {
+    return null;
+  }
+}
+
+/** Keep unverified provider metadata visible as text, never as a clickable URL. */
+export function SafeProviderLink({ href, source, children, className }: {
+  href: unknown;
+  source: "github" | "vercel";
+  children: ReactNode;
+  className?: string;
+}) {
+  const verified = verifiedProviderHref(href, source);
+  return verified
+    ? <a href={verified} className={className} rel="noopener noreferrer">{children}</a>
+    : <span className={className ?? s.muted}>{children} · enlace no verificado</span>;
+}
+
 /** Display-only mapping: a successful API read is not a security or runtime certification. */
 export function BridgeStatus({ state, label }: { state: State; label?: string }) {
   return <span className={`${s.status} ${s[`status_${state}`]}`}>
