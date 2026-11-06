@@ -321,7 +321,7 @@ test('Safari touch targets: expandable handoffs and file lists have 44px tap are
   // control such as the refresh link. A collapsed <summary> is an interactive
   // target on 320/390px iPhones and must remain usable by touch and keyboard.
   assert.match(css, /\.bridge details > summary\s*\{[^}]*min-height:\s*44px/);
-  assert.match(css, /\.bridge details > summary\s*\{[^}]*display:\s*flex/);
-  assert.match(css, /\.bridge details > summary\s*\{[^}]*align-items:\s*center/);
+  // list-item preserves the native disclosure marker in iOS Safari.
+  assert.match(css, /\.bridge details > summary\s*\{[^}]*display:\s*list-item/);
   assert.match(css, /\.bridge :is\(a, summary, \[tabindex\]\):focus-visible/);
 });
