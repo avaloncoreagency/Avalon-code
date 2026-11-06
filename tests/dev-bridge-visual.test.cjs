@@ -248,6 +248,7 @@ test('Dev Bridge does not present cached Issue ownership or integration claims a
         BridgeStatus: ({ label }) => React.createElement('span', null, label),
         BuildStatus: () => null,
         CiStatus: ({ code }) => React.createElement('span', null, code ?? 'CI desconocido'),
+        SafeProviderLink: ({ children, href }) => React.createElement('a', { href }, children),
         Sha: () => null,
         SourceCard: () => null,
         VerifiedSourceOnly: ({ children }) => children,
@@ -324,4 +325,70 @@ test('Safari touch targets: expandable handoffs and file lists have 44px tap are
   // list-item preserves the native disclosure marker in iOS Safari.
   assert.match(css, /\.bridge details > summary\s*\{[^}]*display:\s*list-item/);
   assert.match(css, /\.bridge :is\(a, summary, \[tabindex\]\):focus-visible/);
+});
+
+
+test('provider navigation rejects unsafe URLs without exposing private metadata', () => {
+  const ts = require('typescript');
+  const React = require('react');
+  const { renderToStaticMarkup } = require('react-dom/server');
+  const compiled = ts.transpileModule(visuals, {
+    compilerOptions: {
+      module: ts.ModuleKind.CommonJS,
+      target: ts.ScriptTarget.ES2022,
+      jsx: ts.JsxEmit.ReactJSX,
+      esModuleInterop: true,
+    },
+  }).outputText;
+  const loaded = { exports: {} };
+  new Function('require', 'module', 'exports', compiled)(
+    id => id === '@/lib/dev-bridge/core' ? { freshness: fact => fact }
+      : id === './bridge.module.css' ? new Proxy({}, { get: (_target, name) => String(name) })
+        : require(id),
+    loaded, loaded.exports,
+  );
+  const { SafeProviderLink, verifiedProviderHref } = loaded.exports;
+  const show = (source, href) => renderToStaticMarkup(React.createElement(
+    SafeProviderLink, { source, href }, 'Abrir enlace',
+  ));
+
+  const permitted = [
+    ['github', 'https://github.com/avaloncoreagency/Avalon-code/pull/148'],
+    ['github', 'https://github.com/avaloncoreagency/Avalon-code/issues/95'],
+    ['vercel', 'https://preview-abc.vercel.app/'],
+    ['vercel', 'https://avaloncoreagency.com/'],
+  ];
+  for (const [source, href] of permitted) {
+    assert.equal(verifiedProviderHref(href, source), href);
+    assert.match(show(source, href), /<a href="https:/);
+    assert.match(show(source, href), /rel="noopener noreferrer"/);
+  }
+
+  const untrusted = [
+    ['github', 'javascript:alert(1)'],
+    ['github', 'http://github.com/avaloncoreagency/Avalon-code'],
+    ['github', 'https://github.com.bad.example/avaloncoreagency'],
+    ['github', 'https://github.com@phishing.invalid/'],
+    ['github', 'https://private-token@github.com/avaloncoreagency'],
+    ['github', '//github.com/avaloncoreagency'],
+    ['vercel', 'https://vercel.app.bad.example/'],
+    ['vercel', 'https://127.0.0.1/'],
+    ['vercel', 'https://localhost/'],
+    ['vercel', 'https://unsafe.internal/'],
+    ['vercel', 'https://vercel.app:8443/'],
+    ['vercel', 'data:text/html,secret'],
+    ['vercel', 'https://private-token@preview-abc.vercel.app/'],
+  ];
+  for (const [source, href] of untrusted) {
+    assert.equal(verifiedProviderHref(href, source), null, 'reject untrusted: ' + href);
+    const html = show(source, href);
+    assert.doesNotMatch(html, /<a\b|href=|javascript:|private-token|phishing\.invalid/);
+    assert.match(html, /enlace no verificado/);
+  }
+  assert.equal(verifiedProviderHref(null, 'github'), null);
+  assert.equal(verifiedProviderHref({}, 'vercel'), null);
+  assert.match(page, /SafeProviderLink source="github"/);
+  assert.match(page, /SafeProviderLink source="vercel"/);
+  assert.doesNotMatch(page, /<a\b[^>]*href=\{(?:pr|issue|item|i|p|c|d)\.url\}/,
+    'provider-derived links must not bypass the URL gate');
 });
