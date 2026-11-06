@@ -4,7 +4,7 @@ import { requireOwner } from '@/lib/auth/session';
 import { snapshot } from '@/lib/dev-bridge/runtime';
 import { collaboration, freshness, type Owner } from '@/lib/dev-bridge/core';
 import { BridgeAutoRefresh } from './bridge-auto-refresh';
-import { BridgeStatus, BuildStatus, CiStatus, Sha, SourceCard, VerifiedSourceOnly } from './bridge-visuals';
+import { BridgeStatus, BuildStatus, CiStatus, SafeProviderLink, Sha, SourceCard, VerifiedSourceOnly } from './bridge-visuals';
 import s from './bridge.module.css';
 export const dynamic = 'force-dynamic';
 export default async function DevBridge() {
@@ -66,8 +66,8 @@ export default async function DevBridge() {
             <small>TRABAJO VERIFICABLE</small><h3>{owner === 'miguel' ? 'Miguel' : 'Samuel'}</h3>
             {team.assigned[owner].length ? team.assigned[owner].slice(0, 8).map(({ pr, issue, next_action }) =>
               <div className={s.task} key={pr.number}>
-                <p className={s.taskTitle}><a href={pr.url}>PR #{pr.number}: {pr.title}</a></p>
-                <div className={s.metaLine}><a href={issue.url}>Issue #{issue.number}</a><CiStatus code={pr.ci} /><Sha value={pr.head_sha} /></div>
+                <p className={s.taskTitle}><SafeProviderLink source="github" href={pr.url}>PR #{pr.number}: {pr.title}</SafeProviderLink></p>
+                <div className={s.metaLine}><SafeProviderLink source="github" href={issue.url}>Issue #{issue.number}</SafeProviderLink><CiStatus code={pr.ci} /><Sha value={pr.head_sha} /></div>
                 <p><strong>Próximo paso reportado:</strong> {next_action ?? 'No registrado en la Issue.'}</p>
                 {completeGithub && next_action ? <a className={s.action} href={`/api/dev-bridge/resume?issue=${issue.number}&as=${owner === 'miguel' ? 'samuel' : 'miguel'}`}>
                   Preparar paquete para {owner === 'miguel' ? 'Samuel' : 'Miguel'} ↓
@@ -79,7 +79,7 @@ export default async function DevBridge() {
           <summary>PRs sin propietario verificable · {team.unassigned.length}</summary>
           <p>Antes de hacer handoff: vincular una Issue, etiquetar owner:miguel u owner:samuel y documentar un “Next action”. No basta un nombre de rama.</p>
           <ul>{team.unassigned.slice(0,18).map(pr => <li key={pr.number}>
-            <a href={pr.url}>#{pr.number} {pr.title}</a> · {pr.branch} · <Sha value={pr.head_sha} /> · <CiStatus code={pr.ci} />
+            <SafeProviderLink source="github" href={pr.url}>#{pr.number} {pr.title}</SafeProviderLink> · {pr.branch} · <Sha value={pr.head_sha} /> · <CiStatus code={pr.ci} />
           </li>)}</ul>
           {team.unassigned.length > 18 ? <p>Otros {team.unassigned.length - 18} PRs: consultar la tabla completa debajo.</p> : null}
         </details>
@@ -95,7 +95,7 @@ export default async function DevBridge() {
         <details>
           <summary>Higgsfield / Creative Bridge · {team.creative.length} PRs relacionados</summary>
           <ul>{team.creative.slice(0,12).map(pr => <li key={pr.number}>
-            <a href={pr.url}>PR #{pr.number} {pr.title}</a> · <CiStatus code={pr.ci} /> · <Sha value={pr.head_sha} />
+            <SafeProviderLink source="github" href={pr.url}>PR #{pr.number} {pr.title}</SafeProviderLink> · <CiStatus code={pr.ci} /> · <Sha value={pr.head_sha} />
           </li>)}</ul>
           <p>Un PR validado no activa Higgsfield. Una referencia a una entrega tampoco instala archivos, imágenes, videos o sitios dentro de Avalon. Exigir evidencia visual en Preview aislada.</p>
         </details>
@@ -111,7 +111,7 @@ export default async function DevBridge() {
           <h3>{completeGithub ? `${tasks.length} tareas sin PR` : 'Estado desconocido'}</h3>
           {!completeGithub ? <p className={s.noticeText} role="status">No se pueden comprobar tareas sin PR con una lectura incompleta, antigua o fallida de GitHub.</p>
             : tasks.length ? <ul className={s.simpleList}>{tasks.slice(0, 8).map(item =>
-            <li key={item.id}><a href={item.url}>#{item.number} · {item.title}</a><span className={s.muted}>Estado reportado: {item.state}</span></li>
+            <li key={item.id}><SafeProviderLink source="github" href={item.url}>#{item.number} · {item.title}</SafeProviderLink><span className={s.muted}>Estado reportado: {item.state}</span></li>
           )}</ul> : <p>Sin tareas verificadas de este tipo.</p>}
           {completeGithub && tasks.length > 8 ? <p className={s.muted}>Hay {tasks.length - 8} tareas adicionales en GitHub.</p> : null}
         </article>;
@@ -119,7 +119,7 @@ export default async function DevBridge() {
     </section>
     <section className={s.section}><h2>Integración compartida</h2><p>Conflictos, dependencias y checkpoints se revisan en las Issues canónicas.</p>
       {!completeGithub ? <p className={s.noticeText} role="status">Issues de integración: estado desconocido hasta obtener lectura completa y actual de GitHub.</p>
-        : <ul>{verifiedGithub?.issues.filter(i=>i.labels.includes('type:integration')||i.labels.includes('type:handoff')).map(i=><li key={i.id}><a href={i.url}>#{i.number} {i.title}</a> · {i.state}</li>)}</ul>}
+        : <ul>{verifiedGithub?.issues.filter(i=>i.labels.includes('type:integration')||i.labels.includes('type:handoff')).map(i=><li key={i.id}><SafeProviderLink source="github" href={i.url}>#{i.number} {i.title}</SafeProviderLink> · {i.state}</li>)}</ul>}
       <p>Próximo release: UNKNOWN hasta aprobación de los propietarios.</p></section>
     <section className={s.section} aria-label="PR abiertos y CI">
       <div className={s.sectionTitle}><div><small>GITHUB</small><h2>PR abiertos y sus verificaciones</h2></div><span className={s.muted}>{githubFresh ? `${visiblePulls.length} PR visibles` : 'PRs sin lectura actual'}</span></div>
@@ -127,7 +127,7 @@ export default async function DevBridge() {
       {!githubFresh ? <p className={s.noticeText}>Los PR mostrados proceden de una lectura antigua o desconocida. No son una confirmación actual y no permiten preparar handoffs.</p> : null}
       <div className={s.desktopTable}><div className={s.scroll} tabIndex={0} role="region" aria-label="Tabla de pull requests desplazable horizontalmente">
         <table><thead><tr><th>PR / rama / SHA</th><th>CI</th><th>Integración</th><th>Archivos</th></tr></thead><tbody>{visiblePulls.map(p =>
-          <tr key={p.number}><td><a href={p.url}>#{p.number} {p.title}</a><span className={s.muted}>{p.branch}</span><Sha value={p.head_sha} /></td>
+          <tr key={p.number}><td><SafeProviderLink source="github" href={p.url}>#{p.number} {p.title}</SafeProviderLink><span className={s.muted}>{p.branch}</span><Sha value={p.head_sha} /></td>
           <td><CiStatus code={completeGithub ? p.ci : null} /></td>
           <td>{publicOnly ? 'Desconocido' : p.conflict === null ? 'Conflicto desconocido' : p.conflict ? 'Conflicto confirmado' : 'Sin conflicto detectado'}
             <span className={s.muted}>{publicOnly ? 'Desfase desconocido' : `${p.behind} commits de diferencia reportada`}</span></td>
@@ -135,14 +135,14 @@ export default async function DevBridge() {
         )}</tbody></table>
       </div></div>
       <div className={s.mobilePRs}>{visiblePulls.map(p => <article className={s.mobilePR} key={p.number}>
-        <a className={s.taskTitle} href={p.url}>PR #{p.number} · {p.title}</a>
+        <SafeProviderLink className={s.taskTitle} source="github" href={p.url}>PR #{p.number} · {p.title}</SafeProviderLink>
         <div className={s.metaLine}><CiStatus code={completeGithub ? p.ci : null} /><Sha value={p.head_sha} /></div>
         <p className={s.muted}>{p.branch}</p>
         <p>{publicOnly || p.conflict === null ? 'Integración: Desconocida' : p.conflict ? 'Conflicto de integración confirmado' : 'Sin conflicto detectado'}</p>
         {publicOnly ? <p className={s.muted}>Archivos y CI no verificados.</p> : <details><summary>Archivos tocados · {p.files.length}</summary><ul>{p.files.map(f => <li key={f}>{f}</li>)}</ul></details>}
       </article>)}</div>
       {!visiblePulls.length ? <p className={s.muted}>Sin PRs verificados en la lectura actual. Esto no demuestra que el repositorio esté vacío.</p> : null}
-      <details><summary>Commits recientes</summary><ul>{visibleCommits.slice(0, 20).map(c => <li key={c.sha}><a href={c.url}><Sha value={c.sha} /></a> · {c.date} · autor reportado: {c.author}</li>)}</ul></details>
+      <details><summary>Commits recientes</summary><ul>{visibleCommits.slice(0, 20).map(c => <li key={c.sha}><SafeProviderLink source="github" href={c.url}><Sha value={c.sha} /></SafeProviderLink> · {c.date} · autor reportado: {c.author}</li>)}</ul></details>
     </section>
     <section className={s.section} aria-label="Despliegues de Vercel">
       <div className={s.sectionTitle}><div><small>VERCEL</small><h2>Despliegues</h2></div><BridgeStatus state={vercelFresh ? 'verified' : 'unknown'} label={vercelFresh ? 'Metadatos disponibles' : 'Sin verificación actual'} /></div>
@@ -151,7 +151,7 @@ export default async function DevBridge() {
       <div className={s.deployments}>{state.vercel.data?.slice(0, 12).map(d => <article className={s.deployment} key={d.id}>
         <div className={s.sourceTop}><strong>{d.environment === 'production' ? 'Producción' : 'Vista previa'}</strong><BuildStatus code={d.state} /></div>
         <p>{d.branch || 'Rama desconocida'}</p><Sha value={d.sha} />
-        {d.url ? <a href={d.url} rel="noopener noreferrer">Abrir despliegue ↗</a> : <span className={s.muted}>Enlace no disponible</span>}
+        {d.url ? <SafeProviderLink source="vercel" href={d.url}>Abrir despliegue ↗</SafeProviderLink> : <span className={s.muted}>Enlace no disponible</span>}
       </article>)}</div>
       {!state.vercel.data?.length ? <p className={s.muted}>No se obtuvieron despliegues verificables.</p> : null}
       </VerifiedSourceOnly>
