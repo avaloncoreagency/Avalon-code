@@ -93,3 +93,30 @@ test("non-idle states require a recorded run, and completed requires completion 
     assert.equal(parseHqActivity(sample, now), null, "unverifiable execution rejected");
   }
 });
+
+test("HQ rejects temporally impossible run events despite a fresh HTTP 200", () => {
+  const now = Date.parse("2026-11-05T23:00:00.000Z");
+  const base = valid();
+  base.meta.generated_at = new Date(now).toISOString();
+  base.managers[0] = { ...row("ren"), status: "completed", run_id: "synthetic-run",
+    started_at: new Date(now - 60_000).toISOString(),
+    finished_at: new Date(now - 10_000).toISOString() };
+  assert.equal(parseHqActivity(base, now), base, "plausible completed run remains visible");
+
+  const futureStart = structuredClone(base);
+  futureStart.managers[0].started_at = new Date(now + 120_001).toISOString();
+  const futureFinish = structuredClone(base);
+  futureFinish.managers[0].finished_at = new Date(now + 120_001).toISOString();
+  const reversed = structuredClone(base);
+  reversed.managers[0].finished_at = new Date(now - 61_000).toISOString();
+  const invalidQueuedTime = structuredClone(base);
+  invalidQueuedTime.managers[0] = { ...row("ren"), status: "queued",
+    run_id: "synthetic-run", started_at: "not-a-date" };
+  for (const sample of [futureStart, futureFinish, reversed, invalidQueuedTime]) {
+    assert.equal(parseHqActivity(sample, now), null, "impossible manager timeline rejected");
+  }
+  const skewAllowed = structuredClone(base);
+  skewAllowed.managers[0].finished_at = new Date(now + 120_000).toISOString();
+  assert.equal(parseHqActivity(skewAllowed, now), skewAllowed,
+    "up to two minutes of server timestamp skew tolerated");
+});

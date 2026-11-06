@@ -36,11 +36,16 @@ export function parseHqActivity(payload: unknown, nowMs = Date.now()): HqActivit
     // could paint a desk green for a completed execution that never existed.
     if (m.status === "idle" ? m.run_id !== null :
         typeof m.run_id !== "string" || m.run_id.trim().length === 0) return null;
-    if (m.status === "completed" && (typeof m.finished_at !== "string" ||
-        !Number.isFinite(Date.parse(m.finished_at)))) return null;
+    // Snapshot freshness alone is insufficient: a run cannot finish before it starts,
+    // nor can it report events far in the future relative to the server snapshot.
+    const startedMs = typeof m.started_at === "string" ? Date.parse(m.started_at) : null;
+    const finishedMs = typeof m.finished_at === "string" ? Date.parse(m.finished_at) : null;
+    if ((startedMs !== null && (!Number.isFinite(startedMs) || startedMs > generatedMs + 120_000)) ||
+        (finishedMs !== null && (!Number.isFinite(finishedMs) || finishedMs > generatedMs + 120_000)) ||
+        (startedMs !== null && finishedMs !== null && finishedMs < startedMs)) return null;
+    if (m.status === "completed" && finishedMs === null) return null;
     // A claimed live execution without an identifiable start time must not light a desk.
-    if (m.status === "running" && (!m.started_at ||
-        !Number.isFinite(Date.parse(m.started_at as string)))) return null;
+    if (m.status === "running" && startedMs === null) return null;
     seen.add(m.manager_key);
   }
   return payload as HqActivity;
