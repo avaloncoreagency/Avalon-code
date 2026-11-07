@@ -3,6 +3,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { run } from "@/lib/os/data";
 import { pick, formatDate, type Lang } from "@/lib/i18n";
 import { money } from "@/lib/sales/domain";
+import { financeNotice, type FinanceSummary } from "@/lib/sales/client-finance";
 import { saveClientWorkspace, createClientJournalEntry, reviseClientJournalEntry, appendClientCost } from "@/app/admin/workspace/crm/clients/workspace-actions";
 import s from "./sales.module.css";
 
@@ -18,8 +19,13 @@ const kinds: [string, string, string][] = [
   ["milestone","Hito","Milestone"],["decision","Decisión","Decision"]
 ];
 
-export async function ClientWorkspace({ supabase, clientId, lang, sales, financeAllowed, demo }: {
-  supabase: SupabaseClient; clientId: string; lang: Lang; sales: Sale[]; financeAllowed: boolean; demo: boolean;
+/**
+ * `finance` is the summary of the client's FULL ledger, read page by page by the parent (KENJI #98). Profitability is
+ * shown only when it is complete; otherwise a labelled partial subtotal (never when a source failed) and the reason.
+ * `sales` are only the most recent rows, used for the service list.
+ */
+export async function ClientWorkspace({ supabase, clientId, lang, sales, financeAllowed, finance, demo }: {
+  supabase: SupabaseClient; clientId: string; lang: Lang; sales: Sale[]; financeAllowed: boolean; finance: FinanceSummary | null; demo: boolean;
 }) {
   const [workspace, journal, costs, revisions, detailRevisions] = await Promise.all([
     run<Workspace | null>(supabase.from("crm_client_workspace").select("client_id,package_name,development_stage,next_step,version").eq("client_id",clientId).maybeSingle()),
@@ -34,17 +40,11 @@ export async function ClientWorkspace({ supabase, clientId, lang, sales, finance
     : { data: [] as Line[], error: null };
   const pending = [workspace,journal,costs,revisions,detailRevisions].some(x=>x.error==="schema_pending");
   const failed = [workspace,journal,costs,revisions,detailRevisions].some(x=>!!x.error && x.error!=="schema_pending");
-  const revenue = new Map<string,{ contracted:number; collected:number; recurring:number; expenses:number }>();
-  const ledger = (currency: string) => {
-    const v = revenue.get(currency) ?? {contracted:0,collected:0,recurring:0,expenses:0};
-    revenue.set(currency,v);return v;
-  };
-  for (const x of sales) {
-    const v = ledger(x.currency);v.contracted+=Number(x.total);
-    v.collected+=x.crm_payments.reduce((a,y)=>a+Number(y.amount),0);
-    v.recurring+=Number(x.recurring_monthly);
-  }
-  for (const x of costs.data??[]) ledger(x.currency).expenses+=Number(x.amount);
+  const notice = finance ? financeNotice(finance, lang === "en" ? "en" : "es") : null;
+  // A source that FAILED makes any subtotal meaningless (e.g. costs-only negative "profit"): show the reason only.
+  const sourceFailed = !!finance && finance.issues.some(i => i === "sales_failed" || i === "costs_failed" || i === "invalid_amount" || i === "amount_overflow");
+  const unit = (cents: number) => cents / 100;
+  const costsListed = (costs.data ?? []).length;
   const w = workspace.data;
   return <section className={s.panel} id="internal-workspace" aria-label={pick(lang,"Expediente interno del cliente","Internal client dossier")}>
     <header><div><h2>{pick(lang,"Expediente interno · Staff","Internal dossier · Staff")}</h2>
@@ -66,14 +66,16 @@ export async function ClientWorkspace({ supabase, clientId, lang, sales, finance
     {failed && <p role="alert" className={s.notice}>{pick(lang,"No fue posible leer parte del expediente. Verifica los permisos y la base de datos.","Part of the dossier could not be loaded. Verify permissions and database.")}</p>}
     {!(pending||failed) && <>
       {financeAllowed && <div className={s.stats}>
-        {[...revenue.entries()].map(([currency,totals])=><div key={currency} className={s.stat}>
-          <span>{pick(lang,"Rentabilidad registrada","Recorded profitability")} · {currency}</span>
-          <strong>{money(lang,totals.collected-totals.expenses,currency)}</strong>
-          <small>{pick(lang,"Cobrado","Collected")}: {money(lang,totals.collected,currency)}</small>
-          <small>{pick(lang,"Gastos","Expenses")}: {money(lang,totals.expenses,currency)}</small>
-          <small>{pick(lang,"Contratado","Contracted")}: {money(lang,totals.contracted,currency)} · MRR {money(lang,totals.recurring,currency)}</small>
+        {!finance && <p role="alert" className={s.notice}>{pick(lang,"Resumen financiero no disponible: no se muestran importes parciales.","Financial summary unavailable: partial amounts are hidden.")}</p>}
+        {finance && notice && <p role="status" className={s.notice} data-finance="partial">{notice}</p>}
+        {finance && !sourceFailed && finance.currencies.map(f=><div key={f.currency} className={s.stat}>
+          <span>{f.profitCents !== null ? pick(lang,"Rentabilidad registrada","Recorded profitability") : pick(lang,"Subtotal parcial (datos incompletos)","Partial subtotal (incomplete data)")} · {f.currency}</span>
+          <strong>{money(lang,unit(f.profitCents ?? f.subtotalProfitCents),f.currency)}</strong>
+          <small>{pick(lang,"Cobrado","Collected")}: {money(lang,unit(f.collectedCents),f.currency)}</small>
+          <small>{pick(lang,"Gastos","Expenses")}: {money(lang,unit(f.expensesCents),f.currency)}</small>
+          <small>{pick(lang,"Contratado","Contracted")}: {money(lang,unit(f.contractedCents),f.currency)} · MRR {money(lang,unit(f.recurringCents),f.currency)}</small>
         </div>)}
-        {revenue.size===0 && <p className={s.muted}>{pick(lang,"Sin movimientos financieros registrados.","No recorded financial transactions.")}</p>}
+        {finance?.empty && <p className={s.muted}>{pick(lang,"Sin movimientos financieros registrados.","No recorded financial transactions.")}</p>}
       </div>}
       <div className={s.columns}>
         <section aria-labelledby="workspace-package">
@@ -113,6 +115,7 @@ export async function ClientWorkspace({ supabase, clientId, lang, sales, finance
             <label className={s.field}>{pick(lang,"Detalle y justificación","Details and reason")}<textarea name="memo" maxLength={1000} required rows={2}/></label>
             <button className={s.button}>{pick(lang,"Registrar gasto / ajuste","Record expense / adjustment")}</button>
           </form>
+          {finance?.costsTotal != null && finance.costsTotal > costsListed && <p className={s.muted}>{pick(lang,`Se muestran los ${costsListed} gastos más recientes de ${finance.costsTotal}; los totales incluyen todos.`,`Showing the ${costsListed} most recent of ${finance.costsTotal} expenses; totals include all of them.`)}</p>}
           <ol className={s.timeline}>{(costs.data??[]).map(x=><li key={x.id}>
             <strong>{money(lang,Number(x.amount),x.currency)}</strong> · {x.category} · {formatDate(lang,x.incurred_on)}
             <div className={s.muted}>{x.memo}</div>

@@ -49,8 +49,10 @@ export async function loadAllRows<T>(fetchPage: (from: number, to: number) => Pr
     if (total !== null) {
       if (rows.length >= total) return { rows, complete: true, failed: false, total };
       if (result.data.length === 0) return { rows, complete: false, failed: false, total }; // server stopped early
-    } else if (result.data.length < FINANCE_PAGE_SIZE) {
-      return { rows, complete: true, failed: false, total: rows.length }; // no count available: a short page is the end
+    } else if (result.data.length === 0) {
+      // No count available: only an EMPTY page proves the end. A short page is not proof, because a PostgREST
+      // max-rows cap smaller than our page size also returns short pages while more rows exist (KENJI #98).
+      return { rows, complete: true, failed: false, total: rows.length };
     }
   }
   return { rows, complete: false, failed: false, total };
