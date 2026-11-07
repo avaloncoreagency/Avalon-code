@@ -146,3 +146,19 @@ export function parseDependencies(raw: string): number[] {
 export function dependencySatisfied(dep: { state: string; labels: string[] }): boolean {
   return dep.state.toLowerCase() === "closed" || dep.labels.some(l => l === "avalon:verified" || l === "avalon:diagnosed");
 }
+
+/**
+ * Intake priority queue. P0 = most urgent. Source: a `priority:p0`…`priority:p3` label (owner-set, wins) or a
+ * leading `[P0]`…`[P3]` in the title. Default P2. Ties: the oldest order (lowest Issue number) goes first, so a
+ * flood of new orders cannot starve older ones of the same priority.
+ */
+export const PRIORITY_DEFAULT = 2;
+export function orderPriority(order: { title: string; labels: string[] }): number {
+  const label = order.labels.map(l => /^priority:p([0-3])$/i.exec(l)).find(Boolean);
+  if (label) return Number(label[1]);
+  const title = /^\s*\[P([0-3])\]/i.exec(order.title);
+  return title ? Number(title[1]) : PRIORITY_DEFAULT;
+}
+export function prioritize<T extends { number: number; title: string; labels: string[] }>(orders: T[]): T[] {
+  return orders.map(o => ({ o, p: orderPriority(o) })).sort((a, b) => a.p - b.p || a.o.number - b.o.number).map(x => x.o);
+}

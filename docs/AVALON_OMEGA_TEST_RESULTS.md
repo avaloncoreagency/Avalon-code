@@ -33,3 +33,10 @@ Only tests that were actually executed are listed, with the exact commit. "Synth
 ## Earlier missions (for continuity)
 
 - 0352, `ee7e9bb`: `npm test` 379/379, 46/46 PGlite database files, REN pipeline 2/2, lint 0 errors, CodeQL clean. Real Groq/Cloudflare calls at $0, with a forced-429 failover. Details are in PR #132 and Issue #134.
+
+## Phase P1 · 2026-11-07 (local, not pushed: B1)
+
+| Change | Command | Result |
+| --- | --- | --- |
+| Intake priority queue | `node --test tests/ai-engine-ops.test.cjs` | 13/13 (2 new: priority rules; a P0 order is processed first among 5 waiting, 3 per round) |
+| same | `npm test` | **386/386** (static workflow guarantee updated: still at most 3 orders per round) |

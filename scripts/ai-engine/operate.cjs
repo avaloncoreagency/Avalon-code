@@ -196,7 +196,9 @@ async function intake(store, control) {
     return Date.now() - last > STALE_MS;
   });
   const out = [];
-  for (const i of candidates.slice(0, 3)) {
+  // Priority queue (P0 first, then oldest); at most 3 orders per round.
+  const queue = P.prioritize(candidates.map(i => ({ ...i, labels: i.labels.map(l => l.name) })));
+  for (const i of queue.slice(0, 3)) {
     const n = i.number;
     const text = `${i.title}\n${i.body || ''}`;
     const prior = (store.load().ops?.orders || {})[n];
@@ -221,7 +223,7 @@ async function intake(store, control) {
     const deps = P.parseDependencies(text).filter(d => d !== n);
     const prof = E.profileOf(route.manager);
     setState(store, n, 'classified', `${route.manager}/${intent}`, { manager: route.manager, intent, dependsOn: deps,
-      plan: { executors: prof ? prof.executors.map(x => x.id) : [], steps: ['classify', 'execute', 'verify', 'record_evidence'] }, limits: P.ORDER_LIMITS });
+      plan: { executors: prof ? prof.executors.map(x => x.id) : [], steps: ['classify', 'execute', 'verify', 'record_evidence'] }, limits: P.ORDER_LIMITS, priority: P.orderPriority(i) });
     if (P.parseDependencies(text).includes(n)) { setState(store, n, 'blocked', 'dependency_cycle:self'); label(n, 'blocked');
       gh(['issue', 'comment', String(n), '--repo', REPO, '--body-file', '-'], `Estado: **blocked** — la orden depende de sí misma.\n\n_Avalon AI Engine_`);
       out.push({ manager: route.manager, status: 'blocked', issue: n, reason: 'dependency_cycle' }); continue; }

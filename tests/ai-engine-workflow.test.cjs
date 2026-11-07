@@ -55,7 +55,7 @@ test('every job reads the SAME central control and restores/saves a resumable st
 test('bounded work: job timeouts exist and the worker caps orders per round, retries and per-check time', () => {
   for (const name of ['offline', 'live-smoke', 'ren-dev-task', 'managers', 'intake']) assert.match(jobs[name], /timeout-minutes: \d+/, name);
   const ops = fs.readFileSync('scripts/ai-engine/operate.cjs', 'utf8');
-  assert.match(ops, /candidates\.slice\(0, 3\)/, 'at most 3 orders per round');
+  assert.match(ops, /(candidates|queue)\.slice\(0, 3\)/, 'at most 3 orders per round');
   assert.match(fs.readFileSync('scripts/ai-engine/managers.cjs', 'utf8'), /timeout: 15 \* 60e3/, 'a check cannot run forever');
   assert.match(fs.readFileSync('src/lib/ai-engine/policy.ts', 'utf8'), /export const LIMITS = \{ perHour: 6, perDay: 30, retries: 2 \}/);
 });

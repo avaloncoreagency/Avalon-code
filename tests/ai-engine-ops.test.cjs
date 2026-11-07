@@ -280,3 +280,33 @@ if(a[0]==='issue'&&a[1]==='view')process.stdout.write(JSON.stringify(d.view[a[2]
     assert.equal(comments301.length, 0);
   } finally { h.restore(); fs.rmSync(dir, { recursive: true, force: true }); }
 });
+
+// ─── Omega P1: intake priority queue ────────────────────────────────────────────────────────────────────────────────────
+test('priority: owner label wins over the title tag; default P2; ties go to the oldest order', () => {
+  assert.equal(P.orderPriority({ title: '[P3] algo', labels: ['priority:p0'] }), 0, 'the owner-set label wins');
+  assert.equal(P.orderPriority({ title: '[P1] Revisar RLS', labels: [] }), 1);
+  assert.equal(P.orderPriority({ title: 'Sin prioridad', labels: ['avalon:task'] }), P.PRIORITY_DEFAULT);
+  assert.equal(P.orderPriority({ title: 'texto [P0] en medio', labels: [] }), P.PRIORITY_DEFAULT, 'only a leading tag counts');
+  const q = P.prioritize([
+    { number: 30, title: 'nueva normal', labels: [] }, { number: 31, title: '[P0] urgente', labels: [] },
+    { number: 10, title: 'vieja normal', labels: [] }, { number: 32, title: 'baja', labels: ['priority:p3'] },
+  ]);
+  assert.deepEqual(q.map(o => o.number), [31, 10, 30, 32]);
+});
+
+test('intake processes the P0 order first even when more than three orders are waiting', async () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'gh-prio-'));
+  const fresh = new Date().toISOString();
+  const issues = [301, 302, 303, 304].map(n => ({ number: n, title: 'Revisar pruebas ' + n, body: 'solo diagnóstico', labels: [{ name: 'avalon:task' }], updatedAt: fresh }));
+  issues.push({ number: 399, title: '[P0] Revisar seguridad urgente', body: 'solo diagnóstico', labels: [{ name: 'avalon:task' }], updatedAt: fresh });
+  fs.writeFileSync(path.join(dir, 'gh'), `#!/usr/bin/env node
+const a=process.argv.slice(2);try{require('fs').readFileSync(0,'utf8')}catch{}
+if(a[0]==='issue'&&a[1]==='list'){process.stdout.write(${JSON.stringify(JSON.stringify(issues))});}
+`, { mode: 0o755 });
+  const h = harness({ PATH: dir + path.delimiter + process.env.PATH });
+  try {
+    const out = await OPS.intake(h.store, { killSwitch: false, suspended: [] });
+    assert.deepEqual(out.map(r => r.issue), [399, 301, 302], 'P0 first, then the oldest; 3 per round');
+    assert.equal(h.store.load().ops.orders[399].priority, 0, 'priority is persisted with the order plan');
+  } finally { h.restore(); fs.rmSync(dir, { recursive: true, force: true }); }
+});
