@@ -253,7 +253,13 @@ test('every migration table has RLS enabled and anon revoked (default privileges
     'grant execute on function public.crm_public_inquiry(jsonb) to anon, authenticated;',
     // Reviewed (AI Engine): the single operational control read by the GitHub Actions worker with the publishable key.
     'grant execute on function public.crm_ai_public_control() to anon, authenticated, service_role;',
-  ], 'no grants to anon except the reviewed public inquiry and AI control RPCs');
+    // Reviewed (Project Bridge, Misión 0400): token-gated import inbox. The RPCs accept only a valid sha256 token hash and
+    // can only open an import awaiting upload / read its status; storage lets anon write ONLY inbox/<open import>.zip once.
+    'grant execute on function public.os_bridge_api_open_import(text, text, text, text, text, text) to anon, authenticated;',
+    "grant execute on function os_private.bridge_inbox_open(text) to anon, authenticated';",
+    "grant usage on schema os_private to anon';",
+    'grant execute on function public.os_bridge_api_import_status(text, uuid, boolean) to anon, authenticated;',
+  ], 'no grants to anon except the reviewed public inquiry, AI control and Project Bridge inbox RPCs');
   // The control RPC may expose ONLY these four switches; any other key needs a new review.
   const ctl = fs.readFileSync('supabase/migrations/20261106090000_ai_engine.sql', 'utf8');
   const body = ctl.slice(ctl.indexOf('create function public.crm_ai_public_control()'), ctl.indexOf('revoke all on function public.crm_ai_public_control()'));
