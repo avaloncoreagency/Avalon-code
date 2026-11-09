@@ -296,7 +296,7 @@ async function publish(c, repo, ex) {
     fs.writeFileSync(path.join(backupDir, dst + ".sha256"), `${sha256(fs.readFileSync(src))}  ${dst}\n`);
   }
   fs.writeFileSync(path.join(backupDir, name + ".json"), JSON.stringify({ seq: r.seq, commit: tip, parent, bundle_sha256: bundleSha, full_sha256: fullSha, tests, deliveries,
-    restore: parent ? `git fetch <full>.bundle +refs/acx/head:refs/acx/mainline, then each incremental in order` : `git clone ${name}-full.bundle avalon && git -C avalon checkout -b main FETCH_HEAD` }, null, 2));
+    restore: parent ? `git fetch <full>.bundle +refs/acx/head:refs/acx/mainline, then each incremental in order` : `git init avalon && git -C avalon fetch <path>/${name}-full.bundle +refs/acx/head:refs/heads/main && git -C avalon checkout main` }, null, 2));
   log(`PUBLISHED mainline #${r.seq} ${tip.slice(0, 12)} (${parent ? "incremental" : "full"}${full && parent ? " + full snapshot" : ""}, ${deliveries.length} delivery(ies), ${gates.passed} tests green)`);
   log(`   backup: ${backupDir}/${name}*`);
   return { ...r, commit: tip };

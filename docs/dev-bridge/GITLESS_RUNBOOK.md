@@ -73,7 +73,7 @@ node scripts/gitless/owner-token-run.cjs --profile integrator -- node scripts/gi
 ## Respaldos y recuperación
 
 - Cada mainline vive en el exchange y en `.avalon-backups/` (o en `--backup-dir`) como `avalon-mainline-<seq>-<commit>[-full].bundle`, más `.sha256` y `.json`.
-- Restaurar sin Avalon ni GitHub: `git clone <…-full.bundle> avalon`, después `git fetch <incremental>.bundle +refs/acx/head:refs/acx/mainline` en orden.
+- Restaurar sin Avalon ni GitHub: `git init avalon && git -C avalon fetch <…-full.bundle> +refs/acx/head:refs/heads/main && git -C avalon checkout main`; después, por orden, `git -C avalon fetch <incremental>.bundle +refs/acx/head:refs/heads/main`. (`git clone` directo del bundle da un repositorio vacío, porque la ref es `refs/acx/head`.)
 - Restaurar desde el exchange: `acx sync --dir <vacío>`, con un token de solo descarga.
 - Conviene guardar copias fuera de la sesión de Claude (el disco del owner o su unidad) cada vez que se publica una instantánea completa.
 
