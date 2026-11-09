@@ -1,0 +1,9 @@
+'use client';
+import { useState } from 'react';
+import { NovaSurface, MetricCard, ProjectLibrary, NovaDialog, FeedbackPanel, ActivityTimeline, type NovaProject, type NovaLanguage } from './nova';
+/** Explicit synthetic fixture. Not an operational route or a backend adapter. */
+export default function NovaDemo() {
+  const [lang,setLang]=useState<NovaLanguage>('es'); const [selected,setSelected]=useState<NovaProject|null>(null); const [retried,setRetried]=useState(false);
+  const projects:NovaProject[]=[{id:'demo-website',name:'DEMO Website',client:'Empresa sintética A',status:'disconnected',progress:null},{id:'demo-crm',name:'DEMO CRM',owner:'Responsable DEMO',status:'completed',progress:100}];
+  return <NovaSurface label="Avalon Nova DEMO"><h1>Avalon Nova · DEMO</h1><p>{lang==='es'?'Datos sintéticos · Sin conexión a servicios':'Synthetic data · No service connection'}</p><button onClick={()=>setLang(lang==='es'?'en':'es')}>ES / EN</button><MetricCard label={lang==='es'?'Consumo':'Usage'} value={null} lang={lang}/><ProjectLibrary projects={projects} lang={lang} onSelect={setSelected}/><FeedbackPanel state="loading" lang={lang}/><FeedbackPanel state="permission" title={lang==='es'?'Sin permiso':'Permission required'} detail={lang==='es'?'Solicita acceso al propietario.':'Request access from the owner.'} lang={lang}/>{!retried ? <FeedbackPanel state="error" title="DEMO error" onRetry={()=>setRetried(true)} lang={lang}/> : <p role="status">DEMO retry received</p>}<ActivityTimeline lang={lang} items={[{id:'demo-history',title:'DEMO fixture',timestamp:'2026-11-09T12:00:00Z',status:'idle',detail:'Synthetic history; no real execution.'}]}/><NovaDialog open={!!selected} onClose={()=>setSelected(null)} title={selected?.name??'DEMO'} lang={lang}><p>DEMO · {selected?.client ?? selected?.owner}</p></NovaDialog></NovaSurface>;
+}
