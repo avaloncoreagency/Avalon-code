@@ -1,11 +1,14 @@
 /* Avalon Project Bridge — dark HUD, blue / violet / magenta. Light animations only; disabled with reduced motion. */
-.wrap { display: grid; gap: 18px; color: #e8ecff; }
+.wrap { display: grid; gap: 18px; color: #e8ecff; min-width: 0; }
+/* Grid items default to min-width:auto and would grow to their widest table; keep them inside the viewport. */
+.wrap > *, .two > *, .grid > * { min-width: 0; }
 .panel {
   background: linear-gradient(160deg, rgba(20, 24, 54, .92), rgba(12, 12, 32, .92));
   border: 1px solid rgba(124, 140, 255, .22);
   border-radius: 18px;
   padding: 18px;
   box-shadow: 0 0 0 1px rgba(255, 255, 255, .02) inset, 0 18px 40px -24px rgba(110, 70, 255, .55);
+  min-width: 0;
 }
 .panel h2 { margin: 0 0 10px; font-size: 1.05rem; letter-spacing: .02em; }
 .tabs { display: flex; gap: 8px; overflow-x: auto; padding-bottom: 2px; -webkit-overflow-scrolling: touch; }
@@ -48,7 +51,7 @@
 .table { width: 100%; border-collapse: collapse; font-size: .86rem; }
 .table th, .table td { text-align: left; padding: 8px 6px; border-bottom: 1px solid rgba(124, 140, 255, .14); vertical-align: top; }
 .table td code, .mono { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: .8rem; word-break: break-all; }
-.scroll { overflow-x: auto; -webkit-overflow-scrolling: touch; max-height: 420px; }
+.scroll { overflow-x: auto; -webkit-overflow-scrolling: touch; max-height: 420px; max-width: 100%; }
 .preview { display: grid; gap: 10px; }
 .frame { width: 100%; height: min(70vh, 640px); border: 1px solid rgba(124, 140, 255, .3); border-radius: 14px; background: #fff; }
 .frameLoading { height: 240px; display: grid; place-items: center; border-radius: 14px; border: 1px dashed rgba(124, 140, 255, .3); }
@@ -67,3 +70,10 @@
   .card { transition: none; }
   .card:hover, .card:focus-visible { transform: none; }
 }
+/* Form controls take the panel width, never their intrinsic width (file inputs and long <option>s are wide on iOS). */
+.importer, .importer > *, .row > *, .form > *, .preview > * { min-width: 0; }
+.importer select, .importer input, .preview select, .form input, .form select, .form textarea, .drop input { width: 100%; max-width: 100%; box-sizing: border-box; }
+/* Tables keep readable columns and scroll inside .scroll on small screens; only hashes, emails and paths may break. */
+.table { min-width: 520px; }
+.table th, .table td { overflow-wrap: normal; word-break: normal; }
+.mono, .timeline li, .table td code, .secret { overflow-wrap: anywhere; }
