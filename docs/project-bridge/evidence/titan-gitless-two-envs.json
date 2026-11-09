@@ -1,5 +1,5 @@
 {
-  "stamp": "202611091630",
+  "stamp": "202611092047",
   "steps": [
     {
       "name": "owner created three least-privilege tokens (agent, integrator, reader) through RLS",
@@ -8,7 +8,7 @@
     {
       "name": "Codex starts from an EMPTY directory and rebuilds the verified mainline from the exchange only",
       "ok": true,
-      "mainline": 1
+      "mainline": 4
     },
     {
       "name": "Codex holds no GitHub remote",
@@ -63,7 +63,7 @@
     {
       "name": "10 Codex syncs the new verified mainline (contains A and B, not C) and can keep working on it",
       "ok": true,
-      "mainline": 3
+      "mainline": 6
     },
     {
       "name": "Codex sees the outcome of each delivery (A integrated, B integrated, C failed with conflicts)",
@@ -79,25 +79,25 @@
     },
     {
       "name": "revoking a token cuts access immediately",
-      "ok": false
+      "ok": true
     }
   ],
   "mainline": {
-    "seq": 3,
+    "seq": 6,
     "tests": {
-      "at": "2026-11-09T16:32:35.611Z",
-      "commit": "8a1506e5bebcd551886a371d229b9ba8a8336304",
+      "at": "2026-11-09T20:49:51.327Z",
+      "commit": "278b1231a247e5c85c29cf568d6cc129c500617f",
       "failed": 0,
       "passed": 406,
       "command": "npx tsc --noEmit && npx eslint . && npm test"
     },
-    "commit": "8a1506e5bebcd551886a371d229b9ba8a8336304",
-    "parent": "3af1e6aeaa849807f96a5cc27a42d35762431a6d",
-    "created_at": "2026-11-09T16:32:35.972859+00:00",
+    "commit": "278b1231a247e5c85c29cf568d6cc129c500617f",
+    "parent": "129d670c12d59f982ab49f184fb4d1880d4d293d",
+    "created_at": "2026-11-09T20:49:51.425773+00:00",
     "full_sha256": null,
     "preview_url": null,
-    "bundle_sha256": "48e4104dc9106f1904ced0f08073ff0b072605ac6e6012950abe05f4121d99a7"
+    "bundle_sha256": "9538e3975dae9919619ee0e72ede088c0450b9b150506c5b821f2ba077119b57"
   },
-  "result": "FAILED",
-  "at": "2026-11-09T16:32:41.348Z"
+  "result": "PASSED",
+  "at": "2026-11-09T20:49:57.145Z"
 }
