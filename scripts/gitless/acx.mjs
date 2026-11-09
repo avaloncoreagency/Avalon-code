@@ -348,6 +348,13 @@ async function preview(c, repo, ex) {
     case "my": for (const d of await ex.rpc("os_code_my_deliveries")) log(`${d.status.padEnd(16)} ${d.key}${d.integrated_commit ? " → " + d.integrated_commit.slice(0, 12) : ""}${d.review_note ? " — " + d.review_note : ""}${d.report?.conflicts?.length ? " conflicts: " + d.report.conflicts.join(", ") : ""}`); break;
     case "inbox": for (const d of await ex.rpc("os_code_inbox", { p_status: opt("status", null) })) log(`${d.status.padEnd(16)} ${d.key} ${d.author} ${d.module} ${d.delivery_commit.slice(0, 12)} ${d.report?.sensitive_paths?.length ? "SENSITIVE" : ""}`); break;
     case "review": await review(c, repo, ex); break;
+    case "reject": { // integrator: reject a delivery by key (or id) with a reason the author will see in `acx my`
+      const k = argv[1]; const all = await ex.rpc("os_code_inbox", {});
+      const d = all.find(x => x.id === k || x.key === k) ?? die("no such delivery " + k);
+      if (d.status === "submitted") await ex.rpc("os_code_set_status", { p_delivery: d.id, p_status: "verifying", p_report: {} });
+      await ex.rpc("os_code_set_status", { p_delivery: d.id, p_status: "rejected", p_report: { rejected_reason: opt("reason", "rejected by the integrator") } });
+      log(`REJECTED ${d.key}`); break;
+    }
     case "integrate": await integrate(c, repo, ex); break;
     case "publish": await publish(c, repo, ex); break;
     case "verify-restore": await verifyRestore(c, repo); break;
