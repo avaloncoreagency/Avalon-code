@@ -75,7 +75,8 @@ function client(c) {
       const e = new Error(`${fn}: ${err.message ?? res.status}${err.code ? ` (${err.code})` : ""}`); e.code = err.code; e.status = res.status; throw e;
     }
   }
-  async function upload(bytes) {
+  async function upload(input) {
+    const bytes = Buffer.from(input.buffer ? input.buffer.slice(input.byteOffset, input.byteOffset + input.byteLength) : input); // Uint8Array → Buffer (base64)
     const s = sha256(bytes); let r;
     for (let i = 0; i * CHUNK < bytes.length; i++) {
       r = await rpc("os_code_put_chunk", { p_sha256: s, p_size: bytes.length, p_index: i, p_data: bytes.subarray(i * CHUNK, (i + 1) * CHUNK).toString("base64") });

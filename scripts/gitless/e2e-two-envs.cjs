@@ -39,7 +39,8 @@ async function rpc(token, fn, args) {
   return { status: res.status, body: await res.json().catch(() => null) };
 }
 const identity = cwd => { git(cwd, 'config', 'user.email', 'codex-e2e@avalon-test.invalid'); git(cwd, 'config', 'user.name', 'Codex (E2E)'); };
-const link = cwd => { if (!fs.existsSync(path.join(cwd, 'node_modules'))) fs.symlinkSync(path.join(REPO, 'node_modules'), path.join(cwd, 'node_modules')); };
+// Each environment installs its own dependencies from the lockfile, as a real independent machine would.
+const link = cwd => execFileSync('npm', ['ci', '--prefer-offline', '--no-audit', '--no-fund', '--ignore-scripts'], { cwd, stdio: 'ignore' });
 
 (async () => {
   // ── Owner creates least-privilege tokens in the app's own table (RLS, owner session) ──
@@ -84,20 +85,20 @@ const link = cwd => { if (!fs.existsSync(path.join(cwd, 'node_modules'))) fs.sym
   const note = `docs/gitless/e2e/${stamp}.md`;
   fs.mkdirSync(path.join(codex, path.dirname(note)), { recursive: true });
   fs.writeFileSync(path.join(codex, note), `# Entrega E2E ${stamp}\n\nCambio A (Codex)\n`);
-  git(codex, 'add', '.'); git(codex, 'commit', '-q', '-m', `docs(e2e): gitless delivery A ${stamp}`);
+  git(codex, 'add', note); git(codex, 'commit', '-q', '-m', `docs(e2e): gitless delivery A ${stamp}`);
   const dA = acx(codex, CODEX, ['deliver', '--id', `e2e-a-${stamp}`, '--module', 'gitless-e2e', '--author', 'codex', '--notes', 'E2E delivery A: documentation only.']);
   step('3-4 Codex exports delivery A (gates run locally) and the exchange receives it', dA.status === 0 && /submitted/.test(dA.out));
 
   git(codex, 'checkout', '-q', '-b', 'sensitive', base.commit);
   fs.writeFileSync(path.join(codex, `scripts/gitless/e2e-${stamp}.txt`), 'E2E: a change under scripts/ must wait for the owner.\n');
-  git(codex, 'add', '.'); git(codex, 'commit', '-q', '-m', `chore(e2e): sensitive delivery B ${stamp}`);
+  git(codex, 'add', `scripts/gitless/e2e-${stamp}.txt`); git(codex, 'commit', '-q', '-m', `chore(e2e): sensitive delivery B ${stamp}`);
   const dB = acx(codex, CODEX, ['deliver', '--id', `e2e-b-${stamp}`, '--module', 'gitless-e2e', '--author', 'codex', '--skip-tests', '--notes', 'E2E delivery B: touches scripts/.']);
   step('Codex exports delivery B (sensitive path)', dB.status === 0);
 
   git(codex, 'checkout', '-q', '-b', 'conflict', base.commit);
   fs.mkdirSync(path.join(codex, path.dirname(note)), { recursive: true });
   fs.writeFileSync(path.join(codex, note), `# Entrega E2E ${stamp}\n\nCambio C (conflicto)\n`);
-  git(codex, 'add', '.'); git(codex, 'commit', '-q', '-m', `docs(e2e): conflicting delivery C ${stamp}`);
+  git(codex, 'add', note); git(codex, 'commit', '-q', '-m', `docs(e2e): conflicting delivery C ${stamp}`);
   const dC = acx(codex, CODEX, ['deliver', '--id', `e2e-c-${stamp}`, '--module', 'gitless-e2e', '--author', 'codex', '--skip-tests', '--notes', 'E2E delivery C: conflicts with A on purpose.']);
   step('Codex exports delivery C (will conflict with A)', dC.status === 0);
 
