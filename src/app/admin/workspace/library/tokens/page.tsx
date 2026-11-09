@@ -27,7 +27,10 @@ export default async function BridgeTokens({ searchParams }: { searchParams: Sea
             <label className={s.muted}>{pick(lang, "Nombre (herramienta o persona)", "Name (tool or person)")}<input name="name" maxLength={80} required /></label>
             <div className={s.row}>
               <label className={s.muted}>{pick(lang, "Caduca en (días, máx. 90)", "Expires in (days, max 90)")}<input name="days" type="number" min={1} max={90} defaultValue={30} /></label>
-              <label className={s.muted}>{pick(lang, "Permiso", "Scope")}<select name="scope" defaultValue="create"><option value="create">{pick(lang, "Enviar importaciones", "Send imports")}</option><option value="read">{pick(lang, "Solo consultar estado", "Read status only")}</option></select></label>
+              <label className={s.muted}>{pick(lang, "Permiso", "Scope")}<select name="scope" defaultValue="create"><option value="create">{pick(lang, "Enviar importaciones", "Send imports")}</option><option value="read">{pick(lang, "Solo consultar estado", "Read status only")}</option>
+                <option value="code_agent">{pick(lang, "Código · agente (entregar + descargar la versión verificada)", "Code · agent (deliver + pull verified mainline)")}</option>
+                <option value="code_integrator">{pick(lang, "Código · integrador (revisar, integrar, publicar)", "Code · integrator (review, integrate, publish)")}</option>
+                <option value="code_pull">{pick(lang, "Código · solo descargar la versión verificada", "Code · pull verified mainline only")}</option></select></label>
             </div>
             <button className={s.primary}>{pick(lang, "Crear token", "Create token")}</button>
           </form>

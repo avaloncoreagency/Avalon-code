@@ -81,6 +81,8 @@ let manifest;
 if (own) {
   manifest = JSON.parse(files.get(own).toString("utf8"));
   manifest.artifact = { file: artifactFile, sha256: sha(files.get(artifactName)) };
+  // The receiver names the quarantine: two senders may reuse the same id. The sender's id is kept for traceability.
+  if (manifest.id !== id) { manifest.original_id = manifest.id; manifest.id = id; }
   log("using the package's own DELIVERY.json");
 } else {
   let base = null, tip = null, changes = [];

@@ -44,7 +44,7 @@ export default async function LibraryPage({ searchParams }: { searchParams: Sear
     <Suite active="library">
       <PageHeader eyebrow="Avalon Project Bridge" title={pick(lang, "Biblioteca de proyectos", "Project library")}
         description={pick(lang, "Importa páginas, tiendas, CRM y apps creadas con IA, guárdalas de forma privada con versiones y publícalas en Vercel sin depender de GitHub.", "Import AI-built sites, stores, CRMs and apps, keep them privately with versions and publish them on Vercel without depending on GitHub.")}
-        actions={<Link className={s.ghost} href="/admin/workspace/library/tokens">{pick(lang, "API para herramientas", "Tool API")}</Link>} />
+        actions={<><Link className={s.ghost} href="/admin/workspace/library/code">{pick(lang, "Código sin GitHub", "Code without GitHub")}</Link> <Link className={s.ghost} href="/admin/workspace/library/tokens">{pick(lang, "API para herramientas", "Tool API")}</Link></>} />
       <Flash lang={lang} ok={param(params, "ok")} error={param(params, "error")} />
       <div className={s.wrap}>
         {schemaMissing && <p role="alert" className={s.panel}>{pick(lang, "La migración del Project Bridge (20261108100000) aún no está aplicada en esta base de datos: la biblioteca no puede guardar proyectos todavía.", "The Project Bridge migration (20261108100000) is not applied to this database yet: the library cannot store projects.")}</p>}

@@ -259,6 +259,17 @@ test('every migration table has RLS enabled and anon revoked (default privileges
     "grant execute on function os_private.bridge_inbox_open(text) to anon, authenticated';",
     "grant usage on schema os_private to anon';",
     'grant execute on function public.os_bridge_api_import_status(text, uuid, boolean) to anon, authenticated;',
+    // Reviewed (Code Exchange, Gitless): every RPC requires a valid scoped bridge token (argument hash or proxy-injected
+    // header); deliver/pull/integrate are disjoint powers; bytes stay in os_private; locked by tests/code-exchange.database.cjs.
+    'grant execute on function public.os_code_put_chunk(text, bigint, integer, text, text) to anon, authenticated;',
+    'grant execute on function public.os_code_get_chunk(text, integer, text) to anon, authenticated;',
+    'grant execute on function public.os_code_submit(jsonb, text, text) to anon, authenticated;',
+    'grant execute on function public.os_code_my_deliveries(text) to anon, authenticated;',
+    'grant execute on function public.os_code_inbox(text, text) to anon, authenticated;',
+    'grant execute on function public.os_code_set_status(uuid, text, jsonb, text) to anon, authenticated;',
+    'grant execute on function public.os_code_publish(text, text, text, text, jsonb, uuid[], text) to anon, authenticated;',
+    'grant execute on function public.os_code_set_preview(bigint, text, text) to anon, authenticated;',
+    'grant execute on function public.os_code_head(text) to anon, authenticated;',
   ], 'no grants to anon except the reviewed public inquiry, AI control and Project Bridge inbox RPCs');
   // The control RPC may expose ONLY these four switches; any other key needs a new review.
   const ctl = fs.readFileSync('supabase/migrations/20261106090000_ai_engine.sql', 'utf8');

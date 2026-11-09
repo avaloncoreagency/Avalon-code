@@ -123,7 +123,12 @@ export async function createApiToken(form: FormData) {
   const { supabase, user } = await ownerForAction();
   const name = field(form, "name").trim().slice(0, 80);
   const days = Math.min(90, Math.max(1, Number(field(form, "days")) || 30));
-  const scopes = field(form, "scope") === "read" ? ["import:read"] : ["import:create", "import:read"];
+  // Fixed profiles only (least privilege); the database re-checks the allowed scope set.
+  const PROFILES: Record<string, string[]> = {
+    create: ["import:create", "import:read"], read: ["import:read"],
+    code_agent: ["code:deliver", "code:pull"], code_integrator: ["code:integrate", "code:pull"], code_pull: ["code:pull"],
+  };
+  const scopes = PROFILES[field(form, "scope")] ?? PROFILES.create;
   if (!name) back(`${LIB}/tokens`, { error: "name_required" });
   const token = "avb_" + randomBytes(24).toString("base64url");
   const r = await supabase.from("os_project_api_tokens").insert({
@@ -144,3 +149,16 @@ export async function revokeApiToken(form: FormData) {
   if (r.error) back(`${LIB}/tokens`, { error: "revoke_failed" });
   back(`${LIB}/tokens`, { ok: "token_revoked" });
 }
+
+/** Owner decision on a code delivery (Code Exchange). Only owners; the RPC re-checks ownership and the allowed transition. */
+export async function reviewCodeDelivery(form: FormData) {
+  const { supabase } = await ownerForAction();
+  const id = uuidField(form, "delivery_id");
+  const decision = field(form, "decision");
+  if (!id || !["approved", "rejected"].includes(decision)) back(`${LIB}/code`, { error: "invalid" });
+  const r = await supabase.rpc("os_code_review", { p_delivery: id, p_decision: decision, p_note: field(form, "note").slice(0, 2000) });
+  if (r.error) back(`${LIB}/code`, { error: "review_failed" });
+  revalidatePath(`${LIB}/code`);
+  back(`${LIB}/code`, { ok: decision === "approved" ? "delivery_approved" : "delivery_rejected" });
+}
+
