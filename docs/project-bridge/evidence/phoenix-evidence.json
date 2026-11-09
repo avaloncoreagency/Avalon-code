@@ -1,0 +1,143 @@
+{
+  "target": "wupvuwmqfcvmjqycmnvg.supabase.co",
+  "started_at": "2026-11-09T14:56:46.619Z",
+  "steps": [
+    {
+      "name": "real sign-in (Supabase Auth password grant) for owner and non-owner",
+      "ok": true,
+      "owner": "2d8f849e-534b-474b-9a2c-f8904c79ad56",
+      "stranger": "044ce720-4fc1-4fc7-8a34-7fef299d70e2"
+    },
+    {
+      "name": "v1: ZIP uploaded to private bucket, validated, registered",
+      "ok": true,
+      "status": "registered",
+      "number": 1,
+      "files": 3
+    },
+    {
+      "name": "original ZIP downloaded back; SHA-256 identical",
+      "ok": true,
+      "local": "66bc1f5a5ca51aa454a71ad3aac3a1c6f9b10ea209072d65e65df112f0e2ad3d",
+      "downloaded": "66bc1f5a5ca51aa454a71ad3aac3a1c6f9b10ea209072d65e65df112f0e2ad3d",
+      "bytes": 624
+    },
+    {
+      "name": "SHA-256 recorded in the import row matches",
+      "ok": true,
+      "recorded": "66bc1f5a5ca51aa454a71ad3aac3a1c6f9b10ea209072d65e65df112f0e2ad3d"
+    },
+    {
+      "name": "every stored file of v1 downloaded; SHA-256 and size match the manifest",
+      "ok": true,
+      "files": [
+        "css/s.css",
+        "img/logo.png",
+        "index.html"
+      ]
+    },
+    {
+      "name": "v2: second import of the same project creates version 2",
+      "ok": true,
+      "status": "registered",
+      "number": 2
+    },
+    {
+      "name": "re-uploading identical content is detected as duplicate (no new version)",
+      "ok": true,
+      "status": "duplicate"
+    },
+    {
+      "name": "restore v1 creates immutable version 3 with v1 content; history keeps 1,2,3",
+      "ok": true,
+      "versions": [
+        "1:import",
+        "2:import",
+        "3:restore"
+      ]
+    },
+    {
+      "name": "restored index.html content is version 1 (downloaded and read)",
+      "ok": true,
+      "title": "Avalon Bridge · versión 1"
+    },
+    {
+      "name": "a version cannot be modified, even by its owner",
+      "ok": true,
+      "error": "42501"
+    },
+    {
+      "name": "non-owner reads 0 rows from projects, imports, versions, files, events",
+      "ok": true,
+      "results": [
+        0,
+        0,
+        0,
+        0,
+        0
+      ]
+    },
+    {
+      "name": "non-owner cannot download a stored blob",
+      "ok": true,
+      "error": "Object not found"
+    },
+    {
+      "name": "non-owner cannot download the original ZIP",
+      "ok": true,
+      "error": "Object not found"
+    },
+    {
+      "name": "non-owner cannot upload into the private bucket",
+      "ok": true,
+      "error": "new row violates row-level security policy"
+    },
+    {
+      "name": "non-owner cannot write into the owner's folder",
+      "ok": true,
+      "error": "new row violates row-level security policy"
+    },
+    {
+      "name": "non-owner cannot register an import",
+      "ok": true,
+      "error": "42501"
+    },
+    {
+      "name": "non-owner cannot restore a version",
+      "ok": true,
+      "error": "42501"
+    },
+    {
+      "name": "non-owner cannot modify the project",
+      "ok": true,
+      "rows": 0
+    },
+    {
+      "name": "anonymous call with an invalid API token is refused",
+      "ok": true,
+      "error": "28000"
+    },
+    {
+      "name": "anonymous REST read of versions is refused",
+      "ok": true,
+      "error": "42501"
+    },
+    {
+      "name": "audit log records imports, versions, duplicate and restore with the real actor",
+      "ok": true,
+      "actions": [
+        "version_created",
+        "import_registered",
+        "import_received",
+        "version_created",
+        "import_registered",
+        "import_received",
+        "import_duplicate",
+        "version_restored"
+      ]
+    }
+  ],
+  "project_id": "f49c662c-dbf0-4738-b650-c9036cc3f5ec",
+  "finished_at": "2026-11-09T14:56:58.118Z",
+  "result": "PASSED"
+}

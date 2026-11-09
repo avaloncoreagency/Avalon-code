@@ -1,0 +1,77 @@
+{
+  "delivery_dir": "<scratchpad>/deliv/nova-sim-0001",
+  "checked_at": "2026-11-09T14:59:38.953Z",
+  "checks": [
+    {
+      "name": "1 manifest follows the delivery contract",
+      "ok": true
+    },
+    {
+      "name": "2 SHA256SUMS and artifact hash match",
+      "ok": true,
+      "detail": {
+        "files": 3
+      }
+    },
+    {
+      "name": "3 base commit exists in the local repository",
+      "ok": true,
+      "detail": "b94aebae54be"
+    },
+    {
+      "name": "4a git bundle verify (prerequisites present locally)",
+      "ok": true
+    },
+    {
+      "name": "4b bundle contains delivery_commit as a head",
+      "ok": true,
+      "detail": [
+        "8ba3be38e017 refs/heads/codex/sim-delivery"
+      ]
+    },
+    {
+      "name": "4c delivered tip descends from base_commit",
+      "ok": true
+    },
+    {
+      "name": "4d quarantined tip == delivery_commit",
+      "ok": true
+    },
+    {
+      "name": "5 no secrets in added lines",
+      "ok": true,
+      "detail": {
+        "added_lines": 1
+      }
+    },
+    {
+      "name": "6 dry merge onto the current branch (separate worktree)",
+      "ok": true,
+      "detail": {
+        "shared_files": []
+      }
+    }
+  ],
+  "warnings": [
+    "tests not executed by the verifier (run with --run-tests in a sandbox to execute them)"
+  ],
+  "verdict": "READY_FOR_HUMAN_REVIEW",
+  "delivery": {
+    "id": "nova-sim-0001",
+    "author": "codex",
+    "module": "nova-ui",
+    "version": "0.1.0",
+    "base": "b94aebae54bede13dfa74ac9ea09f8aeb116d0a0",
+    "commit": "8ba3be38e0172013a1c572d1d67d021a90e6b376"
+  },
+  "changed_files": [
+    {
+      "status": "A",
+      "path": "src/components/nova-sim/badge.tsx"
+    }
+  ],
+  "sensitive_paths": [],
+  "shared_files": [],
+  "conflicts": [],
+  "next_step": "Human review of the quarantine ref, then integrate with: git merge --no-ff refs/quarantine/nova-sim-0001"
+}

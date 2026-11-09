@@ -1,0 +1,65 @@
+{
+  "target": "https://wupvuwmqfcvmjqycmnvg.supabase.co",
+  "steps": [
+    {
+      "name": "owner creates a scoped, expiring API token (only its sha256 is stored)",
+      "ok": true
+    },
+    {
+      "name": "tool opens an import with the token → awaiting_upload in inbox/",
+      "ok": true,
+      "status": "awaiting_upload",
+      "path": "inbox/6f87c196-df90-40bc-bba8-f151d7a553ae.zip"
+    },
+    {
+      "name": "same idempotency key replays the same import (no duplicate)",
+      "ok": true
+    },
+    {
+      "name": "the tool cannot upload to an inbox path it was not given",
+      "ok": true,
+      "error": "new row violates row-level security policy"
+    },
+    {
+      "name": "the tool uploads the package to its exact inbox path (anonymous, token-gated)",
+      "ok": true
+    },
+    {
+      "name": "the uploaded package cannot be overwritten",
+      "ok": true,
+      "error": "new row violates row-level security policy"
+    },
+    {
+      "name": "the tool confirms the upload → received (waits for owner review)",
+      "ok": true,
+      "status": "received"
+    },
+    {
+      "name": "the token cannot read the library",
+      "ok": true,
+      "error": "42501"
+    },
+    {
+      "name": "the OWNER processes the delivery under their own session → registered version",
+      "ok": true,
+      "status": "registered",
+      "number": 1
+    },
+    {
+      "name": "the tool can read only the status of its own delivery",
+      "ok": true,
+      "status": "registered",
+      "version": {
+        "files": 3,
+        "number": 1
+      }
+    },
+    {
+      "name": "revoked token stops working immediately",
+      "ok": true,
+      "error": "28000"
+    }
+  ],
+  "result": "PASSED",
+  "at": "2026-11-09T14:57:30.365Z"
+}
