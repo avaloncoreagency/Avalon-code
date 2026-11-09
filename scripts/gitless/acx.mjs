@@ -192,7 +192,9 @@ async function deliver(c, repo) {
 // ── integrator: review ─────────────────────────────────────────────────────────────────────────────────────────
 const qid = d => `acx-${d.key.replace(/[^a-z0-9-]/g, "-")}-${d.id.slice(0, 8)}`.slice(0, 80);
 async function review(c, repo, ex) {
-  const queue = [...await ex.rpc("os_code_inbox", { p_status: "submitted" }), ...await ex.rpc("os_code_inbox", { p_status: "failed" })];
+  // Only new packages. A delivery that failed integration stays "failed" with its report; the agent re-delivers it
+  // rebased on the new mainline under a new id.
+  const queue = await ex.rpc("os_code_inbox", { p_status: "submitted" });
   const done = [];
   for (const d of queue) {
     await ex.rpc("os_code_set_status", { p_delivery: d.id, p_status: "verifying", p_report: { verifier: "acx review", started_at: new Date().toISOString() } });
