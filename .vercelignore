@@ -1,0 +1,10 @@
+# Uploaded by `vercel deploy` from a local checkout (no GitHub): source only, never local artifacts or secrets.
+node_modules
+tests/qa/node_modules
+.next
+.git
+.env*
+.avalon-deliveries
+.dev-bridge
+*.bundle
+*.tsbuildinfo

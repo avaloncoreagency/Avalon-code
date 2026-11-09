@@ -89,7 +89,7 @@ if (own) {
     const heads = execFileSync("git", ["bundle", "list-heads", abs], { cwd: repo, encoding: "utf8" }).trim().split("\n").filter(Boolean).map(l => l.split(" "));
     tip = (expect ? heads.find(([s]) => s.startsWith(expect)) : heads.find(([, r]) => r !== "HEAD"))?.[0] ?? heads[0]?.[0];
     const v = spawnSync("git", ["bundle", "verify", abs], { cwd: repo, encoding: "utf8" });
-    const prereq = /requires these \d+ refs?:?\n([0-9a-f]{40})/.exec(v.stdout + v.stderr) ?? /([0-9a-f]{40})\s*$/m.exec((v.stdout + v.stderr).split("requires")[1] ?? "");
+    const prereq = /requires (?:these \d+ refs|this ref):?\n([0-9a-f]{40})/.exec(v.stdout + v.stderr) ?? /([0-9a-f]{40})\s*$/m.exec((v.stdout + v.stderr).split("requires")[1] ?? "");
     base = prereq?.[1] ?? null;
     if (v.status !== 0) {
       const missing = [...(v.stderr || "").matchAll(/([0-9a-f]{40})/g)].map(m => m[1]);
@@ -98,11 +98,10 @@ if (own) {
       fs.writeFileSync(path.join(out, "RECEIVE_REPORT.json"), JSON.stringify({ id, verdict: "BLOCKED_MISSING_BASE", missing }, null, 2));
       process.exit(1);
     }
-    if (!base) { // full bundle: base = merge-base with our branch
-      execFileSync("git", ["fetch", "-q", "--no-tags", abs, `+${heads.find(([s]) => s === tip)[1]}:refs/quarantine/${id}-probe`], { cwd: repo });
-      base = execFileSync("git", ["merge-base", "HEAD", tip], { cwd: repo, encoding: "utf8" }).trim();
-      execFileSync("git", ["update-ref", "-d", `refs/quarantine/${id}-probe`], { cwd: repo });
-    }
+    // Objects are needed locally to list the changed files (and, for a full bundle, to find the base). Importing them
+    // into a probe ref executes nothing; the probe ref is deleted below and verify-delivery re-imports into quarantine.
+    execFileSync("git", ["fetch", "-q", "--no-tags", abs, `+${heads.find(([s]) => s === tip)[1]}:refs/quarantine/${id}-probe`], { cwd: repo });
+    if (!base) base = execFileSync("git", ["merge-base", "HEAD", tip], { cwd: repo, encoding: "utf8" }).trim(); // full bundle
   }
   const declaredTests = names.map(n => /test|report|result/i.test(n) && /\.(json|txt|md|log)$/i.test(n) ? files.get(n).toString("utf8") : "").join("\n");
   const passed = Number(/(\d+)\s*(?:tests?\s*)?(?:passed|pass|aprobad)/i.exec(declaredTests)?.[1] ?? 0);
@@ -116,6 +115,7 @@ if (own) {
     integration_instructions: "Synthesized by receive-package.mjs from Git facts; review before integrating.",
     synthesized: true,
   };
+  spawnSync("git", ["update-ref", "-d", `refs/quarantine/${id}-probe`], { cwd: repo });
   log("synthesized DELIVERY.json from Git facts");
 }
 fs.writeFileSync(path.join(deliveryDir, "DELIVERY.json"), JSON.stringify(manifest, null, 2));
