@@ -17,6 +17,9 @@ export type StudioPageResult =
 export type StudioSaveResult = { ok: boolean; error?: string; pages: StudioPageResult[] };
 
 type Valid = { id: string; title: string; blocks: Block[]; version: number | null };
+/** Key-order-independent JSON (Postgres jsonb reorders keys). */
+const stable = (v: unknown): string => Array.isArray(v) ? `[${v.map(stable).join(",")}]`
+  : v && typeof v === "object" ? `{${Object.keys(v as object).sort().map(k => JSON.stringify(k) + ":" + stable((v as Record<string, unknown>)[k])).join(",")}}` : JSON.stringify(v);
 
 function validate(input: unknown): { ok: true; pages: Valid[] } | { ok: false; error: string } {
   if (!Array.isArray(input) || input.length === 0 || input.length > MAX_STUDIO_PAGES) return { ok: false, error: "invalid" };
@@ -52,13 +55,24 @@ export async function saveWebsiteStudio(projectId: string, input: StudioPageInpu
   const slugs = new Set((existing.data ?? []).map(p => p.slug as string));
   let position = existing.data?.length ?? 0;
 
+  // Idempotent retry: when the write is refused (stale version / existing id) but the stored page already holds exactly
+  // this content and its latest snapshot was written by this same user, the earlier save succeeded and its response was
+  // lost — return that confirmed result instead of a conflict, and never create a second version. Anything else is a
+  // real conflict (another owner or another tab changed the page).
+  const alreadyApplied = async (page: Valid): Promise<StudioPageResult | null> => {
+    const cur = await supabase.from("os_website_pages").select("id,title,blocks,version,slug").eq("id", page.id).eq("project_id", projectId).maybeSingle();
+    if (cur.error || !cur.data || cur.data.title !== page.title || stable(cur.data.blocks) !== stable(page.blocks)) return null;
+    const last = await supabase.from("os_website_page_versions").select("created_by").eq("page_id", page.id).order("page_version", { ascending: false }).limit(1).maybeSingle();
+    return last.data?.created_by === userId ? { id: page.id, ok: true, version: cur.data.version, slug: cur.data.slug } : null;
+  };
+
   const results: StudioPageResult[] = [];
   for (const page of valid.pages) {
     if (page.version !== null) {
       const { data, error, status } = await supabase.from("os_website_pages").update({ title: page.title, blocks: page.blocks })
         .eq("id", page.id).eq("project_id", projectId).eq("version", page.version).select("id,version,slug");
       if (error) results.push({ id: page.id, ok: false, error: mapDbError(error, status) });
-      else if (!data?.length) results.push({ id: page.id, ok: false, error: "conflict" });
+      else if (!data?.length) results.push((await alreadyApplied(page)) ?? { id: page.id, ok: false, error: "conflict" });
       else results.push({ id: page.id, ok: true, version: data[0].version, slug: data[0].slug });
       continue;
     }
@@ -69,7 +83,11 @@ export async function saveWebsiteStudio(projectId: string, input: StudioPageInpu
     const { data, error, status } = await supabase.from("os_website_pages")
       .insert({ id: page.id, project_id: projectId, title: page.title, slug, blocks: page.blocks, position: Math.min(position, 10000), created_by: userId })
       .select("id,version,slug").single();
-    if (error || !data) { results.push({ id: page.id, ok: false, error: error ? mapDbError(error, status) : "unavailable" }); continue; }
+    if (error || !data) {
+      const replay = error?.code === "23505" ? await alreadyApplied(page) : null;
+      results.push(replay ?? { id: page.id, ok: false, error: error ? mapDbError(error, status) : "unavailable" });
+      continue;
+    }
     slugs.add(slug); position++;
     results.push({ id: page.id, ok: true, version: data.version, slug: data.slug });
   }

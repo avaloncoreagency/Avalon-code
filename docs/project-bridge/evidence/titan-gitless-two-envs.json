@@ -1,0 +1,103 @@
+{
+  "stamp": "202611091630",
+  "steps": [
+    {
+      "name": "owner created three least-privilege tokens (agent, integrator, reader) through RLS",
+      "ok": true
+    },
+    {
+      "name": "Codex starts from an EMPTY directory and rebuilds the verified mainline from the exchange only",
+      "ok": true,
+      "mainline": 1
+    },
+    {
+      "name": "Codex holds no GitHub remote",
+      "ok": true
+    },
+    {
+      "name": "3-4 Codex exports delivery A (gates run locally) and the exchange receives it",
+      "ok": true
+    },
+    {
+      "name": "Codex exports delivery B (sensitive path)",
+      "ok": true
+    },
+    {
+      "name": "Codex exports delivery C (will conflict with A)",
+      "ok": true
+    },
+    {
+      "name": "agent token cannot publish, list the inbox or approve (28000)",
+      "ok": true,
+      "codes": [
+        "28000",
+        "28000",
+        "28000"
+      ]
+    },
+    {
+      "name": "pull-only token cannot see deliveries",
+      "ok": true
+    },
+    {
+      "name": "5 integrator verified the three packages (quarantine + dry merge, nothing executed from them)",
+      "ok": true
+    },
+    {
+      "name": "6-7 A merged and gates passed; C detected as CONFLICT and NOT merged; B waits for the owner",
+      "ok": true
+    },
+    {
+      "name": "8 new mainline published, backed up locally and RESTORED byte-identical in an empty directory",
+      "ok": true
+    },
+    {
+      "name": "owner approved the sensitive delivery in Avalon → Library → Code (iPhone profile, no overflow)",
+      "ok": true,
+      "width": 390
+    },
+    {
+      "name": "after the owner approval the integrator merged B, ran the gates and published",
+      "ok": true
+    },
+    {
+      "name": "10 Codex syncs the new verified mainline (contains A and B, not C) and can keep working on it",
+      "ok": true,
+      "mainline": 3
+    },
+    {
+      "name": "Codex sees the outcome of each delivery (A integrated, B integrated, C failed with conflicts)",
+      "ok": true,
+      "c": "failed",
+      "b": "integrated",
+      "a": "integrated"
+    },
+    {
+      "name": "local backups exist for every published mainline (bundle + sha256 + manifest)",
+      "ok": true,
+      "files": 6
+    },
+    {
+      "name": "revoking a token cuts access immediately",
+      "ok": false
+    }
+  ],
+  "mainline": {
+    "seq": 3,
+    "tests": {
+      "at": "2026-11-09T16:32:35.611Z",
+      "commit": "8a1506e5bebcd551886a371d229b9ba8a8336304",
+      "failed": 0,
+      "passed": 406,
+      "command": "npx tsc --noEmit && npx eslint . && npm test"
+    },
+    "commit": "8a1506e5bebcd551886a371d229b9ba8a8336304",
+    "parent": "3af1e6aeaa849807f96a5cc27a42d35762431a6d",
+    "created_at": "2026-11-09T16:32:35.972859+00:00",
+    "full_sha256": null,
+    "preview_url": null,
+    "bundle_sha256": "48e4104dc9106f1904ced0f08073ff0b072605ac6e6012950abe05f4121d99a7"
+  },
+  "result": "FAILED",
+  "at": "2026-11-09T16:32:41.348Z"
+}
