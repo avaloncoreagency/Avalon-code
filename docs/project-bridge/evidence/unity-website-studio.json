@@ -1,0 +1,82 @@
+{
+  "base": "http://127.0.0.1:3100",
+  "projectId": "2de61eea-713d-4a61-84ac-618550703aa0",
+  "pageId": "d663c21a-35f4-4905-a310-e397aac05a55",
+  "steps": [
+    {
+      "name": "owner signs in through the real login form",
+      "ok": true
+    },
+    {
+      "name": "website project created and stored",
+      "ok": true,
+      "projectId": "2de61eea-713d-4a61-84ac-618550703aa0"
+    },
+    {
+      "name": "Nova Website Designer opens for the project (initially saved, no pages)",
+      "ok": true
+    },
+    {
+      "name": "editing marks the project as having unsaved changes",
+      "ok": true,
+      "state": "Cambios sin guardar"
+    },
+    {
+      "name": "leaving with unsaved changes triggers the browser warning (beforeunload)",
+      "ok": true
+    },
+    {
+      "name": "save to Avalon succeeds",
+      "ok": true,
+      "state": "Guardado"
+    },
+    {
+      "name": "after reload the edited content is recovered from the database",
+      "ok": true,
+      "recovered": "Hola desde Nova 20261109155240"
+    },
+    {
+      "name": "second edit survives another reload",
+      "ok": true
+    },
+    {
+      "name": "database holds the page (owner JWT) with its version history",
+      "ok": true,
+      "rowVersion": 2,
+      "versions": [
+        1,
+        2
+      ]
+    },
+    {
+      "name": "stale tab gets a version conflict and cannot overwrite newer changes",
+      "ok": true,
+      "aState": "Guardado",
+      "bState": "Conflicto de versión"
+    },
+    {
+      "name": "unsafe javascript: link is rejected and nothing is stored",
+      "ok": true,
+      "state": "Error al guardar"
+    },
+    {
+      "name": "no horizontal overflow at iPhone width in the Nova studio",
+      "ok": true,
+      "width": 390
+    },
+    {
+      "name": "non-owner cannot open the studio (redirected to login)",
+      "ok": true,
+      "url": "/admin/login"
+    },
+    {
+      "name": "RLS: non-owner reads 0 pages and cannot modify them (own JWT, no admin key)",
+      "ok": true,
+      "read": 0,
+      "write": 0
+    }
+  ],
+  "browser": "Chromium (Playwright) with iPhone 13 profile — not Safari",
+  "result": "PASSED",
+  "at": "2026-11-09T15:53:14.496Z"
+}

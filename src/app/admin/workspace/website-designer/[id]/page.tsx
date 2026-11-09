@@ -31,7 +31,8 @@ export default async function WebsiteProjectPage({ params, searchParams }: { par
   return (
     <Suite active="website-designer">
       <PageHeader eyebrow="Website Designer" title={project.data?.name ?? "—"} description={project.data?.description || undefined}
-        crumbs={[{ href: BASE, label: "Website Designer" }]} />
+        crumbs={[{ href: BASE, label: "Website Designer" }]}
+        actions={project.data ? <Link className={s.btnPrimary} href={`${BASE}/${id}/studio`} data-testid="open-studio">{pick(lang, "Abrir editor visual (Nova)", "Open visual editor (Nova)")}</Link> : undefined} />
       <Flash lang={lang} ok={param(query, "ok")} error={param(query, "error")} />
       {project.error ? <DbNotice lang={lang} error={project.error} /> : project.data && (
         <div className={s.split}>
