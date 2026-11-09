@@ -159,7 +159,10 @@ const link = cwd => execFileSync('npm', ['ci', '--prefer-offline', '--no-audit',
   step('local backups exist for every published mainline (bundle + sha256 + manifest)', backups.filter(f => f.endsWith('.bundle')).length >= 2 && backups.every(f => !/token|secret/i.test(f)), { files: backups.length });
 
   // Evidence (no tokens, no passwords)
-  await owner.from('os_project_api_tokens').update({ revoked_at: new Date().toISOString() }).in('token_sha256', [sha(CODEX), sha(CLAUDE), sha(READER)]);
+  // Owners cannot read token hashes (column grant), so revoke by the names created above; fail loudly if it did not apply.
+  const rv = await owner.from('os_project_api_tokens').update({ revoked_at: new Date().toISOString() })
+    .in('name', [`E2E Codex ${stamp}`, `E2E Claude integrator ${stamp}`, `E2E reader ${stamp}`]).is('revoked_at', null).select('id');
+  if (rv.error || rv.data?.length !== 3) console.error('REVOKE FAILED', rv.error?.message, rv.data?.length);
   const revoked = await rpc(CODEX, 'os_code_head', {});
   step('revoking a token cuts access immediately', revoked.body?.code === '28000');
   await owner.auth.signOut();
