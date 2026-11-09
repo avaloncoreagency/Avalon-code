@@ -1,0 +1,82 @@
+{
+  "base": "http://127.0.0.1:3100",
+  "ids": {
+    "crm": "ef799b18-a756-4216-befd-37c2f32e1751",
+    "chatbot": "436af348-e190-447a-8034-ede3b3f148e6"
+  },
+  "steps": [
+    {
+      "name": "owner signs in through the real login form",
+      "ok": true
+    },
+    {
+      "name": "CRM: Nova design saved to Avalon",
+      "ok": true,
+      "state": "Guardado"
+    },
+    {
+      "name": "CRM: after reload field, stage and module are recovered",
+      "ok": true,
+      "field": "Presupuesto 20261109155813",
+      "stage": "Contacto inicial",
+      "tasks": true
+    },
+    {
+      "name": "CRM: stored as the project blueprint (owner JWT, RLS) — same data the classic CRM Creator and its export use",
+      "ok": true,
+      "version": 2
+    },
+    {
+      "name": "CRM: the classic CRM Creator page shows the field designed in Nova",
+      "ok": true
+    },
+    {
+      "name": "CRM: stale tab gets a version conflict and cannot overwrite",
+      "ok": true,
+      "aS": "Guardado",
+      "bS": "Conflicto de versión"
+    },
+    {
+      "name": "Chatbot: Nova configuration saved to Avalon",
+      "ok": true,
+      "state": "Guardado"
+    },
+    {
+      "name": "Chatbot: after reload greeting and knowledge are recovered",
+      "ok": true,
+      "greeting": "¡Hola! Soy el asistente sintético 20261109155813",
+      "title": "Horario"
+    },
+    {
+      "name": "Chatbot: stored in the AI Receptionist project settings (owner JWT, RLS)",
+      "ok": true
+    },
+    {
+      "name": "Chatbot: the preview cannot send messages (AI replies honestly not connected)",
+      "ok": true
+    },
+    {
+      "name": "no horizontal overflow at iPhone width in the CRM and Chatbot studios",
+      "ok": true,
+      "crm": 390,
+      "chatbot": 390
+    },
+    {
+      "name": "non-owner cannot open either studio (redirected to login)",
+      "ok": true,
+      "landed": [
+        "/admin/login",
+        "/admin/login"
+      ]
+    },
+    {
+      "name": "RLS: non-owner reads 0 projects and cannot modify settings (own JWT, no admin key)",
+      "ok": true,
+      "read": 0,
+      "write": 0
+    }
+  ],
+  "browser": "Chromium (Playwright) with iPhone 13 profile — not Safari",
+  "result": "PASSED",
+  "at": "2026-11-09T15:58:49.840Z"
+}

@@ -1,7 +1,7 @@
 {
   "base": "http://127.0.0.1:3100",
-  "projectId": "2de61eea-713d-4a61-84ac-618550703aa0",
-  "pageId": "d663c21a-35f4-4905-a310-e397aac05a55",
+  "projectId": "f505a579-bb5b-4e53-b16e-3bf2f0c40f70",
+  "pageId": "e3543f4f-f938-4b7d-ab0f-608ee5970918",
   "steps": [
     {
       "name": "owner signs in through the real login form",
@@ -10,7 +10,7 @@
     {
       "name": "website project created and stored",
       "ok": true,
-      "projectId": "2de61eea-713d-4a61-84ac-618550703aa0"
+      "projectId": "f505a579-bb5b-4e53-b16e-3bf2f0c40f70"
     },
     {
       "name": "Nova Website Designer opens for the project (initially saved, no pages)",
@@ -33,7 +33,7 @@
     {
       "name": "after reload the edited content is recovered from the database",
       "ok": true,
-      "recovered": "Hola desde Nova 20261109155240"
+      "recovered": "Hola desde Nova 20261109155854"
     },
     {
       "name": "second edit survives another reload",
@@ -78,5 +78,5 @@
   ],
   "browser": "Chromium (Playwright) with iPhone 13 profile — not Safari",
   "result": "PASSED",
-  "at": "2026-11-09T15:53:14.496Z"
+  "at": "2026-11-09T15:59:29.668Z"
 }

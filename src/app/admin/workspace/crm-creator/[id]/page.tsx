@@ -48,6 +48,7 @@ export default async function BlueprintPage({ params, searchParams }: { params: 
       <PageHeader eyebrow="CRM Creator" title={project.data?.name ?? "—"} description={project.data?.description || undefined}
         crumbs={[{ href: BASE, label: "CRM Creator" }]}
         actions={project.data && <>
+          <a className={s.btnPrimary} href={`${BASE}/${id}/studio`} data-testid="open-studio">{pick(lang, "Abrir editor visual (Nova)", "Open visual editor (Nova)")}</a>
           <a className={s.btn} href={`${BASE}/${id}/export`} download>{pick(lang, "Exportar JSON", "Export JSON")}</a>
           <a className={s.btn} href={`${BASE}/${id}/export?format=sql`} download>{pick(lang, "Vista previa SQL", "SQL preview")}</a>
         </>} />
