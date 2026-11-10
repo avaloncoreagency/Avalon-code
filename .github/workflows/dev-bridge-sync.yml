@@ -1,11 +1,13 @@
 name: Dev Bridge sync
 on:
+  # PAUSED 2026-11-10 (Avalon recovery mode): automatic triggers disabled to avoid unnecessary runs.
+  # Manual runs still work (Actions → Run workflow). To restore, uncomment the original triggers below.
   workflow_dispatch:
-  schedule:
-    - cron: '17 * * * *'
-  push:
-    branches: [main]
-    paths: ['src/lib/dev-bridge/**', 'scripts/dev-bridge/**', '.github/workflows/dev-bridge-sync.yml']
+  #  schedule:
+  #    - cron: '17 * * * *'
+  #  push:
+  #    branches: [main]
+  #    paths: ['src/lib/dev-bridge/**', 'scripts/dev-bridge/**', '.github/workflows/dev-bridge-sync.yml']
 permissions:
   contents: read
   issues: read

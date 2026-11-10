@@ -1,15 +1,17 @@
 name: Creative Bridge isolated PostgreSQL
 on:
-  pull_request:
-    paths:
-      - 'docs/sql/creative-bridge-registration.sql'
-      - 'src/lib/os/creative-bridge-protocol.ts'
-      - 'src/app/api/creative-bridge/**'
-      - 'src/lib/supabase/middleware.ts'
-      - 'tests/creative-bridge*'
-      - 'tests/higgsfield-handoff.test.cjs'
-      - '.github/workflows/creative-bridge.yml'
+  # PAUSED 2026-11-10 (Avalon recovery mode): automatic triggers disabled to avoid unnecessary runs.
+  # Manual runs still work (Actions → Run workflow). To restore, uncomment the original triggers below.
   workflow_dispatch:
+  #  pull_request:
+  #    paths:
+  #      - 'docs/sql/creative-bridge-registration.sql'
+  #      - 'src/lib/os/creative-bridge-protocol.ts'
+  #      - 'src/app/api/creative-bridge/**'
+  #      - 'src/lib/supabase/middleware.ts'
+  #      - 'tests/creative-bridge*'
+  #      - 'tests/higgsfield-handoff.test.cjs'
+  #      - '.github/workflows/creative-bridge.yml'
 permissions:
   contents: read
 jobs:

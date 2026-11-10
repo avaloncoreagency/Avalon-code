@@ -1,11 +1,13 @@
 name: Avalon Office managers — zero-cost GitHub checks
 
 on:
-  # This workflow executes on the DEFAULT BRANCH only, after reviewed merge.
-  # Repository is public: standard GitHub-hosted runners are free.
-  schedule:
-    - cron: '19 * * * *'
+  # PAUSED 2026-11-10 (Avalon recovery mode): automatic triggers disabled to avoid unnecessary runs.
+  # Manual runs still work (Actions → Run workflow). To restore, uncomment the original triggers below.
   workflow_dispatch:
+  #  # This workflow executes on the DEFAULT BRANCH only, after reviewed merge.
+  #  # Repository is public: standard GitHub-hosted runners are free.
+  #  schedule:
+  #    - cron: '19 * * * *'
 
 permissions:
   contents: read

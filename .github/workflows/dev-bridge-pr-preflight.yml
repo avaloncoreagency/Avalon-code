@@ -1,7 +1,10 @@
 name: Dev Bridge PR handoff preflight
 on:
-  pull_request:
-    types: [opened, reopened, synchronize, ready_for_review, edited]
+  # PAUSED 2026-11-10 (Avalon recovery mode): automatic triggers disabled to avoid unnecessary runs.
+  # Manual runs still work (Actions → Run workflow). To restore, uncomment the original triggers below.
+  workflow_dispatch:
+  #  pull_request:
+  #    types: [opened, reopened, synchronize, ready_for_review, edited]
 permissions:
   contents: read
   issues: read

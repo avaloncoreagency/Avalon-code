@@ -140,14 +140,17 @@ test('GitHub CI ignores Vercel deployment failures and keeps the deployment sour
  assert.equal(g.pulls[0].updated_at,'2026-11-03T19:00:00Z');
  assert.ok(!calls.some(p=>p.includes('/status?')),'Vercel commit status should not be mislabeled as CI');
 });
-test('Dev Bridge auto refresh is read-only and schedule is hourly',()=>{
+test('Dev Bridge auto refresh is read-only; the hourly sync is PAUSED (recovery mode, manual runs only)',()=>{
  const fs=require('node:fs');
  const auto=fs.readFileSync('src/app/admin/dev-bridge/bridge-auto-refresh.tsx','utf8');
  assert.match(auto,/document.visibilityState === 'visible'/);
  assert.match(auto,/router.refresh\(\)/);
  assert.doesNotMatch(auto,/fetch\(|writeFile|issueNewTurn/);
  const workflow=fs.readFileSync('.github/workflows/dev-bridge-sync.yml','utf8');
- assert.match(workflow,/cron: '17 \* \* \* \*'/);
+ // Paused 2026-11-10: no active schedule/push trigger; the original hourly cron is kept commented for restoration.
+ assert.doesNotMatch(workflow,/^\s+(schedule|push):/m);
+ assert.match(workflow,/^\s+workflow_dispatch:/m);
+ assert.match(workflow,/#\s+- cron: '17 \* \* \* \*'/);
 });
 
 test('real GitHub PR list avoids redundant detail/history calls and preserves UNKNOWN mergeability',async()=>{

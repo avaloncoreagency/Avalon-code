@@ -1,23 +1,25 @@
 name: Creative continuity acceptance
 on:
-  pull_request:
-    paths:
-      - 'src/lib/creative-bridge/**'
-      - 'src/app/admin/creative-bridge/**'
-      - 'src/app/api/creative-bridge/projects/**'
-      - 'docs/sql/creative-continuity.sql'
-      - 'schemas/creative-bridge/**'
-      - 'scripts/creative-bridge/*.cjs'
-      - 'scripts/creative-bridge/continuity-loader.cjs'
-      - 'tests/creative-continuity*'
-      - 'tests/creative-lifecycle*'
-      - 'tests/creative-projects*'
-      - 'tests/creative-media*'
-      - 'tests/creative-register*'
-      - 'tests/creative-projects.http.cjs'
-      - 'tests/support/creative-continuity-db.cjs'
-      - '.github/workflows/creative-continuity.yml'
+  # PAUSED 2026-11-10 (Avalon recovery mode): automatic triggers disabled to avoid unnecessary runs.
+  # Manual runs still work (Actions → Run workflow). To restore, uncomment the original triggers below.
   workflow_dispatch:
+  #  pull_request:
+  #    paths:
+  #      - 'src/lib/creative-bridge/**'
+  #      - 'src/app/admin/creative-bridge/**'
+  #      - 'src/app/api/creative-bridge/projects/**'
+  #      - 'docs/sql/creative-continuity.sql'
+  #      - 'schemas/creative-bridge/**'
+  #      - 'scripts/creative-bridge/*.cjs'
+  #      - 'scripts/creative-bridge/continuity-loader.cjs'
+  #      - 'tests/creative-continuity*'
+  #      - 'tests/creative-lifecycle*'
+  #      - 'tests/creative-projects*'
+  #      - 'tests/creative-media*'
+  #      - 'tests/creative-register*'
+  #      - 'tests/creative-projects.http.cjs'
+  #      - 'tests/support/creative-continuity-db.cjs'
+  #      - '.github/workflows/creative-continuity.yml'
 permissions:
   contents: read
 concurrency:
