@@ -104,7 +104,7 @@ export default async function LibraryProject({ params, searchParams }: { params:
             <tbody>{vs.map(v => <tr key={v.id}>
               <td><Link href={`?version=${v.id}`} aria-current={v.id === selected?.id ? "true" : undefined}>v{v.number}</Link>{v.kind === "restore" ? ` (${pick(lang, "restaurada de", "restored from")} v${vs.find(x => x.id === v.restored_from)?.number ?? "?"})` : ""}</td>
               <td>{v.source_tool} · {v.framework} · {v.file_count}</td><td>{who(v.created_by)}</td><td>{new Date(v.created_at).toLocaleString(l)}</td>
-              <td>{v.id !== vs[0]?.id && <form action={restoreVersion}><input type="hidden" name="project_id" value={id} /><input type="hidden" name="version_id" value={v.id} /><button className={s.ghost}>{pick(lang, "Restaurar como nueva versión", "Restore as new version")}</button></form>}</td>
+              <td><a className={s.ghost} href={`/admin/workspace/library/${id}/export?version=${v.id}`} download data-testid={`export-v${v.number}`}>{pick(lang, "Exportar ZIP", "Export ZIP")}</a>{v.id !== vs[0]?.id && <form action={restoreVersion}><input type="hidden" name="project_id" value={id} /><input type="hidden" name="version_id" value={v.id} /><button className={s.ghost}>{pick(lang, "Restaurar como nueva versión", "Restore as new version")}</button></form>}</td>
             </tr>)}</tbody></table></div>
           {selected?.summary?.warnings?.length ? <p className={s.muted}>{pick(lang, "Avisos", "Warnings")}: {selected.summary.warnings.join(" · ")}</p> : null}
         </section>
