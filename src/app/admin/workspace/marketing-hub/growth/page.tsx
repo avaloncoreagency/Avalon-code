@@ -22,6 +22,7 @@ export default async function GrowthHub() {
           <Link href="/admin/workspace/marketing-hub">Campaigns existentes</Link>
           <Link href="/admin/creative-bridge">Creative Assets</Link>
           <Link href="/admin/workspace/crm/leads">CRM</Link>
+          <Link href="/admin/workspace/ai-communications">AI Communications</Link>
         </nav>
       </header>
       <div className={styles.stats}>
