@@ -1,0 +1,70 @@
+name: FORGE Website Designer acceptance
+
+# Scoped and read-only: synthetic database transaction + isolated Chromium
+# render. No Vercel deploy, vendor API, Supabase project, secrets or clients.
+on:
+  pull_request:
+    paths:
+      - 'src/components/os/website-draft-guard.tsx'
+      - 'src/lib/os/website-local-draft.ts'
+      - 'src/app/admin/workspace/website-designer/**'
+      - 'tests/forge-website-*'
+      - 'tests/sql/forge_website_journey.test.sql'
+      - '.github/workflows/forge-website.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  website:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_PASSWORD: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 12
+    env:
+      PGHOST: localhost
+      PGUSER: postgres
+      PGPASSWORD: postgres
+      PGDATABASE: postgres
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22.18.0'
+          cache: npm
+      - run: npm ci --ignore-scripts
+      - name: Local rescue, optimistic concurrency and exporter contracts
+        run: node --test tests/forge-website-draft.test.cjs
+      - name: Isolated PostgreSQL create/edit/save/reopen/conflict/restore/RLS
+        run: |
+          psql -v ON_ERROR_STOP=1 -q \
+            -f tests/sql/00_supabase_stub.sql \
+            -f supabase/migrations/20261102053022_avalon_owner_memberships_rls.sql \
+            -f supabase/migrations/20261102053452_harden_membership_table_grants.sql \
+            -f supabase/migrations/20261102070500_avalon_os_modules.sql \
+            -f tests/sql/forge_website_journey.test.sql
+      - name: Install existing QA browser dependency
+        run: npm ci --prefix tests/qa --ignore-scripts
+      - name: Install isolated Chromium
+        run: node tests/qa/node_modules/playwright/cli.js install --with-deps chromium
+      - name: Actual browser rendering of synthetic exported site (desktop + 390px)
+        run: node --test tests/forge-website-preview.screenshot.cjs
+      - name: Attach verified renders
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: forge-website-synthetic-preview
+          path: artifacts/forge/*.png
+          if-no-files-found: ignore
+          retention-days: 7
