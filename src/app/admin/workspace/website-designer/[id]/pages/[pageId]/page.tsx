@@ -3,6 +3,8 @@ import { notFound } from "next/navigation";
 import { Suite } from "@/components/suite/suite";
 import { PageHeader, Flash, Panel, Badge, DbNotice, param, statusLabel, statusTone, type SearchParams } from "@/components/os/ui";
 import s from "@/components/os/os.module.css";
+import { WebsiteDraftGuard } from "@/components/os/website-draft-guard";
+import type { WebsiteDraftField } from "@/lib/os/website-local-draft";
 import { requireOwner } from "@/lib/auth/session";
 import { getLang } from "@/lib/i18n-server";
 import { pick, formatDate, type Lang } from "@/lib/i18n";
@@ -15,6 +17,14 @@ const BASE = "/admin/workspace/website-designer";
 const BLOCK_NAMES: Record<Block["type"], [string, string]> = {
   hero: ["Portada", "Hero"], text: ["Texto", "Text"], features: ["Lista de ventajas", "Features"], cta: ["Llamada a la acción", "Call to action"],
 };
+const PROTECTED_BLOCK_FIELDS: Record<Block["type"], readonly WebsiteDraftField[]> = {
+  hero: ["heading", "subheading", "buttonLabel", "buttonHref"],
+  text: ["heading", "body"],
+  features: ["heading", "items"],
+  cta: ["heading", "body", "buttonLabel", "buttonHref"],
+};
+const PROTECTED_META_FIELDS = ["title", "slug", "seo_description"] as const;
+
 type PageRow = { id: string; title: string; slug: string; seo_description: string; blocks: unknown; status: string; published_at: string | null; updated_at: string; version: number };
 
 function Hidden({ projectId, pageId, version }: { projectId: string; pageId: string; version: number }) {
@@ -41,7 +51,7 @@ export default async function PageEditor({ params, searchParams }: { params: Pro
   const { id, pageId } = await params;
   if (!isUuid(id) || !isUuid(pageId)) notFound();
   const query = await searchParams;
-  const { supabase } = await requireOwner();
+  const { supabase, user } = await requireOwner();
   const lang = await getLang();
   const project = await getProject(supabase, "website", id);
   const page = project.data
@@ -102,6 +112,9 @@ export default async function PageEditor({ params, searchParams }: { params: Pro
                   <Hidden projectId={id} pageId={pageId} version={row.version} />
                   <input type="hidden" name="index" value={index} />
                   <BlockFields lang={lang} block={block} />
+                  <WebsiteDraftGuard ownerId={user.id} projectId={id} pageId={pageId}
+                    scope={`block-${index}`} serverVersion={row.version}
+                    names={PROTECTED_BLOCK_FIELDS[block.type]} lang={lang} />
                   <div className={s.actions}><button className={`${s.btnPrimary} ${s.small}`} type="submit">{pick(lang, "Guardar bloque", "Save block")}</button></div>
                 </form>
               </section>
@@ -124,6 +137,9 @@ export default async function PageEditor({ params, searchParams }: { params: Pro
                 <label className={s.field}><span>{pick(lang, "Título", "Title")} *</span><input className={s.input} name="title" defaultValue={row.title} required maxLength={160} /></label>
                 <label className={s.field}><span>{pick(lang, "Ruta", "Path")} *</span><input className={s.input} name="slug" defaultValue={row.slug} required maxLength={80} pattern="[a-z0-9]+(-[a-z0-9]+)*" /></label>
                 <label className={s.field}><span>{pick(lang, "Descripción SEO", "SEO description")}</span><textarea className={s.textarea} name="seo_description" defaultValue={row.seo_description} maxLength={300} rows={3} /></label>
+                <WebsiteDraftGuard ownerId={user.id} projectId={id} pageId={pageId}
+                  scope="meta" serverVersion={row.version}
+                  names={PROTECTED_META_FIELDS} lang={lang} />
                 <div className={s.actions}><button className={s.btnPrimary} type="submit">{pick(lang, "Guardar", "Save")}</button></div>
               </form>
             </Panel>
