@@ -7,6 +7,7 @@ on:
     paths:
       - 'src/components/os/website-draft-guard.tsx'
       - 'src/lib/os/website-local-draft.ts'
+      - 'src/lib/os/website-templates.ts'
       - 'src/app/admin/workspace/website-designer/**'
       - 'tests/forge-website-*'
       - 'tests/sql/forge_website_journey.test.sql'
@@ -45,7 +46,7 @@ jobs:
           cache: npm
       - run: npm ci --ignore-scripts
       - name: Local rescue, optimistic concurrency and exporter contracts
-        run: node --test tests/forge-website-draft.test.cjs
+        run: node --test tests/forge-website-*.test.cjs
       - name: Isolated PostgreSQL create/edit/save/reopen/conflict/restore/RLS
         run: |
           psql -v ON_ERROR_STOP=1 -q \
