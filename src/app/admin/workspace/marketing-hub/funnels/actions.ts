@@ -2,7 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
-import { requireOwner } from "@/lib/auth/session";
+import { ownerForAction } from "@/lib/os/actions";
 import { FUNNEL_TEMPLATES, isFunnelTemplate, validSlug, type FunnelTemplate } from "@/lib/growth/funnel";
 
 const BASE = "/admin/workspace/marketing-hub/funnels";
@@ -12,7 +12,7 @@ const back = (key: string, value: string): never => redirect(`${BASE}?${key}=${e
 
 /** Create a DRAFT only. No campaign, page, ad or payment is published. */
 export async function createGrowthFunnel(form: FormData) {
-  const { supabase, user } = await requireOwner();
+  const { supabase, user } = await ownerForAction();
   const slug = field(form, "slug").toLowerCase();
   const template = field(form, "template");
   if (!validSlug(slug) || !isFunnelTemplate(template)) back("error", "invalid");
@@ -39,7 +39,7 @@ export async function createGrowthFunnel(form: FormData) {
 
 /** Deliberate owner action; client and advertiser permissions are not touched. */
 export async function setGrowthFunnelStatus(form: FormData) {
-  const { supabase } = await requireOwner();
+  const { supabase } = await ownerForAction();
   const id = field(form, "id");
   const next = field(form, "status");
   const version = Number(field(form, "version"));
