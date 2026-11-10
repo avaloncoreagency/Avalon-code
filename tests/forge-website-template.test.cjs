@@ -8,7 +8,7 @@ function load(file,mocks={}){
 }
 const domain=load("src/lib/os/domain.ts");
 const t=load("src/lib/os/website-templates.ts",{"./domain":domain});
-const exports=load("src/lib/os/exporters.ts",{"./domain":domain});
+const exporter=load("src/lib/os/exporters.ts",{"./domain":domain});
 test("all starting templates are valid content in EN and ES, without external or customer identities",()=>{
  assert.deepEqual(t.WEBSITE_PAGE_TEMPLATE_KEYS,["blank","services","portfolio"]);
  for(const lang of ["en","es"]){
@@ -18,7 +18,7 @@ test("all starting templates are valid content in EN and ES, without external or
    assert.equal(result.ok,true,lang+":"+name);
    assert.ok(blocks.length>=1 && blocks.length<=domain.MAX_BLOCKS);
    assert.equal(blocks.some(b=>JSON.stringify(b).includes("https://")) , false);
-   const html=exports.pageToHtml({title:"Synthetic",blocks},lang);
+   const html=exporter.pageToHtml({title:"Synthetic",blocks},lang);
    assert.match(html,/<html lang=/);
    assert.ok(html.includes("<section"));
   }
