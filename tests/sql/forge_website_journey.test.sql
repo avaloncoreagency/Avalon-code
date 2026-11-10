@@ -16,51 +16,51 @@ SET ROLE authenticated;
 SELECT set_config('request.jwt.claim.sub','00000000-0000-4000-8000-000000000011',false);
 DO $$
 DECLARE
- project_id uuid;
- page_id uuid;
+ v_project_id uuid;
+ v_page_id uuid;
  current_version integer;
  changed integer;
  original jsonb;
 begin
  -- Real module tables, synthetic project and its first page.
  INSERT INTO public.os_projects(module,name,description)
-   VALUES('website','Forge synthetic website','Isolated acceptance only') RETURNING id INTO project_id;
+   VALUES('website','Forge synthetic website','Isolated acceptance only') RETURNING id INTO v_project_id;
  INSERT INTO public.os_website_pages(project_id,slug,title,blocks)
-   VALUES(project_id,'inicio','Inicio','[{"type":"hero","heading":"Borrador original","subheading":"","buttonLabel":"","buttonHref":""}]')
-   RETURNING id,version INTO page_id,current_version;
+   VALUES(v_project_id,'inicio','Inicio','[{"type":"hero","heading":"Borrador original","subheading":"","buttonLabel":"","buttonHref":""}]')
+   RETURNING id,version INTO v_page_id,current_version;
  ASSERT current_version=1,'page creation must persist version 1';
- ASSERT (SELECT count(*) FROM public.os_website_page_versions WHERE page_id=page_id)=1,'initial snapshot must exist';
+ ASSERT (SELECT count(*) FROM public.os_website_page_versions WHERE page_id=v_page_id)=1,'initial snapshot must exist';
 
  -- A version-guarded save and an actual DB read (equivalent to reopen).
  UPDATE public.os_website_pages
    SET blocks='[{"type":"hero","heading":"Sitio editado","subheading":"Contenido guardado","buttonLabel":"","buttonHref":""}]'::jsonb
-   WHERE id=page_id AND project_id=project_id AND version=1
+   WHERE id=v_page_id AND project_id=v_project_id AND version=1
    RETURNING version INTO current_version;
  ASSERT current_version=2,'successful save must increment version';
- ASSERT (SELECT blocks->0->>'heading' FROM public.os_website_pages WHERE id=page_id)='Sitio editado',
+ ASSERT (SELECT blocks->0->>'heading' FROM public.os_website_pages WHERE id=v_page_id)='Sitio editado',
    'reopened page must contain edited text';
 
  -- A stale editor must not overwrite a saved revision.
- UPDATE public.os_website_pages SET blocks='[]'::jsonb WHERE id=page_id AND version=1;
+ UPDATE public.os_website_pages SET blocks='[]'::jsonb WHERE id=v_page_id AND version=1;
  GET DIAGNOSTICS changed=ROW_COUNT;
  ASSERT changed=0,'a stale save must be rejected';
- ASSERT (SELECT blocks->0->>'heading' FROM public.os_website_pages WHERE id=page_id)='Sitio editado',
+ ASSERT (SELECT blocks->0->>'heading' FROM public.os_website_pages WHERE id=v_page_id)='Sitio editado',
    'a rejected save must not lose persisted text';
 
  -- Restore a genuine previously snapshotted revision.
  SELECT blocks INTO original FROM public.os_website_page_versions
-   WHERE page_id=page_id AND page_version=1;
+   WHERE page_id=v_page_id AND page_version=1;
  ASSERT original IS NOT NULL,'restore source must be a persisted page version';
- UPDATE public.os_website_pages SET blocks=original WHERE id=page_id AND version=2
+ UPDATE public.os_website_pages SET blocks=original WHERE id=v_page_id AND version=2
    RETURNING version INTO current_version;
  ASSERT current_version=3,'restoring must generate a new revision';
- ASSERT (SELECT blocks->0->>'heading' FROM public.os_website_pages WHERE id=page_id)='Borrador original',
+ ASSERT (SELECT blocks->0->>'heading' FROM public.os_website_pages WHERE id=v_page_id)='Borrador original',
    'restore must re-open with the original text';
- ASSERT (SELECT count(*) FROM public.os_website_page_versions WHERE page_id=page_id)=3,
+ ASSERT (SELECT count(*) FROM public.os_website_page_versions WHERE page_id=v_page_id)=3,
    'restore must retain earlier versions and add a new snapshot';
 
- PERFORM set_config('forge.page_id',page_id::text,false);
- PERFORM set_config('forge.project_id',project_id::text,false);
+ PERFORM set_config('forge.page_id',v_page_id::text,false);
+ PERFORM set_config('forge.project_id',v_project_id::text,false);
 end $$;
 
 -- Owner B can see the same synthetic page in this RLS scenario. This does
