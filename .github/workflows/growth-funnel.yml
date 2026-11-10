@@ -1,0 +1,53 @@
+name: Avalon Growth funnel isolated E2E
+
+on:
+  pull_request:
+    paths:
+      - 'docs/sql/growth-funnel-prototype.sql'
+      - 'docs/AVALON_GROWTH_001.md'
+      - 'src/lib/growth/**'
+      - 'src/app/f/**'
+      - 'src/app/admin/workspace/marketing-hub/funnels/**'
+      - 'src/app/admin/workspace/marketing-hub/growth/**'
+      - 'src/app/admin/workspace/ai-communications/**'
+      - 'src/app/page.tsx'
+      - 'tests/growth-funnel*'
+      - '.github/workflows/growth-funnel.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  isolated-e2e:
+    runs-on: ubuntu-latest
+    timeout-minutes: 18
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with:
+          node-version: '22'
+          cache: npm
+      - run: npm ci --no-audit --no-fund
+      - run: npm ci --prefix tests/qa --no-audit --no-fund
+      - name: TypeScript and lint
+        run: npm run typecheck && npm run lint
+      - name: Template and UI guard tests
+        run: node --test tests/growth-funnel.test.cjs
+      - name: Real SQL in disposable PostgreSQL (synthetic identities only)
+        run: node --test tests/growth-funnel.database.cjs
+        env:
+          NODE_PATH: ./tests/qa/node_modules
+      - name: Build Next.js without production connection
+        run: npm run build
+        env:
+          NEXT_TELEMETRY_DISABLED: '1'
+      - name: Install isolated Chromium
+        run: node tests/qa/node_modules/playwright/cli.js install --with-deps chromium
+      - name: Public browser → Next Action → isolated SQL → one CRM lead
+        run: node --test tests/growth-funnel.http.cjs
+        env:
+          NODE_PATH: ./tests/qa/node_modules
+          NEXT_TELEMETRY_DISABLED: '1'
