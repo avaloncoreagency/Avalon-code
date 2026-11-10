@@ -22,7 +22,7 @@ The original public quote `crm_public_inquiry` is untouched: it still creates a 
 - `crm_growth_funnel_submissions`: funnel ID, canonical lead ID, email hash, visitor message, verified consent timestamp; unique `(funnel_id,email_hash)`. Owner-only SELECT; no anon table read or write.
 - `crm_growth_funnel_view(slug)`: public *read-only* RPC for active page copy. No client IDs, private history or contacts.
 - `crm_growth_funnel_submit(request)`: **the only new anon write capability**, narrow SQL SECURITY DEFINER with fixed `search_path`, validated size/fields/consent, honeypot, global 30/hour and per-email 3/day, serialized deduplication. Reuses existing CRM lead with exact normalized email; otherwise inserts one stage `new` lead audited under the approved owner, with `source='Funnel: <slug>'`. Replays return generic `ok` without a duplicate lead.
-- **No** CRM client, sale, invoice, appointment, activity, message, outbound email, phone call, ad or external spend is created. A sales/cita funnel is *only* a request. No pageview stats/ROAS are guessed.
+- **No** CRM client, sale, invoice, appointment, conversation, outbound email, phone call, ad or external spend is created. The **existing CRM stage trigger** creates one **internal pending follow-up activity** on initial insertion; this is a task inside Avalon, NOT an external communication. Replays do not duplicate it. A sales/cita funnel is *only* a request. No pageview stats/ROAS are guessed.
 
 ### Privilege review required (SHIN + Claude)
 
