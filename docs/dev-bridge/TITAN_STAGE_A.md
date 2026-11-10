@@ -56,3 +56,29 @@ Todo en un solo comando: `e2e-five-tests.cjs`.
 - Supabase: rama aislada existente; no se crearon proyectos.
 - Vercel: un proyecto desechable creado (sin despliegues) y despliegues de Preview de Avalon OS ya registrados.
 - No se activaron servicios de pago.
+
+## Diagnóstico del 403 (2026-11-10, sin exponer tokens)
+
+| # | Llamada (token del entorno «Avalon-Claude-30Days», inyectado por el proxy) | HTTP | Respuesta |
+| --- | --- | --- | --- |
+| 1 | `GET /v2/user` | 404 | `not_found` «User not found»: no es un token personal de cuenta completa |
+| 2 | `GET /v5/user/tokens/current` | 404 | `not_found` «Token not found» |
+| 3 | `GET /v2/teams/team_lHTO3wgJm0yAyexxMDmkIFW4` | 403 | `team_unauthorized` |
+| 4 | `GET /v10/projects?teamId=team_lHTO3…` | 200 | **Solo `avalon-core-agency`**, aunque el equipo tiene dos proyectos |
+| 5–7 | `GET /v9/projects/prj_Ln7ik1hsql2BZqBx22ZjcRJOt6DI` (con y sin `teamId`, y por nombre) | 404 | `not_found` |
+| 8 | `GET /v9/projects/avalon-core-agency?teamId=…` | 200 | `prj_tN1ZYrsx5fqoEePYjThsra3MvocP` |
+| — | `POST /v13/deployments?teamId=…` (proyecto de prueba, producción) | 403 | `forbidden` «You don't have permission to create a Production Deployment for this project» (registrado el 2026-11-10). No se repitió: el clasificador de seguridad bloquea sondas de producción, con razón |
+| control | Cabecera `Authorization` inválida explícita | 200 | El proxy reemplaza la cabecera por la credencial guardada: el Bearer se envía bien |
+| control | Conector de Vercel (cuenta del dueño): `get_project prj_Ln7…` | 200 | El proyecto existe en el mismo equipo, con protección `all_except_custom_domains` |
+
+**Conclusión:**
+- El `teamId` se envía en todas las llamadas.
+- El Bearer llega correctamente.
+- No hay confusión de proyectos.
+- **La credencial está limitada al proyecto `avalon-core-agency`:** no ve ni puede desplegar otros proyectos del equipo. El 403 es de permisos del token, no del código del puente.
+
+**Para cerrar la Etapa A:**
+1. Un token con alcance de equipo («Avalon Core Agency»), o con acceso explícito al proyecto `avalon-client-bridge-e2e`, guardado como network secret de `api.vercel.com`.
+2. Confirmar el plan de Vercel. Si es Hobby, solo sirve para pruebas técnicas no comerciales. Para clientes, plan Pro o equivalente.
+
+Con ambos puntos resueltos, se ejecuta **una vez** `e2e-five-tests.cjs` para T3 y T4b. Antes de eso va la página neutra de producción ya autorizada, porque Vercel no admite que un proyecto nuevo empiece en Preview.
