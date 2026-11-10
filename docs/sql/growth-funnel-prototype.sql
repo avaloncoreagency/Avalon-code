@@ -36,7 +36,7 @@ create policy growth_owner_update on public.crm_growth_funnels
 
 -- Preserve the creator/identity across owner edits, and detect stale versions.
 create function crm_private.growth_funnel_touch() returns trigger
-language plpgsql security invoker set search_path='' as $
+language plpgsql security invoker set search_path='' as $$
 begin
   if new.id is distinct from old.id or new.created_by is distinct from old.created_by
      or new.agency_key is distinct from old.agency_key then
@@ -47,7 +47,7 @@ begin
   end if;
   new.updated_at := now();
   return new;
-end $;
+end $$;
 revoke all on function crm_private.growth_funnel_touch() from public, anon, authenticated;
 create trigger crm_growth_funnel_touch before update on public.crm_growth_funnels
   for each row execute function crm_private.growth_funnel_touch();
