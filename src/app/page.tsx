@@ -51,6 +51,12 @@ const COPY = {
       marketing: "Estrategia, contenido y campañas medibles para atraer a tu cliente ideal.",
       automation: "Conectamos tus herramientas y eliminamos tareas repetitivas.",
     },
+    growthProducts: [
+      ["AI Chatbots", "Asistentes web con conocimiento autorizado de tu empresa y conexión al CRM (según integración contratada)."],
+      ["AI Receptionist", "Recepcionistas virtuales para llamadas y consultas; activación telefónica sujeta a permisos y proveedor."],
+      ["Funnel Builder", "Landing pages de captación, solicitudes comerciales y citas con consentimiento y seguimiento en CRM."],
+      ["Campaigns y Meta Ads", "Planificación multicanal y servicios de anuncios Facebook/Instagram con permisos y presupuesto aprobados."],
+    ],
     steps: [["Diagnóstico", "Entendemos tu negocio y tus metas."], ["Propuesta", "Alcance, plazos y precio claros."], ["Construcción", "Entregas por fases con revisiones."], ["Lanzamiento y soporte", "Medimos, mejoramos y te acompañamos."]],
     cases: [["Restaurantes", "Reservas online, recepcionista de IA para llamadas y campañas locales."], ["Clínicas y dentistas", "Agenda automatizada, recordatorios y seguimiento de pacientes potenciales."], ["Comercios", "Tienda online conectada a inventario y marketing de recompra."], ["Servicios profesionales", "CRM para seguimiento de clientes y automatización de propuestas."]],
     portfolio: "Portafolio: publicaremos proyectos solo con autorización de cada cliente.", admin: "Acceso del equipo", lang: "English",
@@ -68,6 +74,12 @@ const COPY = {
       marketing: "Strategy, content and measurable campaigns to reach your ideal customer.",
       automation: "We connect your tools and remove repetitive work.",
     },
+    growthProducts: [
+      ["AI Chatbots", "Website assistants using authorized company knowledge and CRM integration when commissioned."],
+      ["AI Receptionist", "Virtual phone and inquiry reception; paid telephony requires explicit provider authorization."],
+      ["Funnel Builder", "Opt-in lead capture, sales inquiry and appointment-request landing pages connected to the CRM."],
+      ["Campaigns and Meta Ads", "Multichannel planning and Facebook/Instagram advertising services only with approved permissions and budget."],
+    ],
     steps: [["Discovery", "We learn your business and goals."], ["Proposal", "Clear scope, timeline and price."], ["Build", "Phased delivery with reviews."], ["Launch & support", "We measure, improve and stay with you."]],
     cases: [["Restaurants", "Online bookings, an AI receptionist for calls and local campaigns."], ["Clinics & dentists", "Automated scheduling, reminders and lead follow-up."], ["Retail", "Online store connected to inventory and repeat-purchase marketing."], ["Professional services", "A CRM for client follow-up and proposal automation."]],
     portfolio: "Portfolio: we only publish projects with each client's permission.", admin: "Team access", lang: "Español",
@@ -97,6 +109,14 @@ export default async function Home({ searchParams }: { searchParams: Promise<Rec
         <h2 id="h-services">{t.services}</h2>
         <div className={s.grid}>{(Object.keys(SERVICE_NAMES[lang]) as (keyof typeof t.serviceText)[]).map(k =>
           <article key={k} className={s.card} data-service={k}><h3>{SERVICE_NAMES[lang][k]}</h3><p>{t.serviceText[k]}</p></article>)}</div>
+      </section>
+      <section className={s.section} aria-labelledby="h-growth">
+        <h2 id="h-growth">{lang === "es" ? "Nuevos servicios comerciales" : "New growth services"}</h2>
+        <p className={s.lead}>{lang === "es" ? "Servicios que podemos diseñar y preparar para tu negocio; ninguna integración de pago se activa sin aprobación." : "Services we can design and prepare for your business; paid integrations require approval."}</p>
+        <div className={s.grid}>{t.growthProducts.map(([name, description]) =>
+          <article key={name} className={s.card}><h3>{name}</h3><p>{description}</p></article>)}</div>
+        <p className={s.note}>{lang === "es" ? "Para consultar, describe el producto en el formulario. La cotización no compra ni activa servicios." : "Describe your product needs in the quote form. A request does not buy or activate services."}</p>
+        <a href="#cotizacion" className={s.cta}>{lang === "es" ? "Consultar servicios" : "Ask about services"}</a>
       </section>
       <section id="proceso" className={s.section} aria-labelledby="h-process">
         <h2 id="h-process">{t.process}</h2>
