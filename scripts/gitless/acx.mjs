@@ -66,7 +66,8 @@ function client(c) {
     for (let i = 1; ; i++) {
       let res;
       try {
-        res = await fetch(`${c.url}/rest/v1/rpc/${fn}`, { method: "POST", headers: { apikey: c.publishableKey, "content-type": "application/json" }, body: JSON.stringify(body) });
+        // Bounded: a hung connection must never block a cycle (60 s per call; at most `tries` attempts with backoff).
+        res = await fetch(`${c.url}/rest/v1/rpc/${fn}`, { method: "POST", headers: { apikey: c.publishableKey, "content-type": "application/json" }, body: JSON.stringify(body), signal: AbortSignal.timeout(60_000) });
       } catch (e) { if (i < tries) { await new Promise(r => setTimeout(r, 500 * 2 ** i)); continue; } throw new Error(`${fn}: network error ${e.cause?.code ?? e.message}`); }
       const text = await res.text();
       if (res.ok) return text ? JSON.parse(text) : null;
