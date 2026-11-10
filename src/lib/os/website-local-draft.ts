@@ -24,7 +24,7 @@ export type WebsiteDraft = {
 };
 
 const supported = new Set<string>(WEBSITE_DRAFT_FIELDS);
-const validId = (id: string) => /^[0-9a-f-]{36}$/i.test(id);
+const validId = (id: string) => /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(id);
 const validScope = (scope: string) => scope === "meta" || /^block-[0-5]?[0-9]$/.test(scope);
 
 export function websiteDraftKey(ownerId: string, projectId: string, pageId: string, scope: string): string {
@@ -73,7 +73,8 @@ export function equalDraftFields(a: DraftFields, b: DraftFields, names: readonly
 
 export function makeWebsiteDraft(version: number, baseline: DraftFields, values: DraftFields, now: number): WebsiteDraft | null {
   if (!Number.isSafeInteger(version) || version < 1 || !Number.isFinite(now) ||
-      !fieldsValid(baseline) || !fieldsValid(values)) return null;
+      !fieldsValid(baseline) || !fieldsValid(values) ||
+      Object.keys(baseline).sort().join("|") !== Object.keys(values).sort().join("|")) return null;
   const snapshot = { schema: 1 as const, version, savedAt: now, baseline, values };
   return JSON.stringify(snapshot).length <= WEBSITE_DRAFT_MAX_BYTES ? snapshot : null;
 }
@@ -86,6 +87,9 @@ export function reconcileWebsiteDraft(
   names: readonly WebsiteDraftField[],
 ): "none" | "confirmed" | "restore" | "conflict" {
   if (!draft) return "none";
+  // A block may have moved or changed type after another action. Never restore
+  // a snapshot into a different field set, even when values are empty.
+  if (Object.keys(draft.values).sort().join("|") !== [...names].sort().join("|")) return "conflict";
   // Successful server save is the sole confirmation needed to remove the rescue
   // copy: the persisted content now matches what was being edited locally.
   if (equalDraftFields(draft.values, serverFields, names)) return "confirmed";
