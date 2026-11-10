@@ -4,7 +4,7 @@ import { getLang } from "@/lib/i18n-server";
 import { websitePageTemplate } from "@/lib/os/website-templates";
 import { back, field, ownerForAction, uuidField } from "@/lib/os/actions";
 import { mapDbError } from "@/lib/os/data";
-import { BLOCK_TYPES, cleanText, isSlug, moveItem, oneOf, readBlocks, slugify, validateBlock, validateBlocks, MAX_BLOCKS, type Block } from "@/lib/os/domain";
+import { BLOCK_TYPES, cleanText, emptyBlock, isSlug, moveItem, oneOf, readBlocks, slugify, validateBlock, validateBlocks, MAX_BLOCKS, type Block } from "@/lib/os/domain";
 
 const BASE = "/admin/workspace/website-designer";
 
