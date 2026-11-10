@@ -3,7 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { requireOwner } from "@/lib/auth/session";
-import { FUNNEL_TEMPLATES, isFunnelTemplate, validSlug } from "@/lib/growth/funnel";
+import { FUNNEL_TEMPLATES, isFunnelTemplate, validSlug, type FunnelTemplate } from "@/lib/growth/funnel";
 
 const BASE = "/admin/workspace/marketing-hub/funnels";
 const UUID = /^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/i;
@@ -16,7 +16,7 @@ export async function createGrowthFunnel(form: FormData) {
   const slug = field(form, "slug").toLowerCase();
   const template = field(form, "template");
   if (!validSlug(slug) || !isFunnelTemplate(template)) back("error", "invalid");
-  const defaults = FUNNEL_TEMPLATES[template];
+  const defaults = FUNNEL_TEMPLATES[template as FunnelTemplate];
   const title = field(form, "title") || defaults.title;
   const subheading = field(form, "subheading") || defaults.subheading;
   const cta = field(form, "cta") || defaults.cta;
