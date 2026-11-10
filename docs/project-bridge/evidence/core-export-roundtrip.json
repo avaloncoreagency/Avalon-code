@@ -1,0 +1,41 @@
+{
+  "base": "http://localhost:3100",
+  "projectId": "584b5ca7-e278-4b15-9df9-9709eca98515",
+  "importedId": "d9c6ac48-50c4-4d92-b3e4-ba6ea681075c",
+  "steps": [
+    {
+      "name": "Owner A exports v1 as a ZIP; every file matches the SHA-256 recorded at import; manifest included",
+      "status": 200,
+      "files": 1,
+      "bytes": 2204,
+      "content_disposition": "attachment; filename=\"Bridge-E2E-v1.zip\"",
+      "result": "PASS"
+    },
+    {
+      "name": "the exported ZIP re-imports as a new project with byte-identical files (no GitHub, no Vercel)",
+      "imported_project": "d9c6ac48-50c4-4d92-b3e4-ba6ea681075c",
+      "files": [
+        "AVALON_EXPORT.json",
+        "index.html"
+      ],
+      "result": "PASS"
+    },
+    {
+      "name": "Owner B, in another session, exports the same version with the same file hashes",
+      "result": "PASS"
+    },
+    {
+      "name": "outsider and anonymous cannot export (401 or redirect to login)",
+      "outsider": 307,
+      "anonymous": 307,
+      "result": "PASS"
+    },
+    {
+      "name": "a version id that does not belong to the project is refused (404)",
+      "status": 404,
+      "result": "PASS"
+    }
+  ],
+  "result": "PASSED",
+  "at": "2026-11-10T15:29:54.550Z"
+}
