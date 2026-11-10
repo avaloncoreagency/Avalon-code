@@ -34,6 +34,24 @@ create policy growth_owner_update on public.crm_growth_funnels
   for update to authenticated using ((select crm_private.is_owner()) and agency_key='avalon')
   with check ((select crm_private.is_owner()) and agency_key='avalon');
 
+-- Preserve the creator/identity across owner edits, and detect stale versions.
+create function crm_private.growth_funnel_touch() returns trigger
+language plpgsql security invoker set search_path='' as $
+begin
+  if new.id is distinct from old.id or new.created_by is distinct from old.created_by
+     or new.agency_key is distinct from old.agency_key then
+    raise exception 'Funnel identity is immutable' using errcode='42501';
+  end if;
+  if new.version <> old.version + 1 then
+    raise exception 'Funnel version conflict' using errcode='23514';
+  end if;
+  new.updated_at := now();
+  return new;
+end $;
+revoke all on function crm_private.growth_funnel_touch() from public, anon, authenticated;
+create trigger crm_growth_funnel_touch before update on public.crm_growth_funnels
+  for each row execute function crm_private.growth_funnel_touch();
+
 create table public.crm_growth_funnel_submissions (
   id uuid primary key default gen_random_uuid(),
   agency_key text not null default 'avalon' check (agency_key='avalon'),
