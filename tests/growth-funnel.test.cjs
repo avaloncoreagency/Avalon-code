@@ -44,7 +44,7 @@ test("growth funnel: admin page and public intake are separated, no bypass or pa
   const marketing = fs.readFileSync("src/app/admin/workspace/marketing-hub/growth/page.tsx", "utf8");
   const communications = fs.readFileSync("src/app/admin/workspace/ai-communications/page.tsx", "utf8");
   assert.match(owner, /await requireOwner\(\)/);
-  assert.match(controls, /await requireOwner\(\)/);
+  assert.match(controls, /await ownerForAction\(\)/);
   assert.match(publicPage, /crm_growth_funnel_view/);
   assert.match(publicPage, /notFound\(\)/);
   assert.match(publicAction, /crm_growth_funnel_submit/);
