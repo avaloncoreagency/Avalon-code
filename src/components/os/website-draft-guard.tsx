@@ -61,21 +61,39 @@ export function WebsiteDraftGuard({ownerId,projectId,pageId,scope,serverVersion,
     try { storage = window.sessionStorage; storage.getItem(key); }
     catch { setNotice("unavailable"); return; }
 
+    // Keep an older conflicting revision in a separate slot. Editing the new
+    // server version must never silently overwrite this rescue copy.
+    const olderKey = `${key}:conflict`;
+    const olderRaw = storage.getItem(olderKey);
+    let older = parseWebsiteDraft(olderRaw,Date.now());
+    if (olderRaw && !older) {
+      try { storage.removeItem(olderKey); } catch { /* best effort */ }
+    }
     const raw = storage.getItem(key);
     const old = parseWebsiteDraft(raw,Date.now());
     if (raw && !old) {
       try { storage.removeItem(key); } catch { /* safe fallback */ }
     }
     const state = reconcileWebsiteDraft(old,serverVersion,baseline,fields);
+    if (state === "conflict" && old && !older) {
+      try {
+        storage.setItem(olderKey,JSON.stringify(old));
+        storage.removeItem(key);
+        older = old;
+      } catch { older = old; /* show backup even if browser storage is full */ }
+    }
     if (state === "confirmed") {
-      try { storage.removeItem(key); } catch { /* final DB write was already confirmed by read */ }
-      setNotice("confirmed");
+      try { storage.removeItem(key); } catch { /* final DB write already confirmed */ }
     } else if (state === "restore" && old) {
       applyValues(form,old.values,fields);
-      setNotice("recovered");
-    } else if (state === "conflict" && old) {
-      setConflicting(old);
+    }
+    if (older || state === "conflict") {
+      setConflicting(older ?? old);
       setNotice("conflict");
+    } else if (state === "confirmed") {
+      setNotice("confirmed");
+    } else if (state === "restore") {
+      setNotice("recovered");
     } else setNotice("ready");
 
     const saveLocal = () => {
@@ -89,17 +107,18 @@ export function WebsiteDraftGuard({ownerId,projectId,pageId,scope,serverVersion,
       if (!d) { setNotice("unavailable"); return; }
       try {
         storage.setItem(key,JSON.stringify(d));
-        setConflicting(null);
-        setNotice("protected");
+        setNotice(older ? "conflict" : "protected");
       } catch { setNotice("unavailable"); }
     };
     form.addEventListener("input",saveLocal);
     form.addEventListener("change",saveLocal);
     form.addEventListener("submit",saveLocal);
     setDiscard(() => () => {
-      try { storage.removeItem(key); } catch { /* no remote state changes */ }
+      // Discard only the older conflicting copy: do not destroy any new edits.
+      try { storage.removeItem(olderKey); } catch { /* no remote state changes */ }
+      older = null;
       setConflicting(null);
-      setNotice("ready");
+      setNotice(equalDraftFields(formValues(form,fields),baseline,fields) ? "ready" : "protected");
     });
     return () => {
       form.removeEventListener("input",saveLocal);
