@@ -14,9 +14,9 @@ function loadTs(file,mocks={}) {
   const js=ts.transpileModule(fs.readFileSync(file,"utf8"),{
     compilerOptions:{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2022},
   }).outputText;
-  const module={exports:{}};
-  new Function("require","module","exports",js)((id)=>id in mocks?mocks[id]:require(id),module,module.exports);
-  return module.exports;
+  const loaded={exports:{}};
+  new Function("require","module","exports",js)((id)=>id in mocks?mocks[id]:require(id),loaded,loaded.exports);
+  return loaded.exports;
 }
 const domain=loadTs("src/lib/os/domain.ts");
 const {pageToHtml}=loadTs("src/lib/os/exporters.ts",{"./domain":domain});
