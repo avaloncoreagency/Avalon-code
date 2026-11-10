@@ -81,9 +81,19 @@ test("GROWTH E2E: public form -> a single audited CRM lead; no sale, outreach or
   assert.equal(submissions.length, 3);
   assert.ok(submissions.every(x => x.lead_id === leads[0].id && x.consent_at));
   assert.equal(Number((await db.query("select count(*)::int n from crm_audit where entity='crm_leads'")).rows[0].n), 1);
-  for (const table of ["crm_sales", "crm_clients", "crm_events", "crm_activities"]) {
+  for (const table of ["crm_sales", "crm_clients", "crm_events"]) {
     assert.equal(Number((await db.query(`select count(*)::int n from ${table}`)).rows[0].n), 0, table + " must stay empty");
   }
+  // Existing CRM pipeline creates ONE internal pending follow-up when a lead enters New.
+  // This is a task row, NOT a sent email, booked appointment or outbound call.
+  const activities = (await db.query(
+    "select lead_id,kind,status,body from crm_activities order by created_at"
+  )).rows;
+  assert.equal(activities.length, 1, "existing CRM New-stage trigger creates one internal follow-up");
+  assert.equal(activities[0].lead_id, leads[0].id);
+  assert.equal(activities[0].kind, "system");
+  assert.equal(activities[0].status, "pending");
+  assert.match(activities[0].body, /Seguimiento automático/);
 
   await as("authenticated", SAMUEL);
   assert.equal(Number((await db.query("select count(*)::int n from crm_growth_funnel_submissions")).rows[0].n), 3,
