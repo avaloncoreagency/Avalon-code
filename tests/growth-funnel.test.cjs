@@ -12,7 +12,7 @@ new Function("module", "exports", output)(loaded, loaded.exports);
 const { FUNNEL_TEMPLATES, validSlug, publicFunnel, isFunnelTemplate } = loaded.exports;
 
 test("growth funnel: three independent templates never claim payments or booked appointments", () => {
-  assert.deepEqual(Object.keys(FUNNEL_TEMPLATES).sort(), ["capture", "sales", "appointments"]);
+  assert.deepEqual(Object.keys(FUNNEL_TEMPLATES).sort(), ["appointments", "capture", "sales"]);
   assert.ok(Object.values(FUNNEL_TEMPLATES).every(t => t.cta && t.title && t.subheading));
   assert.equal(isFunnelTemplate("sales"), true);
   assert.equal(isFunnelTemplate("payments"), false);
