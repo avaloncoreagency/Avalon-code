@@ -35,6 +35,8 @@ export function PageHeader({ eyebrow, title, description, actions, crumbs }: {
 
 const OK: Record<string, [string, string]> = {
   created: ["Creado correctamente.", "Created."],
+  library_version_saved: ["Nueva versión guardada en la Biblioteca (lista para Preview).", "New version saved to the Library (ready for Preview)."],
+  library_version_unchanged: ["Sin cambios desde la última versión de la Biblioteca: no se creó un duplicado.", "No changes since the last Library version: no duplicate created."],
   saved: ["Cambios guardados.", "Changes saved."],
   archived: ["Archivado.", "Archived."],
   restored: ["Restaurado.", "Restored."],
@@ -44,6 +46,10 @@ const OK: Record<string, [string, string]> = {
   template: ["Plantilla aplicada.", "Template applied."],
 };
 const ERR: Record<string, [string, string]> = {
+  no_pages: ["Añade al menos una página antes de guardar en la Biblioteca.", "Add at least one page before saving to the Library."],
+  library_save_failed: ["No se pudo registrar la versión en la Biblioteca. Revisa el historial de importaciones.", "The Library version could not be registered. Check the import history."],
+  storage_unavailable: ["El almacenamiento privado no respondió. Inténtalo de nuevo.", "Private storage did not respond. Try again."],
+  import_not_registered: ["La Biblioteca rechazó el registro (límite o duplicado).", "The Library refused the registration (limit or duplicate)."],
   required: ["Completa los campos obligatorios.", "Fill in the required fields."],
   too_long: ["Algún campo supera la longitud permitida.", "A field is too long."],
   invalid: ["Datos no válidos. Revisa el formulario.", "Invalid data. Check the form."],
