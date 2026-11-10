@@ -10,7 +10,7 @@ export type FunnelSubmitState = { status: "idle" | "ok" | "invalid" | "throttled
 /**
  * Voluntary inbound request, no automatic email, calls, advertisements or
  * appointments. The anonymous, SQL-throttled RPC is the ONLY write capability.
- * Never use a service_role key in Next.js.
+ * Never use privileged database credentials in Next.js.
  */
 export async function submitFunnel(_previous: FunnelSubmitState, form: FormData): Promise<FunnelSubmitState> {
   const slug = String(form.get("slug") ?? "").trim();
