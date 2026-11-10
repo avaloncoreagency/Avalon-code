@@ -3,7 +3,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getOwnerSession } from "@/lib/auth/session";
 import { parseRadarArea } from "@/lib/crm/radar";
 import { GEOAPIFY_FREE_MAX_RADIUS_M } from "@/lib/crm/radar-geoapify";
-import { radarEndpoint, radarQuota, searchAndIngest } from "@/lib/crm/radar-search";
+import { RADAR_QUERY_KINDS, radarEndpoint, radarQuota, searchAndIngest, type RadarQueryKind } from "@/lib/crm/radar-search";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -30,7 +30,9 @@ export async function GET(request: NextRequest) {
   active = true;
   lastByOwner.set(session.userId, now);
   try {
-    const out = await searchAndIngest(session.supabase, area, "manual:" + randomUUID());
+    const rawKind = request.nextUrl.searchParams.get("kind") ?? "map";
+    const kind: RadarQueryKind = (RADAR_QUERY_KINDS as readonly string[]).includes(rawKind) && rawKind !== "campaign" ? rawKind as RadarQueryKind : "map";
+    const out = await searchAndIngest(session.supabase, area, "manual:" + randomUUID(), null, undefined, kind);
     if (!out.ok) {
       // A search blocked by configuration or quota never reached the provider: do not make the owner wait 30 s.
       if (out.blocked) lastByOwner.delete(session.userId);
