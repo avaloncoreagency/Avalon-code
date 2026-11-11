@@ -40,7 +40,16 @@ export function radarEndpoint():
 }
 
 /** One bounded query to the provider, persisted through the idempotent ingest RPC (never approves). */
-export async function searchAndIngest(db: SupabaseClient, area: RadarArea, runKey: string, campaignId: string | null = null, limit?: number): Promise<SearchOutcome> {
+export const RADAR_QUERY_KINDS = ["coordinates", "postcode", "address", "place", "map", "campaign"] as const;
+export type RadarQueryKind = (typeof RADAR_QUERY_KINDS)[number];
+
+/** Search descriptor stored on the run (persistent history: what was searched, where and how). */
+export function searchDescriptor(area: RadarArea, kind: RadarQueryKind) {
+  return { kind, lat: area.lat, lon: area.lon, radius_m: area.radiusM, label: area.label, industries: area.industries };
+}
+
+export async function searchAndIngest(db: SupabaseClient, area: RadarArea, runKey: string, campaignId: string | null = null, limit?: number,
+  kind: RadarQueryKind = campaignId ? "campaign" : "map"): Promise<SearchOutcome> {
   // A run that already exists is replayed from our own record: the provider is NOT queried again (no credits spent).
   const known = await db.from("crm_radar_runs").select("id,found,inserted,updated").eq("idempotency_key", runKey).maybeSingle();
   if (known.data) return { ok: true, run: { run_id: known.data.id, found: known.data.found, inserted: known.data.inserted, updated: known.data.updated, replayed: true } };
@@ -92,7 +101,10 @@ export async function searchAndIngest(db: SupabaseClient, area: RadarArea, runKe
     const places = geoapify
       ? normalizeGeoapifyPlaces(body)
       : toIngest(body.elements, area.label);
-    const { data, error } = await db.rpc("crm_radar_ingest", { places, run_key: runKey, campaign: campaignId });
+    let { data, error } = await db.rpc("crm_radar_ingest", { places, run_key: runKey, campaign: campaignId, search: searchDescriptor(area, kind) });
+    // Database without migration 20261110140000: the 4-argument function does not exist, so nothing ran. Fall back to the
+    // original ingest (results persist; the run is simply not linked to its results until the migration is applied).
+    if (error?.code === "PGRST202") ({ data, error } = await db.rpc("crm_radar_ingest", { places, run_key: runKey, campaign: campaignId }));
     if (error) return { ok: false, status: 503, error: error.code === "PGRST202" ? "La migración del radar (20261102190000) no está aplicada en este entorno." : "No se pudieron guardar los resultados." };
     return { ok: true, run: data };
   } catch (cause) {
