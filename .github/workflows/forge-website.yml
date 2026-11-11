@@ -58,7 +58,7 @@ jobs:
       - name: Install existing QA browser dependency
         run: npm ci --prefix tests/qa --ignore-scripts
       - name: Install isolated Chromium
-        run: node tests/qa/node_modules/playwright/cli.js install --with-deps chromium
+        run: node tests/qa/node_modules/playwright/cli.js install --with-deps chromium || (echo "::warning::apt mirrors unreachable; installing Chromium without extra system fonts (ubuntu-24.04 already ships Chrome libraries). Browser tests still run." && node tests/qa/node_modules/playwright/cli.js install chromium)
       - name: Actual browser rendering of synthetic exported site (desktop + 390px)
         run: node --test tests/forge-website-preview.screenshot.cjs
       - name: Attach verified renders
