@@ -48,7 +48,7 @@ export async function GET(request: NextRequest) {
   if (bbox.length === 4 && bbox.every(Number.isFinite)) q = q.gte("lat", bbox[0]).lte("lat", bbox[2]).gte("lon", bbox[1]).lte("lon", bbox[3]);
   const { data, error, count } = await q.order("stars", { ascending: false, nullsFirst: false }).order("last_seen_at", { ascending: false }).limit(300);
   if (error) {
-    if (run && (error.code === "PGRST200" || error.code === "42P01"))
+    if (run && ["PGRST200", "PGRST100", "42P01", "42703"].includes(error.code ?? ""))
       return reply({ error: "La migración 20261110140000 (resultados por búsqueda) no está aplicada en este entorno.", blocked: "migration" }, 503);
     return reply({ error: error.code === "42703" || error.code === "PGRST204" ? "La migración del radar (20261102190000) no está aplicada en este entorno." : "No se pudieron cargar los negocios." }, 503);
   }

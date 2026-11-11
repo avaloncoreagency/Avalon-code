@@ -131,8 +131,11 @@ export function TitanRadar({ onChanged }: { onChanged?: () => void }) {
     if (runFilter) params.set("run", runFilter);
     try {
       const res = await fetch("/admin/workspace/crm/radar/places?" + params, { cache: "no-store" });
-      const body = await res.json() as { places?: RadarBusiness[]; error?: string };
+      const body = await res.json() as { places?: RadarBusiness[]; error?: string; blocked?: string };
       if (revision !== placesLoadRevision.current) return;
+      // Database without migration 20261110140000: results cannot be scoped by search yet. Fall back to the zone filter
+      // over the accumulated inbox instead of showing an error after every search.
+      if (!res.ok && runFilter && body.blocked === "migration") { setRunFilter(null); setOnlyZone(true); return; }
       if (!res.ok) { setError(body.error ?? "No se pudo cargar el radar."); return; }
       setPlaces(body.places ?? []);
     } catch {
