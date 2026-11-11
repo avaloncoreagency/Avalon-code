@@ -136,7 +136,9 @@ test('every module server action re-verifies the owner before touching data', ()
     // it only inserts a NEW immutable version (tests/project-bridge.database.cjs).
     // os_code_review (Code Exchange) is SECURITY DEFINER, raises unless auth.uid() is an owner, and only moves a delivery
     // ready_for_review → approved/rejected (or approved → rejected); locked by tests/code-exchange.database.cjs.
-    const REVIEWED_RPCS = new Set(['crm_confirm_sale', 'crm_record_sale_failure', 'crm_owner_directory', 'os_project_restore_version', 'os_code_review']);
+    // crm_assessment_save (CRM Intelligence) is SECURITY INVOKER: RLS applies, it raises unless crm_private.is_owner(), and it
+    // only merges answers per question with conflict detection (tests/crm-intelligence.database.cjs).
+    const REVIEWED_RPCS = new Set(['crm_confirm_sale', 'crm_record_sale_failure', 'crm_owner_directory', 'os_project_restore_version', 'os_code_review', 'crm_assessment_save']);
     for (const call of text.matchAll(/\.rpc\(\s*(['"])?([\w]*)\1?/g)) {
       assert.ok(REVIEWED_RPCS.has(call[2]), `${file} calls unreviewed RPC ${call[2] || '(dynamic)'}`);
     }

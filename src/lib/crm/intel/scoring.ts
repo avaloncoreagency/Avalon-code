@@ -1,5 +1,6 @@
 import type { Answers, L } from "./types";
-import { bool, list, num, str } from "./form";
+import { bool, list, num, str, visibleQuestions } from "./form";
+import { templateFor } from "./templates";
 
 // Explainable lead score (0–100). Rules are plain code, versioned, and every point has a visible reason.
 // Unknown data is EXCLUDED (never counted as a negative): a category without data is "unknown", and the overall score is
@@ -30,7 +31,10 @@ export type Facts = {
 const RESTRICTED = ["tobacco", "nicotine_vapes", "hemp_cbd", "kratom"];
 
 /** Map answers to normalized facts. Industry-specific answers take precedence over the general questionnaire. */
-export function extractFacts(industry: string, a: Answers): Facts {
+export function extractFacts(industry: string, all: Answers): Facts {
+  // Answers hidden by a condition that no longer holds (e.g. installation price after "does not install") do not count.
+  const shown = new Set(visibleQuestions(templateFor(industry), all).flatMap(s => s.questions.map(q => q.id)));
+  const a: Answers = Object.fromEntries(Object.entries(all).filter(([k]) => shown.has(k)));
   const f: Facts = { industry };
   const first = <T>(...xs: (T | undefined)[]) => xs.find(x => x !== undefined);
   // Profitability

@@ -105,6 +105,12 @@ test("unknown data is excluded, never negative; too little data = insufficient, 
   assert.equal(budget.factors.length, 1, "unknown ad budget is simply not scored");
 });
 
+test("answers hidden by a condition no longer count (install price after 'does not install')", () => {
+  const r = S.scoreLead("hvac", { ...hvacStrong, h_install: A(false), h_install_gp: A(9000) });
+  const profit = r.categories.find(c => c.category === "profitability");
+  assert.ok(!String(profit.factors[0]?.evidence ?? "").includes("9,000"), "hidden install answers are ignored");
+});
+
 test("an explicit 'no capacity' scores 0 and blocks ad recommendations", () => {
   const busy = { ...hvacStrong, h_installs_extra: A(0), h_repairs_extra: A(0), h_available_now: A(false) };
   const r = S.scoreLead("hvac", busy);
