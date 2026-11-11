@@ -83,6 +83,14 @@ test('CRM Intelligence in the real app: quick add, discovery, conflicts, score, 
     return page;
   };
 
+  // A server action POSTs to the page with a Next-Action header; wait for THAT response, because a success banner from a
+  // previous action can still be on screen and would make a text wait return before this save finished.
+  const submit = async (page, locator) => {
+    const done = page.waitForResponse(r => r.request().method() === 'POST' && !!r.request().headers()['next-action'], { timeout: 30000 });
+    await locator.click();
+    await done;
+    await page.waitForLoadState('networkidle');
+  };
   // 1–2. Miguel quick-adds an HVAC contractor with the basics only (desktop).
   const m = await context(miguel);
   await m.goto(origin + '/admin/workspace/crm/desk');
@@ -123,10 +131,10 @@ test('CRM Intelligence in the real app: quick add, discovery, conflicts, score, 
   // 25. Concurrent edit: Miguel loads the capacity section, Samuel saves first, Miguel's stale value is NOT applied.
   await m.goto(`${origin}/admin/workspace/crm/lead/${leadId}/discovery?industry=hvac&section=h_capacity`);
   await sPhone.getByLabel('Cantidad de técnicos').fill('5');
-  await sPhone.getByRole('button', { name: 'Guardar', exact: true }).click();
+  await submit(sPhone, sPhone.getByRole('button', { name: 'Guardar', exact: true }));
   await sPhone.getByText('Respuestas guardadas en Avalon').waitFor();
   await m.getByLabel('Cantidad de técnicos').fill('3');
-  await m.getByRole('button', { name: 'Guardar', exact: true }).click();
+  await submit(m, m.getByRole('button', { name: 'Guardar', exact: true }));
   await m.getByText('Otra persona guardó cambios').waitFor();
   assert.equal(await m.getByLabel('Cantidad de técnicos').inputValue(), '5', "the other owner's newer answer is shown, not overwritten");
   assert.equal((await one(`select answers->'h_techs'->>'v' v from crm_lead_assessments where lead_id=$1 and industry_key='hvac'`, [leadId])).v, '5');
@@ -138,7 +146,7 @@ test('CRM Intelligence in the real app: quick add, discovery, conflicts, score, 
       if (kind === 'radio') await m.getByRole('radiogroup', { name: label }).getByLabel(value, { exact: true }).check();
       else await m.getByLabel(label, { exact: true }).fill(value);
     }
-    await m.getByRole('button', { name: 'Guardar', exact: true }).click();
+    await submit(m, m.getByRole('button', { name: 'Guardar', exact: true }));
     await m.getByText('Respuestas guardadas en Avalon').waitFor();
   };
   await fill('h_capacity', [['Instalaciones adicionales posibles por semana', '3'], ['Reparaciones adicionales posibles por semana', '5'], ['¿Puede aceptar trabajos nuevos ahora?', 'Sí', 'radio']]);
@@ -158,10 +166,10 @@ test('CRM Intelligence in the real app: quick add, discovery, conflicts, score, 
   // 6–8. Samuel logs a call + next contact without destroying Miguel's data; reassignment.
   await sPhone.goto(`${origin}/admin/workspace/crm/lead/${leadId}`);
   await sPhone.getByLabel('Resultado / notas').fill('Llamada: interesado en AI Receptionist (sintético)');
-  await sPhone.getByRole('button', { name: 'Registrar' }).click();
+  await submit(sPhone, sPhone.getByRole('button', { name: 'Registrar' }));
   await sPhone.getByText('Cambios guardados en Avalon').waitFor();
   await sPhone.getByLabel('Responsable').selectOption(SAMUEL);
-  await sPhone.getByRole('button', { name: 'Guardar', exact: true }).first().click();
+  await submit(sPhone, sPhone.getByRole('button', { name: 'Guardar', exact: true }).first());
   await sPhone.getByText('Cambios guardados en Avalon').waitFor();
   assert.equal((await one('select owner_id from crm_leads where id=$1', [leadId])).owner_id, SAMUEL);
   assert.equal(await sPhone.evaluate(() => document.scrollingElement.scrollWidth <= window.innerWidth + 1), true, 'no horizontal scroll on iPhone (deal review)');
@@ -180,7 +188,7 @@ test('CRM Intelligence in the real app: quick add, discovery, conflicts, score, 
   await agreed.getByLabel('Modelo de facturación').selectOption('hybrid');
   await agreed.getByLabel('Comisión acordada (%)').fill('7');
   await agreed.getByLabel(/Apruebo personalmente la comisión/).check();
-  await agreed.getByRole('button', { name: 'Guardar' }).click();
+  await submit(m, agreed.getByRole('button', { name: 'Guardar' }));
   await m.getByText('Cambios guardados en Avalon').waitFor();
   assert.equal((await one(`select commission_approved_by from crm_commercial_terms where lead_id=$1 and kind='agreed'`, [leadId])).commission_approved_by, MIGUEL);
 
@@ -191,22 +199,22 @@ test('CRM Intelligence in the real app: quick add, discovery, conflicts, score, 
 
   // 12. Contract flow in the UI → Won allowed.
   await m.goto(`${origin}/admin/workspace/crm/lead/${leadId}?tab=contract`);
-  await m.getByRole('button', { name: 'Iniciar contrato' }).click();
-  await m.getByRole('button', { name: 'Pasar a: Enviado a firma' }).click();
+  await submit(m, m.getByRole('button', { name: 'Iniciar contrato' }));
+  await submit(m, m.getByRole('button', { name: 'Pasar a: Enviado a firma' }));
   await m.getByText('Cambios guardados en Avalon').waitFor();
   await m.getByLabel('Fecha de firma').fill('2026-11-11');
   await m.getByLabel('Firmado por').fill('Dueño Sintético');
   await m.getByLabel('o referencia externa (sobre de firma)').fill('SYNTH-ENV-001');
-  await m.getByRole('button', { name: 'Pasar a: Firmado · pendiente de verificar' }).click();
+  await submit(m, m.getByRole('button', { name: 'Pasar a: Firmado · pendiente de verificar' }));
   await m.getByText('Cambios guardados en Avalon').waitFor();
   await m.getByLabel('Método de verificación').selectOption('document_review');
   await m.getByLabel('Qué se revisó (mín. 15 caracteres)').fill('Sobre firmado revisado: firma y fecha coinciden.');
-  await m.getByRole('button', { name: 'Pasar a: Firmado y verificado' }).click();
+  await submit(m, m.getByRole('button', { name: 'Pasar a: Firmado y verificado' }));
   await m.getByText('Cambios guardados en Avalon').waitFor();
   await m.screenshot({ path: `${EVIDENCE}/05-contract-verified.png`, fullPage: true });
   await m.goto(`${origin}/admin/workspace/crm/lead/${leadId}`);
   await m.getByLabel('Etapa (13 etapas existentes)').selectOption('won');
-  await m.getByRole('button', { name: 'Guardar', exact: true }).first().click();
+  await submit(m, m.getByRole('button', { name: 'Guardar', exact: true }).first());
   await m.getByText('Cambios guardados en Avalon').waitFor();
   assert.equal((await one('select stage_id, contract_status from crm_leads where id=$1', [leadId])).stage_id, 'won');
 
