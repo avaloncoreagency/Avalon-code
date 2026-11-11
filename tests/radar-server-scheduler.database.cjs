@@ -112,8 +112,13 @@ test("dedicated worker state has private secrets and owner-only run history", { 
   assert.equal((await db.query("select crm_radar_worker_convert_verified($1) as result", [autoSite])).rows[0].result,
     null, "two-star website optimization cannot trigger premium auto pipeline conversion");
 
+  // P0 (Operación 0352): a corroborated but still PENDING prospect is NOT converted by the worker; an owner approves first.
+  assert.equal((await db.query("select crm_radar_worker_convert_verified($1) as id", [qualified])).rows[0].id, null, "pending prospects need prior owner approval");
+  await as("authenticated", MIGUEL);
+  await db.query("update crm_prospects set status='approved' where id=$1", [qualified]);
+  await as("service_role", MIGUEL);
   const lead = (await db.query("select crm_radar_worker_convert_verified($1) as id", [qualified])).rows[0].id;
-  assert.ok(lead, "a truly corroborated 4-star high-confidence lead is promoted");
+  assert.ok(lead, "a truly corroborated 4-star high-confidence lead approved by an owner is promoted");
   const card = (await db.query("select id,stage_id,prospect_id from crm_leads where id=$1", [lead])).rows[0];
   assert.equal(card.stage_id, "new");
   assert.equal(card.prospect_id, qualified);

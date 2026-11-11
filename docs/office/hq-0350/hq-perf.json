@@ -1,0 +1,19 @@
+{
+  "desktop": {
+    "firstFrameMs": 9050,
+    "modelsMs": 375,
+    "calls": 92,
+    "triangles": 160805,
+    "textures": 25,
+    "tier": "desktop"
+  },
+  "iphone13": {
+    "firstFrameMs": 6147,
+    "modelsMs": 4238,
+    "calls": 73,
+    "triangles": 153429,
+    "textures": 24,
+    "tier": "mobile"
+  },
+  "note": "SwiftShader (software GPU) in CI: absolute times are pessimistic; draw calls/triangles are device-independent"
+}

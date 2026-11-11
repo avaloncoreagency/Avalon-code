@@ -113,18 +113,25 @@ test("radar rules: versioned thresholds, recorded reasons, manual rating protect
     null, "two-star website optimization cannot trigger premium auto pipeline conversion");
 
   const decisions = async id => (await db.query("select outcome, reasons, rule_version from crm_radar_decisions where prospect_id=$1 order by decided_at, id", [id])).rows;
-  // Pending outcomes explain themselves; repeated runs do not spam the log.
+  // Operación 0352: without a prior owner approval a prospect is only logged as pending (even if it meets every rule).
+  await as("service_role", MIGUEL);
+  assert.equal((await db.query("select crm_radar_worker_convert_verified($1) as id", [qualified])).rows[0].id, null, "pending needs owner approval");
+  assert.deepEqual((await decisions(qualified)).at(-1).reasons, ["owner_approval_required"]);
+  await as("authenticated", MIGUEL);
+  for (const id of [autoSite, qualified]) await db.query("update crm_prospects set status='approved' where id=$1", [id]);
+  // Approved prospects below the rules explain themselves; repeated runs do not spam the log.
   await db.exec("reset role"); await as("service_role", MIGUEL);
   await db.query("select crm_radar_worker_convert_verified($1)", [autoSite]); await db.query("select crm_radar_worker_convert_verified($1)", [autoSite]);
   const d1 = await decisions(autoSite);
-  assert.equal(d1.length, 1); assert.equal(d1[0].outcome, "pending");
-  assert.ok(d1[0].reasons.includes("stars_below_threshold") && d1[0].reasons.includes("insufficient_evidenced_services"));
+  // [0] = the earlier refusal without approval; [1] = the rules verdict after approval; the repeated runs added nothing.
+  assert.equal(d1.length, 2); assert.deepEqual(d1[0].reasons, ["owner_approval_required"]); assert.equal(d1[1].outcome, "pending");
+  assert.ok(d1[1].reasons.includes("stars_below_threshold") && d1[1].reasons.includes("insufficient_evidenced_services"));
   // A human-rated prospect is never auto-promoted over the human rating.
   await db.exec("reset role"); await db.query("update crm_prospects set stars_override=5, override_reason='Valoración humana de prueba' where id=$1", [qualified]); await as("service_role", MIGUEL);
   assert.equal((await db.query("select crm_radar_worker_convert_verified($1) as id", [qualified])).rows[0].id, null);
   assert.ok((await decisions(qualified)).at(-1).reasons.includes("manual_rating_requires_human"));
   await db.exec("reset role"); await db.query("update crm_prospects set stars_override=null, override_reason='' where id=$1", [qualified]); await as("service_role", MIGUEL);
-  // Rules v1 promote exactly as before and record why.
+  // Rules v1 promote as before (the prospect was owner-approved above) and record why.
   const lead = (await db.query("select crm_radar_worker_convert_verified($1) as id", [qualified])).rows[0].id;
   assert.ok(lead);
   assert.equal((await db.query("select crm_radar_worker_convert_verified($1) as id", [qualified])).rows[0].id, lead);

@@ -74,6 +74,7 @@ export async function Suite({ children, active = "dashboard" }: { children: Reac
           <Icon name={m.icon} /><span className={s.navLabel}>{m.name}</span>
         </Link>
       ))}
+      <Link className={s.navItem} href="/admin/workspace/library" aria-current={active === "library" ? "page" : undefined}><Icon name="website" /><span className={s.navLabel}>{pick(lang, "Biblioteca", "Library")}</span></Link>
       <Link className={s.navItem} href="/admin/dev-bridge" aria-current={active === "dev-bridge" ? "page" : undefined}><Icon name="blueprint" /><span className={s.navLabel}>Dev Bridge</span></Link>
       <p className={s.navGroup}>{pick(lang, "Cuenta", "Account")}</p>
       <Link className={s.navItem} aria-current={active === "settings" ? "page" : undefined} href="/admin/settings" title={pick(lang, "Configuración", "Settings")}>

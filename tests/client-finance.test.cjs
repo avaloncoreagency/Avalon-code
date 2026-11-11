@@ -57,7 +57,17 @@ test("a server whose max-rows is smaller than our page still yields every row (n
   assert.ok(new Set(loaded.rows.map(r => r.id)).size === 101, "no row skipped or duplicated");
 });
 
-test("without a server count a full page keeps reading and a short page ends the read", async () => {
+test("without a server count a short page is NOT proof of the end: a server cap below our page size still yields every row", async () => {
+  const src = source(sales(101), { cap: 100, count: false });
+  const loaded = await loadAllRows(src.fetchPage);
+  assert.equal(loaded.rows.length, 101, "the 101st row behind a 100-row server cap is read");
+  assert.equal(loaded.complete, true);
+  assert.deepEqual(src.calls.map(([from]) => from), [0, 100, 101], "reads continue until an empty page proves the end");
+  const capped = await loadAllRows(source(costs(FINANCE_PAGE_SIZE * FINANCE_MAX_PAGES + 1), { cap: FINANCE_PAGE_SIZE, count: false }).fetchPage);
+  assert.equal(capped.complete, false, "hitting the page ceiling without an empty page is partial, never complete");
+});
+
+test("without a server count a full page keeps reading and an empty page ends the read", async () => {
   const exactlyOnePage = await read(costs(FINANCE_PAGE_SIZE), { count: false });
   assert.equal(exactlyOnePage.rows.length, FINANCE_PAGE_SIZE);
   assert.equal(exactlyOnePage.complete, true, "the follow-up page is empty, which proves the end");

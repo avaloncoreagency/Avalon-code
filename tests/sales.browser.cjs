@@ -14,7 +14,7 @@ const MIGUEL = '00000000-0000-4000-8000-0000000000a1';
 const SAMUEL = '00000000-0000-4000-8000-0000000000b2';
 const OUTSIDER = '00000000-0000-4000-8000-0000000000c3';
 const EVIDENCE = process.env.EVIDENCE_DIR || '../evidence';
-const ROUTES = ['/admin/dashboard', '/admin/workspace/crm', '/admin/workspace/crm/calendar', '/admin/workspace/crm/settings', '/admin/workspace/crm/sales', '/admin/workspace/crm/sales/new', '/admin/workspace/crm/clients', '/admin/workspace/crm/tasks', '/admin/workspace/crm/notifications', '/admin/workspace/crm/activity', '/admin/workspace/crm/office'];
+const ROUTES = ['/admin/dashboard', '/admin/workspace/crm', '/admin/workspace/crm/calendar', '/admin/workspace/crm/settings', '/admin/workspace/crm/sales', '/admin/workspace/crm/sales/new', '/admin/workspace/crm/clients', '/admin/workspace/crm/tasks', '/admin/workspace/crm/notifications', '/admin/workspace/crm/activity', '/admin/workspace/crm/office/hq']; // /crm/office redirects to the single Avalon HQ
 
 test('Nova Restaurant through the real app: one form, three departments, no duplicates', { timeout: 240000 }, async t => {
   const db = new PGlite();
@@ -529,12 +529,14 @@ test('Nova Restaurant through the real app: one form, three departments, no dupl
 
   // ── Oficina: directory from memberships, profiles, private messages, tasks, AI managers (never faked) ──
   await page.goto(origin + '/admin/workspace/crm/office');
-  await page.getByRole('heading', { name: 'Oficina', level: 1 }).waitFor();
-  const scene = page.getByRole('region', { name: 'Sede de Avalon: selecciona una estación' });
-  for (const name of ['REN', 'SHIN', 'HARU', 'SORA', 'KENJI']) await scene.getByRole('button', { name: new RegExp('^' + name + ' · Sin conexión · manager virtual de IA') }).waitFor();
-  assert.equal(await scene.getByRole('button', { name: /Propietario/ }).count(), 2, 'both owners come from agency_memberships');
+  // ONE office: /crm/office redirects to Avalon HQ; the directory, profiles, tasks and messages live in its Directorio panel.
+  await page.getByRole('heading', { name: 'Avalon HQ', level: 1 }).waitFor();
+  assert.match(page.url(), /\/admin\/workspace\/crm\/office\/hq$/);
+  const scene = page.getByRole('region', { name: 'Directorio' });
+  for (const name of ['REN', 'SHIN', 'HARU', 'SORA', 'KENJI']) await scene.getByRole('button', { name: new RegExp('^Abrir perfil de ' + name + ' \\(manager virtual de IA\\)') }).waitFor();
+  assert.equal(await scene.getByRole('button', { name: /^Abrir perfil de (miguel|samuel)$/ }).count(), 2, 'both owners come from agency_memberships');
   // Own profile: edit (self-only).
-  await scene.getByRole('button', { name: /^miguel · Propietario/ }).click();
+  await scene.getByRole('button', { name: /^Abrir perfil de miguel$/ }).click();
   drawer = page.getByRole('dialog');
   await drawer.getByLabel('Nombre visible').fill('Miguel Sintético');
   await drawer.getByLabel('Cargo').fill('Co-fundador');
@@ -544,7 +546,7 @@ test('Nova Restaurant through the real app: one form, three departments, no dupl
   assert.equal((await one(`select title from office_profiles where user_id='${MIGUEL}'`)).title, 'Co-fundador');
   await drawer.getByRole('button', { name: 'Volver a la oficina' }).click();
   // Samuel's profile: assign a task and send a private message linked to a real lead.
-  await scene.getByRole('button', { name: /^samuel · Propietario/ }).click();
+  await scene.getByRole('button', { name: /^Abrir perfil de samuel$/ }).click();
   drawer = page.getByRole('dialog');
   assert.equal(await drawer.getByText('Editar mi perfil').count(), 0, 'cannot edit someone else\'s profile');
   await drawer.getByRole('tab', { name: 'Tareas' }).click();
@@ -564,7 +566,7 @@ test('Nova Restaurant through the real app: one form, three departments, no dupl
   await page.screenshot({ path: `${EVIDENCE}/office-messages.png` });
   await drawer.getByRole('button', { name: 'Volver a la oficina' }).click();
   // AI manager: request is registered, explicitly NOT executed; no fabricated reply.
-  await scene.getByRole('button', { name: /^REN · Sin conexión · manager virtual de IA/ }).click();
+  await scene.getByRole('button', { name: /^Abrir perfil de REN \(manager virtual de IA\)/ }).click();
   drawer = page.getByRole('dialog');
   await drawer.getByText('Manager virtual de IA · no es una persona').waitFor();
   await drawer.getByLabel(/Solicitud para REN/).fill('REN, muéstrame lo que falta para completar Avalon.');
@@ -578,9 +580,8 @@ test('Nova Restaurant through the real app: one form, three departments, no dupl
   await page.screenshot({ path: `${EVIDENCE}/office-desktop.png`, fullPage: true });
   // Samuel (iPhone width) sees the unread message, reads it in the directory view.
   await sam.goto(origin + '/admin/workspace/crm/office');
-  await sam.getByRole('heading', { name: 'Oficina', level: 1 }).waitFor();
+  await sam.getByRole('heading', { name: 'Avalon HQ', level: 1 }).waitFor();
   await sam.screenshot({ path: `${EVIDENCE}/office-mobile.png`, fullPage: true });
-  await sam.getByRole('button', { name: 'Directorio' }).click();
   await sam.getByRole('button', { name: /Abrir perfil de Miguel Sintético/ }).getByText('1 sin leer').waitFor();
   await sam.getByRole('button', { name: /Abrir perfil de Miguel Sintético/ }).click();
   await sam.getByRole('dialog').getByRole('tab', { name: /Mensajes/ }).click();

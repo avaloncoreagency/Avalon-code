@@ -1,0 +1,101 @@
+{
+  "base": "http://localhost:3100",
+  "projectId": "584b5ca7-e278-4b15-9df9-9709eca98515",
+  "results": [
+    {
+      "test": "T1",
+      "name": "page created in the Website Designer, saved to the DB and as Library v1 (real ids)",
+      "status": "PASS",
+      "project_id": "584b5ca7-e278-4b15-9df9-9709eca98515",
+      "version_id": "60c205c9-f554-4673-8945-53326911fb3a",
+      "version": 1,
+      "files": [
+        "index.html"
+      ],
+      "library": {
+        "ok": "library_version_saved",
+        "error": null,
+        "version": "1"
+      }
+    },
+    {
+      "test": "T2",
+      "name": "new session recovers identical content (editor + Library file SHA-256) and re-saving creates no duplicate",
+      "status": "PASS",
+      "recovered": "Versión 1 · 202611101528",
+      "index_sha256": "a9c9b56b2ab26952",
+      "resave": "library_version_unchanged"
+    },
+    {
+      "test": "T3",
+      "name": "Library v1 published as a Vercel Preview via Avalon's server-side API (no GitHub)",
+      "status": "BLOCKED",
+      "ui": {
+        "ok": null,
+        "error": "first_deployment_is_production"
+      },
+      "deployment": {
+        "state": "blocked",
+        "error": "first_deployment_is_production",
+        "target": "preview",
+        "project": "avalon-client-bridge-e2e",
+        "url": null
+      }
+    },
+    {
+      "test": "T4",
+      "name": "v2 saved; restoring v1 creates v3 with v1's exact content; v1 and v2 kept",
+      "status": "PASS",
+      "versions": [
+        {
+          "n": 1,
+          "kind": "import"
+        },
+        {
+          "n": 2,
+          "kind": "import"
+        },
+        {
+          "n": 3,
+          "kind": "restore"
+        }
+      ],
+      "preview_v2": {
+        "ok": null,
+        "error": "first_deployment_is_production"
+      }
+    },
+    {
+      "test": "T4b",
+      "name": "v2 published as Preview",
+      "status": "BLOCKED",
+      "ui": {
+        "ok": null,
+        "error": "first_deployment_is_production"
+      }
+    },
+    {
+      "test": "T5",
+      "name": "outsider (own JWT) and anonymous: no read, download, edit, new version, deploy or restore",
+      "status": "PASS",
+      "pages": [
+        "/admin/login",
+        "/admin/login",
+        "/admin/login",
+        "anon:/admin/login"
+      ],
+      "checks": {
+        "read_versions": 0,
+        "read_files": 0,
+        "download_blob": false,
+        "modify_page": 0,
+        "create_version": false,
+        "deploy": false,
+        "restore": false,
+        "anon_read": 0,
+        "anon_download": false
+      }
+    }
+  ],
+  "at": "2026-11-10T15:29:37.319Z"
+}

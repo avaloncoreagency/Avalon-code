@@ -13,6 +13,7 @@ const str = (form: FormData, name: string) => String(form.get(name) ?? "").trim(
 function finish(status: string): never {
   revalidatePath(ROOT);
   revalidatePath("/admin/workspace/crm/office");
+  revalidatePath("/admin/workspace/crm/office/hq");
   redirect(ROOT + "?profile=" + status);
 }
 

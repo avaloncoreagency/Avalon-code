@@ -152,7 +152,7 @@ async function processBatch(db: SupabaseClient, owner: string, now: number) {
   const promotion = await db.from("crm_prospects")
     .select("id,stars,stars_override,confidence,status")
     .not("source_ref", "is", null)
-    .in("status", ["pending", "approved"])
+    .eq("status", "approved") // owner approval first (Operación 0352): the RPC also refuses anything without a recorded approval
     .eq("do_not_contact", false)
     .eq("confidence", "high")
     .order("updated_at", { ascending: false }).limit(80);

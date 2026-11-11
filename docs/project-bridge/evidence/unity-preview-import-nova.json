@@ -1,0 +1,40 @@
+{
+  "base": "https://avalon-core-agency-dzhg4iweu-avalon-core-agency.vercel.app",
+  "projectId": "c7b0b009-48bc-4044-a49f-bc18ce503034",
+  "steps": [
+    {
+      "name": "Nova 1 imported through the owner importer as version 1",
+      "ok": true,
+      "status": "Importado · versión 1. Abrir proyecto no_html_entry"
+    },
+    {
+      "name": "Nova 2 imported into the same project as version 2",
+      "ok": true,
+      "status": "Importado · versión 2. Abrir proyecto no_html_entry"
+    },
+    {
+      "name": "library holds two immutable versions",
+      "ok": true,
+      "numbers": [
+        1,
+        2
+      ]
+    },
+    {
+      "name": "v1: every stored file matches the Git blob of d948066 (SHA-256)",
+      "ok": true,
+      "files": 7,
+      "manifests": true,
+      "mismatch": []
+    },
+    {
+      "name": "v2: every stored file matches the Git blob of 809da98 (SHA-256)",
+      "ok": true,
+      "files": 20,
+      "manifests": true,
+      "mismatch": []
+    }
+  ],
+  "result": "PASSED",
+  "at": "2026-11-09T16:07:55.482Z"
+}
