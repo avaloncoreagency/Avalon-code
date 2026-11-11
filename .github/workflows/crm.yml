@@ -31,7 +31,7 @@ jobs:
       - run: npm run build
       - run: npm run test:integration
       - run: npm run bridge:test
-      - run: node tests/qa/node_modules/playwright/cli.js install --with-deps chromium
+      - run: node tests/qa/node_modules/playwright/cli.js install --with-deps chromium || (echo "::warning::apt mirrors unreachable; installing Chromium without extra system fonts (ubuntu-24.04 already ships Chrome libraries). Browser tests still run." && node tests/qa/node_modules/playwright/cli.js install chromium)
       - run: node --test tests/crm.database.cjs tests/unified.database.cjs tests/sales.database.cjs tests/crm.integration.cjs tests/radar-server-scheduler.database.cjs tests/radar-profile.database.cjs tests/crm-intelligence.database.cjs tests/crm-intelligence.browser.cjs tests/prod-schema-compat.browser.cjs
         env:
           NODE_PATH: ./tests/qa/node_modules

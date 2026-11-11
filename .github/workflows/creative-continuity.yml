@@ -45,7 +45,7 @@ jobs:
       - run: node --test tests/creative-bridge.database.cjs tests/creative-continuity.database.cjs tests/creative-lifecycle.database.cjs
         env:
           NODE_PATH: ./tests/qa/node_modules
-      - run: node tests/qa/node_modules/playwright/cli.js install --with-deps chromium
+      - run: node tests/qa/node_modules/playwright/cli.js install --with-deps chromium || (echo "::warning::apt mirrors unreachable; installing Chromium without extra system fonts (ubuntu-24.04 already ships Chrome libraries). Browser tests still run." && node tests/qa/node_modules/playwright/cli.js install chromium)
       - run: npm run build
       - name: Real administration HTTP and mobile browser on isolated PostgreSQL
         run: node --test tests/creative-projects.http.cjs
