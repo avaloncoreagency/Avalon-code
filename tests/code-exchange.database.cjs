@@ -26,6 +26,8 @@ async function setup() {
     await db.exec(fs.readFileSync('supabase/migrations/' + file, 'utf8'));
     if (file.startsWith('20261102053022')) await db.exec(`insert into agency_memberships values('${MIGUEL}','owner'),('${STRANGER}','operator')`);
   }
+  // v1 ships Code Exchange disabled (20261111090000). These tests exercise the token logic as if an owner re-enabled it.
+  await db.exec(fs.readFileSync('supabase/migrations/20261111090000_code_exchange_disabled.sql', 'utf8').replace(/revoke execute on (function [^;]+) from anon;/g, 'grant execute on $1 to anon;'));
   const as = async (role, user = '', headers = '') => db.exec(`reset role;set request.jwt.claim.role='${role}';set request.jwt.claim.sub='${user}';set request.headers='${headers}';set role ${role}`);
   const q = async (sql, p) => (await db.query(sql, p)).rows;
   const one = async (sql, p) => (await q(sql, p))[0];

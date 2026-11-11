@@ -107,7 +107,6 @@ const link = cwd => execFileSync('npm', ['ci', '--prefer-offline', '--no-audit',
   const inbox = await rpc(CODEX, 'os_code_inbox', {});
   const appr = await rpc(CODEX, 'os_code_set_status', { p_delivery: crypto.randomUUID(), p_status: 'approved' });
   step('agent token cannot publish, list the inbox or approve (28000)', [pub, inbox, appr].every(r => r.body?.code === '28000'), { codes: [pub, inbox, appr].map(r => r.body?.code) });
-  const myA = (await rpc(CODEX, 'os_code_my_deliveries', {})).body.find(d => d.key === `e2e-a-${stamp}`);
   const pkgRead = await rpc(READER, 'os_code_inbox', {});
   step('pull-only token cannot see deliveries', pkgRead.body?.code === '28000');
 

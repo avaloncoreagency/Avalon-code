@@ -47,7 +47,7 @@ concurrency:
 
 jobs:
   offline:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 15
     steps:
       - uses: actions/checkout@v4
@@ -69,7 +69,7 @@ jobs:
         github.event_name == 'workflow_dispatch' ||
         (github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository &&
          contains(github.event.pull_request.labels.*.name, 'ai-engine:live')))
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 10
     env:
       GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
@@ -103,7 +103,7 @@ jobs:
         (github.event_name == 'workflow_dispatch' && inputs.mode == 'ren') ||
         (github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository &&
          contains(github.event.pull_request.labels.*.name, 'ai-engine:ren-run')))
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 25
     permissions:
       contents: write        # push REN's own branch only
@@ -163,7 +163,7 @@ jobs:
         (github.event_name == 'workflow_dispatch' && inputs.mode == 'managers') ||
         (github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository &&
          contains(github.event.pull_request.labels.*.name, 'ai-engine:managers')))
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 20
     permissions:
       contents: read
@@ -216,7 +216,7 @@ jobs:
         (github.event_name == 'workflow_dispatch' && inputs.mode == 'intake') ||
         (github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository &&
          contains(github.event.pull_request.labels.*.name, 'ai-engine:intake')))
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 20
     permissions:
       contents: read

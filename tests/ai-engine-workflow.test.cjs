@@ -23,7 +23,7 @@ test('every job that can use secrets is behind the repository kill switch; PR-la
     assert.match(jobs[name], /if: >-\s*\n\s+vars\.AVALON_AI_ENGINE_DISABLED != 'true'/, name + ' has the kill switch');
     if (/github\.event_name == 'pull_request'/.test(jobs[name])) assert.match(jobs[name], /head\.repo\.full_name == github\.repository/, name + ' excludes forks');
   }
-  assert.match(jobs.offline, /runs-on: ubuntu-latest/);
+  assert.match(jobs.offline, /runs-on: ubuntu-(latest|24\.04)/);
   assert.doesNotMatch(jobs.offline, /secrets\./, 'the offline job never receives secrets');
 });
 

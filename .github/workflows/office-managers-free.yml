@@ -22,7 +22,7 @@ concurrency:
 jobs:
   verify-and-report:
     name: Five GitHub-native checks, one verified report
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 3
     # Optional kill-switch for administrators. No paid APIs, DB or secrets.
     if: ${{ github.event.repository.private == false && vars.AVALON_OFFICE_FREE_CHECKS_DISABLED != 'true' }}

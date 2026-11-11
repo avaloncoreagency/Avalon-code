@@ -13,7 +13,7 @@ permissions:
 jobs:
   database:
     name: RLS and triggers on isolated PostgreSQL
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 10
     services:
       postgres:

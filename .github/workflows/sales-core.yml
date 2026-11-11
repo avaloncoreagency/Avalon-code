@@ -22,7 +22,7 @@ concurrency:
 jobs:
   database:
     name: Full migration chain + Nova Restaurant E2E (synthetic)
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 15
     services:
       postgres:
