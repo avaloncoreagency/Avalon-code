@@ -4,6 +4,7 @@
 const { test } = require('node:test');
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
+const verifiedContract = require('./helpers/verified-contract.cjs');
 const { PGlite } = require('@electric-sql/pglite');
 
 const MIGUEL = '00000000-0000-4000-8000-0000000000a1';
@@ -58,6 +59,12 @@ test('two owners: radar → approval → pipeline → stages → sale → one sh
   assert.equal(history[3].actor_id, SAMUEL, 'the owner who moved it is recorded');
 
   // 5. Miguel registers the sale from that lead: website + AI receptionist for one company.
+  // CRM Intelligence gate: without a verified signed contract the sale (which closes the lead as won) is refused whole.
+  await assert.rejects(db.query('select crm_confirm_sale($1::jsonb) r', [JSON.stringify({
+    idempotency_key: '90000000-0000-4000-8000-0000000000ff', lead_id: leadId, new_client: { legal_name: 'Bright Dental Sintético' },
+    lines: [{ service_code: 'desarrollo-web', unit_price: '2000' }] })]), /won_requires_verified_contract/);
+  assert.equal((await one('select count(*)::int n from crm_clients')).n, 0, 'nothing was created by the refused sale');
+  await verifiedContract(db, leadId);
   const sale = (await one('select crm_confirm_sale($1::jsonb) r', [JSON.stringify({
     idempotency_key: '90000000-0000-4000-8000-000000000001', lead_id: leadId, new_client: { legal_name: 'Bright Dental Sintético' },
     contacts: [{ full_name: 'Dra. Prueba', email: 'hola@bright.example.invalid' }], seller_id: MIGUEL,
