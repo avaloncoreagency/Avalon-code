@@ -28,6 +28,8 @@ const input = args.find(a => !a.startsWith("--") && !["--id", "--module", "--aut
 const opt = (k, d) => (args.includes("--" + k) ? args[args.indexOf("--" + k) + 1] : d);
 const id = opt("id"), moduleName = opt("module"), author = opt("author", "codex"), expect = opt("expect-commit");
 if (!input || !id || !moduleName) { console.error("usage: receive-package.mjs <package.zip|dir> --id <id> --module <module> [--author codex] [--expect-commit <sha>]"); process.exit(2); }
+// The id becomes a folder and file name: a plain token only (it can come from an exchange server via acx review).
+if (!/^[A-Za-z0-9][A-Za-z0-9._-]{0,99}$/.test(id) || id.includes("..")) { console.error("REJECTED: invalid delivery id"); process.exit(2); }
 const out = path.resolve(opt("out", path.join(repo, ".avalon-deliveries", id)));
 const sha = b => createHash("sha256").update(b).digest("hex");
 const log = (...m) => console.log(...m);
@@ -46,7 +48,15 @@ if (fs.statSync(input).isDirectory()) {
   if (!z.ok) { console.error("REJECTED package:", z.reason, z.detail ?? ""); process.exit(1); }
   for (const e of z.entries) files.set(e.path, Buffer.from(e.bytes));
 }
-for (const [p, b] of files) { const dst = path.join(out, "pkg", p); fs.mkdirSync(path.dirname(dst), { recursive: true }); fs.writeFileSync(dst, b); }
+// Defense in depth against "zip slip": readZip already rejects traversal, absolute paths and links, but every write is
+// also confined to the quarantine folder here, at the point where the path is used.
+const quarantine = path.resolve(out, "pkg");
+const confined = rel => {
+  const dst = path.resolve(quarantine, rel);
+  if (dst !== quarantine && !dst.startsWith(quarantine + path.sep)) { console.error("REJECTED: entry escapes the quarantine:", rel); process.exit(1); }
+  return dst;
+};
+for (const [p, b] of files) { const dst = confined(p); fs.mkdirSync(path.dirname(dst), { recursive: true }); fs.writeFileSync(dst, b); }
 log(`extracted ${files.size} files into quarantine ${path.relative(repo, out)}/pkg`);
 
 // 2. Artifacts and checksums
@@ -57,7 +67,7 @@ const sumFiles = names.filter(n => /(^|\/)(SHA256SUMS|checksums?(\.txt)?|.*\.sha
 let declared = 0, mismatched = [];
 for (const sf of sumFiles) {
   for (const line of files.get(sf).toString("utf8").split(/\r?\n/)) {
-    const m = /^([0-9a-fA-F]{64})\s+\*?(.+?)\s*$/.exec(line.trim()) ?? /^SHA256 \((.+)\) = ([0-9a-fA-F]{64})$/.exec(line.trim())?.slice(0).reverse();
+    const m = /^([0-9a-fA-F]{64}) +\*?(\S.*)$/.exec(line.trim()) ?? /^SHA256 \((.+)\) = ([0-9a-fA-F]{64})$/.exec(line.trim())?.slice(0).reverse();
     if (!m) continue;
     const [hash, name] = /^[0-9a-fA-F]{64}$/.test(m[1]) ? [m[1], m[2]] : [m[2], m[1]];
     const base = path.posix.join(path.posix.dirname(sf), name.replace(/^\.\//, ""));

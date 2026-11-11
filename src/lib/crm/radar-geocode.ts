@@ -11,8 +11,8 @@ export type GeocodeResult = { label: string; lat: number; lon: number };
 
 export const GEOCODE_CACHE_TTL_MS = 6 * 60 * 60 * 1000;
 
-const NUM = String.raw`[-+]?\d{1,3}(?:\.\d+)?`;
-const COORDS = new RegExp(String.raw`^(${NUM})\s*[,;\s]\s*(${NUM})$`);
+// One number = optional sign, up to 3 integer digits, optional decimals (anchored, no ambiguous repetition → no ReDoS).
+const NUM = /^[-+]?\d{1,3}(?:\.\d{1,12})?$/;
 // US ZIP / ZIP+4, 4–6 digit numeric postcodes (ES, MX, FR, DE…), UK/CA style alphanumerics.
 const POSTCODE = /^(?:\d{5}(?:-\d{4})?|\d{4,6}|[A-Z]{1,2}\d[A-Z\d]?\s?\d[A-Z]{2}|[A-Z]\d[A-Z]\s?\d[A-Z]\d)$/i;
 
@@ -21,9 +21,10 @@ export function normalizeQuery(raw: string | null | undefined): string {
 }
 
 export function parseCoordinates(q: string): GeocodeResult | null {
-  const m = COORDS.exec(q.trim());
-  if (!m) return null;
-  const lat = Number(m[1]), lon = Number(m[2]);
+  // "lat, lon", "lat;lon" or "lat lon": split on the separators instead of one regex over the whole input.
+  const parts = q.slice(0, 120).replace(/[,;]/g, " ").trim().split(/\s+/);
+  if (parts.length !== 2 || !NUM.test(parts[0]) || !NUM.test(parts[1])) return null;
+  const lat = Number(parts[0]), lon = Number(parts[1]);
   if (!Number.isFinite(lat) || !Number.isFinite(lon) || lat < -90 || lat > 90 || lon < -180 || lon > 180) return null;
   const r6 = (n: number) => Math.round(n * 1e6) / 1e6;
   return { label: `${r6(lat)}, ${r6(lon)}`, lat: r6(lat), lon: r6(lon) };
