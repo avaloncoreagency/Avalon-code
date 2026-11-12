@@ -50,8 +50,8 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 15
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
         with:
           node-version: '22.18.0'
           cache: npm
@@ -77,8 +77,8 @@ jobs:
       CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
       OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
         with:
           node-version: '22.18.0'
           cache: npm
@@ -89,7 +89,7 @@ jobs:
             if [ -n "${!k}" ]; then echo "$k: configurado"; else echo "::warning::$k no está configurado"; fi
           done
       - run: node scripts/ai-engine/smoke.cjs .ai-engine/smoke-evidence.json
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         if: always()
         with:
           name: ai-engine-smoke-evidence
@@ -121,20 +121,20 @@ jobs:
       NODE_PATH: ${{ github.workspace }}/target/tests/qa/node_modules
     steps:
       # The engine comes from this ref; REN works on a clean checkout of main so its PR contains only its own fix.
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
         with:
           path: engine
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
         with:
           ref: main
           path: target
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
         with:
           node-version: '22.18.0'
       - run: npm ci --prefix engine
       - run: npm ci --prefix target && npm ci --prefix target/tests/qa
       - name: Restore REN state and memory
-        uses: actions/cache/restore@v4
+        uses: actions/cache/restore@0057852bfaa89a56745cba8c7296529d2fc39830
         with:
           path: .ai-engine-state
           key: ai-engine-ren-${{ github.run_id }}
@@ -148,7 +148,7 @@ jobs:
         with:
           path: .ai-engine-state
           key: ai-engine-ren-${{ github.run_id }}
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         if: always()
         with:
           name: ai-engine-ren-evidence
@@ -181,14 +181,14 @@ jobs:
       AVALON_SUPABASE_PUBLISHABLE_KEY: ${{ vars.AVALON_SUPABASE_PUBLISHABLE_KEY }}
       NODE_PATH: ${{ github.workspace }}/tests/qa/node_modules
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
         with:
           node-version: '22.18.0'
           cache: npm
       - run: npm ci && npm ci --prefix tests/qa
       - name: Restore managers' state and memory
-        uses: actions/cache/restore@v4
+        uses: actions/cache/restore@0057852bfaa89a56745cba8c7296529d2fc39830
         with:
           path: .ai-engine-ops
           key: ai-engine-ops-${{ github.run_id }}
@@ -201,7 +201,7 @@ jobs:
         with:
           path: .ai-engine-ops
           key: ai-engine-ops-${{ github.run_id }}
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         if: always()
         with:
           name: ai-engine-managers-evidence
@@ -234,13 +234,13 @@ jobs:
       AVALON_SUPABASE_PUBLISHABLE_KEY: ${{ vars.AVALON_SUPABASE_PUBLISHABLE_KEY }}
       NODE_PATH: ${{ github.workspace }}/tests/qa/node_modules
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
         with:
           node-version: '22.18.0'
           cache: npm
       - run: npm ci && npm ci --prefix tests/qa
-      - uses: actions/cache/restore@v4
+      - uses: actions/cache/restore@0057852bfaa89a56745cba8c7296529d2fc39830
         with:
           path: .ai-engine-intake
           key: ai-engine-intake-${{ github.run_id }}
