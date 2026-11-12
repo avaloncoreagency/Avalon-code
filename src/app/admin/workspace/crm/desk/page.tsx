@@ -6,7 +6,7 @@ import { requireOwner } from "@/lib/auth/session";
 import { getLang } from "@/lib/i18n-server";
 import { pick, formatDate } from "@/lib/i18n";
 import { run } from "@/lib/os/data";
-import { industryLabel } from "@/lib/crm/intel/industries";
+import { INDUSTRIES, industryLabel, isIndustry } from "@/lib/crm/intel/industries";
 import { intelErrorText } from "@/lib/crm/intel/errors";
 import s from "@/components/sales/sales.module.css";
 import x from "@/components/crm/intel/intel.module.css";
@@ -28,13 +28,18 @@ export default async function DeskPage({ searchParams }: { searchParams: Promise
   const lang = await getLang();
   const p = await searchParams;
   const filter: Filter = (FILTERS as readonly string[]).includes(q(p, "f") ?? "") ? q(p, "f") as Filter : "today";
+  const search = (q(p, "search") ?? "").trim().slice(0, 80);
+  const requestedIndustry = q(p, "industry");
+  const industry = isIndustry(requestedIndustry) ? requestedIndustry : "";
+  const listHref = (f: Filter) => `?${new URLSearchParams({ f, ...(search ? { search } : {}), ...(industry ? { industry } : {}) })}`;
   const now = new Date();
+  const startOfDay = new Date(now); startOfDay.setHours(0, 0, 0, 0);
   const endOfDay = new Date(now); endOfDay.setHours(23, 59, 59, 999);
   const weekAgo = new Date(now.getTime() - 7 * 864e5).toISOString();
   const base = () => supabase.from("crm_leads").select(COLS, { count: "exact" }).eq("archived", false).eq("audience", "agency_b2b");
   const open = <T extends ReturnType<typeof base>>(b: T) => b.not("stage_id", "in", "(won,lost)");
   const views: Record<Filter, () => ReturnType<typeof base>> = {
-    today: () => open(base()).gte("follow_up_at", now.toISOString()).lte("follow_up_at", endOfDay.toISOString()),
+    today: () => open(base()).gte("follow_up_at", startOfDay.toISOString()).lte("follow_up_at", endOfDay.toISOString()),
     overdue: () => open(base()).lt("follow_up_at", now.toISOString()),
     new: () => base().gte("created_at", weekAgo).eq("stage_id", "new"),
     diagnosis: () => open(base()).neq("diagnosis_status", "complete"),
@@ -46,9 +51,14 @@ export default async function DeskPage({ searchParams }: { searchParams: Promise
     high: () => open(base()).eq("priority", "high"),
   };
   const counted: Filter[] = ["today", "overdue", "new", "diagnosis", "proposal", "contract"];
+  // Filters are applied to the displayed list, not to the six global dashboard counters.
+  // Escape SQL LIKE wildcards so user input is treated as a literal company-name substring.
+  let listQuery = views[filter]();
+  if (search) listQuery = listQuery.ilike("company", `%${search.replace(/[\\%_]/g, (char) => "\\" + char)}%`);
+  if (industry) listQuery = listQuery.eq("industry_key", industry);
   const [owners, list, ...counts] = await Promise.all([
     run<{ user_id: string; email: string }[]>(supabase.rpc("crm_owner_directory")),
-    run<Lead[]>(views[filter]().order(filter === "all" || filter === "new" ? "created_at" : "follow_up_at", { ascending: filter !== "all" && filter !== "new", nullsFirst: false }).limit(100)),
+    run<Lead[]>(listQuery.order(filter === "all" || filter === "new" ? "created_at" : "follow_up_at", { ascending: filter !== "all" && filter !== "new", nullsFirst: false }).limit(100)),
     ...counted.map(f => views[f]().limit(1)),
   ]);
   const ownerList = owners.data ?? [];
@@ -66,7 +76,7 @@ export default async function DeskPage({ searchParams }: { searchParams: Promise
           lead={pick(lang, "Registrar, diagnosticar, calificar y dar seguimiento a prospectos de Avalon. Miguel y Samuel ven los mismos leads; cada cambio queda con autor.", "Register, diagnose, score and follow up Avalon prospects. Miguel and Samuel see the same leads; every change keeps its author.")} />
         {schemaPending && <p className={s.flash} data-tone="warn" role="alert">{intelErrorText(lang, "schema_pending")}</p>}
         <div className={s.stats}>
-          {counted.map((f, i) => <Link key={f} href={`?f=${f}`} className={x.kpiLink} aria-current={filter === f ? "page" : undefined}>
+          {counted.map((f, i) => <Link key={f} href={listHref(f)} className={x.kpiLink} aria-current={filter === f ? "page" : undefined}>
             <span>{pick(lang, ...cardText[f])}</span><strong>{counts[i].error ? "—" : counts[i].count ?? 0}</strong></Link>)}
         </div>
         <div className={x.split}>
@@ -76,11 +86,26 @@ export default async function DeskPage({ searchParams }: { searchParams: Promise
           </section>
           <section className={s.panel} aria-labelledby="list-title">
             <header><h2 id="list-title">{pick(lang, ...cardText[filter])}</h2></header>
+            <form method="get" className={s.toolbar} role="search" aria-label={pick(lang, "Buscar leads", "Search leads")}>
+              <input type="hidden" name="f" value={filter} />
+              <label><span>{pick(lang, "Buscar negocio", "Business name")}</span>
+                <input type="search" name="search" maxLength={80} defaultValue={search} placeholder={pick(lang, "Nombre de empresa", "Company name")} />
+              </label>
+              <label><span>{pick(lang, "Filtrar sector del listado", "Filter list sector")}</span>
+                <select name="industry" defaultValue={industry}>
+                  <option value="">{pick(lang, "Todas las industrias", "All industries")}</option>
+                  {INDUSTRIES.map(option => <option key={option.key} value={option.key}>{option.label[lang]}</option>)}
+                </select>
+              </label>
+              <button type="submit" className={s.button}>{pick(lang, "Buscar", "Search")}</button>
+              {(search || industry) && <Link href={`?f=${filter}`} className={s.button}>{pick(lang, "Limpiar", "Clear")}</Link>}
+            </form>
             <nav className={x.tabs} aria-label={pick(lang, "Filtros", "Filters")}>
-              {(["mine", "other", "all", "high", "diagnosis", "contract"] as Filter[]).map(f => <Link key={f} href={`?f=${f}`} aria-current={filter === f ? "page" : undefined}>{pick(lang, ...cardText[f])}</Link>)}
+              {(["mine", "other", "all", "high", "diagnosis", "contract"] as Filter[]).map(f => <Link key={f} href={listHref(f)} aria-current={filter === f ? "page" : undefined}>{pick(lang, ...cardText[f])}</Link>)}
             </nav>
             {list.error && !schemaPending && <p className={s.flash} data-tone="error" role="alert">{intelErrorText(lang, "unavailable")}</p>}
             {list.data && list.data.length === 0 && <p className={s.empty}>{pick(lang, "No hay leads en esta vista.", "No leads in this view.")}</p>}
+            {list.data && list.data.length === 100 && <p className={s.muted} role="status">{pick(lang, "Se muestran los primeros 100 resultados de esta vista; afina los filtros para localizar otros negocios.", "Showing the first 100 results in this view; refine the filters to find other businesses.")}</p>}
             <ul className={s.list} style={{ marginTop: 12 }}>
               {(list.data ?? []).map(l => {
                 const overdue = l.follow_up_at && l.follow_up_at < now.toISOString() && l.crm_stages?.kind === "open";
