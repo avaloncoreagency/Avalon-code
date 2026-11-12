@@ -30,7 +30,7 @@ export default async function DashboardPage() {
   const horizon = new Date(Date.now() + 14 * 86_400_000).toISOString().slice(0, 10);
 
   const nowIso = new Date().toISOString();
-  const [projects, pagesPublished, productsActive, upcoming, audit, crmLeads, salesMetrics, activeClients, openOrders, overdueTasks] = await Promise.all([
+  const [projects, pagesPublished, productsActive, upcoming, audit, crmLeads, salesMetrics, activeClients, openOrders, overdueTasks, chatbotCount, receptionCount] = await Promise.all([
     run<{ id: string; module: string; name: string; status: string }[]>(supabase.from("os_projects").select("id,module,name,status").neq("status", "archived").order("updated_at", { ascending: false }).limit(500)),
     countRows(supabase, "os_website_pages", [["eq", "status", "published"]]),
     countRows(supabase, "os_store_products", [["eq", "status", "active"]]),
@@ -41,6 +41,8 @@ export default async function DashboardPage() {
     countRows(supabase, "crm_clients", [["eq", "status", "active"]]),
     countRows(supabase, "crm_work_orders", [["not_in", "status", ["delivered", "cancelled"]]]),
     countRows(supabase, "crm_tasks", [["not_in", "status", ["done", "cancelled"]], ["lt", "due_at", nowIso]]),
+    countRows(supabase, "os_projects", [["eq", "module", "chatbots"], ["neq", "status", "archived"]]),
+    countRows(supabase, "os_projects", [["eq", "module", "receptionist"], ["neq", "status", "archived"]]),
   ]);
   const salesReady = salesMetrics.error === null;
   const primary = salesMetrics.data?.find(m => m.currency === "USD") ?? salesMetrics.data?.[0];
@@ -55,8 +57,9 @@ export default async function DashboardPage() {
     website: stat("website", "proyectos", "projects"),
     ecommerce: stat("ecommerce", "tiendas", "stores"),
     crm_creator: stat("crm_creator", "plantillas CRM", "CRM blueprints"),
-    receptionist: stat("receptionist", "asistentes", "assistants"),
-    chatbots: stat("chatbots", "chatbots registrados", "registered chatbots"),
+    communications: chatbotCount.error || receptionCount.error
+      ? { value: null, label: "", state: "pending" as const }
+      : { value: (chatbotCount.count ?? 0) + (receptionCount.count ?? 0), label: pick(lang, "agentes registrados", "registered agents"), state: "ready" as const },
     marketing: stat("marketing", "campañas", "campaigns"),
   };
   const overdue = upcoming.data?.filter(i => i.planned_for < today && OPEN_CONTENT(i.status)) ?? [];
@@ -74,7 +77,7 @@ export default async function DashboardPage() {
           "Todo lo que gestiona Avalon Core Agency en un solo lugar. Las cifras provienen únicamente de datos reales guardados en la plataforma.",
           "Everything Avalon Core Agency runs, in one place. Figures come only from real data stored in the platform.")}</p>
         <div className={s.heroActions}>
-          <Link className={s.heroButton} href="/admin/workspace/ai-communications"><Icon name="receptionist" size={18} />AI Communications Hub</Link>
+          <Link className={s.heroButton} href="/admin/workspace/ai-communications"><Icon name="communications" size={18} />COMMUNICATION HUB</Link>
           <Link className={s.heroButton} href="/admin/workspace/crm"><Icon name="crm" size={18} />{pick(lang, "Abrir CRM", "Open CRM")}</Link>
           <Link className={s.heroButton} href="/admin/workspace/crm/sales/new"><Icon name="plus" size={18} />{pick(lang, "Registrar venta", "Record sale")}</Link>
           <Link className={s.heroButton} href="/admin/workspace/crm/tasks"><Icon name="clock" size={18} />{pick(lang, "Mis tareas", "My tasks")}</Link>
