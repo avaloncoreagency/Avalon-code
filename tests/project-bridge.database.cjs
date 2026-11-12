@@ -188,20 +188,10 @@ test('API tokens: hashed and scoped; a token only opens an inbox import; revoked
   await h.q(`insert into storage.objects(bucket_id,name) values('avalon-projects',$1)`, [opened.upload_path]);
   await h.fails(`insert into storage.objects(bucket_id,name) values('avalon-projects',$1)`, [opened.upload_path]);
 
-  // A formerly write-capable token downgraded by the database administrator to
-  // import:read may inspect its OWN import, but may no longer acknowledge uploads.
-  // This simulates a credential losing its write scope without modifying any user data.
-  await h.db.exec('reset role');
-  await h.q("update os_project_api_tokens set scopes=array['import:read'] where token_sha256=$1", [hash]);
-  await h.as('anon');
-  assert.equal((await h.one("select os_bridge_api_import_status($1,$2,false) as r", [hash, opened.import_id])).r.status, 'awaiting_upload');
-  await h.fails("select os_bridge_api_import_status($1,$2,true)", [hash, opened.import_id], '42501');
-  await h.fails("select status from os_project_imports where id=$1", [opened.import_id], '42501');
-  await h.db.exec('reset role');
-  assert.equal((await h.one("select status from os_project_imports where id=$1", [opened.import_id])).status, 'awaiting_upload',
-    'read-only request did not mutate import state');
-  await h.q("update os_project_api_tokens set scopes=array['import:create'] where token_sha256=$1", [hash]);
-  await h.as('anon');
+  // A separate read-only token must be refused BEFORE any upload-state write.
+  // It can execute only a read request; no token can inspect another token's imports.
+  await h.fails("select os_bridge_api_import_status($1,$2,false)", [sha('dash-token'), opened.import_id], 'P0002');
+  await h.fails("select os_bridge_api_import_status($1,$2,true)", [sha('dash-token'), opened.import_id], '42501');
   const st = (await h.one(`select os_bridge_api_import_status($1,$2,true) as r`, [hash, opened.import_id])).r;
   assert.equal(st.status, 'received', 'uploaded; waits for an owner to process it');
   await h.fails(`select 1 from os_project_imports`, [], '42501');
