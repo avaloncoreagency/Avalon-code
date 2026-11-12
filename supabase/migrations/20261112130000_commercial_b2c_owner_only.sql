@@ -26,7 +26,7 @@ create table public.crm_b2c_target_policies (
 );
 create index crm_b2c_target_active_idx on public.crm_b2c_target_policies(campaign_project_id,active,version desc);
 alter table public.crm_b2c_target_policies enable row level security;
-revoke all on public.crm_b2c_target_policies from public, anon, authenticated;
+revoke all on public.crm_b2c_target_policies from anon, authenticated, public;
 grant select, insert, update on public.crm_b2c_target_policies to authenticated;
 create policy b2c_policy_owner_select on public.crm_b2c_target_policies
   for select to authenticated using ((select crm_private.is_owner()) and agency_key = 'avalon');
@@ -98,7 +98,7 @@ create table public.crm_b2c_requests (
 );
 create index crm_b2c_requests_target_idx on public.crm_b2c_requests(contractor_client_id,created_at desc);
 alter table public.crm_b2c_requests enable row level security;
-revoke all on public.crm_b2c_requests from public, anon, authenticated;
+revoke all on public.crm_b2c_requests from anon, authenticated, public;
 grant select,insert,update on public.crm_b2c_requests to authenticated;
 create policy b2c_request_owner_read on public.crm_b2c_requests
  for select to authenticated using ((select crm_private.is_owner()) and agency_key='avalon');
@@ -175,7 +175,7 @@ create table public.crm_b2c_request_events (
  created_at timestamptz not null default now()
 );
 alter table public.crm_b2c_request_events enable row level security;
-revoke all on public.crm_b2c_request_events from public,anon,authenticated;
+revoke all on public.crm_b2c_request_events from anon, authenticated, public;
 grant select on public.crm_b2c_request_events to authenticated;
 create policy b2c_event_owner_read on public.crm_b2c_request_events
  for select to authenticated using ((select crm_private.is_owner()) and agency_key='avalon');
