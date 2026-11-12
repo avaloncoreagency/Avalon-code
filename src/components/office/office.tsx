@@ -34,6 +34,7 @@ const PROJECT_BASE: Record<string, string> = {
   crm_creator: "/admin/workspace/crm-creator",
   receptionist: "/admin/workspace/ai-receptionist",
   marketing: "/admin/workspace/marketing-hub",
+  chatbots: "/admin/workspace/ai-chatbots",
 };
 const projectHref = (project: StaffProject) =>
   project.id && project.module && PROJECT_BASE[project.module]

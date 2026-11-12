@@ -14,6 +14,7 @@ const BASE: Record<ModuleKey, string> = {
   crm_creator: "/admin/workspace/crm-creator",
   receptionist: "/admin/workspace/ai-receptionist",
   marketing: "/admin/workspace/marketing-hub",
+  chatbots: "/admin/workspace/ai-chatbots",
 };
 
 function initialSettings(module: ModuleKey, form: FormData): Record<string, unknown> {

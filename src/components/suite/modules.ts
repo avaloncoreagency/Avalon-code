@@ -7,10 +7,10 @@ export type ModuleDef = {
   name: string;
   icon: IconName;
   accent: "cyan" | "violet" | "magenta" | "blue" | "teal" | "amber";
-  key: "crm" | "website" | "ecommerce" | "crm_creator" | "receptionist" | "marketing";
+  key: "crm" | "website" | "ecommerce" | "crm_creator" | "receptionist" | "marketing" | "chatbots";
   description: Record<Lang, string>;
 };
-export type IconName = "dashboard" | "crm" | "website" | "store" | "blueprint" | "receptionist" | "marketing" | "settings" | "profile" | "logout";
+export type IconName = "dashboard" | "crm" | "website" | "store" | "blueprint" | "receptionist" | "marketing" | "chatbots" | "settings" | "profile" | "logout";
 
 export const modules: ModuleDef[] = [
   { slug: "crm", key: "crm", href: "/admin/workspace/crm", name: "CRM", icon: "crm", accent: "cyan",
@@ -23,6 +23,8 @@ export const modules: ModuleDef[] = [
     description: { es: "Administra proyectos CRM de clientes y conserva su configuración.", en: "Manage client CRM projects and maintain their configuration." } },
   { slug: "ai-receptionist", key: "receptionist", href: "/admin/workspace/ai-receptionist", name: "AI Receptionist", icon: "receptionist", accent: "teal",
     description: { es: "Gestiona asistentes de clientes, configuración y conexiones autorizadas.", en: "Manage client assistants, configuration and authorized connections." } },
+  { slug: "ai-chatbots", key: "chatbots", href: "/admin/workspace/ai-chatbots", name: "AI Chatbots", icon: "chatbots", accent: "cyan",
+    description: { es: "Biblioteca de bots por cliente y acceso al constructor de asistentes inteligentes.", en: "Client bot library and intelligent assistant builder workspace." } },
   { slug: "marketing-hub", key: "marketing", href: "/admin/workspace/marketing-hub", name: "Marketing Hub", icon: "marketing", accent: "amber",
     description: { es: "Campañas, calendario editorial y planificación de contenido.", en: "Campaigns, editorial calendar and content planning." } },
 ];
