@@ -65,7 +65,7 @@ export default async function Client360({ params, searchParams }: { params: Prom
   // Totals: exact SQL aggregate when available; otherwise the fully paged rows (partial data is labelled partial).
   // A denied finance RPC is authoritative even if the user previously passed a capability check.
   const financeAllowed = financePermitted && financeResult?.allowed === true;
-  const finance: FinanceSummary | null = financeAllowed ? financeResult.summary : null;
+  const finance: FinanceSummary | null = financeAllowed && financeResult?.allowed === true ? financeResult.summary : null;
   const sales = salesLoaded.rows;
   const ownerList = owners.data ?? [];
   const now = new Date().toISOString();
