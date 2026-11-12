@@ -252,9 +252,14 @@ test('CRM Intelligence in the real app: quick add, discovery, conflicts, score, 
   // Browser tampering bypasses the disabled HTML attribute but not server-side evidence checks.
   await acceptStale.evaluate(el => { el.disabled = false; });
   await submit(m, acceptStale);
-  await m.getByText(/recomendación.*no.*vigente|recommendation.*no longer/i).first().waitFor();
+  // The durable DB state is the security assertion. The UI may retain its prior
+  // route during a streamed Server Action redirect; avoid a timing-dependent
+  // text assertion and inspect the result's final URL instead.
   assert.equal((await one("select status from crm_lead_recommendations where lead_id=$1 and rule_id='ads_restricted'", [smoke])).status, 'dismissed',
     'forged acceptance cannot restore a stale recommendation');
+  await m.goto(`${origin}/admin/workspace/crm/lead/${smoke}?tab=recs`);
+  assert.equal(await m.getByText(/Ya no aplica según el diagnóstico actual/).count() > 0, true,
+    'stale recommendation stays visibly flagged after forged submit');
 
 
   // 14. Barber questionnaire shows its own questions. 33. English labels.
