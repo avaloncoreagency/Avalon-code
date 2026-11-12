@@ -3,6 +3,7 @@
 const { test } = require('node:test');
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
+const verifiedContract = require('./helpers/verified-contract.cjs');
 const { PGlite } = require('@electric-sql/pglite');
 
 const MIGUEL = '00000000-0000-4000-8000-0000000000a1';
@@ -188,6 +189,7 @@ test('existing client and lead: sale links instead of duplicating, lead moves to
   t.after(() => db.close());
   await as(MIGUEL);
   const lead = await one(`insert into crm_leads(company,contact,email,phone,source,owner_id,stage_id) values('Orbit Dental','Clara Prueba','clara@orbit.example.invalid','+1 555 0199','Web sintética',$1,'proposal') returning id`, [MIGUEL]);
+  await verifiedContract(db, lead.id);
   const r1 = (await one('select crm_confirm_sale($1::jsonb) r', [JSON.stringify({ idempotency_key: '55555555-5555-4555-8555-555555555555', lead_id: lead.id, new_client: { legal_name: 'Orbit Dental' }, lines: [{ service_code: 'crm-personalizado', unit_price: '3000' }] })])).r;
   assert.equal(r1.client_created, true);
   assert.equal(r1.contacts, 1, 'lead contact carried over');

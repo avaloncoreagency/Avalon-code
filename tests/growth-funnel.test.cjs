@@ -28,8 +28,10 @@ test("growth funnel: public display strictly validates contract and rejects unsa
     slug: "capture-demo-001", title: "Synthetic landing", subheading: "Public copy",
     cta: "Request quote", template: "capture",
   };
-  assert.deepEqual(publicFunnel({ ...data, owner_id: "private-uuid" }), data,
+  assert.deepEqual(publicFunnel({ ...data, owner_id: "private-uuid" }), { ...data, consentVersion: "" },
     "private identifiers must not be forwarded to the public page");
+  assert.equal(publicFunnel({ ...data, consent_version: "avalon-optin-v1" }).consentVersion, "avalon-optin-v1");
+  assert.equal(publicFunnel({ ...data, consent_version: "<script>" }).consentVersion, "", "only a safe version string is forwarded");
   assert.equal(publicFunnel({ ...data, slug: "../../admin" }), null);
   assert.equal(publicFunnel({ ...data, template: "fake" }), null);
   assert.equal(publicFunnel({ ...data, title: "" }), null);

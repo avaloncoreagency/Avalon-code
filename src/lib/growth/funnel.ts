@@ -30,6 +30,8 @@ export type PublicFunnel = {
   subheading: string;
   cta: string;
   template: FunnelTemplate;
+  /** Consent text version the visitor is shown; sent back with the form so a stale text is rejected. */
+  consentVersion: string;
 };
 
 export const validSlug = (slug: string): boolean =>
@@ -54,5 +56,7 @@ export function publicFunnel(value: unknown): PublicFunnel | null {
     subheading: record.subheading,
     cta: record.cta,
     template: record.template,
+    consentVersion: typeof record.consent_version === "string" && /^[a-z0-9._-]{3,40}$/.test(record.consent_version)
+      ? record.consent_version : "",
   };
 }

@@ -1,5 +1,5 @@
 "use client";
-import { useActionState, useState, useCallback, useMemo, type FormEvent } from "react";
+import { useActionState, useState, useCallback, useMemo, useRef, type FormEvent } from "react";
 import { useFormStatus } from "react-dom";
 import { confirmSale, type SaleFormState } from "@/app/admin/workspace/crm/sales/actions";
 import { MAX_CONTACTS, MAX_LINES, money, previewTotals, saleErrorText, label } from "@/lib/sales/domain";
@@ -23,6 +23,11 @@ export function SaleForm({ lang, idempotencyKey, services, clients, leads, owner
 }) {
   const [state, action] = useActionState<SaleFormState, FormData>(confirmSale, { error: null, values: {} });
   const v = (name: string, fallback = "") => state.values[name] ?? fallback;
+  // React 19 resets a form after its action; selects and radios do not pick up new defaults after mount. Remount the
+  // form for every server answer so everything the owner typed (service lines, client choice…) is shown again.
+  const lastState = useRef(state), attempts = useRef(0);
+  if (lastState.current !== state) { lastState.current = state; attempts.current += 1; }
+  const attempt = attempts.current;
   const [mode, setMode] = useState<"existing" | "new">(defaults.client_id ? "existing" : (state.values.client_mode as "existing" | "new") || (clients.length ? "existing" : "new"));
   const [totals, setTotals] = useState(() => previewTotals([]));
   const [currency, setCurrency] = useState("USD");
@@ -45,7 +50,7 @@ export function SaleForm({ lang, idempotencyKey, services, clients, leads, owner
   const fmt = (n: number) => /^[A-Z]{3}$/.test(currency) ? money(lang, n, currency) : n.toFixed(2);
   const ownerOptions = owners.map(o => <option key={o.id} value={o.id}>{o.label}</option>);
 
-  return <form action={action} className={s.form} onChange={recompute} noValidate={false}>
+  return <form key={attempt} action={action} className={s.form} onChange={recompute} noValidate={false}>
     <input type="hidden" name="idempotency_key" value={idempotencyKey} />
     {state.error && <div className={s.flash} data-tone="error" role="alert">
       <span>{saleErrorText(lang, state.error)}</span>

@@ -429,6 +429,14 @@ test('Nova Restaurant through the real app: one form, three departments, no dupl
   await page.getByLabel('Nombre de empresa *').fill('Orbit Dental Sintético');
   await page.locator('select[name="line_0_service"]').selectOption('crm-personalizado');
   await page.locator('input[name="line_0_price"]').fill('3000');
+  // CRM Intelligence gate: the sale closes the lead as Won, so it is refused until a signed contract is verified.
+  await page.getByRole('button', { name: 'Confirmar venta e iniciar trabajo' }).click();
+  await page.getByText(/primero registra y verifica el contrato firmado/).waitFor();
+  assert.equal(Number((await one("select count(*) n from crm_clients where legal_name='Orbit Dental Sintético'")).n), 0, 'refused sale created nothing');
+  await db.exec(`reset role; set request.jwt.claim.sub='${MIGUEL}'; set role authenticated;`);
+  await require('./helpers/verified-contract.cjs')(db, leadId);
+  await db.exec('reset role;');
+  await page.getByRole('button', { name: 'Confirmar venta e iniciar trabajo' }).waitFor();
   await Promise.all([page.waitForURL(/\/crm\/sales\/[0-9a-f-]{36}\?ok=confirmed/), page.getByRole('button', { name: 'Confirmar venta e iniciar trabajo' }).click()]);
   assert.equal((await one('select s.kind from crm_leads l join crm_stages s on s.id=l.stage_id where l.id=$1', [leadId])).kind, 'won', 'sale moves the lead to won');
   const orbit = await one("select id, origin_lead_id from crm_clients where legal_name='Orbit Dental Sintético'");

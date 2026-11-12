@@ -7,7 +7,7 @@ import {
 } from "./radar-geoapify";
 import { dailySearchLimit, quotaMessage, quotaState, utcDayStartIso, type QuotaState } from "./radar-quota";
 
-export type SearchOutcome = { ok: true; run: { run_id: string; found: number; inserted: number; updated: number; replayed: boolean } } | { ok: false; status: number; error: string; blocked?: "provider" | "quota" };
+export type SearchOutcome = { ok: true; run: { run_id: string; found: number; inserted: number; updated: number; replayed: boolean; refreshed?: number; known?: number } } | { ok: false; status: number; error: string; blocked?: "provider" | "quota" };
 
 /** Searches already recorded today (UTC). Null when the radar tables are unavailable, so callers never invent a figure. */
 export async function radarQuota(db: SupabaseClient): Promise<QuotaState | null> {
@@ -44,14 +44,28 @@ export const RADAR_QUERY_KINDS = ["coordinates", "postcode", "address", "place",
 export type RadarQueryKind = (typeof RADAR_QUERY_KINDS)[number];
 
 /** Search descriptor stored on the run (persistent history: what was searched, where and how). */
-export function searchDescriptor(area: RadarArea, kind: RadarQueryKind) {
-  return { kind, lat: area.lat, lon: area.lon, radius_m: area.radiusM, label: area.label, industries: area.industries };
+export function searchDescriptor(area: RadarArea, kind: RadarQueryKind, provider?: "geoapify" | "overpass") {
+  return { kind, lat: area.lat, lon: area.lon, radius_m: area.radiusM, label: area.label, industries: area.industries,
+    ...(provider ? { provider } : {}) };
+}
+
+/** Fixed failure codes stored on a failed run (never the provider's raw message). */
+export type RadarFailureCode = "provider_rate_limited" | "provider_auth" | "provider_http" | "provider_timeout" |
+  "provider_parse" | "provider_network" | "provider_too_large" | "ingest_failed";
+
+export function failureCode(cause: unknown): RadarFailureCode {
+  const name = (cause as { name?: string } | null)?.name;
+  if (name === "TimeoutError" || name === "AbortError") return "provider_timeout";
+  if (cause instanceof SyntaxError) return "provider_parse";
+  return "provider_network";
 }
 
 export async function searchAndIngest(db: SupabaseClient, area: RadarArea, runKey: string, campaignId: string | null = null, limit?: number,
   kind: RadarQueryKind = campaignId ? "campaign" : "map"): Promise<SearchOutcome> {
   // A run that already exists is replayed from our own record: the provider is NOT queried again (no credits spent).
-  const known = await db.from("crm_radar_runs").select("id,found,inserted,updated").eq("idempotency_key", runKey).maybeSingle();
+  const known = await db.from("crm_radar_runs").select("id,found,inserted,updated,status").eq("idempotency_key", runKey).maybeSingle();
+  // A recorded failure is not replayed as an empty success, and it is not retried automatically with the same key.
+  if (known.data?.status === "failed") return { ok: false, status: 409, error: "Esta búsqueda ya falló y quedó registrada en el historial. Lanza una búsqueda nueva; no se reintenta automáticamente para no gastar créditos." };
   if (known.data) return { ok: true, run: { run_id: known.data.id, found: known.data.found, inserted: known.data.inserted, updated: known.data.updated, replayed: true } };
   const endpoint = radarEndpoint();
   if ("error" in endpoint) return { ok: false, status: 503, error: endpoint.error, blocked: "provider" };
@@ -89,26 +103,37 @@ export async function searchAndIngest(db: SupabaseClient, area: RadarArea, runKe
           cache: "no-store" as const,
         };
     const res = await fetch(endpoint.url, request);
-    if (res.status === 429) return { ok: false, status: 503,
-      error: "El proveedor limitó las consultas (429). No se realizan reintentos automáticos que gasten créditos." };
-    if (res.status === 401 || res.status === 403) return { ok: false, status: 503,
+    // A call that reached the provider and failed is recorded as a failed run (history + daily cap); best effort, a
+    // database without migration 20261112090000 simply does not record it.
+    const failed = async (code: RadarFailureCode, outcome: Extract<SearchOutcome, { ok: false }>) => {
+      try { await db.rpc("crm_radar_record_failure", { run_key: runKey, search: searchDescriptor(area, kind, endpoint.provider), provider: endpoint.provider, code }); } catch { /* recorded best effort */ }
+      return outcome;
+    };
+    if (res.status === 429) return failed("provider_rate_limited", { ok: false, status: 503,
+      error: "El proveedor limitó las consultas (429). No se realizan reintentos automáticos que gasten créditos." });
+    if (res.status === 401 || res.status === 403) return failed("provider_auth", { ok: false, status: 503,
       error: geoapify
         ? "Geoapify rechazó la clave (401/403). Revisa su activación y restricciones en MyProjects; no se muestran negocios falsos."
-        : "El proveedor de búsquedas rechazó la solicitud (401/403). Verifica su permiso de uso." };
-    if (!res.ok) return { ok: false, status: 503, error: `El proveedor respondió ${res.status}. No se muestran resultados inventados.` };
-    if (Number(res.headers.get("content-length") ?? 0) > 8_000_000) return { ok: false, status: 503, error: "Respuesta del proveedor demasiado grande; reduce el radio." };
-    const body = await res.json() as { elements?: unknown; features?: unknown };
+        : "El proveedor de búsquedas rechazó la solicitud (401/403). Verifica su permiso de uso." });
+    if (!res.ok) return failed("provider_http", { ok: false, status: 503, error: `El proveedor respondió ${res.status}. No se muestran resultados inventados.` });
+    if (Number(res.headers.get("content-length") ?? 0) > 8_000_000) return failed("provider_too_large", { ok: false, status: 503, error: "Respuesta del proveedor demasiado grande; reduce el radio." });
+    let body: { elements?: unknown; features?: unknown };
+    try { body = await res.json() as { elements?: unknown; features?: unknown }; }
+    catch (cause) { return failed(failureCode(cause), providerFailure(cause, endpoint.provider === "geoapify" ? 12 : endpoint.licensed ? 65 : 16)); }
     const places = geoapify
       ? normalizeGeoapifyPlaces(body)
       : toIngest(body.elements, area.label);
-    let { data, error } = await db.rpc("crm_radar_ingest", { places, run_key: runKey, campaign: campaignId, search: searchDescriptor(area, kind) });
+    let { data, error } = await db.rpc("crm_radar_ingest", { places, run_key: runKey, campaign: campaignId, search: searchDescriptor(area, kind, endpoint.provider) });
     // Database without migration 20261110140000: the 4-argument function does not exist, so nothing ran. Fall back to the
     // original ingest (results persist; the run is simply not linked to its results until the migration is applied).
     if (error?.code === "PGRST202") ({ data, error } = await db.rpc("crm_radar_ingest", { places, run_key: runKey, campaign: campaignId }));
-    if (error) return { ok: false, status: 503, error: error.code === "PGRST202" ? "La migración del radar (20261102190000) no está aplicada en este entorno." : "No se pudieron guardar los resultados." };
+    if (error) return failed("ingest_failed", { ok: false, status: 503, error: error.code === "PGRST202" ? "La migración del radar (20261102190000) no está aplicada en este entorno." : "No se pudieron guardar los resultados." });
     return { ok: true, run: data };
   } catch (cause) {
-    return providerFailure(cause, endpoint.provider === "geoapify" ? 12 : endpoint.licensed ? 65 : 16);
+    // Network failure or timeout before any answer: the request may still have reached the provider, so it is recorded.
+    const outcome = providerFailure(cause, endpoint.provider === "geoapify" ? 12 : endpoint.licensed ? 65 : 16);
+    try { await db.rpc("crm_radar_record_failure", { run_key: runKey, search: searchDescriptor(area, kind, endpoint.provider), provider: endpoint.provider, code: failureCode(cause) }); } catch { /* best effort */ }
+    return outcome;
   }
 }
 

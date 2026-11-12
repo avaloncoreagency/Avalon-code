@@ -4,6 +4,7 @@
 const { test } = require('node:test');
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
+const verifiedContract = require('./helpers/verified-contract.cjs');
 const { PGlite } = require('@electric-sql/pglite');
 const M = '00000000-0000-4000-8000-0000000000a1', S = '00000000-0000-4000-8000-0000000000b2', X = '00000000-0000-4000-8000-0000000000c3';
 const place = (ref, name) => ({ source_ref: 'osm:node/' + ref, name, source_kind: 'osm', lat: 25.77, lon: -80.19, industry: 'dental', source_label: 'OpenStreetMap', license: 'ODbL' });
@@ -47,6 +48,7 @@ test('backbone: prospect → lead → sale → client → orders → projects �
   assert.equal(await n('select count(*) n from os_projects where client_id is null'), 1);
   // 7. Multi-service sale from the lead → ONE client, three orders/projects, tasks; legacy project auto-linked.
   await as(M);
+  await verifiedContract(db, lead);
   const sale = (await one('select crm_confirm_sale($1::jsonb) r', [JSON.stringify({
     idempotency_key: '88888888-8888-4888-8888-888888888888', lead_id: lead, new_client: { legal_name: 'Clínica Orbit Sintética' }, upfront_amount: '1000', billing_mode: 'mixed',
     lines: [{ service_code: 'desarrollo-web', unit_price: '2000' }, { service_code: 'crm-personalizado', unit_price: '3000' }, { service_code: 'marketing-mensual', unit_price: '600' }],

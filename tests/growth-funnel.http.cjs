@@ -29,7 +29,7 @@ test("GROWTH HTTP E2E: public funnel captures a synthetic lead once, 390px respo
     if (f.startsWith("20261102053022"))
       await db.exec(`insert into agency_memberships(user_id,role) values('${OWNER}','owner')`);
   }
-  await db.exec(fs.readFileSync("docs/sql/growth-funnel-prototype.sql", "utf8"));
+  // The funnel schema and its owner-approved anonymous grant now come from the migrations (20261112090000, 20261112110000).
   await db.exec(`insert into crm_growth_funnels
     (slug,title,subheading,cta,template,status,created_by)
     values ('http-capture-demo','Captación HTTP Sintética','Un registro de prueba','Solicitar información','capture','active','${OWNER}')`);
