@@ -10,6 +10,7 @@ Ownership: frontend, industry templates and browser/UI QA only. Claude owns SQL,
 - Linked those sets into `templateFor` by appending to the existing general questionnaire. Every industry retains the shared general scoring inputs. Set an individual immutable template version (general-1 + sector version) and mark all 13 as specialized.
 - Sector-specific questions include conditional fields, operational capacity, direct cost/revenue, inquiry handling, staffing and licensing/compliance review where relevant. Recording a compliance answer does not constitute independent verification.
 - Extended `tests/crm-intel.test.cjs` to verify all 13 templates have unique question IDs, bilingual copy, valid choices and condition references; added representative conditional-path/validation tests. Updated the old test that expected the 10 industries to be generic.
+- Discovery draft recovery: restored answers now rehydrate React state and conditional question visibility, while original saved answer timestamps remain the conflict-check baseline. Toggling Unknown / N/A updates conditional visibility immediately. This is a code change, not a claim of a completed browser test.
 - Sales desk: added a server-side literal company-name search, industry filter and filter-preserving navigation. Counters remain unfiltered agency-wide counts, intentionally. The list retains its 100-row limit and now labels possible truncation rather than implying a complete list. Fixed the 'Today' view to include earlier items from the same calendar day in the server timezone.
 - Calendar: operational follow-ups link directly to canonical CRM Deal Review; linked events in the daily agenda now offer direct links to their lead/client records when the persisted IDs exist.
 
@@ -31,7 +32,7 @@ No automatic merge, production database migration or publication is authorized b
 
 ## Next steps without file collision
 
-1. Finish frontend draft recovery and browser acceptance against the actual current SHA.
+1. Run a real authenticated browser regression of draft recovery (including conditional questions and offline save failures) against the current SHA.
 2. Consume Claude's future `docs/handoff/CRM_BACKEND_CONTRACT.md` before touching financial-capability display or writing financial UI assertions.
 3. Verify cross-owner data, all 13 questionnaires and full lead → contract → sale → client flow in an isolated authenticated Preview.
 4. Integrate #161 into #160 only after green CI and review; keep #159 and production protected.
