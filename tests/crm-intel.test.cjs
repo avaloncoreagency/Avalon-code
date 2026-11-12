@@ -20,6 +20,7 @@ const F = load("src/lib/crm/intel/form.ts");
 const S = load("src/lib/crm/intel/scoring.ts");
 const R = load("src/lib/crm/intel/recommendations.ts");
 const I = load("src/lib/crm/intel/industries.ts");
+const C = load("src/lib/crm/intel/reconcile.ts");
 
 const A = (v) => ({ v, s: "answered" });
 const U = { s: "unknown" };
@@ -246,4 +247,42 @@ test("sector-specific unknown answers do not contribute points and conditional p
   assert.equal(pesticides.legal.status, "review");
   const verified = S.scoreLead("landscaping", {ls_services: A(["pesticides"]), ls_pesticide_status: A("owner_verified")});
   assert.equal(verified.legal.status, "clear");
+});
+
+test("reconciliation withdraws only stale suggested rules, preserving human decisions", () => {
+  const existing = [
+    {id:"1", rule_id:"evaluate_ads", status:"suggested", note:"", decided_by:null, version:3},
+    {id:"2", rule_id:"website", status:"accepted", note:"Approved", decided_by:"owner", version:1},
+    {id:"3", rule_id:"follow_up", status:"dismissed", note:"Not right now", decided_by:"owner", version:4},
+    {id:"4", rule_id:"missed_calls", status:"edited", note:"Manual edit", decided_by:"owner", version:2}
+  ];
+  const result = C.reconcileRecommendations(existing, [{ruleId:"follow_up"}]);
+  assert.deepEqual(result.changes, [{id:"1",version:3,ruleId:"evaluate_ads",action:"withdraw"}]);
+  assert.deepEqual(result.humanReview.sort(), ["missed_calls","website"]);
+});
+
+test("previously auto-withdrawn rules can return without restoring manually dismissed rules", () => {
+  const existing = [
+    {id:"1",rule_id:"evaluate_ads",status:"dismissed",note:C.AUTO_WITHDRAW_NOTE,decided_by:null,version:5},
+    {id:"2",rule_id:"website",status:"dismissed",note:"Owner said no",decided_by:"owner",version:2}
+  ];
+  const r = C.reconcileRecommendations(existing, [{ruleId:"evaluate_ads"},{ruleId:"website"}]);
+  assert.deepEqual(r.changes,[{id:"1",version:5,ruleId:"evaluate_ads",action:"restore"}]);
+  assert.deepEqual(r.humanReview,[]);
+});
+
+test("legal review and absent capacity yield independent warnings, never paid-ads recommendations", () => {
+  const a = {
+    rf_avg_profit:A(2000),rf_extra_jobs_month:A(0),rf_ads_budget:A(2200),
+    g_avalon_budget:A(1200),g_decision_maker:A("Owner"),g_start_when:A("now")
+  };
+  const ids = R.recommend("roofing",a).map(x=>x.ruleId);
+  assert.ok(ids.includes("ads_review_required"));
+  assert.ok(ids.includes("no_ads_without_capacity"));
+  assert.ok(!ids.includes("evaluate_ads"));
+  const bad = {...a,rf_license_status:A("invalid")};
+  const badIds = R.recommend("roofing",bad).map(x=>x.ruleId);
+  assert.ok(badIds.includes("ads_restricted"));
+  assert.ok(badIds.includes("no_ads_without_capacity"));
+  assert.ok(!badIds.includes("evaluate_ads"));
 });
