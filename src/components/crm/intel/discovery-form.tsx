@@ -62,7 +62,7 @@ export function DiscoveryForm({ lang, lead, industry, section, saved, conflicts,
         if (question.type === "yesno") value = first === "yes";
         else if (question.type === "multi") value = values;
         else if (["number", "money", "percent", "rating"].includes(question.type)) {
-          const number = Number(first.replace(/[$,\\s]/g, ""));
+          const number = Number(first.replace(/[$,\s]/g, ""));
           if (!Number.isFinite(number)) continue;
           value = number;
         }
