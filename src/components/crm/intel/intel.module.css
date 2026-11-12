@@ -1,0 +1,69 @@
+/* CRM Intelligence: small additions on top of components/sales/sales.module.css (same HUD tokens). */
+.tabs { display: flex; gap: 6px; flex-wrap: nowrap; overflow-x: auto; scrollbar-width: none; -webkit-overflow-scrolling: touch; }
+.tabs::-webkit-scrollbar { display: none; }
+.tabs a { flex: none; display: inline-flex; align-items: center; min-height: 40px; padding: 8px 14px; border: 1px solid #2c4772; border-radius: 99px; color: #cfe0f5 !important; text-decoration: none; font-size: 14px; white-space: nowrap; }
+.tabs a[aria-current="page"] { border-color: var(--accent, #6fe3ff); background: linear-gradient(135deg, #0f3a5c, #2a1f5c); color: #fff !important; box-shadow: 0 0 18px #39c8ff22; }
+.tabs a small { margin-left: 6px; opacity: .8; font-variant-numeric: tabular-nums; }
+
+.scoreBox { display: grid; grid-template-columns: auto 1fr; gap: 16px; align-items: center; }
+.grade { display: grid; place-items: center; width: 84px; height: 84px; border-radius: 50%; border: 2px solid #3f5679; font-size: 30px; font-weight: 700; color: #fff; background: radial-gradient(circle at 30% 30%, #1d3558, #0a1324); }
+.grade small { display: block; font-size: 12px; font-weight: 500; color: #a9bdd8; margin-top: -6px; }
+.grade[data-grade="A"] { border-color: #3ef0b0; box-shadow: 0 0 22px #3ef0b033; }
+.grade[data-grade="B"] { border-color: #6fe3ff; box-shadow: 0 0 22px #6fe3ff2a; }
+.grade[data-grade="C"] { border-color: #ffcf6b; }
+.grade[data-grade="D"] { border-color: #ff6b9a; }
+.grade[data-grade="insufficient"] { font-size: 13px; text-align: center; padding: 8px; color: #c3cfdf; }
+
+.bar { height: 8px; border-radius: 99px; background: #13223b; overflow: hidden; }
+.bar > span { display: block; height: 100%; border-radius: inherit; background: linear-gradient(90deg, #39c8ff, #7668e8, #b9a3ff); transition: width .4s ease; }
+.cat { display: grid; gap: 6px; padding: 10px 0; border-bottom: 1px solid #1b2a46; }
+.cat:last-child { border-bottom: 0; }
+.cat header { display: flex; justify-content: space-between; gap: 10px; font-size: 14px; }
+.cat ul { margin: 0; padding-left: 18px; color: #a9bdd8; font-size: 13px; line-height: 1.6; }
+
+.legal { border: 1px solid #9d7a37; background: #33280f; color: #ffe9b8; border-radius: 12px; padding: 12px 14px; display: grid; gap: 6px; }
+.legal[data-status="restricted"] { border-color: #b25b70; background: #3a1a25; color: #ffdbe2; }
+.legal ul { margin: 0; padding-left: 18px; }
+
+.q { display: grid; gap: 8px; padding: 14px 0; border-bottom: 1px solid #1b2a46; }
+.q:last-child { border-bottom: 0; }
+.q > label, .q > .qLabel { font-size: 15px; color: #e9f2ff; line-height: 1.45; }
+.q .help { font-size: 12px; color: #93a8c6; }
+.q[data-required="true"] .qLabel::after { content: " *"; color: var(--accent, #6fe3ff); }
+.q[data-conflict="true"] { border-left: 3px solid #ff6b9a; padding-left: 10px; }
+.q[data-invalid="true"] { border-left: 3px solid #ffcf6b; padding-left: 10px; }
+.stateRow { display: flex; gap: 6px; flex-wrap: wrap; }
+.stateRow label { display: inline-flex; align-items: center; gap: 6px; padding: 6px 10px; border: 1px solid #2c4772; border-radius: 99px; font-size: 12px; color: #c3cfdf; cursor: pointer; min-height: 32px; }
+.stateRow label:has(input:checked) { border-color: var(--accent, #6fe3ff); color: #fff; background: #0f2a45; }
+.stateRow input { accent-color: #6fe3ff; }
+.opts { display: flex; gap: 8px; flex-wrap: wrap; }
+.opts label { display: inline-flex; gap: 8px; align-items: center; padding: 9px 12px; border: 1px solid #3f5679; border-radius: 12px; min-height: 44px; cursor: pointer; font-size: 14px; }
+.opts label:has(input:checked) { border-color: var(--accent, #6fe3ff); background: #0f2a45; }
+.opts input { accent-color: #6fe3ff; width: 18px; height: 18px; }
+.meta { font-size: 11px; color: #7f93b0; }
+.stickyBar { position: sticky; bottom: 10px; z-index: 2; display: flex; gap: 10px; flex-wrap: wrap; justify-content: space-between; align-items: center; padding: 12px 14px; border: 1px solid #2c4772; border-radius: 14px; background: #0a1324ee; backdrop-filter: blur(8px); }
+.sectionNav { display: grid; gap: 6px; }
+.sectionNav a { display: flex; justify-content: space-between; gap: 8px; padding: 8px 10px; border-radius: 10px; color: #cfe0f5 !important; text-decoration: none; font-size: 14px; border: 1px solid transparent; }
+.sectionNav a[aria-current="step"] { border-color: var(--accent, #6fe3ff); background: #0f2a45; }
+.layout { display: grid; grid-template-columns: minmax(200px, 260px) minmax(0, 1fr); gap: 16px; align-items: start; }
+.dup { border: 1px solid #9d7a37; background: #2a2210; border-radius: 12px; padding: 12px 14px; display: grid; gap: 8px; }
+.dup ul { margin: 0; padding-left: 18px; }
+.split { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 320px), 1fr)); gap: 14px; }
+.kpiLink { display: grid; gap: 4px; padding: 14px; border: 1px solid #22385c; border-radius: 14px; background: #0b1528aa; color: #e9f2ff !important; text-decoration: none; min-width: 0; }
+.kpiLink strong { font-size: 26px; font-variant-numeric: tabular-nums; }
+.kpiLink span { color: #a9bdd8; font-size: 13px; }
+.kpiLink:hover { border-color: var(--accent, #6fe3ff); }
+.leadRow { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 8px; align-items: center; }
+.leadRow a { color: #e9f2ff !important; text-decoration: none; font-weight: 600; overflow-wrap: anywhere; }
+
+@media (max-width: 860px) { .layout { grid-template-columns: minmax(0, 1fr); } .sectionNav { grid-auto-flow: column; grid-auto-columns: max-content; overflow-x: auto; } }
+@media (prefers-reduced-motion: reduce) { .bar > span { transition: none; } }
+
+/* Questionnaire inputs share the HUD field style (they are not wrapped in .field). 16px avoids iOS zoom on focus. */
+.q input:not([type="radio"]):not([type="checkbox"]):not([type="hidden"]), .q textarea {
+  width: 100%; max-width: 100%; box-sizing: border-box; min-height: 44px; padding: 10px 12px; font: inherit; font-size: 16px;
+  color: #e9f2ff; background: #08111f; border: 1px solid #3f5679; border-radius: 10px;
+}
+.q textarea { min-height: 80px; resize: vertical; }
+.q input:focus, .q textarea:focus { border-color: var(--accent, #6fe3ff); box-shadow: 0 0 0 3px #6fe3ff22; outline: none; }
+.q input:disabled, .q textarea:disabled { opacity: .45; }

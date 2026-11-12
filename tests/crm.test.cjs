@@ -146,10 +146,10 @@ test("metrics exclude archived and closed pipeline and handle zero denominator",
   assert.equal(metrics([], [], stages, Date.now()).conversion, 0);
 });
 
-test("CRM primary navigation: approved five-tab workflow plus Oficina (owner request, 2026-11-03)", () => {
+test("CRM primary navigation: Mesa comercial + approved five-tab workflow (owners only, 2026-11-11: managers/Oficina out of the main nav)", () => {
   assert.deepEqual(
     Array.from(crmNavigation, (tab) => tab.label),
-    ["Lead Hunter", "Leads Pipeline", "Ventas", "Calendario", "Tareas", "Oficina"],
+    ["Mesa comercial", "Lead Hunter", "Leads Pipeline", "Ventas", "Calendario", "Tareas"],
   );
   assert.equal(new Set(crmNavigation.map((tab) => tab.href)).size, 6);
   assert.ok(crmNavigation.every((tab) => tab.href.startsWith("/admin/workspace/crm/")));

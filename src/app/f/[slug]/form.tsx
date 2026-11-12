@@ -18,7 +18,7 @@ function SubmitButton({ label }: { label: string }) {
   </button>;
 }
 
-export function FunnelForm({ slug, cta }: { slug: string; cta: string }) {
+export function FunnelForm({ slug, cta, consentVersion = "" }: { slug: string; cta: string; consentVersion?: string }) {
   const [state, action] = useActionState<FunnelSubmitState, FormData>(submitFunnel, { status: "idle" });
   if (state.status === "ok")
     return <div className={styles.success} role="status">
@@ -27,6 +27,7 @@ export function FunnelForm({ slug, cta }: { slug: string; cta: string }) {
     </div>;
   return <form action={action} className={styles.form}>
     <input type="hidden" name="slug" value={slug} />
+    <input type="hidden" name="consent_version" value={consentVersion} />
     <div className={styles.honeypot} aria-hidden="true">
       <label>No completar este campo<input name="website_url" tabIndex={-1} autoComplete="off" /></label>
     </div>

@@ -10,7 +10,7 @@ insert into public.agency_memberships (user_id, role) values
 set role authenticated;
 select set_config('request.jwt.claim.sub','00000000-0000-4000-8000-0000000000a1',false);
 do $$
-declare l uuid; c uuid; c2 uuid; n int; ok boolean;
+declare l uuid; c uuid; c2 uuid; k uuid; n int; ok boolean;
 begin
   assert (select count(*) from public.crm_stages where active)=13, '13 stages';
   assert (select string_agg(id,',' order by position) from public.crm_stages)='new,researched,contact-pending,contacted,replied,qualified,meeting,diagnosed,proposal,negotiation,won,lost,nurture','stage order';
@@ -30,6 +30,13 @@ begin
   -- cannot convert before winning
   begin perform public.crm_convert_lead_to_client(l,'convert','Cliente aprobó propuesta');ok:=false;exception when others then ok:=true;end;
   assert ok,'convert requires won stage';
+  -- CRM Intelligence gate: no won stage without a verified signed contract.
+  begin update public.crm_leads set stage_id='won' where id=l;ok:=false;exception when others then ok:=true;end;
+  assert ok,'won requires a verified signed contract';
+  insert into public.crm_contracts(lead_id,title) values(l,'Acuerdo QA') returning id into k;
+  update public.crm_contracts set status='sent_for_signature' where id=k;
+  update public.crm_contracts set status='signed_pending_verification',signed_at=now(),signer_name='Firmante QA',external_reference='QA-ENVELOPE' where id=k;
+  update public.crm_contracts set status='verified_signed',verification_method='document_review',verification_note='Documento firmado revisado (QA).' where id=k;
   update public.crm_leads set stage_id='won' where id=l;
   assert (select count(*) from public.crm_clients)=0,'won does not auto-create a client';
   begin perform public.crm_convert_lead_to_client(l,'convert','corto');ok:=false;exception when others then ok:=true;end;
@@ -66,8 +73,16 @@ begin
   begin insert into public.crm_activities(body) values('huérfana');ok:=false;exception when others then ok:=true;end;
   assert ok,'activity needs lead or client';
   -- decline path records a decision without client
+  begin insert into public.crm_leads(company,email,source,owner_id,stage_id)
+   values('Gamma QA','g@gamma.test','manual','00000000-0000-4000-8000-0000000000a1','won');ok:=false;exception when others then ok:=true;end;
+  assert ok,'a lead cannot be created directly as won';
   insert into public.crm_leads(company,email,source,owner_id,stage_id)
-   values('Beta QA','b@beta.test','manual','00000000-0000-4000-8000-0000000000a1','won') returning id into l;
+   values('Beta QA','b@beta.test','manual','00000000-0000-4000-8000-0000000000a1','negotiation') returning id into l;
+  insert into public.crm_contracts(lead_id,title) values(l,'Acuerdo QA') returning id into k;
+  update public.crm_contracts set status='sent_for_signature' where id=k;
+  update public.crm_contracts set status='signed_pending_verification',signed_at=now(),signer_name='Firmante QA',external_reference='QA-ENVELOPE' where id=k;
+  update public.crm_contracts set status='verified_signed',verification_method='document_review',verification_note='Documento firmado revisado (QA).' where id=k;
+  update public.crm_leads set stage_id='won' where id=l;
   assert public.crm_convert_lead_to_client(l,'decline','Fuera de alcance de servicios') is null,'decline returns null';
   assert (select count(*) from public.crm_clients)=1,'decline creates no client';
   -- clients cannot forge conversions directly
