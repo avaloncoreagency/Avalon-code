@@ -33,12 +33,13 @@ export default async function DeskPage({ searchParams }: { searchParams: Promise
   const industry = isIndustry(requestedIndustry) ? requestedIndustry : "";
   const listHref = (f: Filter) => `?${new URLSearchParams({ f, ...(search ? { search } : {}), ...(industry ? { industry } : {}) })}`;
   const now = new Date();
+  const startOfDay = new Date(now); startOfDay.setHours(0, 0, 0, 0);
   const endOfDay = new Date(now); endOfDay.setHours(23, 59, 59, 999);
   const weekAgo = new Date(now.getTime() - 7 * 864e5).toISOString();
   const base = () => supabase.from("crm_leads").select(COLS, { count: "exact" }).eq("archived", false).eq("audience", "agency_b2b");
   const open = <T extends ReturnType<typeof base>>(b: T) => b.not("stage_id", "in", "(won,lost)");
   const views: Record<Filter, () => ReturnType<typeof base>> = {
-    today: () => open(base()).gte("follow_up_at", now.toISOString()).lte("follow_up_at", endOfDay.toISOString()),
+    today: () => open(base()).gte("follow_up_at", startOfDay.toISOString()).lte("follow_up_at", endOfDay.toISOString()),
     overdue: () => open(base()).lt("follow_up_at", now.toISOString()),
     new: () => base().gte("created_at", weekAgo).eq("stage_id", "new"),
     diagnosis: () => open(base()).neq("diagnosis_status", "complete"),
@@ -53,7 +54,7 @@ export default async function DeskPage({ searchParams }: { searchParams: Promise
   // Filters are applied to the displayed list, not to the six global dashboard counters.
   // Escape SQL LIKE wildcards so user input is treated as a literal company-name substring.
   let listQuery = views[filter]();
-  if (search) listQuery = listQuery.ilike("company", `%${search.replace(/[\\%_]/g, "\\  const [owners, list, ...counts] = await Promise.all([")}%`);
+  if (search) listQuery = listQuery.ilike("company", `%${search.replace(/[\\%_]/g, (char) => "\\" + char)}%`);
   if (industry) listQuery = listQuery.eq("industry_key", industry);
   const [owners, list, ...counts] = await Promise.all([
     run<{ user_id: string; email: string }[]>(supabase.rpc("crm_owner_directory")),
