@@ -1,3 +1,5 @@
+-- SUPERSEDED by supabase/migrations/20261112090000_crm_titan_backend.sql (§6) + docs/sql/growth-funnel-public-grant.sql.
+-- Kept only as the reviewed #155 history; do not apply.
 -- AVALON GROWTH 001. ISOLATED PROTOTYPE ONLY.
 -- Apply to disposable PostgreSQL/PGlite after existing Avalon migrations.
 -- NOT A PRODUCTION MIGRATION. SHIN/Claude must approve a Supabase CLI migration,

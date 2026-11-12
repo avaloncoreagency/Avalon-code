@@ -40,7 +40,7 @@ export default async function FunnelLanding({ params }: { params: Promise<{ slug
         <section className={styles.formPanel} aria-label="Formulario de contacto">
           <h2>Cuéntanos sobre tu proyecto</h2>
           <p>Un formulario seguro conectado a nuestro CRM.</p>
-          <FunnelForm slug={funnel.slug} cta={funnel.cta} />
+          <FunnelForm slug={funnel.slug} cta={funnel.cta} consentVersion={funnel.consentVersion} />
         </section>
       </div>
       <footer className={styles.footer}>© {new Date().getFullYear()} Avalon Core Agency · Datos utilizados únicamente para esta solicitud.</footer>

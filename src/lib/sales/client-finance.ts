@@ -143,3 +143,38 @@ export function financeNotice(summary: FinanceSummary, lang: "es" | "en"): strin
   parts.push(es ? "La rentabilidad no se calcula hasta tener los datos completos; lo mostrado es un subtotal." : "Profitability is not calculated until the data is complete; what is shown is a subtotal.");
   return parts.join(" ");
 }
+
+// ── Server aggregate (migration 20261112090000) ─────────────────────────────────────────────────────────────────────
+/** Shape returned by the RPC crm_client_finance_summary(p_client). Amounts are exact numeric rendered as text. */
+export type FinanceAggregate = {
+  client_id: string; complete: boolean; source: "sql_aggregate";
+  sales_confirmed: number; sales_cancelled: number; costs: number; as_of: string;
+  currencies: { currency: string; sales: number; costs: number; contracted: string; collected: string;
+    recurring_monthly: string; expenses: string; profit: string; cancelled_contracts: number }[];
+};
+
+/**
+ * Maps the SQL aggregate into the same FinanceSummary the UI already renders. The aggregate covers every row in one
+ * snapshot, so it is complete unless an amount cannot be represented exactly in safe-integer cents (then profit is null
+ * and the issue is reported, never rounded).
+ */
+export function summaryFromAggregate(agg: FinanceAggregate): FinanceSummary {
+  const issues = new Set<FinanceIssue>();
+  const cents = (value: MoneyLike) => {
+    const c = toCents(value);
+    if (c === null) { issues.add("invalid_amount"); return 0; }
+    if (!Number.isSafeInteger(c)) issues.add("amount_overflow");
+    return c;
+  };
+  const currencies: CurrencyFinance[] = (agg.currencies ?? []).map(c => {
+    const collectedCents = cents(c.collected), expensesCents = cents(c.expenses);
+    return { currency: String(c.currency).toUpperCase(), sales: c.sales, costs: c.costs,
+      contractedCents: cents(c.contracted), collectedCents, recurringCents: cents(c.recurring_monthly), expensesCents,
+      cancelledContracts: c.cancelled_contracts, profitCents: null, subtotalProfitCents: collectedCents - expensesCents };
+  }).sort((a, b) => a.currency.localeCompare(b.currency));
+  if (!agg.complete) { issues.add("sales_partial"); issues.add("costs_partial"); }
+  const complete = issues.size === 0;
+  for (const c of currencies) c.profitCents = complete ? c.subtotalProfitCents : null;
+  return { currencies, complete, empty: currencies.length === 0 && complete, issues: [...issues],
+    salesRead: agg.sales_confirmed, salesTotal: agg.sales_confirmed, costsRead: agg.costs, costsTotal: agg.costs };
+}

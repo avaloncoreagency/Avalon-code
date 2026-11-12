@@ -3,7 +3,7 @@ import { pick, type Lang } from "@/lib/i18n";
 /** Map a database / validation error to a stable code for the UI. Never shows raw database messages. */
 export function intelErrorCode(error: { code?: string; message?: string } | null | undefined): string {
   const m = error?.message ?? "";
-  const known = m.match(/\b(won_requires_verified_contract|contract_[a-z_]+|assessment_invalid|lead_not_found|crm_forbidden)\b/)?.[1];
+  const known = m.match(/\b(won_requires_verified_contract|commission_approval_forged|attachment_hash_mismatch|task_link_mismatch|contract_[a-z_]+|assessment_invalid|lead_not_found|crm_forbidden)\b/)?.[1];
   if (known) return known;
   if (/Motivo de pérdida/.test(m)) return "loss_reason_required";
   if (/etapa está desactivada/i.test(m)) return "stage_inactive";
@@ -34,6 +34,9 @@ const TEXT: Record<string, [string, string]> = {
   stage_inactive: ["Esa etapa está desactivada.", "That stage is disabled."],
   company_required: ["Escribe al menos el nombre comercial.", "Enter at least the business name."],
   reason_required: ["El ajuste manual necesita una justificación (mínimo 15 caracteres).", "A manual adjustment needs a justification (15+ characters)."],
+  commission_approval_forged: ["Aprueba tú la comisión: cambió o la aprobó otro propietario.", "Approve the commission yourself: it changed or another owner approved it."],
+  attachment_hash_mismatch: ["El archivo no coincide con su huella de integridad. Vuelve a subirlo.", "The file does not match its integrity hash. Upload it again."],
+  task_link_mismatch: ["La tarea apunta a una venta o proyecto de otro cliente.", "The task points to a sale or project of another client."],
   commission_needs_approval: ["Una comisión acordada necesita tu aprobación explícita (marca la casilla).", "An agreed commission needs your explicit approval (tick the box)."],
   unavailable: ["No se pudo completar. Comprueba tu conexión e inténtalo de nuevo: no se perdió nada de lo guardado.", "Could not complete. Check your connection and try again: nothing already saved was lost."],
 };
