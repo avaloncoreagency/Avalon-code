@@ -54,7 +54,7 @@ export default async function CommunicationHub({searchParams}:Params) {
     ? "—" : value.toLocaleString(lang==="es"?"es-ES":"en-US");
 
   return <Suite active="ai-communications">
-    <main className={s.page}>
+    <div className={s.page}>
       <header className={s.hero}>
         <p className={s.eyebrow}>AVALON OS / AI COMMUNICATIONS</p>
         <h1>COMMUNICATION HUB</h1>
@@ -165,6 +165,6 @@ export default async function CommunicationHub({searchParams}:Params) {
       <p className={s.footer}>{label(
         "Estados y cifras provienen de Supabase. «Activo» es el estado del proyecto interno, no una llamada o chat conectado. Los proveedores de IA y telefonía, conversaciones reales y publicación del widget siguen pendientes de configuración autorizada.",
         "Statuses and figures come from Supabase. “Active” is an internal project state, not an active call or chat connection. AI and telephony providers, real conversations and widget publishing require separate authorization and configuration.")}</p>
-    </main>
+    </div>
   </Suite>;
 }
