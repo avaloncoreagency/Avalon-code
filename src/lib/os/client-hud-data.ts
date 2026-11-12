@@ -13,6 +13,11 @@ export async function productMetrics(client: SupabaseClient, project: ProjectRow
     case 'website': return Promise.all([count('os_website_pages','P\u00e1ginas guardadas','Saved pages'),count('os_website_pages','Publicadas internamente','Internally published','published')]);
     case 'ecommerce': return Promise.all([count('os_store_products','Productos guardados','Saved products'),count('os_store_products','Productos activos','Active products','active')]);
     case 'receptionist': return [await count('os_receptionist_entries','Entradas de conocimiento','Knowledge entries')];
+    case 'chatbots': {
+      const value = project.settings.chatbot;
+      const knowledge = value && typeof value === 'object' && !Array.isArray(value) ? (value as Record<string, unknown>).knowledge : null;
+      return [{es:'Entradas guardadas',en:'Saved knowledge entries',value:Array.isArray(knowledge)?knowledge.length:0}];
+    }
     case 'marketing': return Promise.all([count('os_marketing_items','Piezas registradas','Registered content'),count('os_marketing_items','Marcadas publicadas','Marked published','published')]);
     case 'crm_creator': {
       const value = project.settings.blueprint;

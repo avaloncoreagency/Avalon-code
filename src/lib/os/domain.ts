@@ -1,8 +1,8 @@
 // Pure validation and domain logic for Avalon OS modules.
 // No framework or network imports: unit-tested directly in tests/os.test.cjs.
 
-export type ModuleKey = "website" | "ecommerce" | "crm_creator" | "receptionist" | "marketing";
-export const MODULE_KEYS: readonly ModuleKey[] = ["website", "ecommerce", "crm_creator", "receptionist", "marketing"];
+export type ModuleKey = "website" | "ecommerce" | "crm_creator" | "receptionist" | "chatbots" | "marketing";
+export const MODULE_KEYS: readonly ModuleKey[] = ["website", "ecommerce", "crm_creator", "receptionist", "chatbots", "marketing"];
 export const PROJECT_STATUSES = ["draft", "active", "archived"] as const;
 export type ProjectStatus = (typeof PROJECT_STATUSES)[number];
 
