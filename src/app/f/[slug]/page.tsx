@@ -20,6 +20,10 @@ export default async function FunnelLanding({ params }: { params: Promise<{ slug
   } catch { /* fail closed when the isolated schema is not installed */ }
   const funnel = publicFunnel(raw);
   if (!funnel) notFound();
+  // Read the exact consent version returned by the audited backend. No version -> no submission UI.
+  const record = raw && typeof raw === "object" && !Array.isArray(raw) ? raw as Record<string, unknown> : {};
+  const consentVersion = typeof record.consent_version === "string" && /^[a-z0-9._-]{3,40}$/.test(record.consent_version)
+    ? record.consent_version : "";
   const template = FUNNEL_TEMPLATES[funnel.template];
   return <main className={styles.page}>
     <div className={styles.shell}>
@@ -40,7 +44,7 @@ export default async function FunnelLanding({ params }: { params: Promise<{ slug
         <section className={styles.formPanel} aria-label="Formulario de contacto">
           <h2>Cuéntanos sobre tu proyecto</h2>
           <p>Un formulario seguro conectado a nuestro CRM.</p>
-          <FunnelForm slug={funnel.slug} cta={funnel.cta} />
+          {consentVersion ? <FunnelForm slug={funnel.slug} cta={funnel.cta} consentVersion={consentVersion} /> : <p role="alert">Este formulario todavía no está disponible. No se ha enviado ninguna solicitud.</p>}
         </section>
       </div>
       <footer className={styles.footer}>© {new Date().getFullYear()} Avalon Core Agency · Datos utilizados únicamente para esta solicitud.</footer>
