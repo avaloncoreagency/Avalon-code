@@ -42,5 +42,7 @@ jobs:
             -f supabase/migrations/20261102053452_harden_membership_table_grants.sql \
             -f supabase/migrations/20261102070500_avalon_os_modules.sql \
             -f supabase/migrations/20261102085430_crm_core.sql \
+            -f supabase/migrations/20261107090000_ai_chatbots_module.sql \
             -f tests/sql/os_modules_rls.test.sql \
-            -f tests/sql/crm_core_rls.test.sql
+            -f tests/sql/crm_core_rls.test.sql \
+            -f tests/sql/chatbots_module_rls.test.sql
