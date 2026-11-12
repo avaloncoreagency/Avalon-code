@@ -7,10 +7,10 @@ export type ModuleDef = {
   name: string;
   icon: IconName;
   accent: "cyan" | "violet" | "magenta" | "blue" | "teal" | "amber";
-  key: "crm" | "website" | "ecommerce" | "crm_creator" | "receptionist" | "chatbots" | "marketing";
+  key: "crm" | "website" | "ecommerce" | "crm_creator" | "communications" | "marketing";
   description: Record<Lang, string>;
 };
-export type IconName = "dashboard" | "crm" | "website" | "store" | "blueprint" | "receptionist" | "chatbots" | "marketing" | "settings" | "profile" | "logout";
+export type IconName = "dashboard" | "crm" | "website" | "store" | "blueprint" | "receptionist" | "chatbots" | "communications" | "marketing" | "settings" | "profile" | "logout";
 
 export const modules: ModuleDef[] = [
   { slug: "crm", key: "crm", href: "/admin/workspace/crm", name: "CRM", icon: "crm", accent: "cyan",
@@ -21,10 +21,8 @@ export const modules: ModuleDef[] = [
     description: { es: "Catálogos, productos, precios e inventario por tienda.", en: "Catalogs, products, pricing and inventory per store." } },
   { slug: "crm-creator", key: "crm_creator", href: "/admin/workspace/crm-creator", name: "CRM Creator", icon: "blueprint", accent: "blue",
     description: { es: "Administra proyectos CRM de clientes y conserva su configuración.", en: "Manage client CRM projects and maintain their configuration." } },
-  { slug: "ai-receptionist", key: "receptionist", href: "/admin/workspace/ai-receptionist", name: "AI Receptionist", icon: "receptionist", accent: "teal",
-    description: { es: "Gestiona asistentes de clientes, configuración y conexiones autorizadas.", en: "Manage client assistants, configuration and authorized connections." } },
-  { slug: "ai-chatbots", key: "chatbots", href: "/admin/workspace/ai-chatbots", name: "AI Chatbots", icon: "chatbots", accent: "cyan",
-    description: { es: "Biblioteca y constructor de chatbots web, separados de la recepción telefónica.", en: "Web chatbot library and builder, separate from phone reception." } },
+  { slug: "ai-communications", key: "communications", href: "/admin/workspace/ai-communications", name: "COMMUNICATION HUB", icon: "communications", accent: "teal",
+    description: { es: "Todos los recepcionistas y chatbots, organizados por empresa con sus bibliotecas y constructores.", en: "All receptionists and chatbots, organized by company with their libraries and builders." } },
   { slug: "marketing-hub", key: "marketing", href: "/admin/workspace/marketing-hub", name: "Marketing Hub", icon: "marketing", accent: "amber",
     description: { es: "Campañas, calendario editorial y planificación de contenido.", en: "Campaigns, editorial calendar and content planning." } },
 ];

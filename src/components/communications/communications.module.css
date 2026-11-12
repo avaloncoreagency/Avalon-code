@@ -1,0 +1,65 @@
+.page{max-width:1260px;margin:0 auto;padding:18px clamp(12px,3vw,32px) 70px;color:#eaf5ff;min-width:0;overflow-wrap:anywhere}
+.page :focus-visible{outline:3px solid #8fdfff;outline-offset:3px}
+.hero{border:1px solid #425e8a;border-radius:23px;padding:clamp(22px,4vw,40px);background:radial-gradient(ellipse at 90% 2%,#38478c5b,transparent 48%),radial-gradient(ellipse at 5% 100%,#117a9166,transparent 60%),linear-gradient(135deg,#172546,#080f22);box-shadow:0 18px 55px #0004}
+.eyebrow{margin:0 0 12px;font-size:11px;color:#9eecff;letter-spacing:.17em;text-transform:uppercase;font-weight:800}
+.hero h1{margin:0;font-size:clamp(1.85rem,4.2vw,3.3rem);line-height:1.05;letter-spacing:-.045em}
+.hero p{max-width:75ch;color:#c5d8f0;line-height:1.65;margin:16px 0 0}
+.heroActions,.productLinks,.projectActions,.pager{display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin-top:19px}
+.primaryButton,.secondaryButton,.productLinks a,.projectActions a,.pager a{display:inline-flex;min-height:44px;align-items:center;justify-content:center;border-radius:11px;padding:10px 15px;text-decoration:none;font-size:.9rem;font-weight:750;border:1px solid #4c739b;background:#1a3152;color:#edfbff}
+.primaryButton,.form button{background:linear-gradient(115deg,#13a5bd,#405db6);border-color:#83dff5;color:#fff}
+.secondaryButton:hover,.productLinks a:hover,.projectActions a:hover,.pager a:hover{border-color:#87e5fc}
+.metrics{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px;margin-top:17px}
+.metric{display:grid;gap:5px;border:1px solid #2d446b;background:#101d37;border-radius:15px;padding:17px;min-width:0}
+.metric span{color:#b7cbe4;font-size:.83rem}
+.metric strong{font-size:clamp(1.35rem,2.9vw,2rem);font-variant-numeric:tabular-nums}
+.section{margin-top:28px}
+.sectionHead{display:flex;align-items:end;justify-content:space-between;flex-wrap:wrap;gap:9px;margin-bottom:14px}
+.sectionHead h2{margin:0;font-size:clamp(1.22rem,2.5vw,1.75rem)}
+.sectionHead p,.muted{color:#a9bedb;font-size:.86rem;line-height:1.65;margin:4px 0}
+.productGrid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px}
+.product{border:1px solid #36537c;border-radius:18px;background:linear-gradient(150deg,#142945,#0c1730);padding:21px;min-width:0}
+.productChatbot{background:linear-gradient(150deg,#212048,#0c1730)}
+.product h3{font-size:1.28rem;margin:10px 0}
+.product p{margin:0;color:#c3d4e8;line-height:1.55;font-size:.92rem}
+.productIcon{display:inline-grid;place-items:center;border:1px solid #5475aa;background:#284572;color:#c9efff;padding:8px 11px;border-radius:10px;font-size:.82rem;font-weight:750}
+.productLinks{margin-top:17px}
+.board{border:1px solid #324b71;border-radius:19px;background:#0c172d;padding:clamp(14px,3vw,23px)}
+.toolbar{display:flex;flex-wrap:wrap;gap:11px;align-items:end;margin-bottom:14px}
+.field{display:grid;gap:7px;color:#c5d9f1;font-size:.81rem;flex:1;min-width:min(100%,180px)}
+.input,.select,.form input,.form select,.form textarea{width:100%;box-sizing:border-box;min-height:45px;padding:10px 12px;border:1px solid #527097;border-radius:10px;background:#08152b;color:#ecf7ff;font:inherit;min-width:0}
+.form textarea{min-height:85px;resize:vertical}
+.groupGrid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px;margin-top:16px}
+.company{background:linear-gradient(140deg,#182943,#10192e);border:1px solid #355277;border-radius:17px;padding:18px;min-width:0}
+.companyHead{display:flex;gap:13px;align-items:center;margin-bottom:12px}
+.avatar{display:grid;place-items:center;flex:none;width:45px;height:45px;border-radius:13px;background:#244d67;color:#9ae7f3;font-size:1.2rem;font-weight:800}
+.companyName{margin:0;font-size:1.11rem;overflow-wrap:anywhere}
+.companyHead p{margin:4px 0 0;color:#b2c8df;font-size:.79rem}
+.companyStats{display:flex;gap:6px;flex-wrap:wrap;margin:10px 0}
+.chip{display:inline-flex;border:1px solid #4a6589;color:#d5e8f9;padding:5px 9px;border-radius:999px;font-size:.74rem}
+.projectList{display:grid;gap:10px;margin:12px 0 0;padding:0;list-style:none}
+.project{display:grid;gap:9px;border-top:1px solid #364a67;padding-top:11px;min-width:0}
+.project:first-child{border-top:0;padding-top:0}
+.projectMain{display:flex;gap:9px;align-items:center;justify-content:space-between;flex-wrap:wrap}
+.projectMain strong{font-size:.93rem;min-width:0;overflow-wrap:anywhere}
+.projectType{font-size:.72rem;letter-spacing:.04em;color:#9ee1f4}
+.projectStatus{font-size:.75rem;color:#b4c8e3}
+.projectActions{margin-top:1px;gap:6px}
+.projectActions a{min-height:38px;padding:6px 10px;font-size:.81rem}
+.unlinked{margin-top:18px;border:1px dashed #8a7958;border-radius:14px;background:#28231d7a;padding:18px}
+.unlinked h3{margin:0 0 5px;font-size:1.06rem}
+.unlinked .projectList{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}
+.unlinked .project{background:#101d32;border:1px solid #415477;border-radius:12px;padding:12px}
+.empty{padding:26px;border:1px dashed #4f6387;border-radius:13px;color:#bdd1eb;text-align:center}
+.pager{margin-top:18px;justify-content:space-between}
+.pager span{font-size:.87rem;color:#c1d3e8}
+.form{border:1px solid #36537c;border-radius:19px;padding:clamp(17px,3vw,24px);background:linear-gradient(135deg,#14233f,#0b162b);display:grid;gap:15px}
+.formGrid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px}
+.form label{display:grid;gap:8px;color:#d5e5f7;font-size:.87rem}
+.form button{min-height:46px;border:1px solid #8be5f3;border-radius:11px;padding:10px 16px;font-weight:800;cursor:pointer}
+.form button:disabled{opacity:.6;cursor:not-allowed}
+.notice{border:1px solid #856b4c;color:#ffe8c7;background:#352921;border-radius:13px;padding:13px;margin-top:12px;line-height:1.55}
+.footer{font-size:.82rem;line-height:1.6;color:#abbed9;margin-top:19px}
+@media(max-width:900px){.groupGrid{grid-template-columns:1fr}}
+@media(max-width:700px){.metrics{grid-template-columns:repeat(2,minmax(0,1fr))}.productGrid,.formGrid{grid-template-columns:1fr}.unlinked .projectList{grid-template-columns:1fr}.page{padding:12px 12px 55px}}
+@media(max-width:380px){.company{padding:14px}.hero{padding:19px}.metric{padding:12px}.heroActions a{width:100%}}
+@media(prefers-reduced-motion:reduce){.page *{scroll-behavior:auto!important}}
