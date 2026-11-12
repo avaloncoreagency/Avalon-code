@@ -9,10 +9,10 @@ import { NOVA_STUDIO_MODULE, mergeSettings, validateChatbot, validateCrm, type N
 
 export type NovaStudioSaveResult = { ok: true; version: number } | { ok: false; error: string };
 
-const PATHS: Record<NovaStudioKind, string> = { crm: "/admin/workspace/crm-creator", chatbot: "/admin/workspace/ai-receptionist" };
+const PATHS: Record<NovaStudioKind, string> = { crm: "/admin/workspace/crm-creator", chatbot: "/admin/workspace/ai-receptionist", chatbot_product: "/admin/workspace/ai-chatbots" };
 
 export async function saveNovaStudio(kind: NovaStudioKind, projectId: string, version: number, content: unknown): Promise<NovaStudioSaveResult> {
-  if (kind !== "crm" && kind !== "chatbot") return { ok: false, error: "invalid" };
+  if (kind !== "crm" && kind !== "chatbot" && kind !== "chatbot_product") return { ok: false, error: "invalid" };
   if (!isUuid(projectId) || !Number.isSafeInteger(version) || version < 1) return { ok: false, error: "invalid" };
   const valid = kind === "crm" ? validateCrm(content) : validateChatbot(content);
   if (!valid.ok) return { ok: false, error: valid.error };

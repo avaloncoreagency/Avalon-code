@@ -3,8 +3,8 @@
 // the classic CRM Creator uses) + settings.nova; chatbot → settings.chatbot on an AI Receptionist project.
 import { cleanText, readBlueprint, validateBlueprint, type Blueprint, type ModuleKey } from "./domain";
 
-export type NovaStudioKind = "crm" | "chatbot";
-export const NOVA_STUDIO_MODULE: Record<NovaStudioKind, ModuleKey> = { crm: "crm_creator", chatbot: "receptionist" };
+export type NovaStudioKind = "crm" | "chatbot" | "chatbot_product";
+export const NOVA_STUDIO_MODULE: Record<NovaStudioKind, ModuleKey> = { crm: "crm_creator", chatbot: "receptionist", chatbot_product: "chatbots" };
 
 export type ChatbotSettings = {
   description: string; instructions: string; personality: string; greeting: string; color: string;
@@ -66,7 +66,7 @@ export function readCrm(settings: unknown): CrmSettings {
 /** Merge validated content into the existing settings without dropping other keys. */
 export function mergeSettings(kind: NovaStudioKind, current: unknown, value: ChatbotSettings | CrmSettings): Record<string, unknown> {
   const base = current && typeof current === "object" ? { ...(current as Record<string, unknown>) } : {};
-  if (kind === "chatbot") return { ...base, chatbot: value };
+  if (kind !== "crm") return { ...base, chatbot: value };
   const crm = value as CrmSettings;
   return { ...base, blueprint: crm.blueprint, nova: { color: crm.color, modules: crm.modules } };
 }
