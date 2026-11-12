@@ -74,19 +74,19 @@ export function recommend(industry: string, answers: Answers): Recommendation[] 
       benefit: L_("Evitar campañas rechazadas o suspensiones de cuenta", "Avoid rejected campaigns or account suspensions"),
       evidence: s.legal.flags.map(x => ({ label: "Riesgo legal", value: x.code })), missing: [],
       nextAction: L_("Limitarse a opciones permitidas (perfil de Google Business informativo, contenido orgánico, mejoras operativas) y revisar políticas vigentes", "Stick to allowed options (informational Google Business Profile, organic content, operational improvements) and review current policies") });
-  else if (s.legal.status === "review")
+  if (s.legal.status === "review")
     out.push({ ruleId: "ads_review_required", service: "Revisión de cumplimiento", kind: "advisory",
       problem: L_("Faltan verificaciones de cumplimiento aplicables", "Applicable compliance checks are still pending"),
       benefit: L_("Evitar recomendar campañas que pueden incumplir requisitos legales o de plataformas", "Avoid recommending campaigns that may violate legal or platform requirements"),
       evidence: s.legal.flags.map(flag => ({ label: "Revisión", value: flag.code })), missing: [],
       nextAction: L_("Comprobar licencias, permisos y políticas antes de aprobar anuncios", "Check licenses, permits and platform policies before approving ads") });
-  else if (noCapacity)
+  if (noCapacity)
     out.push({ ruleId: "no_ads_without_capacity", service: "Capacidad antes que publicidad", kind: "advisory",
       problem: L_("No puede atender más clientes ahora", "Cannot take more customers now"),
       benefit: L_("No pagar por clientes que no se pueden atender", "Avoid paying for customers they cannot serve"),
       evidence: [{ label: "Capacidad adicional", value: String(f.extraCapacity ?? "no acepta trabajos nuevos") }], missing: [],
       nextAction: L_("No recomendar anuncios todavía; mejorar operación, precios o seguimiento", "Do not recommend ads yet; improve operations, pricing or follow-up") });
-  else {
+  if (!restricted && s.legal.status !== "review" && !noCapacity) {
     const profit = cat("profitability"), budget = cat("budget");
     const budgetLow = (f.avalonBudget !== undefined && f.avalonBudget < 300) || (f.adBudget !== undefined && f.adBudget < 400);
     if (budgetLow)
