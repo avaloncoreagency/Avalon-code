@@ -182,9 +182,12 @@ create policy b2c_event_owner_read on public.crm_b2c_request_events
 create function crm_private.b2c_log_event() returns trigger
  language plpgsql security definer set search_path='' as $$
 begin
- if tg_op='INSERT' or new.status is distinct from old.status then
+ if tg_op='INSERT' then
   insert into public.crm_b2c_request_events(request_id,actor_id,old_status,new_status)
-    values(new.id,auth.uid(),case when tg_op='UPDATE' then old.status else null end,new.status);
+    values(new.id,auth.uid(),null,new.status);
+ elsif new.status is distinct from old.status then
+  insert into public.crm_b2c_request_events(request_id,actor_id,old_status,new_status)
+    values(new.id,auth.uid(),old.status,new.status);
  end if;
  return null;
 end $$;
