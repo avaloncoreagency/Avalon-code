@@ -10,7 +10,7 @@
 | B2B Discovery | CRM Intelligence PR #160 and specialized PR #168 | Human playbook | Do not overwrite specialized templates |
 | AI Comms | Existing hub and PR #164 | Industry knowledge *guidance*, pure access policy | Source ingestion, provider tests and approved knowledge |
 | Funnels | Existing Growth PR #155, merged | Static campaign briefs | No live B2C funnel reuse |
-| Lead Router | Not implemented B2C | Pure fail-closed eligibility evaluator | Tenant/contractor isolation, consent, routing, delivery, audit |
+| Lead Router | Not implemented B2C | Pure fail-closed evaluator, owner-only draft SQL with RLS/audit and synthetic simulator | Hosted tenant isolation, legal consent, public delivery, full end-to-end audit |
 | Revenue | CRM sales and payments | Verified owner overview | Cash reconciliation and actual-cost accounting |
 | Campaign spending | Meta Ads provider not connected | No external calls | Official permissions, budgets and approval |
 | QA | GitHub workflows | New synthetic tests and 40-case plan | Full hosted/live acceptance |
@@ -29,4 +29,4 @@
 5. Compare SHA-specific CI plus browser acceptance, then seek explicit merge approval.
 
 ## Rollback
-No migrations or external provider writes in PR #167; reverting the PR removes its private guidance/tooling while leaving canonical CRM records unchanged.
+PR #167 now carries an additive owner-only B2C SQL migration, **not remotely applied**. Require migration review/backup/explicit owner approval before applying. No provider writes or public delivery were introduced. Reverting the unmerged PR leaves production unchanged.
