@@ -115,11 +115,12 @@ test('CRM Intelligence in the real app: quick add, discovery, conflicts, score, 
   // Sales Desk search is scoped to an explicit list, not the default 'Today' follow-up view.
   // The industry filter must not share the accessible name of Quick Add's industry field.
   await m.goto(origin + '/admin/workspace/crm/desk?f=all');
-  await m.getByRole('search').getByRole('searchbox').fill('Cool Breeze');
-  await m.getByRole('search').getByLabel('Filtrar sector del listado').selectOption('hvac');
+  const deskSearch = m.locator('form[role="search"]:has(input[name="search"])');
+  await deskSearch.locator('input[name="search"]').fill('Cool Breeze');
+  await deskSearch.locator('select[name="industry"]').selectOption('hvac');
   await Promise.all([
     m.waitForURL(/search=Cool\+Breeze.*industry=hvac/),
-    m.getByRole('search').getByRole('button', { name: 'Buscar' }).click(),
+    deskSearch.getByRole('button', { name: 'Buscar' }).click(),
   ]);
   await m.getByRole('link', { name: 'Cool Breeze HVAC Sintético' }).waitFor();
   assert.ok(await m.getByText('HVAC / Aire acondicionado').count(), 'industry filter applied without breaking Quick Add');
