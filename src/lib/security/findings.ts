@@ -15,7 +15,7 @@ export type Finding = {
   title: [es: string, en: string]; location: string; fix: [es: string, en: string]; evidence: string;
 };
 
-export const REVIEWED_AT = "2026-11-02";
+export const REVIEWED_AT = "2026-11-12";
 
 export const FINDINGS: Finding[] = [
   {
@@ -48,7 +48,7 @@ export const FINDINGS: Finding[] = [
   },
   {
     id: "R-05", severity: "medium", status: "open", area: "Dependencias",
-    title: ["14 vulnerabilidades moderadas en dependencias (npm audit en CI)", "14 moderate dependency vulnerabilities (npm audit in CI)"],
+    title: ["Vulnerabilidades de dependencias: severidad y cantidad por revalidar", "Dependency vulnerabilities: severity and count require fresh verification"],
     location: "package-lock.json",
     fix: ["CI bloquea severidad alta/crítica e informa el resto; Dependabot propone actualizaciones semanales.", "CI blocks high/critical and reports the rest; Dependabot proposes weekly updates."],
     evidence: ".github/workflows/security.yml · .github/dependabot.yml",
@@ -129,6 +129,72 @@ export const FINDINGS: Finding[] = [
     location: "public.os_* · agency_memberships",
     fix: ["Roles admin/operator sin acceso (falla cerrado). Antes de habilitarlos: membresía por proyecto y RLS por proyecto.", "admin/operator have no access (fail closed). Before enabling them: per-project membership and RLS."],
     evidence: "tests/sql/os_modules_rls.test.sql",
+  },
+
+  // 2026-11-12 partial verification: Supabase advisors + read-only PostgreSQL
+  // privilege inspection. These warnings are not all confirmed vulnerabilities.
+  {
+    id: "R-17", severity: "info", status: "accepted", area: "Supabase",
+    title: ["Formulario público ejecutable sin iniciar sesión: acceso intencional", "Public inquiry callable without login: intentional access"],
+    location: "public.crm_public_inquiry(jsonb)",
+    fix: ["Mantener cotizaciones públicas: validar entrada, honeypot y límite SQL; revisar abuso periódicamente.", "Keep public inquiries functional: validation, honeypot and SQL throttle; periodically review abuse."],
+    evidence: "2026-11-12: pg_get_functiondef + Supabase advisor; ver REGISTRO_RIESGOS_20261104.md",
+  },
+  {
+    id: "R-18", severity: "info", status: "implemented", area: "Supabase",
+    title: ["20 RPC privilegiadas accesibles a cuentas autenticadas; guardas owner presentes", "20 privileged RPCs callable by signed-in accounts; owner guards present"],
+    location: "public.crm_* · public.office_directory",
+    fix: ["Las funciones verifican crm_private.is_owner(); completar pruebas negativas reales de usuario sin membresía.", "Functions check crm_private.is_owner(); complete live negative tests as a non-member."],
+    evidence: "2026-11-12: pg_proc (21 definer, 1 anon, 20 authenticated), revisión textual de guardas; faltan pruebas negativas",
+  },
+  {
+    id: "R-19", severity: "low", status: "blocked", area: "Supabase",
+    title: ["Extensión pg_net instalada en el esquema public", "pg_net extension installed in public schema"],
+    location: "Supabase → Database → Extensions",
+    fix: ["Planificar una migración revisada a extensions; no moverla en producción sin validar dependencias.", "Plan a reviewed migration to extensions; do not move it in production without checking dependencies."],
+    evidence: "2026-11-12: Supabase advisor extension_in_public",
+  },
+  {
+    id: "R-20", severity: "info", status: "accepted", area: "Supabase",
+    title: ["Dos tablas con RLS y sin políticas: denegación directa intencional", "Two tables with RLS but no policies: intentional direct denial"],
+    location: "crm_private.finance_access · public.crm_radar_worker_config",
+    fix: ["Conservar sin políticas y sin SELECT público; controlar sus operaciones por RPC autorizadas.", "Keep without direct policies or public SELECT; control access through authorized RPCs."],
+    evidence: "2026-11-12: RLS=true, policies=0, anon_select=false, auth_select=false en pg_catalog",
+  },
+  {
+    id: "R-21", severity: "medium", status: "open", area: "Migraciones",
+    title: ["Historial de migraciones de producción por reconciliar con ramas activas", "Production migration history must be reconciled with active branches"],
+    location: "supabase/migrations · Supabase migration history",
+    fix: ["Comparar versiones y dependencias antes de aplicar cualquier SQL; no ejecutar migraciones en producción en esta rama.", "Compare versions and dependencies before applying SQL; no production migrations in this branch."],
+    evidence: "2026-11-12: Supabase lista 22 migraciones aplicadas; integración contiene migraciones aún no aplicadas",
+  },
+  {
+    id: "R-22", severity: "medium", status: "accepted", area: "Managers (fuera de v1)",
+    title: ["Los reportes de managers no demuestran ejecución autónoma", "Manager reports do not prove autonomous execution"],
+    location: "public.crm_agent_complete · docs/security/REGISTRO_RIESGOS_20261104.md",
+    fix: ["Mantener managers fuera de v1; requerir evidencias de ejecutor antes de etiquetar tareas como completadas.", "Keep managers out of v1; require executor evidence before marking tasks completed."],
+    evidence: "R-22 del registro 2026-11-04; no revalidado en esta operación",
+  },
+  {
+    id: "R-23", severity: "medium", status: "open", area: "Auth",
+    title: ["El rate limit propio está aislado por instancia de servidor", "Application rate limiting is per server instance"],
+    location: "src/lib/security/rate-limit.ts",
+    fix: ["Diseñar límite distribuido reutilizando infraestructura aprobada; conservar límites de Supabase mientras tanto.", "Design distributed throttling with approved infrastructure; keep Supabase limits as fallback."],
+    evidence: "2026-11-12: SlidingWindowLimiter usa Map en memoria",
+  },
+  {
+    id: "R-24", severity: "medium", status: "blocked", area: "Vercel",
+    title: ["Configuración del firewall sin verificación concluyente", "Firewall configuration not conclusively verified"],
+    location: "Vercel → Security → Firewall",
+    fix: ["Revisar el panel y validar reglas sin bloquear tráfico legítimo; guardar evidencia del estado real.", "Inspect dashboard and validate rules without blocking real users; preserve evidence."],
+    evidence: "2026-11-12: consulta de configuración activa devolvió 404; estado desconocido",
+  },
+  {
+    id: "R-25", severity: "info", status: "open", area: "GitHub",
+    title: ["Repositorio público: decidir política de visibilidad y divulgación", "Public repository: review visibility and disclosure policy"],
+    location: "GitHub → Repository settings",
+    fix: ["Evitar subir datos de clientes o secretos; evaluar impacto en CI y CodeQL antes de hacerlo privado.", "Never commit client data or secrets; assess CI and CodeQL impact before changing visibility."],
+    evidence: "2026-11-12: GitHub get_repo visibility=public",
   },
 ];
 
