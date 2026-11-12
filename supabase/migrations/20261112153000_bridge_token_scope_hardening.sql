@@ -41,8 +41,7 @@ begin
   );
 end;
 $$;
--- Keep the original, audited token-based API surface; never grant table access.
-revoke all on function public.os_bridge_api_import_status(text, uuid, boolean) from public, anon, authenticated;
-grant execute on function public.os_bridge_api_import_status(text, uuid, boolean) to anon, authenticated;
+-- CREATE OR REPLACE preserves the function's existing, reviewed EXECUTE grants.
+-- Do not broaden public privileges or duplicate grants; security tests enumerate them exactly.
 
 commit;
