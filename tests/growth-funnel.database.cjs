@@ -54,8 +54,12 @@ test("GROWTH E2E: public form -> a single audited CRM lead; no sale, outreach or
   await assert.rejects(db.query("select id from crm_leads"), /permission denied|policy/i);
   await assert.rejects(db.query("insert into crm_leads(company,source,owner_id) values('bot','bot',$1)", [MIGUEL]), /permission denied|policy/i);
 
-  const base = { slug: "capture-demo-001", company: "Orbit Synthetic LLC", name: "Ana Prueba", email: "ana@orbit.example.invalid", phone: "", message: "Solicito información sobre automatizaciones", consent: true };
+  const base = { slug: "capture-demo-001", company: "Orbit Synthetic LLC", name: "Ana Prueba", email: "ana@orbit.example.invalid", phone: "", message: "Solicito información sobre automatizaciones", consent: true, consent_version: "avalon-optin-v1" };
   assert.equal(await submit({ ...base, consent: false }), "invalid", "consent is mandatory");
+  assert.equal(await submit({ ...base, consent_version: "" }), "invalid", "blank consent version cannot bypass text agreement");
+  const { consent_version: omittedConsentVersion, ...withoutConsentVersion } = base;
+  assert.ok(omittedConsentVersion);
+  assert.equal(await submit(withoutConsentVersion), "invalid", "omitted consent version is rejected");
   assert.equal(await submit({ ...base, email: "not-an-email" }), "invalid");
   assert.equal(await submit({ ...base, message: "short" }), "invalid");
   assert.equal(await submit({ ...base, slug: "no-published-preview" }), "unavailable", "draft cannot receive leads");

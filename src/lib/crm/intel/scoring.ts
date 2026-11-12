@@ -5,7 +5,7 @@ import { templateFor } from "./templates";
 // Explainable lead score (0–100). Rules are plain code, versioned, and every point has a visible reason.
 // Unknown data is EXCLUDED (never counted as a negative): a category without data is "unknown", and the overall score is
 // "insufficient" until enough weight is known. Legal risk is evaluated separately and can never be outweighed by points.
-export const RULES_VERSION = "score-1";
+export const RULES_VERSION = "score-2";
 export const WEIGHTS = { profitability: 20, capacity: 20, budget: 15, conversion: 15, fit: 15, commitment: 10, data: 5 } as const;
 export type Category = keyof typeof WEIGHTS;
 export const MIN_KNOWN_WEIGHT = 60;
@@ -214,6 +214,17 @@ export function legalOf(f: Facts): LegalResult {
   const flags: LegalResult["flags"] = [];
   let status: LegalResult["status"] = "clear";
   const bump = (s: LegalResult["status"]) => { if (s === "restricted" || (s === "review" && status === "clear")) status = s; };
+  // New sector questionnaires collect self-reported legal/policy information only.
+  // Without a verified, jurisdiction-specific compliance workflow they cannot
+  // automatically authorize paid advertising, regardless of commercial score.
+  const manualReviewSectors = new Set(["roofing", "fencing", "tattoo", "landscaping",
+    "plumbing", "cleaning", "restaurant", "electrical", "general_contractor", "other"]);
+  if (manualReviewSectors.has(f.industry)) {
+    flags.push({ code: "industry_review_required",
+      label: L_("Revisión humana del sector, las licencias, permisos y políticas publicitarias antes de activar anuncios",
+        "Human review of industry licensing, permits and ad platform policies required before activating ads") });
+    bump("review");
+  }
   if (f.industry === "hvac") {
     if (f.licenseType === "none" || f.licenseVerified === "invalid") { flags.push({ code: "license_invalid", label: L_("Licencia inexistente o no válida: no promocionar servicios que la requieren", "No or invalid license: do not promote services that require one") }); bump("restricted"); }
     else if (f.licenseVerified !== "verified") { flags.push({ code: "license_unverified", label: L_("Licencia sin verificar en DBPR", "License not verified on DBPR") }); bump("review"); }
