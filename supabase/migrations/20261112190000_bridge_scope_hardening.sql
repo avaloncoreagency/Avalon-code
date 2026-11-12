@@ -65,6 +65,5 @@ end;
 $$;
 
 revoke all on function public.os_bridge_api_import_status(text, uuid, boolean) from public;
--- Preserve intentional token-gated anon intake/polling. Revoking anon would
--- break the external import client; permission is enforced by token scopes.
-grant execute on function public.os_bridge_api_import_status(text, uuid, boolean) to anon, authenticated;
+-- CREATE OR REPLACE preserves the existing explicit grants to anon and
+-- authenticated; do not widen grants or bypass token validation.
