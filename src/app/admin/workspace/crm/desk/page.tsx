@@ -91,7 +91,7 @@ export default async function DeskPage({ searchParams }: { searchParams: Promise
               <label><span>{pick(lang, "Buscar negocio", "Business name")}</span>
                 <input type="search" name="search" maxLength={80} defaultValue={search} placeholder={pick(lang, "Nombre de empresa", "Company name")} />
               </label>
-              <label><span>{pick(lang, "Industria", "Industry")}</span>
+              <label><span>{pick(lang, "Filtrar sector del listado", "Filter list sector")}</span>
                 <select name="industry" defaultValue={industry}>
                   <option value="">{pick(lang, "Todas las industrias", "All industries")}</option>
                   {INDUSTRIES.map(option => <option key={option.key} value={option.key}>{option.label[lang]}</option>)}
