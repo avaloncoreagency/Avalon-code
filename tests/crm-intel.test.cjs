@@ -25,23 +25,59 @@ const A = (v) => ({ v, s: "answered" });
 const U = { s: "unknown" };
 const ids = t => t.sections.flatMap(s => s.questions.map(q => q.id));
 
-test("13 industries; HVAC, Barber and Smoke Shop are specialized, the rest use the general template and say so", () => {
+test("all 13 industry templates are specialized, bilingual, versioned and use unique stable IDs", () => {
   assert.equal(I.INDUSTRIES.length, 13);
-  assert.deepEqual(I.INDUSTRIES.filter(i => i.specialized).map(i => i.key), ["hvac", "barber", "smoke_shop"]);
-  const hvac = T.templateFor("hvac"), barber = T.templateFor("barber"), smoke = T.templateFor("smoke_shop"), roof = T.templateFor("roofing");
-  assert.equal(roof.specialized, false);
-  assert.equal(roof.version, T.GENERAL_VERSION);
-  assert.ok(ids(hvac).includes("h_license_verified") && !ids(hvac).includes("b_cut_price"), "HVAC shows its own questions only");
-  assert.ok(ids(barber).includes("b_occupancy_pct") && !ids(barber).includes("h_techs"));
-  assert.ok(ids(smoke).includes("s_age_verification") && !ids(smoke).includes("h_techs"));
-  for (const t of [hvac, barber, smoke, roof]) {
-    assert.ok(ids(t).includes("g_main_problem"), "general questionnaire everywhere");
-    const all = ids(t); assert.equal(new Set(all).size, all.length, "question ids are unique");
-    for (const q of t.sections.flatMap(s => s.questions)) {
-      assert.ok(q.label.es && q.label.en, `${q.id} has ES and EN labels`);
-      if (q.when) assert.ok(all.includes(q.when.q), `${q.id} depends on an existing question`);
+  assert.equal(I.INDUSTRIES.filter(i => i.specialized).length, 13);
+  const allIndustryTemplates = I.INDUSTRIES.map(ind => T.templateFor(ind.key));
+  const minimumSectorCounts = { roofing: 12, fencing: 12, tattoo: 12, landscaping: 12, plumbing: 12,
+    cleaning: 12, restaurant: 12, electrical: 12, general_contractor: 12, other: 12 };
+  const sectorPrefixes = { roofing: "rf_", fencing: "fc_", tattoo: "tt_", landscaping: "ls_", plumbing: "pl_",
+    cleaning: "cl_", restaurant: "rs_", electrical: "el_", general_contractor: "gc_", other: "ot_" };
+  for (const template of allIndustryTemplates) {
+    const all = ids(template);
+    assert.equal(template.specialized, true, template.industry);
+    assert.ok(template.version.includes("+") && template.version !== T.GENERAL_VERSION, template.industry);
+    assert.ok(all.includes("g_main_problem"), template.industry + " retains the general intake");
+    assert.equal(new Set(all).size, all.length, template.industry + " uses unique IDs");
+    assert.ok(template.sections.length >= 8, template.industry + " has industry-specific sections");
+    if (sectorPrefixes[template.industry]) {
+      const sectorCount = all.filter(id => id.startsWith(sectorPrefixes[template.industry])).length;
+      assert.ok(sectorCount >= minimumSectorCounts[template.industry], template.industry + " has relevant questions");
+    }
+    for (const q of template.sections.flatMap(s => s.questions)) {
+      assert.ok(q.label.es && q.label.en, q.id + " must be bilingual");
+      assert.ok(q.label.es.trim() && q.label.en.trim());
+      if (q.when) assert.ok(all.includes(q.when.q), q.id + " depends on an existing question");
+      if (q.type === "choice" || q.type === "multi") {
+        assert.ok(q.options?.length, q.id + " has options");
+        assert.equal(new Set(q.options.map(o => o.value)).size, q.options.length, q.id + " has unique option values");
+        assert.ok(q.options.every(o => o.label.es && o.label.en));
+      }
     }
   }
+  const hvac = T.templateFor("hvac"), barber = T.templateFor("barber"), smoke = T.templateFor("smoke_shop");
+  assert.ok(ids(hvac).includes("h_license_verified") && !ids(hvac).includes("b_cut_price"));
+  assert.ok(ids(barber).includes("b_occupancy_pct") && !ids(barber).includes("h_techs"));
+  assert.ok(ids(smoke).includes("s_age_verification") && !ids(smoke).includes("h_techs"));
+});
+
+test("industry-only conditional questions require an affirmative answer and preserve unknown/NA", () => {
+  const tattoo = T.templateFor("tattoo");
+  const restaurant = T.templateFor("restaurant");
+  const other = T.templateFor("other");
+  const visible = (template, answers) => F.visibleQuestions(template, answers).flatMap(s => s.questions.map(q => q.id));
+  assert.ok(!visible(tattoo, {}).includes("tt_deposit_amount"));
+  assert.ok(visible(tattoo, { tt_deposit: A(true) }).includes("tt_deposit_amount"));
+  assert.ok(!visible(tattoo, { tt_deposit: U }).includes("tt_deposit_amount"));
+  assert.ok(!visible(restaurant, {}).includes("rs_platform_fee_pct"));
+  assert.ok(visible(restaurant, { rs_online_orders: A(true) }).includes("rs_platform_fee_pct"));
+  assert.ok(!visible(other, {}).includes("ot_proposed_commission"));
+  assert.ok(visible(other, { ot_payment_preference: A("commission") }).includes("ot_proposed_commission"));
+  assert.ok(!visible(other, { ot_payment_preference: A("monthly") }).includes("ot_proposed_commission"));
+  assert.equal(F.parseAnswer(T.findQuestion(tattoo, "tt_avg_ticket"), "350.50").value, 350.5);
+  assert.equal(F.parseAnswer(T.findQuestion(other, "ot_proposed_commission"), "130").ok, false);
+  const p = F.progress(other, { ot_industry_name: A("Consulting"), g_main_problem: U });
+  assert.ok(p.missingRequired.includes("g_main_problem"), "unknown required answers cannot mark assessment complete");
 });
 
 test("conditional questions appear only after the answer that enables them", () => {

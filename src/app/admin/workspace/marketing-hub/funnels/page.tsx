@@ -6,7 +6,6 @@ import { createGrowthFunnel, setGrowthFunnelStatus } from "./actions";
 import styles from "../growth/growth.module.css";
 
 export const dynamic = "force-dynamic";
-const BASE = "/admin/workspace/marketing-hub/funnels";
 type FunnelRow = {
   id: string; slug: string; title: string; template: FunnelTemplate;
   status: "draft" | "active" | "paused" | "archived";
@@ -49,7 +48,7 @@ export default async function FunnelsPage({ searchParams }: Parameters) {
       <header className={styles.hero}>
         <span className={styles.eyebrow}>Marketing Hub / Funnel Builder</span>
         <h1>Funnels conectados al CRM</h1>
-        <p>Prepara formularios para captación, solicitudes de propuesta o citas. Una solicitud voluntaria se registra como lead nuevo o se vincula al lead existente; nunca crea una venta, un pago ni una cita confirmada.</p>
+        <p>Prepara formularios de captación para la propia agencia Avalon. Una solicitud voluntaria no genera pagos ni citas confirmadas. La captación pública permanece cerrada mientras no se autorice la concesión anónima del backend.</p>
         <nav className={styles.toolbar} aria-label="Marketing y CRM">
           <Link href="/admin/workspace/marketing-hub/growth">Panel de Growth</Link>
           <Link href="/admin/workspace/marketing-hub">Campaigns</Link>
@@ -81,9 +80,9 @@ export default async function FunnelsPage({ searchParams }: Parameters) {
                 <input name="slug" placeholder="captacion-mi-negocio" minLength={3} maxLength={60}
                   pattern="[a-z0-9]+(-[a-z0-9]+)*" required />
               </label>
-              <label>Cliente 360° (opcional)
+              <label>Cliente 360° (opcional; funnels de cliente no se pueden publicar)
                 <select name="client_id" defaultValue="">
-                  <option value="">Funnel de Avalon / sin cliente</option>
+                  <option value="">Funnel de Avalon (B2B, publicable solo con autorización)</option>
                   {clientOptions.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
                 </select>
               </label>
@@ -121,11 +120,12 @@ export default async function FunnelsPage({ searchParams }: Parameters) {
           <h3>{f.title}</h3>
           <p>{FUNNEL_TEMPLATES[f.template]?.label ?? "Plantilla desconocida"} · versión {f.version} · actualizado {f.updated_at.slice(0, 10)}</p>
           <p>Cliente: {f.client_id ? clientNames.get(f.client_id) ?? `ID ${f.client_id.slice(0, 8)}` : "Sin cliente"}</p>
+          {f.client_id && <p className={styles.note} role="status">Este funnel está asociado a un cliente externo (tipo B). No puede publicarse ni enviar leads al CRM B2B de Avalon.</p>}
           <p>Campaña: {f.project_id ? projectNames.get(f.project_id) ?? "Proyecto vinculado" : "Sin proyecto asociado"}</p>
           <p>URL: <code>/f/{f.slug}</code></p>
           <div className={styles.actions}>
             {f.status === "active" ? <Link className={styles.link} href={`/f/${f.slug}`}>Abrir formulario</Link> : null}
-            {f.status !== "archived" ? <form action={setGrowthFunnelStatus}>
+            {f.status !== "archived" && !(f.client_id && f.status !== "active") ? <form action={setGrowthFunnelStatus}>
               <input type="hidden" name="id" value={f.id}/><input type="hidden" name="version" value={f.version}/>
               <input type="hidden" name="status" value={f.status === "active" ? "paused" : "active"}/>
               <button type="submit">{f.status === "active" ? "Pausar captación" : "Activar formulario público"}</button>
