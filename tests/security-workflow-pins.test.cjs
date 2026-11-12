@@ -10,7 +10,7 @@ test('all external workflow actions use immutable SHA refs', () => {
   let found = 0;
   for (const file of workflows) {
     const body = fs.readFileSync(path.join(dir, file), 'utf8');
-    for (const [, ref] of body.matchAll(/^\s*-\s*uses:\s*([^\s#]+)/gm)) {
+    for (const [, ref] of body.matchAll(/^\s*(?:-\s*)?uses:\s*([^\s#]+)/gm)) {
       found++;
       if (ref.startsWith('./')) continue;
       assert.match(ref, /^[\w.-]+\/[\w./-]+@[0-9a-f]{40}$/, file + ': ' + ref);

@@ -144,7 +144,7 @@ jobs:
         run: node ../engine/scripts/ai-engine/ren-dev-task.cjs --state ../.ai-engine-state/state.json --evidence ../.ai-engine-state/ren-evidence.json
       - name: Save REN state and memory
         if: always()
-        uses: actions/cache/save@v4
+        uses: actions/cache/save@0057852bfaa89a56745cba8c7296529d2fc39830
         with:
           path: .ai-engine-state
           key: ai-engine-ren-${{ github.run_id }}
@@ -197,7 +197,7 @@ jobs:
         run: node scripts/ai-engine/operate.cjs --mode routine --state .ai-engine-ops/state.json --evidence .ai-engine-ops/evidence.json --post "${{ vars.AVALON_LEDGER_ISSUE || '134' }}"
       - name: Save managers' state and memory
         if: always()
-        uses: actions/cache/save@v4
+        uses: actions/cache/save@0057852bfaa89a56745cba8c7296529d2fc39830
         with:
           path: .ai-engine-ops
           key: ai-engine-ops-${{ github.run_id }}
@@ -248,7 +248,7 @@ jobs:
       - name: Process avalon:task issues
         run: node scripts/ai-engine/operate.cjs --mode intake --state .ai-engine-intake/state.json --evidence .ai-engine-intake/evidence.json
       - if: always()
-        uses: actions/cache/save@v4
+        uses: actions/cache/save@0057852bfaa89a56745cba8c7296529d2fc39830
         with:
           path: .ai-engine-intake
           key: ai-engine-intake-${{ github.run_id }}

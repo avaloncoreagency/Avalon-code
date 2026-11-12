@@ -46,8 +46,8 @@ test('every job reads the SAME central control and restores/saves a resumable st
   for (const name of ['managers', 'intake', 'ren-dev-task']) {
     assert.match(jobs[name], /AVALON_SUPABASE_URL: \$\{\{ vars\.AVALON_SUPABASE_URL \}\}/, name);
     assert.match(jobs[name], /AVALON_SUPABASE_PUBLISHABLE_KEY: \$\{\{ vars\.AVALON_SUPABASE_PUBLISHABLE_KEY \}\}/, name);
-    assert.match(jobs[name], /actions\/cache\/restore@v4/);
-    assert.match(jobs[name], /actions\/cache\/save@v4/);
+    assert.match(jobs[name], /actions\/cache\/restore@[0-9a-f]{40}/);
+    assert.match(jobs[name], /actions\/cache\/save@[0-9a-f]{40}/);
   }
   assert.match(jobs.managers, /--post "\$\{\{ vars\.AVALON_LEDGER_ISSUE \|\| '134' \}\}"/);
 });
