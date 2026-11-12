@@ -13,6 +13,7 @@ const BASE: Record<ModuleKey, string> = {
   ecommerce: "/admin/workspace/ecommerce-designer",
   crm_creator: "/admin/workspace/crm-creator",
   receptionist: "/admin/workspace/ai-receptionist",
+  chatbots: "/admin/workspace/ai-chatbots",
   marketing: "/admin/workspace/marketing-hub",
 };
 

@@ -10,6 +10,8 @@ on:
       - 'src/app/admin/workspace/marketing-hub/funnels/**'
       - 'src/app/admin/workspace/marketing-hub/growth/**'
       - 'src/app/admin/workspace/ai-communications/**'
+      - 'src/app/admin/workspace/ai-chatbots/**'
+      - 'tests/communications-hub.test.cjs'
       - 'src/app/page.tsx'
       - 'tests/growth-funnel*'
       - '.github/workflows/growth-funnel.yml'
@@ -36,6 +38,8 @@ jobs:
         run: npm run typecheck && npm run lint
       - name: Template and UI guard tests
         run: node --test tests/growth-funnel.test.cjs
+      - name: Communications Hub integration checks
+        run: node --test tests/communications-hub.test.cjs
       - name: Real SQL in disposable PostgreSQL (synthetic identities only)
         run: node --test tests/growth-funnel.database.cjs
         env:

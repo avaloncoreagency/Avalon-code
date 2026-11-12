@@ -12,7 +12,7 @@ import { saveNovaStudio } from '@/app/admin/workspace/nova-studio-actions';
 type CrmContent = Extract<BuilderContent, { kind: 'crm' }>;
 type Props =
   | { kind: 'crm'; projectId: string; projectName: string; version: number; initial: CrmContent; lang: NovaLanguage }
-  | { kind: 'chatbot'; projectId: string; projectName: string; version: number; initial: ChatbotConfig; lang: NovaLanguage };
+  | { kind: 'chatbot' | 'chatbot_product'; projectId: string; projectName: string; version: number; initial: ChatbotConfig; lang: NovaLanguage };
 type SaveState = 'saved' | 'dirty' | 'saving' | 'error' | 'conflict';
 const BADGE: Record<SaveState, NovaStatus> = { saved: 'completed', dirty: 'idle', saving: 'running', error: 'failed', conflict: 'blocked' };
 
@@ -70,7 +70,9 @@ export function NovaSettingsStudio(props: Props) {
         {message && <p role="status">{message}</p>}
         <p className={s.banner}>{kind === 'crm'
           ? t('El diseño del CRM se guarda en tu proyecto privado (el mismo blueprint que exporta CRM Creator). No crea tablas ni cambia permisos reales.', 'The CRM design is saved to your private project (the same blueprint CRM Creator exports). It does not create tables or change real permissions.')
-          : t('La configuración del chatbot se guarda en tu proyecto privado de AI Receptionist. Las respuestas con IA no están conectadas.', 'The chatbot configuration is saved to your private AI Receptionist project. AI replies are not connected.')}</p>
+          : kind === 'chatbot_product'
+            ? t('Proyecto independiente de AI Chatbots. La configuración se guarda en privado; no se conectan la inferencia ni el widget.', 'Independent AI Chatbots project. Settings are stored privately; inference and widget are not connected.')
+            : t('Editor heredado de AI Receptionist; se conservan los borradores anteriores. Usa AI Chatbots para nuevos asistentes web.', 'Legacy AI Receptionist editor; existing drafts remain available. Use AI Chatbots for new web assistants.')}</p>
         {props.kind === 'crm'
           ? <CrmEditor content={content as CrmContent} onChange={change} lang={lang} />
           : <ChatbotEditor config={content as ChatbotConfig} onChange={change} lang={lang} />}

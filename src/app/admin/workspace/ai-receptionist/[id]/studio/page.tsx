@@ -11,7 +11,7 @@ import { readChatbot } from "@/lib/os/nova-settings";
 export const dynamic = "force-dynamic";
 const BASE = "/admin/workspace/ai-receptionist";
 
-/** Nova AI Chatbots (Codex UI) backed by the project's stored settings: every reload rehydrates from Supabase. */
+/** Legacy Nova chatbot editor preserved on receptionist project records for backwards compatibility. */
 export default async function NovaStudioPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
   if (!isUuid(id)) notFound();
@@ -21,8 +21,8 @@ export default async function NovaStudioPage({ params }: { params: Promise<{ id:
   if (!project.error && !project.data) notFound();
   return (
     <Suite active="ai-receptionist">
-      <PageHeader eyebrow="AI Chatbots · Nova" title={project.data?.name ?? "—"}
-        crumbs={[{ href: BASE, label: "AI Chatbots" }, { href: `${BASE}/${id}`, label: project.data?.name ?? "—" }]} />
+      <PageHeader eyebrow="AI Receptionist · Legacy Nova" title={project.data?.name ?? "—"}
+        crumbs={[{ href: BASE, label: "AI Receptionist" }, { href: `${BASE}/${id}`, label: project.data?.name ?? "—" }]} />
       {project.error || !project.data ? <DbNotice lang={lang} error={project.error ?? "unavailable"} /> : (
         <NovaSettingsStudio kind="chatbot" projectId={id} projectName={project.data.name} version={project.data.version} lang={lang} initial={readChatbot(project.data.settings)} />
       )}

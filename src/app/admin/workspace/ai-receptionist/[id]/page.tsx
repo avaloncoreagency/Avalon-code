@@ -36,7 +36,7 @@ export default async function ReceptionistPage({ params, searchParams }: { param
   return (
     <Suite active="ai-receptionist">
       <PageHeader eyebrow="AI Receptionist" title={project.data?.name ?? "—"} description={project.data?.description || undefined} crumbs={[{ href: BASE, label: "AI Receptionist" }]}
-        actions={project.data ? <a className={s.btnPrimary} href={`${BASE}/${id}/studio`} data-testid="open-studio">{pick(lang, "Abrir AI Chatbots Builder (Nova)", "Open AI Chatbots Builder (Nova)")}</a> : undefined} />
+        actions={project.data ? <a className={s.btnPrimary} href={`${BASE}/${id}/studio`} data-testid="open-studio">{pick(lang, "Abrir editor Nova heredado", "Open legacy Nova editor")}</a> : undefined} />
       <Flash lang={lang} ok={param(query, "ok")} error={param(query, "error")} />
       {project.error ? <DbNotice lang={lang} error={project.error} /> : project.data && (
         <>
@@ -44,7 +44,7 @@ export default async function ReceptionistPage({ params, searchParams }: { param
             <div className={s.stat}><span>{pick(lang, "Configuración", "Configuration")}</span><strong>{saved ? pick(lang, "Lista", "Ready") : pick(lang, "Pendiente", "Pending")}</strong></div>
             <div className={s.stat}><span>FAQ</span><strong>{rows.filter(r => r.kind === "faq").length}</strong></div>
             <div className={s.stat}><span>{pick(lang, "Conocimiento", "Knowledge")}</span><strong>{rows.filter(r => r.kind === "knowledge").length}</strong></div>
-            <div className={s.stat}><span>{pick(lang, "Conversaciones", "Conversations")}</span><strong>0</strong></div>
+            <div className={s.stat}><span>{pick(lang, "Conversaciones", "Conversations")}</span><strong>—</strong></div>
             <div className={s.stat}><span>{pick(lang, "Tokens de contexto (estim.)", "Context tokens (est.)")}</span><strong>{saved ? `~${tokens.toLocaleString(lang === "es" ? "es-ES" : "en-US")}` : "—"}</strong></div>
           </div>
           <div className={s.split}>

@@ -20,6 +20,7 @@ const sectionNames: Record<string, { es: string; en: string }> = {
   "dev-bridge": { es: "Dev Bridge", en: "Dev Bridge" },
   search: { es: "Búsqueda", en: "Search" },
   security: { es: "Seguridad", en: "Security" },
+  "ai-communications": { es: "AI Communications Hub", en: "AI Communications Hub" },
 };
 
 /**
@@ -69,6 +70,7 @@ export async function Suite({ children, active = "dashboard" }: { children: Reac
         <Icon name="search" /><span className={s.navLabel}>{pick(lang, "Buscar", "Search")}</span>
       </Link>
       <p className={s.navGroup}>{pick(lang, "Módulos", "Modules")}</p>
+      <Link className={s.navItem} href="/admin/workspace/ai-communications" aria-current={active === "ai-communications" ? "page" : undefined} title="AI Communications Hub"><Icon name="receptionist" /><span className={s.navLabel}>AI Communications Hub</span></Link>
       {modules.map(m => (
         <Link key={m.slug} className={s.navItem} data-accent={m.accent} aria-current={active === m.slug ? "page" : undefined} href={m.href} title={m.name}>
           <Icon name={m.icon} /><span className={s.navLabel}>{m.name}</span>

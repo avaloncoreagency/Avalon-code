@@ -20,7 +20,7 @@ const TABLE_LABEL: Record<string, [string, string]> = {
 const OP_LABEL: Record<string, [string, string]> = { INSERT: ["creó", "created"], UPDATE: ["actualizó", "updated"], DELETE: ["eliminó", "deleted"] };
 const MODULE_HREF: Record<string, string> = {
   website: "/admin/workspace/website-designer", ecommerce: "/admin/workspace/ecommerce-designer", crm_creator: "/admin/workspace/crm-creator",
-  receptionist: "/admin/workspace/ai-receptionist", marketing: "/admin/workspace/marketing-hub",
+  receptionist: "/admin/workspace/ai-receptionist", chatbots: "/admin/workspace/ai-chatbots", marketing: "/admin/workspace/marketing-hub",
 };
 
 export default async function DashboardPage() {
@@ -56,6 +56,7 @@ export default async function DashboardPage() {
     ecommerce: stat("ecommerce", "tiendas", "stores"),
     crm_creator: stat("crm_creator", "plantillas CRM", "CRM blueprints"),
     receptionist: stat("receptionist", "asistentes", "assistants"),
+    chatbots: stat("chatbots", "chatbots registrados", "registered chatbots"),
     marketing: stat("marketing", "campañas", "campaigns"),
   };
   const overdue = upcoming.data?.filter(i => i.planned_for < today && OPEN_CONTENT(i.status)) ?? [];
@@ -73,6 +74,7 @@ export default async function DashboardPage() {
           "Todo lo que gestiona Avalon Core Agency en un solo lugar. Las cifras provienen únicamente de datos reales guardados en la plataforma.",
           "Everything Avalon Core Agency runs, in one place. Figures come only from real data stored in the platform.")}</p>
         <div className={s.heroActions}>
+          <Link className={s.heroButton} href="/admin/workspace/ai-communications"><Icon name="receptionist" size={18} />AI Communications Hub</Link>
           <Link className={s.heroButton} href="/admin/workspace/crm"><Icon name="crm" size={18} />{pick(lang, "Abrir CRM", "Open CRM")}</Link>
           <Link className={s.heroButton} href="/admin/workspace/crm/sales/new"><Icon name="plus" size={18} />{pick(lang, "Registrar venta", "Record sale")}</Link>
           <Link className={s.heroButton} href="/admin/workspace/crm/tasks"><Icon name="clock" size={18} />{pick(lang, "Mis tareas", "My tasks")}</Link>

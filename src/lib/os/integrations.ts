@@ -8,13 +8,13 @@ export type Integration = {
   key: string;
   label: string;
   category: IntegrationCategory;
-  modules: ("receptionist" | "marketing" | "ecommerce" | "website" | "crm")[];
+  modules: ("receptionist" | "chatbots" | "marketing" | "ecommerce" | "website" | "crm")[];
   status: IntegrationStatus;
   costModel: "usage" | "subscription" | "free_tier";
 };
 
 export const INTEGRATIONS: readonly Integration[] = [
-  { key: "llm", label: "LLM provider (Anthropic / OpenAI)", category: "ai", modules: ["receptionist", "marketing", "crm"], status: "not_connected", costModel: "usage" },
+  { key: "llm", label: "LLM provider (Anthropic / OpenAI)", category: "ai", modules: ["receptionist", "chatbots", "marketing", "crm"], status: "not_connected", costModel: "usage" },
   { key: "voice", label: "Voice / speech", category: "voice", modules: ["receptionist"], status: "not_connected", costModel: "usage" },
   { key: "telephony", label: "Telephony (SIP / Twilio)", category: "telephony", modules: ["receptionist"], status: "not_connected", costModel: "usage" },
   { key: "whatsapp", label: "WhatsApp Business", category: "messaging", modules: ["receptionist", "marketing"], status: "not_connected", costModel: "usage" },
