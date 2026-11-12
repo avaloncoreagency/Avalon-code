@@ -1,42 +1,32 @@
-# Avalon Security Recovery — checkpoint actualizado · 2026-11-12
+# Avalon Security Recovery — Checkpoints · 2026-11-12
 
-**Alcance:** Security Command Center, permisos PostgreSQL, CI, Preview aislado y preparación de integración.
-**Estado:** código corregido en PR #165 (sobre `main`), sin modificaciones de seguridad en producción por este PR.
+**Scope:** security audit, owner-only authorization, Security Command Center, GitHub CI, Supabase migration inventory, isolated Vercel Preview.
+**Integration:** draft [PR #165](https://github.com/avaloncoreagency/Avalon-code/pull/165) against `main`; previous PR #163 closed as superseded. **No changes in this PR have been merged into `main`.**
 
-## 1. Reconciliación con integraciones recientes
+## Completed checks and code changes
 
-- PR #159 (`integration/avalon-v1`) y PR #160 (`claude/crm-intelligence`) se fusionaron el 12 de noviembre. Por eso se creó una rama nueva directamente desde `main`, en vez de fusionar el antiguo PR #163.
-- PR #165 contiene el registro R-01..R-25, distinción entre pendientes y controles implementados, pruebas y documentación. La rama anterior permanece como referencia histórica.
-- GitHub ahora tiene **31 archivos de migración** en `main`; Supabase producción reporta **26 versiones** aplicadas. En muchos casos el nombre y el timestamp difieren (por ejemplo, `manager_execution`, `radar_scheduler_core`). No se puede declarar migración segura por comparar solo los números: hace falta reconciliar contenido y dependencias, evitando reaplicar operaciones equivalentes.
-- `main` contiene `crm_intelligence`, `crm_titan_backend`, `crm_titan_documents`, `growth_funnel_public`, `radar_search_runs` y otras migraciones que todavía **no se han verificado como aplicadas con ese contenido**.
+- GitHub PR #159 and #160 previously merged into `main`. The Security Recovery branch was then recreated directly from `main`.
+- Findings R-01..R-25 updated; the dashboard separates **open/blocked** risks from controls implemented but still needing validation. Database connectivity is no longer labelled as proof of RLS.
+- Added reporting tests and workflow security checks. All external GitHub Actions in the reviewed workflows were pinned to immutable commit SHAs, with assertions that prevent new floating tags.
+- Added `.github/CODEOWNERS` and `.github/SECURITY.md` for ownership and private vulnerability reporting. **These files do not enforce required reviews without a GitHub ruleset.**
+- Isolated Preview configured with branch-specific Supabase URL and publishable key; prior exact Preview commit `b0ea01f6` deployed **READY**.
+- Supabase production project status `ACTIVE_HEALTHY`; health advisors reported no entries at inspection.
+- All **71 public tables** observed in production have RLS; `anon` has no direct SELECT grant.
+- Security advisors: four public and 36 authenticated callable `SECURITY DEFINER` functions (some intentional). The access model is mixed: owner checks, token-scoped Bridge/Code Exchange RPCs and public quote submission.
+- On isolated Supabase, three negative checks produced expected denials: `crm_owner_directory()` as `anon` → 42501; `crm_agent_security_posture()` as authenticated without owner identity → `crm_forbidden`; `os_bridge_api_import_status` with invalid token → `invalid_token`. **No client data was read or changed.**
+- Migration inventory by name: GitHub 31, production 26, isolated Preview 32. See `MIGRATION_RECONCILIATION_20261112.md`.
 
-## 2. Comprobaciones reales de Supabase (solo lectura)
+## Outstanding release gates
 
-- Todas las **71 tablas públicas** revisadas tenían RLS activo; ninguna tenía permiso directo SELECT para `anon`.
-- Dos tablas RLS sin políticas, `crm_private.finance_access` y `public.crm_radar_worker_config`, están intencionalmente denegadas a `anon` y `authenticated`.
-- En `public` hay **37 funciones SECURITY DEFINER**. `anon` puede ejecutar cuatro: `crm_public_inquiry` (cotizaciones públicas con límites), `crm_ai_public_control` (control operacional de solo lectura), `os_bridge_api_open_import` y `os_bridge_api_import_status` (protección por token).
-- El rol `authenticated` puede ejecutar 36 funciones privilegiadas; distintas familias validan ownership o scopes de token. Esta revisión de código **no equivale a pruebas dinámicas** con un usuario ajeno.
-- Advertencias todavía abiertas: `pg_net` instalada en `public`; protección de contraseñas filtradas desactivada; funciones privilegiadas accesibles (algunas diseñadas así). No ejecutar REVOKE indiscriminado.
-- La función pública de cotización requiere validación de campos y límite SQL; se conserva, para no romper entradas de clientes.
+1. Exact-HEAD CI and Vercel Preview must be green after the latest pinned-actions changes. A previous run exposed `tests/ai-engine-workflow.test.cjs` expecting the literal `@v4`; assertions were updated to expect SHA pins. **Do not assume a passing test without the actual new result.**
+2. Enable leaked-password protection (if supported by plan) and verify Auth providers, signup restrictions, reset URLs, session policy and MFA in the Supabase Auth dashboard.
+3. Enforce `main` protections through GitHub admin settings: PR requirement, independent review, required checks, Code Owner review, no force push or delete. GitHub ruleset API returned an empty list; classic protection API is inaccessible to this integration (403), not proven disabled.
+4. Perform migration content reconciliation, backup restore drill and isolated full-RLS tests before production migration.
+5. Test the two real owner accounts plus a non-member using isolated Preview; ensure AAL2 gating for enrolled MFA.
+6. Inspect Vercel firewall in dashboard; its configuration API returned 404 and the firewall state is **UNKNOWN**.
+7. `pg_net` is non-relocatable; do not attempt a direct schema move.
+8. Review remaining low/medium dependency advisories and privacy policy for public repository.
 
-## 3. CI y Preview
+## Scope boundaries
 
-- En la rama anterior, el workflow Security pasó Dependency audit, Dependency review, CodeQL y Security regression tests; el Preview quedó READY usando una rama aislada de Supabase.
-- La nueva rama `chatgpt/security-recovery-main-20261112` está basada en `main` después de las fusiones.
-- Para esta nueva rama se configuraron `NEXT_PUBLIC_SUPABASE_URL` y `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` exclusivamente en Preview y con valores de la rama aislada; sin modificar Production.
-- El estado de CI y el deployment exactos del PR #165 se deben verificar en GitHub y Vercel tras el último commit. No extrapolar resultados del PR #163.
-
-## 4. Control de salida antes de fusionar
-
-- CI de la rama exacta: security, auth, os modules, lint, TypeScript, build y pruebas relevantes.
-- Comprobar login y permisos con ambas cuentas owner; probar usuario sin membresía y MFA AAL1 / AAL2 en entorno aislado.
-- Revisar los cuatro RPC anónimos y las familias CRM, Bridge, Code Exchange con pruebas negativas: token inválido, usuario extraño, token revocado, operaciones no permitidas.
-- Verificar configuración de `main` para PR obligatorio/revisión y controles de seguridad. La API de reglasets devolvió lista vacía; branch protection devolvió 403 (no autorizado), así que el estado de protección clásica es **no verificable**.
-- Activar `leaked-password protection` desde Supabase Auth cuando los owners autoricen y el plan lo permita; ejecutar nuevamente los advisors.
-- Resolver el mapa de 31 archivos de migraciones versus 26 aplicadas, y probar las migraciones restantes en aislamiento antes de aplicarlas en producción.
-- Verificar firewall y backups en sus paneles; la API del firewall devolvió 404 y por eso el resultado sigue siendo **UNKNOWN**.
-- No fusionar a producción como sustituto de estas pruebas; la web pública debe permanecer operativa.
-
-## 5. Lo que no se cambió
-
-Sin cambios a tablas, datos de clientes, passwords, roles Auth, RLS de producción, credenciales, firewall, branches ajenas, planes de pago o configuración Production. La aplicación no debe mostrar números inventados como «seguridad verificada».
+No change to production database tables, client data, RLS grants, Auth settings, GitHub `main` branch, WAF, secrets, payment plans or backups. No managers or automatic agents were enabled. The draft PR must not be represented as a completed production release.
