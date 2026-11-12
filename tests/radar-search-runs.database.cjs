@@ -58,6 +58,26 @@ test('radar runs: results scoped by run, replay-safe history, no approval', { ti
   assert.deepEqual([h.postcode.label, h.postcode.radius_m, h.postcode.center_lat, h.postcode.industries, h.postcode.status, h.postcode.found], ['33101, Miami', 1609, 25.7743, ['restaurant'], 'succeeded', 3]);
   assert.equal(h.address.label, '100 Las Olas Blvd');
 
+  // Regression: Fort Lauderdale ZIP 33311 then Hallandale ZIP 33009 must NOT reuse
+  // a prior search's run_id or cached business list (all data below is synthetic).
+  const zip33311 = await ingest([
+    place(301, 'Roofing 33311 Sintético', 26.13, -80.16),
+    place(302, 'Electric 33311 Sintético', 26.13, -80.16),
+  ], 'manual:zip-33311-a', { kind: 'postcode', label: '33311', lat: 26.132, lon: -80.163, radius_m: 1500, industries: ['roofing'] });
+  const zip33009 = await ingest([
+    place(302, 'Electric 33311 Sintético', 26.13, -80.16),
+    place(401, 'Cleaning 33009 Sintético', 25.987, -80.142),
+  ], 'manual:zip-33009-b', { kind: 'postcode', label: '33009', lat: 25.986, lon: -80.145, radius_m: 1500, industries: ['cleaning'] });
+  assert.notEqual(zip33311.run_id, zip33009.run_id, 'separate ZIP searches use separate run IDs');
+  assert.deepEqual((await runPlaces(zip33311.run_id)).map(x => x.source_ref), ['osm:node/301', 'osm:node/302']);
+  assert.deepEqual((await runPlaces(zip33009.run_id)).map(x => x.source_ref), ['osm:node/302', 'osm:node/401']);
+  assert.deepEqual((await runPlaces(zip33009.run_id)).map(x => x.outcome), ['known', 'inserted'],
+    'shared businesses remain known, without importing unrelated 33311 results into 33009');
+  const zipDescriptions = await rows('select label,query_kind from crm_radar_runs where id in ($1,$2) order by label', [zip33311.run_id, zip33009.run_id]);
+  assert.deepEqual(zipDescriptions.map(x => x.label), ['33009', '33311']);
+  assert.ok(zipDescriptions.every(x => x.query_kind === 'postcode'));
+
+
   // Legacy 3-argument call (scheduler, older callers) still works and is linked; kind defaults to unknown.
   const legacy = await one('select crm_radar_ingest($1::jsonb, $2) r', [JSON.stringify([place(20, 'Legacy Sintético')]), 'legacy-run-0003']).then(x => x.r);
   assert.equal((await runPlaces(legacy.run_id)).length, 1);
