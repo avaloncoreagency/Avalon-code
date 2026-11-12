@@ -23,6 +23,7 @@ export function DiscoveryForm({ lang, lead, industry, section, saved, conflicts,
   const [draftFound, setDraftFound] = useState(false);
   const [restored, setRestored] = useState<Answers>({});
   const [restoreKey, setRestoreKey] = useState(0);
+  const [restoreWarning, setRestoreWarning] = useState(false);
   const formRef = useRef<HTMLFormElement>(null);
   const key = `avalon:crm-discovery:v1:${lead}:${industry}:${section.id}`;
   const answers = useMemo(() => ({ ...saved, ...local }), [saved, local]);
@@ -38,11 +39,12 @@ export function DiscoveryForm({ lang, lead, industry, section, saved, conflicts,
     const f = formRef.current; if (!f) return;
     const data: [string, string][] = [];
     new FormData(f).forEach((v, k) => { if (typeof v === "string" && (k.startsWith("a__") || k.startsWith("s__"))) data.push([k, v]); });
-    try { sessionStorage.setItem(key, JSON.stringify({ at: Date.now(), data })); } catch { /* storage full or blocked */ }
+    const baseline = Object.fromEntries(section.questions.map(q => [q.id, saved[q.id]?.at ?? null]));
+    try { sessionStorage.setItem(key, JSON.stringify({ at: Date.now(), data, baseline })); } catch { /* storage full or blocked */ }
   };
   const restore = () => {
     try {
-      const d = JSON.parse(sessionStorage.getItem(key) ?? "null") as { data: [string, string][] } | null;
+      const d = JSON.parse(sessionStorage.getItem(key) ?? "null") as { data: [string, string][]; baseline?: Record<string, string | null> } | null;
       if (!d || !Array.isArray(d.data)) return;
       const byName = new Map<string, string[]>();
       for (const entry of d.data) {
@@ -51,12 +53,16 @@ export function DiscoveryForm({ lang, lead, industry, section, saved, conflicts,
         byName.set(k, [...(byName.get(k) ?? []), v]);
       }
       const recovered: Answers = {};
+      let skipped = 0;
       for (const question of section.questions) {
         const id = question.id;
+        // Never reuse a saved draft as the base of a newer owner edit.
+        if (!d.baseline || !Object.prototype.hasOwnProperty.call(d.baseline, id) ||
+          d.baseline[id] !== (saved[id]?.at ?? null)) { skipped++; continue; }
         const state = byName.get(`s__${id}`)?.[0];
         if (state === "unknown" || state === "na") { recovered[id] = { s: state }; continue; }
         const values = byName.get(`a__${id}`) ?? [];
-        if (!values.length) continue;
+        if (!values.length) { if (state === "answered") recovered[id] = { v: "", s: "answered" }; continue; }
         const first = values[0];
         let value: unknown = first;
         if (question.type === "yesno") value = first === "yes";
@@ -71,12 +77,12 @@ export function DiscoveryForm({ lang, lead, industry, section, saved, conflicts,
       // Re-render controlled field state and conditional branches from the same recovered snapshot.
       // Original server answers remain untouched and keep their conflict-check timestamps.
       setLocal(recovered); setRestored(recovered);
-      setRestoreKey(k => k + 1); setDraftFound(false);
+      setRestoreKey(k => k + 1); setDraftFound(false); setRestoreWarning(skipped > 0);
     } catch { /* corrupt or unavailable emergency copy; server answers remain authoritative */ }
   };
   const track = (q: Question, value: unknown) => setLocal(prev => ({ ...prev, [q.id]: { v: value, s: "answered" } }));
   const trackState = (q: Question, state: string) => setLocal(prev => ({ ...prev,
-    [q.id]: state === "unknown" || state === "na" ? { s: state } : { ...((prev[q.id]?.s === "answered" ? prev[q.id] : saved[q.id]) ?? {}), s: "answered" },
+    [q.id]: state === "unknown" || state === "na" ? { s: state } : { ...((prev[q.id]?.s === "answered" ? prev[q.id] : restored[q.id]?.s === "answered" ? restored[q.id] : saved[q.id]) ?? {}), s: "answered" },
   }));
 
   const visible = section.questions.filter(q => conditionMet(q.when, answers));
@@ -88,6 +94,7 @@ export function DiscoveryForm({ lang, lead, industry, section, saved, conflicts,
         <button type="button" className={s.button} onClick={restore}>{t(lang, "Recuperar", "Recover")}</button>{" "}
         <button type="button" className={s.button} onClick={() => { try { sessionStorage.removeItem(key); } catch {} setDraftFound(false); }}>{t(lang, "Descartar", "Discard")}</button>
       </p>}
+      {restoreWarning && <p className={s.flash} data-tone="warn" role="alert">{t(lang, "Algunas respuestas de la copia no se recuperaron porque el registro cambió o la copia era antigua. Revisa las respuestas actuales; no se sobrescribió nada en Avalon.", "Some backup answers were not restored because the saved record changed or the backup was old. Review current answers; nothing was overwritten in Avalon.")}</p>}
       {section.intro && <p className={s.flash} data-tone="warn">{section.intro[lang]}</p>}
       <div>
         {visible.map(q => <QuestionField key={`${q.id}:${restoreKey}`} q={q} lang={lang} orig={saved[q.id]} draft={restored[q.id]} conflict={conflicts.includes(q.id)} invalid={invalid.includes(q.id)} onTrack={track} onState={trackState} owners={owners} />)}
