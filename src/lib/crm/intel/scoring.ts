@@ -124,7 +124,7 @@ export function extractFacts(industry: string, all: Answers): Facts {
   f.avalonBudget ??= num(a, "g_avalon_budget");
   f.adBudget ??= first(num(a, "g_test_budget_90d") !== undefined ? Math.round(num(a, "g_test_budget_90d")! / 3) : undefined, num(a, "g_ad_spend_month"));
   f.closeRatePct ??= num(a, "g_close_rate");
-  f.followUp = str(a, "g_follow_up");
+  f.followUp ??= str(a, "g_follow_up");
   if (f.missedCallsPct === undefined) {
     const misses = bool(a, "g_misses_calls");
     f.missedCallsPct = misses === false ? 0 : num(a, "g_missed_calls_pct");
