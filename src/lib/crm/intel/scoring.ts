@@ -5,7 +5,7 @@ import { templateFor } from "./templates";
 // Explainable lead score (0–100). Rules are plain code, versioned, and every point has a visible reason.
 // Unknown data is EXCLUDED (never counted as a negative): a category without data is "unknown", and the overall score is
 // "insufficient" until enough weight is known. Legal risk is evaluated separately and can never be outweighed by points.
-export const RULES_VERSION = "score-1";
+export const RULES_VERSION = "score-2";
 export const WEIGHTS = { profitability: 20, capacity: 20, budget: 15, conversion: 15, fit: 15, commitment: 10, data: 5 } as const;
 export type Category = keyof typeof WEIGHTS;
 export const MIN_KNOWN_WEIGHT = 60;
@@ -26,6 +26,8 @@ export type Facts = {
   // Legal
   licenseVerified?: string; licenseType?: string; insurance?: string[];
   restrictedProducts?: string[]; ageVerification?: string; adPlatforms?: string[];
+  /** Sector-specific compliance is owner-entered, not an independent license lookup. */
+  sectorCompliance?: string; pesticideWork?: boolean; restrictedAds?: boolean;
 };
 
 const RESTRICTED = ["tobacco", "nicotine_vapes", "hemp_cbd", "kratom"];
@@ -79,6 +81,41 @@ export function extractFacts(industry: string, all: Answers): Facts {
     f.restrictedProducts = list(a, "s_categories")?.filter(c => RESTRICTED.includes(c));
     f.ageVerification = str(a, "s_age_verification");
     f.adPlatforms = list(a, "s_platforms");
+  }
+  // Normalize the ten new sector questionnaires into the established explainable scoring engine.
+  // The custom industry provides the same structured signals, without pretending its legal category is known.
+  const sector = ({
+    roofing: ["rf", "rf_avg_profit", "rf_extra_jobs_month", "rf_ads_budget", "rf_license_status"],
+    fencing: ["fn", "fn_avg_profit", "fn_extra_jobs_month", "fn_ads_budget", "fn_permit_status"],
+    tattoo: ["tt", "tt_avg_profit", "tt_extra_sessions_month", "tt_ads_budget", "tt_permit_status"],
+    landscaping: ["ls", "ls_avg_profit", "ls_extra_jobs_month", "ls_ads_budget", "ls_pesticide_status"],
+    plumbing: ["pl", "pl_avg_profit", "pl_extra_jobs_month", "pl_ads_budget", "pl_license_status"],
+    cleaning: ["cl", "cl_avg_profit", "cl_extra_jobs_month", "cl_ads_budget", ""],
+    restaurant: ["rs", "rs_avg_profit", "rs_extras_month", "rs_ads_budget", "rs_permit_status"],
+    electrical: ["el", "el_avg_profit", "el_extra_jobs_month", "el_ads_budget", "el_license_status"],
+    general_contractor: ["gc", "gc_avg_profit", "gc_extra_jobs_month", "gc_ads_budget", "gc_license_status"],
+    other: ["ot", "ot_avg_profit", "ot_extra_jobs_month", "ot_ads_budget", "ot_license_status"],
+  } as Record<string, string[]>)[industry];
+  if (sector) {
+    f.grossProfitPerSale = num(a, sector[1]);
+    f.extraCapacity = num(a, sector[2]);
+    f.adBudget = num(a, sector[3]);
+    if (sector[4]) f.sectorCompliance = str(a, sector[4]);
+    if (industry === "landscaping") f.pesticideWork = list(a, "ls_services")?.includes("pesticides");
+    if (industry === "other") f.restrictedAds = bool(a, "ot_restricted_ads");
+    if (industry === "restaurant") f.hasBooking = bool(a, "rs_has_reservations");
+    if (industry === "tattoo") {
+      const booking = str(a, "tt_booking");
+      if (booking) f.hasBooking = booking === "calendar";
+      f.noShowPct = num(a, "tt_no_show_pct");
+    }
+    if (industry === "plumbing") {
+      f.responseMinutes = num(a, "pl_response_mins");
+      f.quotesWithoutFollowUp = num(a, "pl_quote_backlog");
+    }
+    if (industry === "electrical") f.quotesWithoutFollowUp = num(a, "el_quote_backlog");
+    if (industry === "fencing") f.followUp = bool(a, "fn_quote_followup") === false ? "none" : undefined;
+    if (industry === "cleaning") f.hasBooking = str(a, "cl_booking") === "none" ? false : undefined;
   }
   // General questionnaire (fills only what the industry section did not)
   const avg = num(a, "g_avg_sale"), dc = num(a, "g_direct_costs");
@@ -218,6 +255,21 @@ export function legalOf(f: Facts): LegalResult {
     if (f.licenseType === "none" || f.licenseVerified === "invalid") { flags.push({ code: "license_invalid", label: L_("Licencia inexistente o no válida: no promocionar servicios que la requieren", "No or invalid license: do not promote services that require one") }); bump("restricted"); }
     else if (f.licenseVerified !== "verified") { flags.push({ code: "license_unverified", label: L_("Licencia sin verificar en DBPR", "License not verified on DBPR") }); bump("review"); }
     if (f.insurance?.includes("none")) { flags.push({ code: "no_insurance", label: L_("Sin seguros declarados", "No insurance declared") }); bump("review"); }
+  }
+  // Manual owner-entered compliance status; never interpreted as an automatic registry verification.
+  if (f.sectorCompliance !== undefined || ["roofing", "fencing", "tattoo", "landscaping", "plumbing", "restaurant", "electrical", "general_contractor", "other"].includes(f.industry)) {
+    const requiredToReview = f.industry !== "landscaping" || f.pesticideWork === true;
+    if (requiredToReview && f.sectorCompliance === "invalid") {
+      flags.push({ code: "sector_license_invalid", label: L_("Permiso o licencia declarado inválido: revisión obligatoria antes de anuncios", "Permit or license reported invalid: mandatory review before advertising") });
+      bump("restricted");
+    } else if (requiredToReview && f.sectorCompliance !== "owner_verified") {
+      flags.push({ code: "sector_license_unverified", label: L_("Revisar permisos, licencias y condiciones de publicidad aplicables", "Review applicable permits, licenses and ad policies") });
+      bump("review");
+    }
+  }
+  if (f.restrictedAds === true) {
+    flags.push({ code: "sector_ads_restrictions", label: L_("Industria personalizada con posibles restricciones publicitarias: requiere revisión", "Custom industry with potential advertising restrictions: review required") });
+    bump("restricted");
   }
   if (f.industry === "smoke_shop") {
     if (f.restrictedProducts?.length) { flags.push({ code: "ads_restricted_products", label: L_("Vende productos con publicidad restringida (tabaco, nicotina, vapes, cáñamo/CBD o kratom). No se recomiendan Meta Ads ni Google Ads para ellos.", "Sells advertising-restricted products (tobacco, nicotine, vapes, hemp/CBD or kratom). Meta Ads / Google Ads are not recommended for them.") }); bump("restricted"); }
