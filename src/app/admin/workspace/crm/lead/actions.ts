@@ -206,6 +206,20 @@ export async function decideRecommendation(form: FormData) {
   const status = field(form, "status");
   if (!lead || !id || !["accepted", "dismissed", "edited", "suggested"].includes(status)) back(DESK, { error: "invalid" });
   const version = Number(field(form, "version"));
+  // A stale rule may still be visible in history. A forged form must not be
+  // able to accept or edit it as if it were a current recommendation.
+  if (status !== "dismissed") {
+    const { data: oldRule, error: ruleError } = await supabase.from("crm_lead_recommendations")
+      .select("rule_id").eq("id", id).eq("lead_id", lead).maybeSingle();
+    if (ruleError || !oldRule) back(LEAD(lead), { tab: "recs", error: "unavailable" });
+    const { data: currentLead, error: leadError } = await supabase.from("crm_leads")
+      .select("industry_key").eq("id", lead).maybeSingle();
+    if (leadError || !currentLead?.industry_key) back(LEAD(lead), { tab: "recs", error: "stale_recommendation" });
+    const { data: assessment, error: assessmentError } = await supabase.from("crm_lead_assessments")
+      .select("answers").eq("lead_id", lead).eq("industry_key", currentLead.industry_key).maybeSingle();
+    if (assessmentError || !assessment || !recommend(currentLead.industry_key, assessment.answers as Answers).some(x => x.ruleId === oldRule.rule_id))
+      back(LEAD(lead), { tab: "recs", error: "stale_recommendation" });
+  }
   const patch: Record<string, unknown> = { status, note: clip(field(form, "note"), 1000), decided_by: status === "suggested" ? null : userId, decided_at: status === "suggested" ? null : new Date().toISOString() };
   if (status === "edited") { patch.service = clip(field(form, "service"), 80) || undefined; patch.next_action = clip(field(form, "next_action"), 300); }
   const { data, error } = await supabase.from("crm_lead_recommendations").update(patch).eq("id", id).eq("lead_id", lead).eq("version", version).select("id");
