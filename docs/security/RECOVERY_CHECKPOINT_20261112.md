@@ -27,6 +27,15 @@
 7. `pg_net` is non-relocatable; do not attempt a direct schema move.
 8. Review remaining low/medium dependency advisories and privacy policy for public repository.
 
+
+## Checkpoint D: privilege defaults and Bridge scope (2026-11-12)
+
+- Prepared forward-only migration `20261112190000_bridge_scope_hardening.sql`: `os_bridge_api_import_status` checks `import:create` before a state transition and preserves read-only polling. Synthetic PGlite regression added in `tests/project-bridge.database.cjs`. The SQL was compiled successfully in a rollback-only transaction against the isolated Supabase project; `scope_guard_compiles = true`.
+- Prepared `20261112191000_future_public_default_acl.sql`: new objects owned by `postgres` stop inheriting implicit `anon` and `authenticated` grants. Tested the relevant DDL in a rollback-only transaction on the isolated project. These changes affect future objects, not existing client tables.
+- `supabase_admin` has its own broad defaults in production. Attempting `ALTER DEFAULT PRIVILEGES FOR ROLE supabase_admin` using the available `postgres` connection returned SQLSTATE `42501`. A suitably privileged administrator must address this separately; this PR does not claim comprehensive default-grant hardening.
+- Added static regression checks to `tests/security.test.cjs`. All changes remain in a draft PR; neither database has been permanently migrated by this operation.
+- Before a release, confirm latest GitHub CI checks and the exact-commit Vercel Preview are READY, then plan migration replay on a fresh isolated baseline and reconcile the `main` migration history. The already-running production `main` is untouched.
+
 ## Scope boundaries
 
 No change to production database tables, client data, RLS grants, Auth settings, GitHub `main` branch, WAF, secrets, payment plans or backups. No managers or automatic agents were enabled. The draft PR must not be represented as a completed production release.
