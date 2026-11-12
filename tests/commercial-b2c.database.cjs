@@ -17,8 +17,8 @@ test("commercial B2C: isolated owner-only policies, immutable recipient, private
  const denied=async(sql,params)=>{await db.exec("savepoint s");try{await db.query(sql,params);assert.fail("expected rejection")}catch(err){await db.exec("rollback to savepoint s");if(err.code==="ERR_ASSERTION")throw err;}};
  await db.exec("begin");
  await as("authenticated",MIGUEL);
- const contractor=(await q("insert into crm_clients(legal_name,client_code,status) values('Synthetic Contractor A','CLI-993001','active') returning id"))[0].id;
- const contractorB=(await q("insert into crm_clients(legal_name,client_code,status) values('Synthetic Contractor B','CLI-993002','active') returning id"))[0].id;
+ const contractor=(await q("insert into crm_clients(legal_name,source,owner_id,status) values('Synthetic Contractor A','synthetic', '00000000-0000-4000-8000-0000000000a1','active') returning id"))[0].id;
+ const contractorB=(await q("insert into crm_clients(legal_name,source,owner_id,status) values('Synthetic Contractor B','synthetic', '00000000-0000-4000-8000-0000000000a1','active') returning id"))[0].id;
  const project=(await q("insert into os_projects(module,name,description,status,settings) values('marketing','B2C Synthetic Campaign','','draft','{}') returning id"))[0].id;
  const policy=(await q("insert into crm_b2c_target_policies(campaign_project_id,version,contractor_client_id,allowed_zips,active,signed_contract_verified,license_verified,capacity_available,consent_version,effective_from) values($1,1,$2,ARRAY['33311'],true,true,true,true,'consent-v1',now()-interval '1 minute') returning id",[project,contractor]))[0].id;
  const key="00000000-0000-4000-8000-0000000000d4";
