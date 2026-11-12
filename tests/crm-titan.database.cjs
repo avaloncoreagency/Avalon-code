@@ -188,9 +188,30 @@ test('TITAN backend: commissions, duplicates, links, finance, radar, conversion,
   await as('authenticated', STRANGER);
   await fails(`select crm_radar_record_failure('zip-x-run-0005', null, 'geoapify', 'provider_timeout')`, [], /crm_forbidden/);
 
+  // ── Private documents: contract evidence is attributable and its integrity hash is real ───────────────────
+  await as('authenticated', MIGUEL);
+  const pdf = Buffer.from('%PDF-1.4 contrato sintético firmado');
+  const digest = require('node:crypto').createHash('sha256').update(pdf).digest('hex');
+  await fails(`insert into crm_attachments(lead_id, filename, mime, size_bytes, sha256, content) values($1,'contrato.pdf','application/pdf',$2,$3,$4)`,
+    [lead.id, pdf.length, 'f'.repeat(64), pdf], /attachment_hash_mismatch/);
+  const doc = await one(`insert into crm_attachments(lead_id, filename, mime, size_bytes, sha256, content, created_by, created_at)
+    values($1,'contrato.pdf','application/pdf',$2,$3,$4,$5, now() - interval '30 days') returning id, created_by, created_at = now() as server_time`, [lead.id, pdf.length, digest, pdf, SAMUEL]);
+  assert.deepEqual([doc.created_by, doc.server_time], [MIGUEL, true], 'the uploader and time are the server’s, not the client’s');
+  await fails(`update crm_attachments set note = 'x' where id = $1`, [doc.id], /permission denied/);
+  // Full evidence flow with both owners' own sessions: Miguel drafts/sends/marks signed, Samuel verifies.
+  const contract = await one(`insert into crm_contracts(lead_id, title) values($1, 'Contrato sintético') returning id`, [lead.id]);
+  await q(`update crm_contracts set status = 'sent_for_signature' where id = $1`, [contract.id]);
+  await q(`update crm_contracts set status = 'signed_pending_verification', signed_at = now(), signer_name = 'Firmante Sintético', attachment_id = $2 where id = $1`, [contract.id, doc.id]);
+  await as('authenticated', SAMUEL);
+  await q(`update crm_contracts set status = 'verified_signed', verification_method = 'document_review', verification_note = 'Firma y fecha revisadas en el PDF' where id = $1`, [contract.id]);
+  const verified = await one('select status, verified_by from crm_contracts where id = $1', [contract.id]);
+  assert.deepEqual([verified.status, verified.verified_by], ['verified_signed', SAMUEL], 'the verifier is the session that verified');
+  await as('authenticated', STRANGER);
+  assert.equal((await q('select id from crm_attachments')).length, 0, 'a non-owner cannot read private documents');
+
   // ── Nothing is deleted: owners have no DELETE on CRM records ───────────────────────────────────────────────
   await as('authenticated', MIGUEL);
-  for (const table of ['crm_leads', 'crm_commercial_terms', 'crm_contracts', 'crm_lead_assessments', 'crm_lead_scores', 'crm_sales', 'crm_payments', 'crm_client_costs', 'crm_radar_runs'])
+  for (const table of ['crm_leads', 'crm_commercial_terms', 'crm_contracts', 'crm_lead_assessments', 'crm_lead_scores', 'crm_sales', 'crm_payments', 'crm_client_costs', 'crm_radar_runs', 'crm_attachments'])
     await fails(`delete from ${table}`, [], /permission denied/);
 });
 

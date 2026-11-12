@@ -138,9 +138,9 @@ test('CRM Intelligence: two owners, partial diagnosis, conflicts, history, scori
   await fails(`update crm_contracts set status='signed_pending_verification', signed_at=now(), signer_name='Dueño' where id=$1`, [c.id], /contract_evidence_required/);
   // 24. The signed document is a private crm_attachments row of THIS lead (no public URL); a foreign attachment is refused.
   const other = await one(`insert into crm_leads(company, source, owner_id) values('Otra empresa', 'x', $1) returning id`, [MIGUEL]);
-  const foreign = await one(`insert into crm_attachments(lead_id, filename, mime, size_bytes, sha256, content) values($1,'otro.pdf','application/pdf',4,repeat('a',64),'\\x25504446') returning id`, [other.id]);
+  const foreign = await one(`insert into crm_attachments(lead_id, filename, mime, size_bytes, sha256, content) values($1,'otro.pdf','application/pdf',4,encode(sha256('\\x25504446'::bytea),'hex'),'\\x25504446') returning id`, [other.id]);
   await fails(`update crm_contracts set attachment_id=$2 where id=$1`, [c.id, foreign.id], /contract_attachment_foreign/);
-  const doc = await one(`insert into crm_attachments(lead_id, filename, mime, size_bytes, sha256, content) values($1,'acuerdo-firmado.pdf','application/pdf',4,repeat('b',64),'\\x25504446') returning id`, [lead.id]);
+  const doc = await one(`insert into crm_attachments(lead_id, filename, mime, size_bytes, sha256, content) values($1,'acuerdo-firmado.pdf','application/pdf',4,encode(sha256('\\x25504446'::bytea),'hex'),'\\x25504446') returning id`, [lead.id]);
   await q(`update crm_contracts set status='signed_pending_verification', signed_at=now(), signer_name='Dueño Sintético', attachment_id=$2 where id=$1`, [c.id, doc.id]);
   await fails(`update crm_contracts set status='verified_signed', verification_method='document_review', verification_note='ok' where id=$1`, [c.id], /contract_verification_evidence_required/);
   await as('authenticated', SAMUEL);

@@ -8,7 +8,9 @@
 | Base exacta | `615ca832dfb085e9d50d9bdc5e26527ec4096787` (HEAD de `claude/crm-intelligence` el 2026-11-12). **Codex debe partir de este mismo commit.** |
 | PR | Contra `claude/crm-intelligence`. No se fusiona automáticamente. |
 | Issue canónico | #144 (`owner:miguel`) |
-| Migración | `supabase/migrations/20261112090000_crm_titan_backend.sql` (aditiva) |
+| Migraciones | `supabase/migrations/20261112090000_crm_titan_backend.sql` y `20261112100000_crm_titan_documents.sql` (aditivas) |
+| Radar | **En pausa por decisión del owner (2026-11-12).** Lo ya entregado queda probado; no se sigue trabajando en él por ahora |
+| Preview de esta rama | READY (`dpl_Db9ZoPruFXTxsNkMMLtPi9EaKjty`), variables Preview solo de esta rama → base aislada |
 | Estado de producción | **Sin aplicar.** Aplicada solo en la base aislada `wupvuwmqfcvmjqycmnvg` (rama Supabase sin datos de producción) |
 
 Este documento es la fuente del contrato. Una interfaz figura como **Disponible** solo si se verificó con pruebas en PGlite (todas las migraciones, RLS real) **y** en la base aislada. Ninguna figura como disponible en producción.
@@ -279,6 +281,40 @@ Trigger `crm_tasks_links_guard`:
 
 ---
 
+## 7b. Documentos privados (evidencia de contratos)
+
+Migración `20261112100000_crm_titan_documents.sql`. Trigger `crm_attachments_integrity`, que solo actúa sobre adjuntos nuevos:
+
+| Regla | Resultado |
+|---|---|
+| Autoría | `created_by` siempre es la sesión que sube; se ignora el valor que mande el cliente |
+| Fecha | `created_at` siempre es la hora del servidor |
+| Integridad | `sha256` debe ser el resumen real del contenido; si no, devuelve `attachment_hash_mismatch` (23514) |
+
+**Garantías que ya existían, verificadas:**
+- Solo los owners leen y suben.
+- Los adjuntos son inmutables: no hay `UPDATE` ni `DELETE`.
+- El tipo se comprueba por extensión y por firma del archivo.
+- La descarga siempre es `attachment`, con `nosniff` y CSP `sandbox`.
+- No hay URL pública.
+
+Flujo probado con las dos sesiones de owner: Miguel redacta, envía y marca el contrato como firmado con el PDF; Samuel lo verifica. Queda `verified_by = Samuel` y un tercero no ve los documentos.
+
+La ruta `POST /admin/workspace/crm/pipeline/files` ya calcula el hash real, así que la UI no necesita ningún cambio.
+
+**Estado:** Disponible (PGlite + base aislada: el hash falso se rechaza y el autor forjado se ignora).
+
+## 7c. Concurrencia real (Postgres, base aislada, peticiones simultáneas)
+
+| Caso | Resultado |
+|---|---|
+| Dos guardados simultáneos de la misma pregunta del diagnóstico con valores distintos | Uno se aplica (`changed:1`) y el otro devuelve conflicto (`conflicts:["h_quotes_month"]`). Sin sobrescritura silenciosa |
+| Dos ediciones simultáneas del contrato con la misma `version` | Una actualiza una fila y la otra cero filas; la UI debe mostrar «conflicto, recarga» |
+| Dos cambios simultáneos de comisión con la misma `version` | Uno gana y el otro afecta cero filas |
+| Finanzas de Clientes 360° por REST (101 confirmadas, 1 cancelada, 201 gastos) | Valores exactos: `10110.10` / `3370.37` / `223.11` / `3147.26` |
+
+---
+
 ## 8. Pruebas ejecutadas (commit de este PR)
 
 | Suite | Resultado |
@@ -293,14 +329,13 @@ Trigger `crm_tasks_links_guard`:
 
 ## 9. Requiere autorización
 
-1. **Producción:** aplicar `20261112090000` en `ltbwzcrxeuczdhhtbqgm`. Es aditiva, pero cambia el comportamiento de comisiones, vínculos de tareas y fallos del Radar.
+1. **Producción:** aplicar `20261112090000` y `20261112100000` en `ltbwzcrxeuczdhhtbqgm`. Es aditiva, pero cambia el comportamiento de comisiones, vínculos de tareas y fallos del Radar.
 2. **Funnel público:** aprobar `docs/sql/growth-funnel-public-grant.sql` (exposición `anon` revisada en §6).
 3. **Fusión** de #160 y #159 (alerta alta de CodeQL pendiente).
-4. **Búsqueda real del Radar:** clave de Geoapify en un entorno autorizado para la prueba real 33311 → 33009.
+4. **Radar (en pausa):** cuando se retome, hará falta la clave de Geoapify en un entorno autorizado para la prueba real 33311 → 33009.
 
 **Next action (Codex):**
 - Partir de `615ca83` más esta rama.
 - Sustituir la comparación de correo de Clientes 360° (§3.3).
 - Enviar `consent_version` en `/f/[slug]`.
-- Pintar `refreshed` / `known` en los resultados del Radar.
 - Mostrar `commission_approval_forged` con el mensaje sugerido.
