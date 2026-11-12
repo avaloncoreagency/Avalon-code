@@ -268,6 +268,32 @@ test('CRM Intelligence in the real app: quick add, discovery, conflicts, score, 
   // 16. Switching industry kept the Smoke Shop answers.
   assert.ok((await one(`select answers ? 's_categories' ok from crm_lead_assessments where lead_id=$1 and industry_key='smoke_shop'`, [smoke])).ok);
 
+  // V2: all ten newly specialized industries render a real conditional questionnaire
+  // in the owner's authenticated browser, not a generic fallback.
+  const sectorRoutes = [
+    ['roofing', 'rf_scope', 'Roofing · Proyectos'],
+    ['fencing', 'fn_operation', 'Fencing · Instalación'],
+    ['tattoo', 'tt_studio', 'Tattoo · Estudio y agenda'],
+    ['landscaping', 'ls_services', 'Landscaping · Servicios y rutas'],
+    ['plumbing', 'pl_operation', 'Plumbing · Trabajos y atención'],
+    ['cleaning', 'cl_services', 'Cleaning · Servicios y personal'],
+    ['restaurant', 'rs_service', 'Restaurante · Operación y demanda'],
+    ['electrical', 'el_services', 'Electrical · Proyectos y respuesta'],
+    ['general_contractor', 'gc_projects', 'Contratista general · Proyectos'],
+    ['other', 'ot_model', 'Industria personalizada · Modelo de negocio'],
+  ];
+  for (const [industry, section, title] of sectorRoutes) {
+    await m.goto(`${origin}/admin/workspace/crm/lead/${smoke}/discovery?industry=${industry}&section=${section}`);
+    await m.getByRole('heading', { name: title }).waitFor();
+    assert.ok(await m.locator('input[name^="present__"]').count() >= 5,
+      `${industry} has sector-specific questions in the actual app`);
+    assert.equal(await m.getByText(/Esta industria usa la plantilla general/).count(), 0,
+      `${industry} no longer uses a generic fallback`);
+  }
+  await en.goto(`${origin}/admin/workspace/crm/lead/${smoke}/discovery?industry=roofing&section=rf_scope`);
+  await en.getByRole('heading', { name: 'Roofing · Jobs' }).waitFor();
+  await en.getByText('Roofing services offered').waitFor();
+
   // iPhone desk.
   const mPhone = await context(miguel, { ...devices['iPhone SE'] });
   await mPhone.goto(origin + '/admin/workspace/crm/desk');
