@@ -48,19 +48,21 @@ export default async function AiCommunicationsHub() {
             <h3>AI Receptionist</h3><p>{pick(lang,"Gestiona horarios, FAQ, reglas de transferencia y guiones. No hay telefonía, voz ni llamadas en vivo conectadas.","Manage business hours, FAQ, handoff rules and prompts. No phone, speech or live calls are connected.")}</p>
             <Link href="/admin/workspace/ai-receptionist">{pick(lang,"Abrir recepción","Open reception")}</Link>
           </article>
-          <article className={styles.card}><span className={styles.badge}>{pick(lang,"Compartición pendiente","Sharing pending")}</span>
+          <article className={styles.card}><span className={styles.badge}>{pick(lang,"Índice de fuentes privadas","Private source index")}</span>
             <h3>Knowledge Base</h3><p>{pick(lang,"Los borradores de conocimiento de cada producto permanecen aislados. Compartir fuentes entre ambos requerirá autorización del cliente, permisos RLS y versiones auditables.","Each product's knowledge drafts remain isolated. Sharing sources will require client authorization, RLS and auditable versions.")}</p>
+            <Link href="/admin/workspace/ai-communications/knowledge">{pick(lang,"Ver índice de conocimiento","Open knowledge index")}</Link>
           </article>
           <article className={styles.card}><span className={styles.badge}>{pick(lang,"Proveedor no conectado","Provider not connected")}</span>
             <h3>Conversations</h3><p>{pick(lang,"Sin chats, llamadas ni transcripciones ficticias. Para habilitarlos se requieren proveedor autorizado, consentimiento y política de retención.","No fabricated chats, calls or transcripts. Enabling them requires an approved provider, consent and retention rules.")}</p>
+            <Link href="/admin/workspace/ai-communications/conversations">{pick(lang,"Ver estado de conversaciones","View conversations status")}</Link>
           </article>
           <article className={styles.card}><span className={styles.badge}>{pick(lang,"Calendario CRM existente","Existing CRM calendar")}</span>
             <h3>Appointments</h3><p>{pick(lang,"Abre el calendario real del CRM. Una solicitud no se registra como cita confirmada sin disponibilidad y aprobación.","Open the real CRM calendar. A request is not a confirmed booking without availability and approval.")}</p>
-            <Link href="/admin/workspace/crm/calendar">{pick(lang,"Ver calendario","View calendar")}</Link>
+            <Link href="/admin/workspace/ai-communications/appointments">{pick(lang,"Ver citas y calendario","View appointments and calendar")}</Link>
           </article>
           <article className={styles.card}><span className={styles.badge}>{pick(lang,"Datos de proveedor pendientes","Provider data pending")}</span>
             <h3>Analytics</h3><p>{pick(lang,"Aún no hay datos verificables de tokens, conversaciones, duración de llamadas ni costes. Para oportunidades y clientes usa el CRM.","There is no verified token, conversation, call-duration or cost telemetry yet. Use the CRM for sales opportunities and clients.")}</p>
-            <Link href="/admin/workspace/crm">{pick(lang,"Abrir CRM","Open CRM")}</Link>
+            <Link href="/admin/workspace/ai-communications/analytics">{pick(lang,"Abrir métricas","Open analytics")}</Link>
           </article>
         </div>
       </section>
