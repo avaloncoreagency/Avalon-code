@@ -36,12 +36,12 @@ export type CommissionEstimate =
 const MONEY_PATTERN = /^(?:0|[1-9][0-9]{0,7})(?:\.[0-9]{1,2})?$/;
 const HOURS_PATTERN = /^(?:0|[1-9][0-9]{0,4})(?:\.[0-9]{1,2})?$/;
 const PERCENT_PATTERN = /^(?:0|[1-9][0-9]{0,2})(?:\.[0-9]{1,2})?$/;
-const MAX_CENTS = 9_999_999_999n;
+const MAX_CENTS = BigInt(9999999999);
 
 function hundredths(value: string, pattern: RegExp): bigint | null {
   if (typeof value !== "string" || !pattern.test(value)) return null;
   const [whole, decimals = ""] = value.split(".");
-  return BigInt(whole) * 100n + BigInt(decimals.padEnd(2, "0") || "0");
+  return BigInt(whole) * BigInt(100) + BigInt(decimals.padEnd(2, "0") || "0");
 }
 function toSafeCents(value: bigint): number | null {
   if (value > MAX_CENTS || value < -MAX_CENTS) return null;
@@ -62,13 +62,13 @@ export function estimateSetup(input: SetupInput): SetupEstimate {
   const contingency = hundredths(input.contingency, MONEY_PATTERN);
   const margin = hundredths(input.targetMargin, PERCENT_PATTERN);
   if (price === null || hours === null || rate === null || external === null ||
-      contingency === null || margin === null || price <= 0n || margin > 9000n)
+      contingency === null || margin === null || price <= BigInt(0) || margin > BigInt(9000))
     return { status: "invalid" };
-  const labor = (hours * rate + 50n) / 100n; // round half-up to a cent
+  const labor = (hours * rate + BigInt(50)) / BigInt(100); // round half-up to a cent
   const cost = labor + external + contingency;
   const profit = price - cost;
-  const denominator = 10000n - margin;
-  const minimumPrice = (cost * 10000n + denominator - 1n) / denominator;
+  const denominator = BigInt(10000) - margin;
+  const minimumPrice = (cost * BigInt(10000) + denominator - BigInt(1)) / denominator;
   const costCents = toSafeCents(cost);
   const minimumPriceCents = toSafeCents(minimumPrice);
   const profitCents = toSafeCents(profit);
@@ -79,7 +79,7 @@ export function estimateSetup(input: SetupInput): SetupEstimate {
     priceCents: Number(price),
     costCents,
     profitCents,
-    marginPercent: Number((profit * 10000n) / price) / 100,
+    marginPercent: Number((profit * BigInt(10000)) / price) / 100,
     minimumPriceCents,
   };
 }
@@ -95,10 +95,10 @@ export function estimateCommission(input: CommissionInput): CommissionEstimate {
   const excluded = hundredths(input.excludedAmount, MONEY_PATTERN);
   const rate = hundredths(input.ratePercent, PERCENT_PATTERN);
   if (collected === null || excluded === null || rate === null ||
-      rate > 10000n || excluded > collected)
+      rate > BigInt(10000) || excluded > collected)
     return { status: "invalid", reasons: ["invalid_amount_or_rate"] };
   const base = collected - excluded;
-  const commission = (base * rate + 5000n) / 10000n; // nearest cent
+  const commission = (base * rate + BigInt(5000)) / BigInt(10000); // nearest cent
   const baseCents = toSafeCents(base);
   const estimatedCents = toSafeCents(commission);
   if (baseCents === null || estimatedCents === null)
