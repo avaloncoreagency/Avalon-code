@@ -15,10 +15,11 @@ const BASE: Record<ModuleKey, string> = {
   ecommerce: "/admin/workspace/ecommerce-designer",
   crm_creator: "/admin/workspace/crm-creator",
   receptionist: "/admin/workspace/ai-receptionist",
+  chatbots: "/admin/workspace/ai-chatbots",
   marketing: "/admin/workspace/marketing-hub",
 };
 const MODULE_NAME: Record<ModuleKey, string> = {
-  website: "Website Designer", ecommerce: "E-commerce Designer", crm_creator: "CRM Creator", receptionist: "AI Receptionist", marketing: "Marketing Hub",
+  website: "Website Designer", ecommerce: "E-commerce Designer", crm_creator: "CRM Creator", receptionist: "AI Receptionist", chatbots: "AI Chatbots", marketing: "Marketing Hub",
 };
 const LIMIT = 15;
 
