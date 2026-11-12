@@ -196,7 +196,7 @@ test('API tokens: hashed and scoped; a token only opens an inbox import; revoked
   await h.as('anon');
   assert.equal((await h.one("select os_bridge_api_import_status($1,$2,false) as r", [hash, opened.import_id])).r.status, 'awaiting_upload');
   await h.fails("select os_bridge_api_import_status($1,$2,true)", [hash, opened.import_id], '42501');
-  assert.equal((await h.one("select status from os_project_imports where id=$1", [opened.import_id]).catch(() => ({status:'hidden'}))).status, 'hidden');
+  await h.fails("select status from os_project_imports where id=$1", [opened.import_id], '42501');
   await h.db.exec('reset role');
   assert.equal((await h.one("select status from os_project_imports where id=$1", [opened.import_id])).status, 'awaiting_upload',
     'read-only request did not mutate import state');
