@@ -14,8 +14,12 @@ test('communications hub is owner gated and links two independent products',()=>
   assert.match(hub,/Suite active="ai-communications"/);
   for(const [slug] of product)assert.ok(hub.includes(`/admin/workspace/${slug}`));
   for(const section of ['Knowledge Base','Conversations','Appointments','Analytics'])assert.ok(hub.includes(section));
-  assert.match(hub,/listProjects\(supabase,"chatbots"\)/);
-  assert.match(hub,/listProjects\(supabase,"receptionist"\)/);
+  assert.match(hub,/\.in\("module",\["chatbots","receptionist"\]\)/);
+  assert.match(hub,/groupCompanies\(/);
+  assert.match(hub,/createProject/);
+  assert.match(hub,/name="client_lead_id"/);
+  assert.match(hub,/name="company_name"/);
+  assert.match(hub,/\.range\(offset,offset \+ PAGE_SIZE - 1\)/);
   assert.doesNotMatch(hub,/service_role|GROQ_API_KEY|NEXT_PUBLIC_.*TOKEN/i);
 });
 test('chatbot pages and receptionist builder are protected, linked and persistent',()=>{
@@ -72,4 +76,38 @@ test('all four communications operations routes are owner-only and linked from h
   assert.match(appointments,/href="\/admin\/workspace\/crm\/calendar"/);
   const conversations=read(`${ROOT}/ai-communications/conversations/page.tsx`);
   assert.match(conversations,/No fabricated messages, calls or transcripts/);
+});
+
+test('single top-level Communication Hub replaces both legacy communications sidebar modules',()=>{
+  const modules=read('src/components/suite/modules.ts');
+  const shell=read('src/components/suite/suite.tsx');
+  const dashboard=read('src/app/admin/dashboard/page.tsx');
+  assert.match(modules,/slug: "ai-communications", key: "communications"/);
+  assert.match(modules,/name: "COMMUNICATION HUB"/);
+  assert.doesNotMatch(modules,/slug: "ai-receptionist"/);
+  assert.doesNotMatch(modules,/slug: "ai-chatbots"/);
+  assert.match(shell,/active === "ai-receptionist" \|\| active === "ai-chatbots"/);
+  assert.match(shell,/aria-current={navActive === m.slug/);
+  assert.match(dashboard,/communications: chatbotCount/);
+  assert.doesNotMatch(dashboard,/receptionist: stat\(/);
+  assert.match(read('src/components/suite/module-cards.tsx'),/Workspace available/);
+});
+
+test('communications company board filters and links existing agent editors',()=>{
+  const page=read('src/app/admin/workspace/ai-communications/page.tsx');
+  const board=read('src/components/communications/communications-portfolio.tsx');
+  const css=read('src/components/communications/communications.module.css');
+  assert.match(page,/requireOwner\(\)/);
+  assert.match(page,/groupCompanies\(projects.data/);
+  assert.match(page,/PAGE_SIZE = 60/);
+  assert.match(page,/countRows\(supabase,"os_projects"/);
+  assert.match(page,/action={createProject}/);
+  assert.match(board,/useState<Kind>/);
+  assert.match(board,/useState<Scope>/);
+  assert.match(board,/g.linked/);
+  assert.match(board,/\/admin\/workspace\/ai-receptionist/);
+  assert.match(board,/\/admin\/workspace\/ai-chatbots/);
+  assert.match(board,/\/admin\/workspace\/clients/);
+  assert.match(css,/@media\(max-width:700px\)/);
+  assert.doesNotMatch(board,/GROQ_API_KEY|OPENROUTER_API_KEY|SUPABASE_SERVICE_ROLE/i);
 });
