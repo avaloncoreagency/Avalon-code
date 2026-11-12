@@ -7,7 +7,7 @@ import { templateFor } from "@/lib/crm/intel/templates";
 import { parseAnswer, progress } from "@/lib/crm/intel/form";
 import { scoreLead } from "@/lib/crm/intel/scoring";
 import { recommend } from "@/lib/crm/intel/recommendations";
-import { findDuplicates, type LeadLike } from "@/lib/crm/intel/duplicates";
+import { duplicateCandidateArgs, findDuplicates, type LeadLike } from "@/lib/crm/intel/duplicates";
 import { intelErrorCode } from "@/lib/crm/intel/errors";
 import type { Answer, Answers } from "@/lib/crm/intel/types";
 
@@ -63,9 +63,13 @@ export async function quickAddLead(_prev: QuickAddState, form: FormData): Promis
   };
   // Possible duplicates: warn, never merge. The owner can confirm it is a different business.
   if (field(form, "confirm_new") !== "1") {
-    const { data: existing, error } = await supabase.from("crm_leads").select("id,company,phone,email,website").eq("archived", false).limit(5000);
+    const candidate = { company, phone: row.phone, email: row.email, website };
+    // Server-side candidate search over every lead (migration 20261112090000); the exact rules run here.
+    let { data: existing, error } = await supabase.rpc("crm_lead_duplicate_candidates", duplicateCandidateArgs(candidate));
+    // Database without that migration: previous behaviour (bounded read), so Quick Add keeps working.
+    if (error?.code === "PGRST202") ({ data: existing, error } = await supabase.from("crm_leads").select("id,company,phone,email,website").eq("archived", false).limit(5000));
     if (error) return { error: intelErrorCode(error), values };
-    const hits = findDuplicates({ company, phone: row.phone, email: row.email, website }, (existing ?? []) as LeadLike[]);
+    const hits = findDuplicates(candidate, (existing ?? []) as LeadLike[]);
     if (hits.length) return { duplicates: hits.slice(0, 5), values };
   }
   const { data, error } = await supabase.from("crm_leads").insert(row).select("id").single();

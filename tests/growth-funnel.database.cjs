@@ -19,7 +19,13 @@ test("GROWTH E2E: public form -> a single audited CRM lead; no sale, outreach or
     if (f.startsWith("20261102053022"))
       await db.exec(`insert into agency_memberships(user_id,role) values('${MIGUEL}','owner'),('${SAMUEL}','owner'),('${OUTSIDER}','operator')`);
   }
-  await db.exec(fs.readFileSync("docs/sql/growth-funnel-prototype.sql", "utf8"));
+  // Migration 20261112090000 ships the funnel WITHOUT anonymous access. The public grant is a separate, reviewed file
+  // that the owner must approve; this isolated database applies it only after proving the default is closed.
+  await db.exec("set role anon");
+  await assert.rejects(db.query("select public.crm_growth_funnel_submit('{}'::jsonb)"), /permission denied/);
+  await assert.rejects(db.query("select public.crm_growth_funnel_view('capture-demo-001')"), /permission denied/);
+  await db.exec("reset role");
+  await db.exec(fs.readFileSync("docs/sql/growth-funnel-public-grant.sql", "utf8"));
 
   const as = async (role, user = "") => {
     await db.exec("reset role; set request.jwt.claim.sub='" + user + "'; set role " + role + ";");
@@ -47,7 +53,8 @@ test("GROWTH E2E: public form -> a single audited CRM lead; no sale, outreach or
   const publicView = await view("capture-demo-001");
   assert.equal(publicView.template, "capture");
   assert.equal(publicView.cta, "Enviar solicitud");
-  assert.deepEqual(Object.keys(publicView).sort(), ["cta","slug","subheading","template","title"].sort());
+  assert.deepEqual(Object.keys(publicView).sort(), ["consent_version","cta","slug","subheading","template","title"].sort());
+  assert.equal(publicView.consent_version, "avalon-optin-v1", "the visitor sees which consent text applies");
   await assert.rejects(db.query("select id from crm_growth_funnels"), /permission denied|policy/i);
   await assert.rejects(db.query("select id from crm_growth_funnel_submissions"), /permission denied|policy/i);
   await assert.rejects(db.query("select id from crm_leads"), /permission denied|policy/i);
@@ -59,7 +66,9 @@ test("GROWTH E2E: public form -> a single audited CRM lead; no sale, outreach or
   assert.equal(await submit({ ...base, message: "short" }), "invalid");
   assert.equal(await submit({ ...base, slug: "no-published-preview" }), "unavailable", "draft cannot receive leads");
   assert.equal(await submit({ ...base, website_url: "filled-by-bot" }), "ok", "honeypot does not reveal detection");
-  assert.equal(await submit(base), "ok", "FIRST REAL SYNTHETIC LEAD");
+  assert.equal(await submit({ ...base, consent_version: "old-text-v0" }), "invalid", "consent to an outdated text is not consent");
+  assert.equal(await submit({ ...base, consent_version: "avalon-optin-v1", referrer_host: "Ads.Example.invalid",
+    utm: { source: "meta<script>", medium: "paid", campaign: "q4", evil: "x" } }), "ok", "FIRST REAL SYNTHETIC LEAD");
   assert.equal(await submit({ ...base, email: "ANA@ORBIT.EXAMPLE.INVALID" }), "ok", "replay must be idempotent");
   assert.equal(await submit({ ...base, slug: "sales-demo-001" }), "ok", "sales template creates no sale");
   assert.equal(await submit({ ...base, slug: "appointments-demo-001" }), "ok", "appointment template does not book");
@@ -68,6 +77,13 @@ test("GROWTH E2E: public form -> a single audited CRM lead; no sale, outreach or
   await create("fourth-demo-001", "capture");
   await as("anon");
   assert.equal(await submit({ ...base, slug: "fourth-demo-001" }), "throttled");
+  // Inside one transaction, the owner identity used for the audited insert must not leak past the call.
+  await db.exec("begin");
+  assert.equal(await submit({ ...base, email: "restore@orbit.example.invalid" }), "ok");
+  assert.equal((await db.query("select current_setting('request.jwt.claim.sub', true) s")).rows[0].s, "",
+    "the anonymous caller is still anonymous after the submit");
+  await assert.rejects(db.query("select id from crm_leads"), /permission denied|policy/i);
+  await db.exec("rollback");
 
   await db.exec("reset role;");
   const leads = (await db.query("select id,company,contact,email,source,owner_id,created_by,stage_id from crm_leads")).rows;
@@ -80,7 +96,10 @@ test("GROWTH E2E: public form -> a single audited CRM lead; no sale, outreach or
   const submissions = (await db.query("select funnel_id,lead_id,consent_at from crm_growth_funnel_submissions")).rows;
   assert.equal(submissions.length, 3);
   assert.ok(submissions.every(x => x.lead_id === leads[0].id && x.consent_at));
-  assert.equal(Number((await db.query("select count(*)::int n from crm_audit where entity='crm_leads'")).rows[0].n), 1);
+  const provenance = (await db.query(`select s.consent_version, s.referrer_host, s.utm from crm_growth_funnel_submissions s
+    join crm_growth_funnels f on f.id = s.funnel_id where f.slug = 'capture-demo-001'`)).rows[0];
+  assert.deepEqual(provenance, { consent_version: "avalon-optin-v1", referrer_host: "ads.example.invalid",
+    utm: { source: "metascript", medium: "paid", campaign: "q4" } }, "consent and provenance recorded, sanitized, unknown keys dropped");  assert.equal(Number((await db.query("select count(*)::int n from crm_audit where entity='crm_leads'")).rows[0].n), 1);
   for (const table of ["crm_sales", "crm_clients", "crm_events"]) {
     assert.equal(Number((await db.query(`select count(*)::int n from ${table}`)).rows[0].n), 0, table + " must stay empty");
   }

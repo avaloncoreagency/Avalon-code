@@ -1,5 +1,6 @@
 "use server";
 
+import { createHmac } from "node:crypto";
 import { headers } from "next/headers";
 import { createClient } from "@/lib/supabase/server";
 import { authLimiter, clientIp, hashKey } from "@/lib/security/rate-limit";
@@ -15,7 +16,8 @@ export type FunnelSubmitState = { status: "idle" | "ok" | "invalid" | "throttled
 export async function submitFunnel(_previous: FunnelSubmitState, form: FormData): Promise<FunnelSubmitState> {
   const slug = String(form.get("slug") ?? "").trim();
   if (!validSlug(slug)) return { status: "invalid" };
-  const incomingIp = clientIp(await headers());
+  const requestHeaders = await headers();
+  const incomingIp = clientIp(requestHeaders);
   if (!authLimiter.hit(hashKey("growth-funnel:" + slug, incomingIp), { limit: 5, windowMs: 60 * 60 * 1000 }).allowed)
     return { status: "throttled" };
 
@@ -29,6 +31,12 @@ export async function submitFunnel(_previous: FunnelSubmitState, form: FormData)
     message: field("message", 2000),
     consent: form.get("consent") === "yes",
     website_url: field("website_url", 160),
+    // Consent text version the visitor saw (rendered by the page from crm_growth_funnel_view); the RPC rejects a stale one.
+    consent_version: field("consent_version", 40),
+    referrer_host: referrerHost(requestHeaders.get("referer")),
+    // Durable per-device limit in PostgreSQL: a keyed hash of the IP, never the IP. Without a server secret no
+    // fingerprint is sent (an unkeyed IPv4 hash could be reversed), and only the per-e-mail/per-funnel limits apply.
+    fingerprint: deviceFingerprint(incomingIp),
   };
   if (!request.consent || request.company.length > 200 || request.name.length > 160 ||
       request.email.length > 254 || request.phone.length > 40 || request.message.length > 2000)
@@ -44,4 +52,14 @@ export async function submitFunnel(_previous: FunnelSubmitState, form: FormData)
   } catch {
     return { status: "unavailable" };
   }
+}
+
+function referrerHost(referer: string | null): string {
+  try { return referer ? new URL(referer).hostname.toLowerCase().slice(0, 253) : ""; } catch { return ""; }
+}
+
+function deviceFingerprint(ip: string): string {
+  const secret = process.env.AUTH_FLOW_SECRET;
+  if (!secret || secret.length < 32 || ip === "unknown") return "";
+  return createHmac("sha256", secret).update("growth-funnel-device\u0000" + ip).digest("hex");
 }

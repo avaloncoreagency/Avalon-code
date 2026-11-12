@@ -14,7 +14,7 @@ export function domainOf(url: string | null | undefined): string {
 }
 const FREE_MAIL = new Set(["gmail.com", "yahoo.com", "hotmail.com", "outlook.com", "icloud.com", "aol.com", "live.com", "msn.com"]);
 export const emailDomain = (e: string | null | undefined) => {
-  const d = String(e ?? "").toLowerCase().split("@")[1] ?? "";
+  const d = String(e ?? "").trim().toLowerCase().split("@")[1] ?? "";
   return FREE_MAIL.has(d) ? "" : d;
 };
 export const normName = (s: string) => s.toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "")
@@ -33,4 +33,17 @@ export function findDuplicates(candidate: Omit<LeadLike, "id">, existing: LeadLi
     if (reasons.length) hits.push({ id: e.id, company: e.company, reasons });
   }
   return hits;
+}
+
+/**
+ * Arguments for the server-side candidate search crm_lead_duplicate_candidates (migration 20261112090000). The database
+ * returns a bounded superset over ALL leads (no 5,000-row read); findDuplicates then applies the exact rules above.
+ */
+export function duplicateCandidateArgs(candidate: Omit<LeadLike, "id">) {
+  return {
+    p_phone: phoneDigits(candidate.phone),
+    p_email: (candidate.email ?? "").trim().toLowerCase(),
+    p_domain: domainOf(candidate.website) || emailDomain(candidate.email),
+    p_name: candidate.company ?? "",
+  };
 }
