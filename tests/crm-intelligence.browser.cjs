@@ -96,7 +96,8 @@ test('CRM Intelligence in the real app: quick add, discovery, conflicts, score, 
   await m.goto(origin + '/admin/workspace/crm/desk');
   await m.getByRole('heading', { name: 'Mesa comercial' }).waitFor();
   await m.getByLabel('Nombre comercial *').fill('Cool Breeze HVAC Sintético');
-  await m.getByLabel('Industria').selectOption('hvac');
+  // Match Quick Add's stable field name; the separate desk sector filter contains similar option text.
+  await m.locator('select[name="industry_key"]').selectOption('hvac');
   await m.getByLabel('Teléfono').fill('+1 (305) 555-0101');
   await Promise.all([m.waitForURL(/\/crm\/lead\/[0-9a-f-]{36}\?ok=created/), m.getByRole('button', { name: 'Guardar lead' }).click()]);
   const leadId = m.url().match(/lead\/([0-9a-f-]{36})/)[1];
