@@ -111,6 +111,25 @@ test('CRM Intelligence in the real app: quick add, discovery, conflicts, score, 
   await m.getByText('Posibles duplicados').waitFor();
   assert.equal(await m.getByLabel('Nombre comercial *').inputValue(), 'Cool Breeze A/C', 'typed values preserved');
   assert.equal(Number((await one(`select count(*) n from crm_leads where company ilike 'Cool Breeze%'`)).n), 1, 'no duplicate created');
+  // Sales Desk search is scoped to an explicit list, not the default 'Today' follow-up view.
+  // The industry filter must not share the accessible name of Quick Add's industry field.
+  await m.goto(origin + '/admin/workspace/crm/desk?f=all');
+  await m.getByRole('search').getByRole('searchbox').fill('Cool Breeze');
+  await m.getByRole('search').getByLabel('Filtrar sector del listado').selectOption('hvac');
+  await Promise.all([
+    m.waitForURL(/search=Cool\+Breeze.*industry=hvac/),
+    m.getByRole('search').getByRole('button', { name: 'Buscar' }).click(),
+  ]);
+  await m.getByRole('link', { name: 'Cool Breeze HVAC Sintético' }).waitFor();
+  assert.ok(await m.getByText('HVAC / Aire acondicionado').count(), 'industry filter applied without breaking Quick Add');
+
+  // Verify that sector-specific discovery sections exist without saving mock answers.
+  await m.goto(`${origin}/admin/workspace/crm/lead/${leadId}/discovery?industry=roofing&section=rf_operations`);
+  await m.getByRole('heading', { name: 'Roofing · Servicios y requisitos' }).waitFor();
+  await m.getByText('Servicios que desea promocionar').waitFor();
+  await m.getByLabel('¿Trabaja en proyectos relacionados con reclamaciones de seguros?').count();
+  await m.goto(`${origin}/admin/workspace/crm/lead/${leadId}/discovery?industry=hvac&section=h_services`);
+
 
   // 3, 13. Samuel completes part of the HVAC diagnosis on an iPhone; conditional questions appear live.
   const sPhone = await context(samuel, { ...devices['iPhone 13'] });
