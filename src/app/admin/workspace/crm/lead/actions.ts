@@ -7,6 +7,7 @@ import { templateFor } from "@/lib/crm/intel/templates";
 import { parseAnswer, progress } from "@/lib/crm/intel/form";
 import { scoreLead } from "@/lib/crm/intel/scoring";
 import { recommend } from "@/lib/crm/intel/recommendations";
+import { reconcileRecommendations, AUTO_WITHDRAW_NOTE, type SavedRecommendation } from "@/lib/crm/intel/reconcile";
 import { duplicateCandidateArgs, findDuplicates, type LeadLike } from "@/lib/crm/intel/duplicates";
 import { intelErrorCode } from "@/lib/crm/intel/errors";
 import type { Answer, Answers } from "@/lib/crm/intel/types";
@@ -147,12 +148,33 @@ async function storeIntelligence(supabase: SupabaseClient, lead: string, assessm
     });
   }
   const recs = recommend(industry, answers);
-  const { data: existing } = await supabase.from("crm_lead_recommendations").select("rule_id,status").eq("lead_id", lead);
-  const known = new Map((existing ?? []).map(e => [e.rule_id as string, e.status as string]));
+  const { data: existing, error: listError } = await supabase.from("crm_lead_recommendations")
+    .select("id,rule_id,status,note,decided_by,version").eq("lead_id", lead);
+  // Never mutate recommendation state if the read failed: an apparent empty set must not
+  // be interpreted as "there are no old recommendations".
+  if (listError) return;
+  const saved = (existing ?? []) as SavedRecommendation[];
+  const { changes } = reconcileRecommendations(saved, recs);
+  for (const change of changes) {
+    const withdrawn = change.action === "withdraw";
+    await supabase.from("crm_lead_recommendations")
+      .update({
+        status: withdrawn ? "dismissed" : "suggested",
+        note: withdrawn ? AUTO_WITHDRAW_NOTE : "",
+        decided_by: null,
+        decided_at: null,
+      })
+      .eq("id", change.id).eq("lead_id", lead).eq("version", change.version)
+      .eq("status", withdrawn ? "suggested" : "dismissed")
+      // A manually dismissed rule cannot be resurrected, even if it changed since the read.
+      .is("decided_by", null);
+  }
+  const known = new Map(saved.map(e => [e.rule_id, e.status]));
   for (const rec of recs) {
     const row = { service: rec.service, problem: rec.problem.es, evidence: rec.evidence, missing: rec.missing, next_action: rec.nextAction.es, rules_version: r.rulesVersion };
     if (!known.has(rec.ruleId)) await supabase.from("crm_lead_recommendations").insert({ lead_id: lead, rule_id: rec.ruleId, ...row });
-    else if (known.get(rec.ruleId) === "suggested") await supabase.from("crm_lead_recommendations").update(row).eq("lead_id", lead).eq("rule_id", rec.ruleId).eq("status", "suggested");
+    else if (known.get(rec.ruleId) === "suggested" || changes.some(c => c.ruleId === rec.ruleId && c.action === "restore"))
+      await supabase.from("crm_lead_recommendations").update(row).eq("lead_id", lead).eq("rule_id", rec.ruleId).eq("status", "suggested");
   }
 }
 
