@@ -1,7 +1,8 @@
 name: Avalon security checks
 on:
   pull_request:
-    branches: [main]
+    # Stacked PRs must pass security CI before integration into main.
+    branches: [main, integration/avalon-v1, claude/crm-intelligence]
   push:
     branches: [main]
   schedule:
