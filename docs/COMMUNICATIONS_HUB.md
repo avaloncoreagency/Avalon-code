@@ -1,6 +1,6 @@
 # Avalon AI Communications Hub — 2026-11-12
 
-**Branch:** `chatgpt/communications-hub-20261112`  **Review PR:** #164 → `integration/avalon-v1`.
+**Branch:** `chatgpt/communications-hub-20261112`  **Review PR:** #164 → `main` (reconciled after PRs #159 and #160 merged).
 **State:** development-only, no production changes. Source #155/#159 hub and #141 chatbots proposal, with safer integration into existing services.
 
 ## Product architecture
@@ -25,3 +25,15 @@
 6. Reconcile #141 and #160 before any later integration into `main`.
 
 **Rollback:** revert PR #164 while still unmerged; SQL unapplied outside isolated tests. For future deployment, a down migration must be reviewed and pre-existing bot projects handled without data loss.
+
+
+## 2026-11-12 additional completion checkpoint
+- Four new authenticated, owner-only routes:
+  - `/admin/workspace/ai-communications/knowledge`: private per-product project index, chatbot `settings.chatbot.knowledge` entry counts, receptionist FAQ/knowledge counts; does not copy knowledge across clients.
+  - `/admin/workspace/ai-communications/conversations`: honest no-provider status with consent/authentication/retention integration requirements.
+  - `/admin/workspace/ai-communications/appointments`: direct link to existing CRM calendar; no duplicate appointments or fictional confirmations.
+  - `/admin/workspace/ai-communications/analytics`: database-backed counts for chatbot/receptionist projects and receptionist knowledge/FAQs; provider costs/calls/chat interactions intentionally unavailable.
+- Hub cards link to all four routes. `tests/communications-hub.test.cjs` explicitly checks owner gate, correct data-source use and honest unavailable-state copy.
+- Previous 6/6 GitHub Actions success corresponded to SHA `0e9851f3`. Re-run all checks on the **latest** commit before accepting this addition. Never claim prior green applies to new code.
+- Isolated Supabase `wupvuwmqfcvmjqycmnvg`: chatbot constraint migrated, with legacy `apps` retained; production `ltbwzcrxeuczdhhtbqgm` has no chatbot migration at checkpoint.
+- Owner-authenticated end-to-end browser session for save/reload and iPhone accessibility still required; no provider API or phone calls connected. Conversations, booking automation, shared knowledge authorization, and cost telemetry are future implementation, not finished products.
