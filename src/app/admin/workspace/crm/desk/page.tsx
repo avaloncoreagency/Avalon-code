@@ -31,7 +31,10 @@ export default async function DeskPage({ searchParams }: { searchParams: Promise
   const search = (q(p, "search") ?? "").trim().slice(0, 80);
   const requestedIndustry = q(p, "industry");
   const industry = isIndustry(requestedIndustry) ? requestedIndustry : "";
-  const listHref = (f: Filter) => `?${new URLSearchParams({ f, ...(search ? { search } : {}), ...(industry ? { industry } : {}) })}`;
+  const requestedPage = Number(q(p, "page"));
+  const page = Number.isSafeInteger(requestedPage) && requestedPage >= 1 && requestedPage <= 1000 ? requestedPage : 1;
+  const perPage = 50;
+  const listHref = (f: Filter, currentPage = 1) => `?${new URLSearchParams({ f, ...(search ? { search } : {}), ...(industry ? { industry } : {}), ...(currentPage > 1 ? { page: String(currentPage) } : {}) })}`;
   const now = new Date();
   const startOfDay = new Date(now); startOfDay.setHours(0, 0, 0, 0);
   const endOfDay = new Date(now); endOfDay.setHours(23, 59, 59, 999);
@@ -58,7 +61,7 @@ export default async function DeskPage({ searchParams }: { searchParams: Promise
   if (industry) listQuery = listQuery.eq("industry_key", industry);
   const [owners, list, ...counts] = await Promise.all([
     run<{ user_id: string; email: string }[]>(supabase.rpc("crm_owner_directory")),
-    run<Lead[]>(listQuery.order(filter === "all" || filter === "new" ? "created_at" : "follow_up_at", { ascending: filter !== "all" && filter !== "new", nullsFirst: false }).limit(100)),
+    run<Lead[]>(listQuery.order(filter === "all" || filter === "new" ? "created_at" : "follow_up_at", { ascending: filter !== "all" && filter !== "new", nullsFirst: false }).order("id", { ascending: true }).range((page - 1) * perPage, page * perPage - 1)),
     ...counted.map(f => views[f]().limit(1)),
   ]);
   const ownerList = owners.data ?? [];
@@ -68,6 +71,7 @@ export default async function DeskPage({ searchParams }: { searchParams: Promise
     mine: ["Mis leads", "My leads"], other: ["Leads del otro propietario", "Other owner's leads"], all: ["Todos", "All"], high: ["Alta prioridad", "High priority"],
   };
   const schemaPending = list.error === "schema_pending";
+  const pageCount = list.count === null ? null : Math.max(1, Math.ceil(list.count / perPage));
   return (
     <Suite active="crm">
       <section className={s.hud} aria-labelledby="desk-title">
@@ -105,7 +109,7 @@ export default async function DeskPage({ searchParams }: { searchParams: Promise
             </nav>
             {list.error && !schemaPending && <p className={s.flash} data-tone="error" role="alert">{intelErrorText(lang, "unavailable")}</p>}
             {list.data && list.data.length === 0 && <p className={s.empty}>{pick(lang, "No hay leads en esta vista.", "No leads in this view.")}</p>}
-            {list.data && list.data.length === 100 && <p className={s.muted} role="status">{pick(lang, "Se muestran los primeros 100 resultados de esta vista; afina los filtros para localizar otros negocios.", "Showing the first 100 results in this view; refine the filters to find other businesses.")}</p>}
+            {list.data && <p className={s.muted} role="status">{pick(lang, `Página ${page}${pageCount !== null ? ` de ${pageCount}` : ""} · ${list.count ?? "—"} registros coincidentes`, `Page ${page}${pageCount !== null ? ` of ${pageCount}` : ""} · ${list.count ?? "—"} matching records`)}</p>}
             <ul className={s.list} style={{ marginTop: 12 }}>
               {(list.data ?? []).map(l => {
                 const overdue = l.follow_up_at && l.follow_up_at < now.toISOString() && l.crm_stages?.kind === "open";
@@ -126,6 +130,10 @@ export default async function DeskPage({ searchParams }: { searchParams: Promise
                 </li>;
               })}
             </ul>
+            {list.data && (page > 1 || (pageCount !== null && page < pageCount)) && <nav className={s.actions} aria-label={pick(lang, "Páginas de leads", "Lead pages")}>
+              {page > 1 && <Link className={s.button} href={listHref(filter, page - 1)}>{pick(lang, "Anterior", "Previous")}</Link>}
+              {pageCount !== null && page < pageCount && <Link className={s.button} href={listHref(filter, page + 1)}>{pick(lang, "Siguiente", "Next")}</Link>}
+            </nav>}
           </section>
         </div>
       </section>
