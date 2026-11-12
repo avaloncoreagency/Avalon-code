@@ -211,14 +211,16 @@ export default async function LeadPage({ params, searchParams }: { params: Promi
                 {cur && <span className={s.muted}>{pick(lang, "Beneficio esperado", "Expected benefit")}: {cur.benefit[lang]}</span>}
                 {r.missing.length > 0 && <span className={s.muted}>{pick(lang, "Datos faltantes", "Missing data")}: {r.missing.join(", ")}</span>}
                 <span className={s.muted}>{pick(lang, "Próxima acción", "Next action")}: {r.status === "edited" ? r.next_action : cur ? cur.nextAction[lang] : r.next_action}</span>
-                {!liveIds.has(r.rule_id) && <span className={x.meta}>{pick(lang, "Ya no aplica según el diagnóstico actual.", "No longer applies to the current diagnosis.")}</span>}
+                {!liveIds.has(r.rule_id) && <span className={x.meta} role={r.status === "accepted" || r.status === "edited" ? "alert" : "note"}>{pick(lang,
+                  "Ya no aplica según el diagnóstico actual. Si se había aceptado, requiere revisión humana antes de actuar.",
+                  "No longer applies to the current diagnosis. Previously accepted decisions require human review before any action.")}</span>}
                 {r.note && <span className={s.muted}>{pick(lang, "Nota", "Note")}: {r.note} ({who(r.decided_by)})</span>}
                 <form action={decideRecommendation} className={s.inline}>
                   <input type="hidden" name="lead" value={id} /><input type="hidden" name="id" value={r.id} /><input type="hidden" name="version" value={r.version} />
                   <input name="note" placeholder={pick(lang, "Nota (opcional)", "Note (optional)")} maxLength={1000} style={{ minWidth: 160 }} />
                   <input name="next_action" placeholder={pick(lang, "Editar próxima acción", "Edit next action")} maxLength={300} style={{ minWidth: 160 }} />
-                  <button className={s.button} name="status" value="accepted">{pick(lang, "Aceptar", "Accept")}</button>
-                  <button className={s.button} name="status" value="edited">{pick(lang, "Guardar edición", "Save edit")}</button>
+                  <button className={s.button} name="status" value="accepted" disabled={!liveIds.has(r.rule_id)}>{pick(lang, "Aceptar", "Accept")}</button>
+                  <button className={s.button} name="status" value="edited" disabled={!liveIds.has(r.rule_id)}>{pick(lang, "Guardar edición", "Save edit")}</button>
                   <button className={s.button} name="status" value="dismissed">{pick(lang, "Descartar", "Dismiss")}</button>
                 </form>
               </li>;
