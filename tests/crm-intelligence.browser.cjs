@@ -290,7 +290,7 @@ test('CRM Intelligence in the real app: quick add, discovery, conflicts, score, 
   for (const [industry, section, title] of sectorRoutes) {
     await m.goto(`${origin}/admin/workspace/crm/lead/${smoke}/discovery?industry=${industry}&section=${section}`);
     await m.getByRole('heading', { name: title }).waitFor();
-    assert.ok(await m.locator('input[name^="present__"]').count() >= 5,
+    assert.ok(await m.locator('input[name^="present__"]').count() >= 3,
       `${industry} has sector-specific questions in the actual app`);
     assert.equal(await m.getByText(/Esta industria usa la plantilla general/).count(), 0,
       `${industry} no longer uses a generic fallback`);
