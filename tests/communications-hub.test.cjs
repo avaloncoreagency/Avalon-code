@@ -42,7 +42,8 @@ test('chatbots project identity and SQL check are isolated from receptionist',()
   assert.match(sql,/check \(module in .*'chatbots'\)/);
   assert.doesNotMatch(sql,/drop table|drop policy|disable row level security|grant .* to anon/i);
   const nav=read('src/components/suite/modules.ts');
-  assert.match(nav,/slug: "ai-chatbots", key: "chatbots"/);
+  assert.match(nav,/slug: "ai-communications", key: "communications"/);
+  assert.doesNotMatch(nav,/slug: "ai-chatbots", key: "chatbots"/);
   assert.match(read('src/components/suite/suite.tsx'),/href="\/admin\/workspace\/ai-communications"/);
 });
 test('old receptionist chatbot drafts remain accessible without pretending to be live AI',()=>{
