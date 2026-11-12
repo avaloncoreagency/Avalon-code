@@ -52,3 +52,24 @@ test('old receptionist chatbot drafts remain accessible without pretending to be
   assert.match(ui,/Provider not connected/);
   assert.match(ui,/disabled/);
 });
+
+test('all four communications operations routes are owner-only and linked from hub',()=>{
+  const hub=read(`${ROOT}/ai-communications/page.tsx`);
+  const sections=['knowledge','conversations','appointments','analytics'];
+  for(const slug of sections){
+    const page=read(`${ROOT}/ai-communications/${slug}/page.tsx`);
+    assert.match(page,/requireOwner\(\)/,`missing owner check on ${slug}`);
+    assert.ok(hub.includes(`/admin/workspace/ai-communications/${slug}`),`missing hub link to ${slug}`);
+  }
+  const knowledge=read(`${ROOT}/ai-communications/knowledge/page.tsx`);
+  assert.match(knowledge,/readChatbot\(project.settings\)/);
+  assert.match(knowledge,/os_receptionist_entries/);
+  assert.match(knowledge,/\.limit\(300\)/);
+  const analytics=read(`${ROOT}/ai-communications/analytics/page.tsx`);
+  assert.match(analytics,/countRows\(supabase/);
+  assert.match(analytics,/Missing data is not zero/);
+  const appointments=read(`${ROOT}/ai-communications/appointments/page.tsx`);
+  assert.match(appointments,/href="\/admin\/workspace\/crm\/calendar"/);
+  const conversations=read(`${ROOT}/ai-communications/conversations/page.tsx`);
+  assert.match(conversations,/No fabricated messages, calls or transcripts/);
+});
