@@ -47,7 +47,8 @@ export default async function SecurityPage() {
   const deploy = deploymentInfo();
   const mfaOn = factors?.data ? factors.data.totp.some(f => f.status === "verified") : null;
   const flowSecret = (process.env.AUTH_FLOW_SECRET ?? "").length >= 32;
-  const open = FINDINGS.filter(f => f.status !== "verified" && f.status !== "accepted");
+  const open = FINDINGS.filter(f => f.status === "open" || f.status === "blocked");
+  const pendingValidation = FINDINGS.filter(f => f.status === "implemented").length;
   const bySeverity = SEVERITY_ORDER.map(sev => [sev, open.filter(f => f.severity === sev).length] as const);
   const sorted = [...FINDINGS].sort((a, b) => SEVERITY_ORDER.indexOf(a.severity) - SEVERITY_ORDER.indexOf(b.severity));
 
@@ -63,7 +64,8 @@ export default async function SecurityPage() {
             <tbody>
               <tr><td>{pick(lang, "Hallazgos abiertos por severidad", "Open findings by severity")}</td>
                 <td>{bySeverity.map(([sev, n]) => <span key={sev} style={{ marginRight: 6 }}><Badge tone={n ? SEVERITY[sev][2] : "neutral"}>{pick(lang, SEVERITY[sev][0], SEVERITY[sev][1])}: {n}</Badge></span>)}</td>
-                <td className={s.meta}>{pick(lang, `Registro revisado el ${REVIEWED_AT}`, `Register reviewed ${REVIEWED_AT}`)}</td></tr>
+                <td className={s.meta}>{pick(lang, `Registro actualizado el ${REVIEWED_AT}; incluye solo abiertos y bloqueados`, `Register updated ${REVIEWED_AT}; counts only open and blocked`)}</td></tr>
+              <tr><td>{pick(lang, "Implementados · pendientes de validar", "Implemented · pending validation")}</td><td><Badge tone="info">{pendingValidation}</Badge></td><td className={s.meta}>{pick(lang, "Controles implementados, no declarados verificados", "Implemented controls, not claimed as verified")}</td></tr>
               <tr><td>{pick(lang, "Cabeceras de seguridad en producción", "Security headers in production")}</td>
                 <td>{headers.status === "checked" ? <Badge tone={headers.missing.length ? "warn" : "ok"}>{headers.present.length}/{headers.present.length + headers.missing.length}</Badge> : <Badge tone="neutral">{headers.status === "not_configured" ? pick(lang, "No configurado", "Not configured") : pick(lang, "No verificado", "Not verified")}</Badge>}</td>
                 <td className={s.meta}>{pick(lang, "Comprobación en vivo", "Live check")}</td></tr>
@@ -87,7 +89,7 @@ export default async function SecurityPage() {
                 </> : <tr><td>{pick(lang, "Cabeceras HTTP", "HTTP headers")}</td><td><Badge tone="neutral">{pick(lang, "No verificado", "Not verified")}</Badge></td></tr>}
                 <tr><td>{pick(lang, "Origen de la app (APP_ORIGIN)", "App origin (APP_ORIGIN)")}</td><td>{origin ? <Badge tone="ok">{origin}</Badge> : <Badge tone="warn">{pick(lang, "No configurado", "Not configured")}</Badge>}</td></tr>
                 <tr><td>{pick(lang, "Firma de enlaces de email (AUTH_FLOW_SECRET)", "Email link signing (AUTH_FLOW_SECRET)")}</td><td>{yesNo(lang, flowSecret, ["Configurada", "Configured", "Falta", "Missing"])}</td></tr>
-                <tr><td>{pick(lang, "Base de datos de módulos (RLS)", "Module database (RLS)")}</td><td>{yesNo(lang, modulesDb.error === null, ["Accesible", "Reachable", "Revisar", "Review"])}</td></tr>
+                <tr><td>{pick(lang, "Base de datos de módulos (RLS)", "Module database (RLS)")}</td><td>{yesNo(lang, modulesDb.error === null, ["Conexión OK · RLS no verificado", "Connection OK · RLS not verified", "Revisar conexión", "Check connection"])}</td></tr>
                 <tr><td>{pick(lang, "Despliegue", "Deployment")}</td><td className={s.meta}>{deploy.environment ? `${deploy.environment} · ${deploy.branch ?? "—"} · ${deploy.commit ?? "—"}` : pick(lang, "No disponible", "Unavailable")}</td></tr>
                 <tr><td>{pick(lang, "Límite de intentos (esta instancia)", "Rate limiter (this instance)")}</td><td className={s.meta}>{pick(lang, `${authLimiter.size()} claves activas`, `${authLimiter.size()} active keys`)}</td></tr>
               </tbody>
@@ -117,7 +119,7 @@ export default async function SecurityPage() {
               <tr><td>{pick(lang, "Alertas de dependencias", "Dependency alerts")}</td><td><Badge tone="neutral">{pick(lang, "No verificado", "Not verified")}</Badge></td><td><a href={`${REPO}/security`} target="_blank" rel="noopener noreferrer">GitHub Security</a></td></tr>
               <tr><td>{pick(lang, "Protección de la rama main", "main branch protection")}</td><td><Badge tone="danger">{pick(lang, "No configurado (R-02)", "Not configured (R-02)")}</Badge></td><td><a href={`${REPO}/settings/rules`} target="_blank" rel="noopener noreferrer">GitHub Rules</a></td></tr>
               <tr><td>{pick(lang, "Backups y restauración", "Backups and restore")}</td><td><Badge tone="neutral">{pick(lang, "No verificado", "Not verified")}</Badge></td><td><a href={DOC("RESPALDOS_Y_RECUPERACION.md")} target="_blank" rel="noopener noreferrer">{pick(lang, "Plan de recuperación", "Recovery plan")}</a></td></tr>
-              <tr><td>{pick(lang, "Asesor de seguridad de Supabase", "Supabase security advisor")}</td><td><Badge tone="neutral">{pick(lang, "No verificado", "Not verified")}</Badge></td><td className={s.meta}>Supabase → Advisors</td></tr>
+              <tr><td>{pick(lang, "Asesor de seguridad de Supabase", "Supabase security advisor")}</td><td><Badge tone="neutral">{pick(lang, "No verificado", "Not verified")}</Badge></td><td><a href="https://supabase.com/dashboard/project/ltbwzcrxeuczdhhtbqgm/advisors/security" target="_blank" rel="noopener noreferrer">Supabase → Advisors</a></td></tr>
             </tbody>
           </table>
         </div>
