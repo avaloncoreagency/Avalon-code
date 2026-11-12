@@ -197,3 +197,53 @@ test("Smoke Shop: restricted products → legal 'restricted', no paid-ads recomm
   assert.ok(recs.includes("ads_restricted") && recs.includes("inventory"));
   assert.ok(!recs.includes("evaluate_ads"), "a great score never overrides a legal restriction");
 });
+
+
+test("sector financial and capacity answers inform scoring without inventing missing values", () => {
+  const answers = {
+    rf_avg_profit: A(1800), rf_extra_jobs_month: A(8), rf_ads_budget: A(1200),
+    rf_license_status: A("owner_verified"), g_avalon_budget: A(1200),
+    g_decision_maker: A("Owner"), g_start_when: A("now"), g_accepts_tracking: A(true),
+    g_shares_conversion_data: A(true), g_has_website: A(false), g_uses_crm: A(false),
+    g_follow_up: A("manual"), g_close_rate: A(30),
+  };
+  const facts = S.extractFacts("roofing", answers);
+  assert.equal(facts.grossProfitPerSale, 1800);
+  assert.equal(facts.extraCapacity, 8);
+  assert.equal(facts.adBudget, 1200);
+  const scored = S.scoreLead("roofing", answers);
+  assert.notEqual(scored.grade, "insufficient");
+  assert.equal(scored.legal.status, "clear");
+  assert.ok(scored.categories.find(c => c.category === "profitability").factors.some(f => f.evidence === "$1,800"));
+});
+
+test("unknown sector compliance prevents paid-ad recommendations; invalid and restricted stay separate from score", () => {
+  const base = {
+    rf_avg_profit: A(3000), rf_extra_jobs_month: A(15), rf_ads_budget: A(2200),
+    g_avalon_budget: A(1400), g_decision_maker: A("Owner"),
+    g_start_when: A("now"), g_accepts_tracking: A(true), g_shares_conversion_data: A(true),
+    g_has_website: A(false), g_uses_crm: A(false), g_close_rate: A(30),
+  };
+  const review = S.scoreLead("roofing", base);
+  assert.equal(review.legal.status, "review");
+  assert.ok(R.recommend("roofing", base).some(r => r.ruleId === "ads_review_required"));
+  assert.ok(!R.recommend("roofing", base).some(r => r.ruleId === "evaluate_ads"));
+  const invalid = { ...base, rf_license_status: A("invalid") };
+  assert.equal(S.scoreLead("roofing", invalid).legal.status, "restricted");
+  assert.ok(R.recommend("roofing", invalid).some(r => r.ruleId === "ads_restricted"));
+  assert.ok(!R.recommend("roofing", invalid).some(r => r.ruleId === "evaluate_ads"));
+  const custom = { ...base, ot_restricted_ads: A(true) };
+  assert.equal(S.scoreLead("other", custom).legal.status, "restricted");
+  assert.ok(!R.recommend("other", custom).some(r => r.ruleId === "evaluate_ads"));
+});
+
+test("sector-specific unknown answers do not contribute points and conditional pesticide checks are honest", () => {
+  const unknown = S.scoreLead("restaurant", {rs_avg_profit: U, rs_extras_month: U, rs_ads_budget: U});
+  assert.equal(unknown.grade, "insufficient");
+  const noPesticides = S.scoreLead("landscaping", {ls_services: A(["mowing"])});
+  assert.equal(noPesticides.legal.status, "clear");
+  const pesticides = S.scoreLead("landscaping", {ls_services: A(["mowing", "pesticides"])});
+  assert.equal(pesticides.legal.status, "review");
+  const verified = S.scoreLead("landscaping", {ls_services: A(["pesticides"]), ls_pesticide_status: A("owner_verified")});
+  assert.equal(verified.legal.status, "clear");
+});
