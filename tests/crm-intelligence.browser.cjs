@@ -234,6 +234,29 @@ test('CRM Intelligence in the real app: quick add, discovery, conflicts, score, 
   await m.getByText('Publicidad restringida', { exact: true }).waitFor();
   assert.equal(await m.getByText(/Campañas publicitarias|Google Local Services/).count(), 0, 'no paid-ads recommendation for restricted products');
 
+  // V2 regression: changing evidence withdraws an obsolete automated suggestion,
+  // and the server rejects a forged attempt to accept the stale rule.
+  await m.goto(`${origin}/admin/workspace/crm/lead/${smoke}/discovery?industry=smoke_shop&section=s_operation`);
+  const categories = m.getByRole('group', { name: 'Categorías de productos' });
+  await categories.getByLabel('Vapes / nicotina').uncheck();
+  await categories.getByLabel('Vidrio y accesorios').check();
+  await submit(m, m.getByRole('button', { name: 'Guardar', exact: true }));
+  await m.getByText('Respuestas guardadas en Avalon').waitFor();
+  assert.equal((await one("select status from crm_lead_recommendations where lead_id=$1 and rule_id='ads_restricted'", [smoke])).status, 'dismissed',
+    'no longer relevant automated advice must be withdrawn');
+  await m.goto(`${origin}/admin/workspace/crm/lead/${smoke}?tab=recs`);
+  const stale = m.locator('li').filter({ hasText: 'Publicidad restringida' }).first();
+  await stale.getByText(/Ya no aplica según el diagnóstico actual/).waitFor();
+  const acceptStale = stale.getByRole('button', { name: 'Aceptar' });
+  assert.equal(await acceptStale.isDisabled(), true, 'stale recommendation is not actionable in UI');
+  // Browser tampering bypasses the disabled HTML attribute but not server-side evidence checks.
+  await acceptStale.evaluate(el => { el.disabled = false; });
+  await submit(m, acceptStale);
+  await m.getByText(/recomendación.*no.*vigente|recommendation.*no longer/i).first().waitFor();
+  assert.equal((await one("select status from crm_lead_recommendations where lead_id=$1 and rule_id='ads_restricted'", [smoke])).status, 'dismissed',
+    'forged acceptance cannot restore a stale recommendation');
+
+
   // 14. Barber questionnaire shows its own questions. 33. English labels.
   const en = await context(miguel, { viewport: { width: 1366, height: 1000 } }, 'en');
   await en.goto(`${origin}/admin/workspace/crm/lead/${smoke}/discovery?industry=barber&section=b_capacity`);
