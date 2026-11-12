@@ -20,7 +20,7 @@ const sectionNames: Record<string, { es: string; en: string }> = {
   "dev-bridge": { es: "Dev Bridge", en: "Dev Bridge" },
   search: { es: "Búsqueda", en: "Search" },
   security: { es: "Seguridad", en: "Security" },
-  "ai-communications": { es: "AI Communications Hub", en: "AI Communications Hub" },
+  "ai-communications": { es: "COMMUNICATION HUB", en: "COMMUNICATION HUB" },
 };
 
 /**
@@ -52,7 +52,9 @@ export async function Suite({ children, active = "dashboard" }: { children: Reac
   const photoUrl = photoHash ? `/admin/workspace/crm/office/photo/${session.user.id}?v=${photoHash}` : null;
   const staffNotices = (inbox.data ?? []) as StaffNotice[];
   const unread = inbox.count ?? 0;
-  const current = modules.find(m => m.slug === active);
+  // Receptionist and Chatbot pages are sub-products of the single top-level Communication Hub.
+  const navActive = active === "ai-receptionist" || active === "ai-chatbots" ? "ai-communications" : active;
+  const current = modules.find(m => m.slug === navActive);
   const section = current ? current.name : pick(lang, sectionNames[active]?.es ?? "Dashboard", sectionNames[active]?.en ?? "Dashboard");
   const logout = (
     <form action={signOut} className={s.logoutForm}>
@@ -70,9 +72,8 @@ export async function Suite({ children, active = "dashboard" }: { children: Reac
         <Icon name="search" /><span className={s.navLabel}>{pick(lang, "Buscar", "Search")}</span>
       </Link>
       <p className={s.navGroup}>{pick(lang, "Módulos", "Modules")}</p>
-      <Link className={s.navItem} href="/admin/workspace/ai-communications" aria-current={active === "ai-communications" ? "page" : undefined} title="AI Communications Hub"><Icon name="receptionist" /><span className={s.navLabel}>AI Communications Hub</span></Link>
       {modules.map(m => (
-        <Link key={m.slug} className={s.navItem} data-accent={m.accent} aria-current={active === m.slug ? "page" : undefined} href={m.href} title={m.name}>
+        <Link key={m.slug} className={s.navItem} data-accent={m.accent} aria-current={navActive === m.slug ? "page" : undefined} href={m.href} title={m.name}>
           <Icon name={m.icon} /><span className={s.navLabel}>{m.name}</span>
         </Link>
       ))}

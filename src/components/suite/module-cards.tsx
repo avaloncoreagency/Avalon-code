@@ -12,7 +12,9 @@ export function ModuleCards({ lang = "es", stats = {} }: { lang?: Lang; stats?: 
     <div className={s.moduleGrid}>
       {modules.map(m => {
         const stat = stats[m.key];
-        const badge = stat?.state === "ready" ? (es ? "Operativo" : "Operational") : (es ? "Pendiente de migración" : "Migration pending");
+        const badge = stat?.state === "ready"
+          ? (m.key === "communications" ? (es ? "Panel disponible" : "Workspace available") : (es ? "Operativo" : "Operational"))
+          : (es ? "Pendiente de migración" : "Migration pending");
         return (
           <Link className={s.moduleCard} href={m.href} key={m.slug} data-accent={m.accent}>
             <span className={s.moduleIcon}><Icon name={m.icon} size={22} /></span>
