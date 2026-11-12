@@ -17,8 +17,8 @@ function Submit({ lang }: { lang: Lang }) {
   </button>;
 }
 
-export function SaleForm({ lang, idempotencyKey, services, clients, leads, owners, me, defaults }: {
-  lang: Lang; idempotencyKey: string; services: CatalogService[]; clients: Option[]; leads: Option[]; owners: Option[]; me: string;
+export function SaleForm({ lang, idempotencyKey, services, clients, leads, owners, me, defaults, initialDate }: {
+  lang: Lang; idempotencyKey: string; initialDate: string; services: CatalogService[]; clients: Option[]; leads: Option[]; owners: Option[]; me: string;
   defaults: { client_id?: string; lead_id?: string; legal_name?: string };
 }) {
   const [state, action] = useActionState<SaleFormState, FormData>(confirmSale, { error: null, values: {} });
@@ -123,7 +123,7 @@ export function SaleForm({ lang, idempotencyKey, services, clients, leads, owner
     <fieldset className={s.fieldset}>
       <legend>{t(lang, "3 · Condiciones", "3 · Terms")}</legend>
       <div className={s.row}>
-        <label className={s.field}>{t(lang, "Fecha de venta", "Sale date")}<input name="sold_on" type="date" defaultValue={v("sold_on", new Date().toISOString().slice(0, 10))} /></label>
+        <label className={s.field}>{t(lang, "Fecha de venta", "Sale date")}<input name="sold_on" type="date" defaultValue={v("sold_on", initialDate)} /></label>
         <label className={s.field}>{t(lang, "Moneda", "Currency")}<input name="currency" maxLength={3} pattern="[A-Za-z]{3}" defaultValue={v("currency", "USD")} /></label>
         <label className={s.field}>{t(lang, "Facturación", "Billing")}<select name="billing_mode" defaultValue={v("billing_mode", "mixed")}>{["mixed", "one_time", "installments", "monthly"].map(b => <option key={b} value={b}>{label(lang, b)}</option>)}</select></label>
         <label className={s.field}>{t(lang, "Responsable comercial", "Sales owner")}<select name="seller_id" defaultValue={v("seller_id", me)}>{ownerOptions}</select></label>
