@@ -7,3 +7,5 @@ out/
 *.tsbuildinfo
 
 .dev-bridge/
+.avalon-deliveries/
+.avalon-backups/

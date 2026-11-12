@@ -1,0 +1,60 @@
+.page {
+  min-height: 100vh;
+  padding: clamp(16px, 4vw, 36px);
+  color: #f0f6ff;
+  background:
+    radial-gradient(ellipse at 90% 10%, rgba(27, 135, 185, .22), transparent 55%),
+    radial-gradient(ellipse at 12% 95%, rgba(115, 72, 214, .24), transparent 55%),
+    #040b1a;
+  font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
+}
+.shell { max-width: 1200px; margin: 0 auto; }
+.page :focus-visible { outline: 3px solid #5be2ff; outline-offset: 3px; }
+.header { display: flex; flex-wrap: wrap; gap: 16px; justify-content: space-between; align-items: center; padding: 4px 0 30px; }
+.logo { font-size: 1.15rem; font-weight: 900; letter-spacing: .12em; color: #78e4ff; }
+.logo small { font-size: .58rem; color: #c2b4fd; }
+.tag { border: 1px solid #365a7f; color: #b4d2e9; border-radius: 999px; padding: 9px 13px; font-size: .8rem; }
+.layout { display: grid; grid-template-columns: minmax(0, 1fr) minmax(340px, .95fr); gap: clamp(24px, 5vw, 72px); align-items: center; }
+.eyebrow { display: block; color: #61e4ff; font-size: .76rem; font-weight: 700; letter-spacing: .18em; }
+.intro h1 { font-size: clamp(2.5rem, 5vw, 5rem); line-height: 1.06; letter-spacing: -.04em; margin: 18px 0; }
+.intro > p { font-size: clamp(1rem, 2vw, 1.2rem); line-height: 1.7; color: #b3cbe7; max-width: 55ch; }
+.trust { margin-top: 36px; padding: 20px; border-left: 3px solid #75d8fb; background: rgba(16, 43, 72, .65); display: grid; gap: 7px; border-radius: 0 12px 12px 0; }
+.trust strong { font-size: .97rem; }
+.trust span { font-size: .88rem; color: #b8c9df; line-height: 1.6; }
+.formPanel { background: linear-gradient(155deg, #142440, #0a1428); border: 1px solid #365273; border-radius: 24px; box-shadow: 0 24px 65px rgba(0, 0, 0, .28); padding: clamp(20px, 4vw, 34px); }
+.formPanel h2 { font-size: clamp(1.3rem, 2vw, 1.7rem); margin: 0 0 8px; }
+.formPanel > p { color: #a5bcd7; margin: 0 0 20px; }
+.form { display: grid; gap: 16px; }
+.fields { display: grid; grid-template-columns: repeat(2, minmax(0,1fr)); gap: 14px; }
+.form label { display: grid; gap: 8px; min-width: 0; color: #d8e9fa; font-size: .84rem; font-weight: 650; }
+.form input, .form textarea { width: 100%; min-width: 0; box-sizing: border-box; border: 1px solid #506b8b; background: #08142a; border-radius: 11px; padding: 12px; color: #f5f9ff; font-size: 16px; font-family: inherit; }
+.form input { min-height: 46px; }
+.form textarea { resize: vertical; line-height: 1.45; }
+.form input:focus, .form textarea:focus { border-color: #77dfff; }
+.form input::placeholder, .form textarea::placeholder { color: #7791b0; }
+.consent { display: flex !important; align-items: flex-start; gap: 11px !important; font-size: .79rem !important; color: #b8c9de !important; font-weight: 400 !important; line-height: 1.55; }
+.consent input { flex: none; width: 19px; height: 19px; min-height: auto; margin-top: 2px; accent-color: #56cbea; }
+.submit { width: 100%; min-height: 50px; border: 1px solid #66d3f6; border-radius: 11px; padding: 12px 20px; color: #02101d; background: linear-gradient(110deg, #7be3f5, #a2b0ff); font: inherit; font-weight: 800; cursor: pointer; }
+.submit:disabled { opacity: .55; cursor: not-allowed; }
+.note { color: #a5b6cc; font-size: .76rem; line-height: 1.5; margin: 0; }
+.error { color: #ffe0dc; background: #48232b; border: 1px solid #bd747e; padding: 12px; border-radius: 9px; font-size: .86rem; }
+.success { background: rgba(32, 112, 85, .2); border: 1px solid #499a88; padding: 18px; border-radius: 12px; }
+.success h2 { margin: 0 0 10px; }
+.success p { color: #c5f5e8; line-height: 1.6; }
+.honeypot { position: absolute; left: -10000px; width: 1px; height: 1px; overflow: hidden; }
+.footer { margin-top: 62px; padding: 22px 0; border-top: 1px solid #27405d; color: #9daec7; font-size: .8rem; }
+@media (max-width: 860px) {
+  .layout { grid-template-columns: minmax(0, 1fr); gap: 24px; }
+  .intro h1 { max-width: 20ch; }
+  .trust { margin-top: 22px; }
+}
+@media (max-width: 530px) {
+  .page { padding: 16px; }
+  .fields { grid-template-columns: minmax(0,1fr); gap: 12px; }
+  .formPanel { padding: 20px 16px; border-radius: 16px; }
+  .header { padding-bottom: 26px; }
+  .intro h1 { font-size: clamp(2.1rem, 10vw, 3rem); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .submit { transition: none; }
+}

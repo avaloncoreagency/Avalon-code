@@ -10,9 +10,6 @@ on:
       - 'tests/sales*'
       - 'tests/qa/**'
       - '.github/workflows/sales-core.yml'
-  push:
-    branches:
-      - 'claude/**'
   workflow_dispatch:
 
 permissions:
@@ -25,7 +22,7 @@ concurrency:
 jobs:
   database:
     name: Full migration chain + Nova Restaurant E2E (synthetic)
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 15
     services:
       postgres:
@@ -60,14 +57,14 @@ jobs:
           cache-dependency-path: tests/qa/package-lock.json
       - run: npm ci --prefix tests/qa --no-audit --no-fund
       - name: Sales, RLS, idempotency and timeline tests (PGlite)
-        run: NODE_PATH=tests/qa/node_modules node --test tests/sales.database.cjs tests/radar.database.cjs tests/public-inquiry.database.cjs tests/pipeline-board.database.cjs tests/office.database.cjs tests/crm.pipeline.database.cjs tests/crm.database.cjs tests/unified.database.cjs
+        run: NODE_PATH=tests/qa/node_modules node --test tests/sales.database.cjs tests/radar.database.cjs tests/radar-search-runs.database.cjs tests/public-inquiry.database.cjs tests/pipeline-board.database.cjs tests/office.database.cjs tests/crm.pipeline.database.cjs tests/crm.database.cjs tests/unified.database.cjs
       - name: Summary
         if: always()
         run: echo "Synthetic data only. No remote Supabase, Vercel or production resource is touched." >> "$GITHUB_STEP_SUMMARY"
 
   app:
     name: Nova Restaurant browser E2E (production build, synthetic REST bridge)
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 20
     env:
       NEXT_TELEMETRY_DISABLED: "1"
@@ -88,7 +85,7 @@ jobs:
       - run: npm run typecheck
       - run: npm test
       - run: npm run build
-      - run: node tests/qa/node_modules/playwright/cli.js install --with-deps chromium
+      - run: node tests/qa/node_modules/playwright/cli.js install --with-deps chromium || (echo "::warning::apt mirrors unreachable; installing Chromium without extra system fonts (ubuntu-24.04 already ships Chrome libraries). Browser tests still run." && node tests/qa/node_modules/playwright/cli.js install chromium)
       - run: node --test tests/sales.browser.cjs
       - name: Upload screenshots
         if: always()

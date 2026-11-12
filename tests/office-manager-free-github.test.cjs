@@ -96,7 +96,10 @@ test("GitHub API outage cannot produce a false success, and token is never logge
 });
 test("no new environment, Supabase privileges or paid providers in free workflow",()=>{
  const workflow=fs.readFileSync(".github/workflows/office-managers-free.yml","utf8");
- assert.match(workflow,/schedule:/);
+ // Paused 2026-11-10 (recovery mode): manual runs only; the hourly schedule stays commented for restoration.
+ assert.doesNotMatch(workflow,/^\s+schedule:/m);
+ assert.match(workflow,/^\s+workflow_dispatch:/m);
+ assert.match(workflow,/#\s+schedule:/);
  assert.match(workflow,/issues: write/);
  assert.match(workflow,/contents: read/);
  assert.doesNotMatch(workflow,/service_role|SUPABASE|openai|claude|vercel/i);

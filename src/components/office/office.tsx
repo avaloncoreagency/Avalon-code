@@ -2,7 +2,7 @@
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties, type FormEvent } from "react";
 import type { Lang } from "@/lib/i18n";
-import { IsoOffice } from "./iso-office";
+import { Hq3d, type HqPerson } from "./hq-3d";
 import { PresenceAvatar, presenceName } from "./presence-avatar";
 import type { StaffPresence } from "@/lib/office/presence";
 import s from "./office.module.css";
@@ -69,7 +69,6 @@ export function Office({ lang }: { lang: Lang }) {
   const [role, setRole] = useState("all");
   const [department, setDepartment] = useState("all");
   const [person, setPerson] = useState("all");
-  const [view, setView] = useState<"space" | "directory">("space");
   const [selected, setSelected] = useState<Selected>(null);
   const [revision, setRevision] = useState(0);
 
@@ -99,10 +98,14 @@ export function Office({ lang }: { lang: Lang }) {
   const selectedMember = selected?.kind === "member" ? data?.members.find(m => m.user_id === selected.id) ?? null : null;
   const selectedManager = selected?.kind === "manager" ? data?.managers.find(m => m.key === selected.key) ?? null : null;
 
-  if (error) return <p role="alert" className={s.alert}>{error}</p>;
+  // ONE office: the 3D HQ is always the first element (same tree position while loading, so it never remounts).
+  const hqTeam: HqPerson[] = (data?.members ?? []).map(m => ({ id: m.user_id, name: nameOf(m), initials: initials(nameOf(m)),
+    subtitle: m.title || t(...ROLE[m.role] ?? ["Miembro", "Member"]), presence: m.presence?.state ?? "inactive" }));
+  const hq = <Hq3d team={hqTeam} onSelectPerson={id => setSelected({ kind: "member", id })} />;
+  if (error) return <div className={s.office}>{hq}<p role="alert" className={s.alert}>{error}</p></div>;
   if (!data) return (
     <div className={s.office} aria-busy="true">
-      <div className={`${s.skeleton} ${s.skeletonScene}`} />
+      {hq}
       <div className={s.kpis}>{Array.from({ length: 4 }, (_, i) => <div key={i} className={`${s.skeleton} ${s.skeletonCard}`} />)}</div>
       <p role="status" className={s.srOnly}>{t("Cargando la Oficina…", "Loading the Office…")}</p>
     </div>
@@ -135,17 +138,17 @@ export function Office({ lang }: { lang: Lang }) {
 
   return (
     <div className={s.office}>
+      {hq}
+      <p className={s.sceneHint}>{t("Toca un manager, un puesto o a una persona en la sede. Dirección: verde disponible, ámbar ocupado en calendario, rojo fuera de horario (no indica conexión en línea). Los managers solo se animan durante una ejecución real.",
+        "Tap a manager, a seat or a person in the HQ. Direction: green available, amber busy on the calendar, red off hours (not an online signal). Managers only animate during a real run.")}</p>
       <header className={s.hero}>
         <div>
           <p className={s.eyebrow}>Avalon Headquarters</p>
-          <h1>{t("Oficina", "Office")}</h1>
+          <h2 className={s.heroTitle}>{t("Equipo y operación", "Team and operations")}</h2>
           <p className={s.lead}>{t("Tu equipo, sus tareas y la operación de Avalon en un solo lugar. Todo lo que ves sale de registros guardados.",
             "Your team, their work and Avalon's operations in one place. Everything shown comes from stored records.")}</p>
         </div>
-        <div className={s.viewSwitch} role="group" aria-label={t("Vista", "View")}>
-          <button type="button" aria-pressed={view === "space"} onClick={() => setView("space")}>{t("Espacio", "Space")}</button>
-          <button type="button" aria-pressed={view === "directory"} onClick={() => setView("directory")}>{t("Directorio", "Directory")}</button>
-        </div>
+
       </header>
 
       {!data.profilesReady && <p className={s.notice} role="status">{t("Migración de Oficina (20261103100000) pendiente: se muestran los propietarios; perfiles, fotos, mensajes y solicitudes a managers se activan al aplicarla.",
@@ -168,28 +171,11 @@ export function Office({ lang }: { lang: Lang }) {
         </select></label>
       </section>
 
-      {view === "space" ? (
-        <section className={s.sceneWrap} aria-label={t("Sede de Avalon: selecciona una estación", "Avalon HQ: select a workstation")}>
-          <IsoOffice lang={lang} selected={selected?.kind === "member" ? selected.id : selected?.kind === "manager" ? `ai:${selected.key}` : null}
-            onSelect={id => setSelected(id.startsWith("ai:") ? { kind: "manager", key: id.slice(3) } : { kind: "member", id })}
-            screen={{ active: data.tasksReady ? data.team.active : null, overdue: data.tasksReady ? data.team.overdue : null, done: data.tasksReady ? data.team.done : null, unread: data.members.reduce((n, m) => n + m.unread, 0) }}
-            people={[
-              ...members.map(m => ({ id: m.user_id, kind: "human" as const, name: nameOf(m), initials: initials(nameOf(m)), subtitle: m.title || t(...ROLE[m.role] ?? ["Miembro", "Member"]),
-                photo: m.has_photo ? `/admin/workspace/crm/office/photo/${m.user_id}` : null, open: m.stats.open, overdue: m.stats.overdue, unread: m.unread,
-                recentMinutes: m.lastActivity ? Math.round((Date.now() - Date.parse(m.lastActivity)) / 60000) : null, presence: m.presence?.state ?? "inactive" })),
-              ...managers.map(m => ({ id: `ai:${m.key}`, kind: "ai" as const, name: m.name, initials: m.name.slice(0, 2), subtitle: t(...STATUS[m.status]), hue: m.hue,
-                open: m.registered, overdue: 0, unread: 0, recentMinutes: null, offline: m.status !== "available" })),
-            ]} />
-          <p className={s.sceneHint}>{t("Toca a una persona para abrir su perfil. Verde: activo en horario; amarillo: ocupado en calendario; rojo: inactivo o ausente. No indica conexión en línea. Se actualiza cada 30 s.",
-            "Tap a person to open their profile. Green: available during work hours; yellow: busy on the calendar; red: off hours or time off. Not an online signal. Updates every 30 seconds.")}</p>
-        </section>
-      ) : (
-        <section className={s.directory} aria-label={t("Directorio", "Directory")}>
-          <h2>{t("Personas", "People")} <small>{members.length}</small></h2>
-          <div className={s.grid}>{members.map(card)}{!members.length && <p className={s.empty}>{t("Nadie coincide con los filtros.", "Nobody matches the filters.")}</p>}</div>
-          {managers.length > 0 && <><h2>{t("Managers virtuales de IA", "Virtual AI managers")} <small>{managers.length}</small></h2><div className={s.grid}>{managers.map(agentCard)}</div></>}
-        </section>
-      )}
+      <section className={s.directory} aria-label={t("Directorio", "Directory")}>
+        <h2>{t("Personas", "People")} <small>{members.length}</small></h2>
+        <div className={s.grid}>{members.map(card)}{!members.length && <p className={s.empty}>{t("Nadie coincide con los filtros.", "Nobody matches the filters.")}</p>}</div>
+        {managers.length > 0 && <><h2>{t("Managers virtuales de IA", "Virtual AI managers")} <small>{managers.length}</small></h2><div className={s.grid}>{managers.map(agentCard)}</div></>}
+      </section>
 
       <section className={s.kpis} aria-label={t("Estadísticas de la Oficina", "Office statistics")}>
         <Kpi label={t("Miembros humanos", "Human members")} value={data.members.length} />

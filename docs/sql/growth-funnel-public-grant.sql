@@ -1,0 +1,2 @@
+-- APPLIED: superseded by supabase/migrations/20261112110000_growth_funnel_public.sql (owner approval 2026-11-12).
+-- Kept as history; do not apply separately.

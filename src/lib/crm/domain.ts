@@ -9,12 +9,12 @@ export const sections = [
 ] as const;
 /** Primary CRM workflow. Keep legacy analytics and usage routes accessible from the overview. */
 export const crmNavigation = [
+  { slug: "desk", label: "Mesa comercial", href: "/admin/workspace/crm/desk" },
   { slug: "hunter", label: "Lead Hunter", href: "/admin/workspace/crm/hunter" },
   { slug: "leads", label: "Leads Pipeline", href: "/admin/workspace/crm/leads" },
   { slug: "sales", label: "Ventas", href: "/admin/workspace/crm/sales" },
   { slug: "calendar", label: "Calendario", href: "/admin/workspace/crm/calendar" },
   { slug: "tasks", label: "Tareas", href: "/admin/workspace/crm/tasks" },
-  { slug: "office", label: "Oficina", href: "/admin/workspace/crm/office" },
 ] as const;
 
 export type Section = (typeof sections)[number]["slug"];

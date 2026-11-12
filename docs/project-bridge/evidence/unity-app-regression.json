@@ -1,0 +1,59 @@
+{
+  "base": "http://127.0.0.1:3100",
+  "steps": [
+    {
+      "name": "owner signs in through the real login form (Supabase Auth) and reaches the admin area",
+      "ok": true,
+      "url": "/admin/dashboard"
+    },
+    {
+      "name": "library lists the imported project with its stored versions (real data from Supabase)",
+      "ok": true,
+      "card": "Website DesignerBridge E2E demov3 · static3 archivos · 1 KB3 versionesOrigen: claude_code · 9/11/2026"
+    },
+    {
+      "name": "project page shows versions v1, v2 and v3 (restored from v1)",
+      "ok": true
+    },
+    {
+      "name": "project page lists the stored files of the selected version",
+      "ok": true
+    },
+    {
+      "name": "isolated preview renders the selected version inside the sandboxed iframe",
+      "ok": true,
+      "h1": "Avalon Bridge · versión 1"
+    },
+    {
+      "name": "preview iframe is sandboxed without allow-same-origin",
+      "ok": true,
+      "sandbox": "allow-scripts allow-forms"
+    },
+    {
+      "name": "no horizontal overflow at iPhone width on the library, project and token pages",
+      "ok": true,
+      "/admin/workspace/library": 390,
+      "/admin/workspace/library/tokens": 390,
+      "/admin/workspace/library/<id>": 390
+    },
+    {
+      "name": "non-owner sign-in is refused by the app (valid password, no owner membership)",
+      "ok": true,
+      "url": "/admin/login?error=unauthorized"
+    },
+    {
+      "name": "non-owner cannot open the library (redirected to login)",
+      "ok": true,
+      "url": "/admin/login"
+    },
+    {
+      "name": "non-owner cannot request an upload ticket from the API (401/403, or redirect to login)",
+      "ok": true,
+      "status": 307,
+      "location": "/admin/login"
+    }
+  ],
+  "browser": "Chromium (Playwright) with iPhone 13 profile — not Safari",
+  "result": "PASSED",
+  "at": "2026-11-09T15:59:48.975Z"
+}

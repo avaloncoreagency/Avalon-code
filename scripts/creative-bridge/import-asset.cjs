@@ -34,7 +34,11 @@ function mediaExtension(bytes) {
   if (bytes.toString('ascii',0,4)==='glTF') {
     if (bytes.readUInt32LE(4)!==2 || bytes.readUInt32LE(8)!==bytes.length || bytes.length<28 ||
         bytes.readUInt32LE(12)<2 || bytes.readUInt32LE(12)>bytes.length-20 || bytes.toString('ascii',16,20)!=='JSON') throw Error('media');
-    JSON.parse(bytes.toString('utf8',20,20+bytes.readUInt32LE(12)).replace(/[\u0000 ]+$/,''));
+    const gltf=JSON.parse(bytes.toString('utf8',20,20+bytes.readUInt32LE(12)).replace(/[\u0000 ]+$/,''));
+    // A published model must be SELF-CONTAINED: any external/data URI would make the visitor's browser fetch or decode
+    // something that was never reviewed (tracking, mixed content, decompression bombs). Embedded GLB data uses bufferViews.
+    for (const list of [gltf.buffers,gltf.images]) for (const item of Array.isArray(list)?list:[]) if (item && item.uri!==undefined) throw Error('media');
+    if (Array.isArray(gltf.extensionsRequired) && gltf.extensionsRequired.some(e=>!/^(KHR_|EXT_)[A-Za-z0-9_]+$/.test(String(e)))) throw Error('media');
     return 'glb';
   }
   if (bytes.toString('ascii',4,8)==='ftyp') {

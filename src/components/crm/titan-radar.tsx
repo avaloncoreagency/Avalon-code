@@ -67,7 +67,11 @@ export function TitanRadar({ onChanged }: { onChanged?: () => void }) {
   const [places, setPlaces] = useState<RadarBusiness[]>([]);
   const [selected, setSelected] = useState<string | null>(null);
   const [searching, setSearching] = useState(false);
-  const [lastSearch, setLastSearch] = useState<{ at: string; found: number; inserted: number; updated: number } | null>(null);
+  const [lastSearch, setLastSearch] = useState<{ at: string; found: number; inserted: number; updated: number; runId: string | null } | null>(null);
+  // Results of ONE search (run_id) instead of the whole accumulated inbox; null = everything.
+  const [runFilter, setRunFilter] = useState<string | null>(null);
+  // How the current center was chosen: map click, coordinates, postcode, address or place name (stored in the run history).
+  const [searchKind, setSearchKind] = useState<"map" | "coordinates" | "postcode" | "address" | "place">("map");
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
   const [createdLeadId, setCreatedLeadId] = useState<string | null>(null);
@@ -124,16 +128,20 @@ export function TitanRadar({ onChanged }: { onChanged?: () => void }) {
     const revision = ++placesLoadRevision.current;
     const params = new URLSearchParams({ view });
     if (minStars) params.set("stars", String(minStars));
+    if (runFilter) params.set("run", runFilter);
     try {
       const res = await fetch("/admin/workspace/crm/radar/places?" + params, { cache: "no-store" });
-      const body = await res.json() as { places?: RadarBusiness[]; error?: string };
+      const body = await res.json() as { places?: RadarBusiness[]; error?: string; blocked?: string };
       if (revision !== placesLoadRevision.current) return;
+      // Database without migration 20261110140000: results cannot be scoped by search yet. Fall back to the zone filter
+      // over the accumulated inbox instead of showing an error after every search.
+      if (!res.ok && runFilter && body.blocked === "migration") { setRunFilter(null); setOnlyZone(true); return; }
       if (!res.ok) { setError(body.error ?? "No se pudo cargar el radar."); return; }
       setPlaces(body.places ?? []);
     } catch {
       if (revision === placesLoadRevision.current) setError("No se pudo conectar al servidor del radar. Revisa tu conexión e inténtalo nuevamente.");
     }
-  }, [view, minStars]);
+  }, [view, minStars, runFilter]);
   useEffect(() => { void load(); }, [load]);
 
   // Only request tiles when an HTTPS basemap provider was explicitly approved.
@@ -177,7 +185,7 @@ export function TitanRadar({ onChanged }: { onChanged?: () => void }) {
         }, 8000);
       }
       layer.current = mod.layerGroup().addTo(m);
-      m.on("click", e => { setCenter([e.latlng.lat, e.latlng.lng]); setLabel("Punto " + e.latlng.lat.toFixed(4) + ", " + e.latlng.lng.toFixed(4)); });
+      m.on("click", e => { setCenter([e.latlng.lat, e.latlng.lng]); setSearchKind("map"); setLabel("Punto " + e.latlng.lat.toFixed(4) + ", " + e.latlng.lng.toFixed(4)); });
       map.current = m;
       // Initial markers and range circle must render even if data loads before Leaflet.
       setMapRevision(n => n + 1);
@@ -239,15 +247,16 @@ export function TitanRadar({ onChanged }: { onChanged?: () => void }) {
     setError(""); setGeoResults([]);
     try {
       const res = await fetch("/admin/workspace/crm/radar/geocode?q=" + encodeURIComponent(query), { cache: "no-store" });
-      const body = await res.json() as { results?: { label: string; lat: number; lon: number }[]; error?: string };
+      const body = await res.json() as { results?: { label: string; lat: number; lon: number }[]; error?: string; kind?: typeof searchKind };
       if (!res.ok) { setError(body.error ?? "No se encontró el lugar."); return; }
-      if (!body.results?.length) { setError("Sin coincidencias. Prueba con otra ciudad o toca el radar."); return; }
-      if (body.results.length === 1) pick(body.results[0]); else setGeoResults(body.results);
+      if (!body.results?.length) { setError("Sin coincidencias. Prueba con otra ciudad, un código postal, una dirección o coordenadas (lat, lon)."); return; }
+      setSearchKind(body.kind && body.kind !== "map" ? body.kind : "place");
+      if (body.results.length === 1) pick(body.results[0], body.kind); else setGeoResults(body.results);
     } catch {
       setError("No se pudo buscar la ciudad. Revisa tu conexión e inténtalo nuevamente.");
     }
   }
-  function pick(r: { label: string; lat: number; lon: number }) { setCenter([r.lat, r.lon]); setLabel(r.label); setGeoResults([]); map.current?.setView([r.lat, r.lon], 12); }
+  function pick(r: { label: string; lat: number; lon: number }, kind?: typeof searchKind) { if (kind) setSearchKind(kind); setCenter([r.lat, r.lon]); setLabel(r.label); setGeoResults([]); map.current?.setView([r.lat, r.lon], 12); }
   function locate() {
     if (locating) return;
     // On the current Avalon security baseline geolocation=() is disabled.
@@ -267,7 +276,7 @@ export function TitanRadar({ onChanged }: { onChanged?: () => void }) {
     navigator.geolocation.getCurrentPosition(
       pos => {
         setLocating(false);
-        pick({ label: "Mi ubicación", lat: pos.coords.latitude, lon: pos.coords.longitude });
+        pick({ label: "Mi ubicación", lat: pos.coords.latitude, lon: pos.coords.longitude }, "coordinates");
       },
       err => {
         setLocating(false);
@@ -283,13 +292,15 @@ export function TitanRadar({ onChanged }: { onChanged?: () => void }) {
     if (searching) return;
     setSearching(true); setError(""); setNotice("");
     try {
-      const params = new URLSearchParams({ lat: String(center[0]), lon: String(center[1]), radius, unit, label, industries: industries.join(",") });
+      const params = new URLSearchParams({ lat: String(center[0]), lon: String(center[1]), radius, unit, label, industries: industries.join(","), kind: searchKind });
       const res = await fetch("/admin/workspace/crm/radar/area?" + params, { cache: "no-store" });
-      const body = await res.json() as { error?: string; run?: { found: number; inserted: number; updated: number }; searchedAt?: string };
+      const body = await res.json() as { error?: string; run?: { run_id?: string; found: number; inserted: number; updated: number }; searchedAt?: string };
       if (!res.ok) throw new Error(body.error ?? "Búsqueda no disponible");
-      setLastSearch({ at: body.searchedAt ?? new Date().toISOString(), found: body.run?.found ?? 0, inserted: body.run?.inserted ?? 0, updated: body.run?.updated ?? 0 });
-      setView("all"); setOnlyZone(true);
-      await load();
+      const runId = body.run?.run_id ?? null;
+      setLastSearch({ at: body.searchedAt ?? new Date().toISOString(), found: body.run?.found ?? 0, inserted: body.run?.inserted ?? 0, updated: body.run?.updated ?? 0, runId });
+      // Show exactly what THIS search found. Changing view/run re-runs load() through its effect, with the new values
+      // (calling load() here would use the previous closure and could show the old inbox).
+      setView("all"); setOnlyZone(!runId); setRunFilter(runId);
       void loadCampaigns();
       onChanged?.();
     } catch (cause) { setError(cause instanceof Error ? cause.message : "Búsqueda no disponible"); void loadCampaigns(); }
@@ -427,6 +438,7 @@ export function TitanRadar({ onChanged }: { onChanged?: () => void }) {
           <div className={s.quick}>
             <label>Mínimo <select value={minStars} onChange={e => setMinStars(Number(e.target.value))}><option value={0}>todas</option>{[5, 4, 3, 2, 1].map(n => <option key={n} value={n}>{"★".repeat(n)}</option>)}</select></label>
             <label><input type="checkbox" checked={onlyZone} onChange={e => setOnlyZone(e.target.checked)} /> Solo esta zona</label>
+            {lastSearch?.runId && <label><input type="checkbox" checked={runFilter === lastSearch.runId} onChange={e => setRunFilter(e.target.checked ? lastSearch.runId : null)} /> Solo la última búsqueda</label>}
             <span className={s.count}>{visible.length} negocios</span>
           </div>
           {best.length > 0 && <section className={s.best} aria-labelledby="best-title"><h3 id="best-title">✦ Mejores oportunidades de esta zona</h3>

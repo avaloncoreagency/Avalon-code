@@ -15,7 +15,7 @@ concurrency:
 jobs:
   application:
     name: Auth, CRM, lint, build and synthetic HTTP
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 20
     env:
       NEXT_TELEMETRY_DISABLED: "1"
@@ -40,7 +40,7 @@ jobs:
 
   database:
     name: Owner RLS and module migrations (local PostgreSQL 16)
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 12
     services:
       postgres:

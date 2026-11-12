@@ -161,6 +161,7 @@ export const SALE_ERRORS = {
   sale_too_long: ["Algún campo supera la longitud permitida.", "A field is too long."],
   sale_client_required: ["Selecciona un cliente existente o completa el nombre del cliente nuevo.", "Pick an existing client or enter the new client's name."],
   sale_client_missing: ["El cliente seleccionado no existe o está archivado.", "The selected client does not exist or is archived."],
+  sale_contract_required: ["Esta venta cierra el lead como Ganado: primero registra y verifica el contrato firmado en la ficha del lead (pestaña Contrato).", "This sale closes the lead as Won: first record and verify the signed contract on the lead (Contract tab)."],
   sale_client_exists: ["Ese cliente ya existe. Selecciónalo como cliente existente para no duplicarlo.", "That client already exists. Select it as an existing client to avoid a duplicate."],
   sale_lead_missing: ["La oportunidad de origen no existe o está archivada.", "The source opportunity does not exist or is archived."],
   crm_forbidden: ["No tienes permiso para registrar ventas.", "You are not allowed to record sales."],
@@ -181,6 +182,7 @@ export function saleErrorCode(error: { code?: string; message?: string } | null 
   const message = error?.message ?? "";
   const known = message.match(/\b(sale_[a-z_]+|payment_[a-z_]+|crm_forbidden)\b/)?.[1];
   if (known && isSaleError(known)) return known;
+  if (message.includes("won_requires_verified_contract")) return "sale_contract_required";
   if (error?.code === "PGRST202" || error?.code === "PGRST205" || error?.code === "42P01" || error?.code === "42883") return "schema_pending";
   if (error?.code === "42501") return "crm_forbidden";
   if (error?.code === "23505") return "sale_client_exists";

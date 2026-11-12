@@ -35,7 +35,8 @@ export default async function ReceptionistPage({ params, searchParams }: { param
 
   return (
     <Suite active="ai-receptionist">
-      <PageHeader eyebrow="AI Receptionist" title={project.data?.name ?? "—"} description={project.data?.description || undefined} crumbs={[{ href: BASE, label: "AI Receptionist" }]} />
+      <PageHeader eyebrow="AI Receptionist" title={project.data?.name ?? "—"} description={project.data?.description || undefined} crumbs={[{ href: BASE, label: "AI Receptionist" }]}
+        actions={project.data ? <a className={s.btnPrimary} href={`${BASE}/${id}/studio`} data-testid="open-studio">{pick(lang, "Abrir AI Chatbots Builder (Nova)", "Open AI Chatbots Builder (Nova)")}</a> : undefined} />
       <Flash lang={lang} ok={param(query, "ok")} error={param(query, "error")} />
       {project.error ? <DbNotice lang={lang} error={project.error} /> : project.data && (
         <>

@@ -1,0 +1,92 @@
+{
+  "base": "http://localhost:3100",
+  "projectId": "7c5d1b0a-180c-438a-8ffe-e8a1b5bb5f2f",
+  "pageId": "92a501ba-52c3-411d-ba65-71e0cc59b1d3",
+  "steps": [
+    {
+      "name": "Owner A signs in with their own account",
+      "ok": true
+    },
+    {
+      "name": "Owner A creates the project and saves the first version",
+      "ok": true
+    },
+    {
+      "name": "Owner B signs in with a separate account and session",
+      "ok": true
+    },
+    {
+      "name": "Owner B sees the shared agency project and A's content",
+      "ok": true
+    },
+    {
+      "name": "Owner B edits and saves",
+      "ok": true
+    },
+    {
+      "name": "after sign-out Owner A's old session can no longer open the project",
+      "ok": true
+    },
+    {
+      "name": "Owner A, in a brand-new session, recovers exactly the version saved by B",
+      "ok": true
+    },
+    {
+      "name": "version history records the author of every version (A, then B)",
+      "ok": true,
+      "versions": [
+        {
+          "v": 1,
+          "by": "A"
+        },
+        {
+          "v": 2,
+          "by": "B"
+        }
+      ]
+    },
+    {
+      "name": "Owner A restores v1 → creates v3 (A's content) and keeps v1 and v2",
+      "ok": true,
+      "versions": [
+        1,
+        2,
+        3
+      ]
+    },
+    {
+      "name": "Owner B sees the restored content after reloading",
+      "ok": true
+    },
+    {
+      "name": "concurrent saves: the first wins, the second gets a version conflict and overwrites nothing",
+      "ok": true,
+      "a": "Guardado",
+      "b": "Conflicto de versión"
+    },
+    {
+      "name": "retry after a lost response: confirmed as saved, exactly ONE new version (no duplicate)",
+      "ok": true,
+      "first": "Error al guardar",
+      "second": "Guardado",
+      "versions_added": 1
+    },
+    {
+      "name": "a user outside Avalon (no membership) cannot open the project",
+      "ok": true
+    },
+    {
+      "name": "RLS: the outsider reads 0 rows and modifies nothing with their own JWT",
+      "ok": true
+    },
+    {
+      "name": "anonymous visitor: redirected to login; anonymous API reads nothing",
+      "ok": true,
+      "api": "42501"
+    }
+  ],
+  "identities": "two separate synthetic owner accounts + one synthetic non-member, isolated Supabase only",
+  "browser": "Chromium (Playwright), desktop — not Safari",
+  "result": "PASSED",
+  "at": "2026-11-09T20:42:56.294Z"
+}

@@ -249,7 +249,38 @@ test('every migration table has RLS enabled and anon revoked (default privileges
   // Single reviewed exception: the public quote form RPC (validated, honeypot, SQL-level throttling,
   // creates only pending prospects). Any other anon grant fails this test.
   const anonGrants = [...sql.matchAll(/grant [^;]* to anon[^;]*;/gi)].map(m => m[0]);
-  assert.deepEqual(anonGrants, ['grant execute on function public.crm_public_inquiry(jsonb) to anon, authenticated;'], 'no grants to anon except the reviewed public inquiry RPC');
+  assert.deepEqual(anonGrants, [
+    'grant execute on function public.crm_public_inquiry(jsonb) to anon, authenticated;',
+    // Reviewed (AI Engine): the single operational control read by the GitHub Actions worker with the publishable key.
+    'grant execute on function public.crm_ai_public_control() to anon, authenticated, service_role;',
+    // Reviewed (Project Bridge, Misión 0400): token-gated import inbox. The RPCs accept only a valid sha256 token hash and
+    // can only open an import awaiting upload / read its status; storage lets anon write ONLY inbox/<open import>.zip once.
+    'grant execute on function public.os_bridge_api_open_import(text, text, text, text, text, text) to anon, authenticated;',
+    "grant execute on function os_private.bridge_inbox_open(text) to anon, authenticated';",
+    "grant usage on schema os_private to anon';",
+    'grant execute on function public.os_bridge_api_import_status(text, uuid, boolean) to anon, authenticated;',
+    // Reviewed (Code Exchange, Gitless): every RPC requires a valid scoped bridge token (argument hash or proxy-injected
+    // header); deliver/pull/integrate are disjoint powers; bytes stay in os_private; locked by tests/code-exchange.database.cjs.
+    'grant execute on function public.os_code_put_chunk(text, bigint, integer, text, text) to anon, authenticated;',
+    'grant execute on function public.os_code_get_chunk(text, integer, text) to anon, authenticated;',
+    'grant execute on function public.os_code_submit(jsonb, text, text) to anon, authenticated;',
+    'grant execute on function public.os_code_my_deliveries(text) to anon, authenticated;',
+    'grant execute on function public.os_code_inbox(text, text) to anon, authenticated;',
+    'grant execute on function public.os_code_set_status(uuid, text, jsonb, text) to anon, authenticated;',
+    'grant execute on function public.os_code_publish(text, text, text, text, jsonb, uuid[], text) to anon, authenticated;',
+    'grant execute on function public.os_code_set_preview(bigint, text, text) to anon, authenticated;',
+    'grant execute on function public.os_code_head(text) to anon, authenticated;',
+    // Reviewed and owner-approved (CRM Titan, 2026-11-12): opt-in funnel intake. Display-only read of an ACTIVE Avalon funnel
+    // and a bounded, validated, throttled submit that writes at most one lead; no table grants. Review in
+    // docs/handoff/CRM_BACKEND_CONTRACT.md §6; locked by tests/growth-funnel.database.cjs and tests/crm-titan.database.cjs.
+    'grant execute on function public.crm_growth_funnel_view(text) to anon;',
+    'grant execute on function public.crm_growth_funnel_submit(jsonb) to anon;',
+  ], 'no grants to anon except the reviewed public inquiry, AI control, Project Bridge inbox and funnel intake RPCs');
+  // The control RPC may expose ONLY these four switches; any other key needs a new review.
+  const ctl = fs.readFileSync('supabase/migrations/20261106090000_ai_engine.sql', 'utf8');
+  const body = ctl.slice(ctl.indexOf('create function public.crm_ai_public_control()'), ctl.indexOf('revoke all on function public.crm_ai_public_control()'));
+  assert.deepEqual([...body.matchAll(/'([a-z_]+)',/g)].map(m => m[1]), ['kill_switch', 'automatic_enabled', 'ai_enabled', 'suspended'], 'crm_ai_public_control exposes only switches');
+  assert.doesNotMatch(body, /email|phone|lead|prospect|client|token|secret/i);
   for (const m of sql.matchAll(/security definer([\s\S]*?)\$\$/gi)) assert.match(m[1], /set search_path\s*=\s*''/i, 'SECURITY DEFINER needs empty search_path');
 });
 

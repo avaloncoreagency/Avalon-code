@@ -1,22 +1,30 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getOwnerSession } from "@/lib/auth/session";
 import { validGeoapifyKey } from "@/lib/crm/radar-geoapify";
+import { cacheFresh, classifyQuery, geocodeCacheKey, normalizeQuery, parseCoordinates, providerParams, shouldCache } from "@/lib/crm/radar-geocode";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
 const reply = (data: unknown, status = 200) => NextResponse.json(data, { status, headers: { "Cache-Control": "private, no-store" } });
-const cache = new Map<string, { at: number; results: unknown[] }>();
+const cache = new Map<string, { at: number; results: { label: string; lat: number; lon: number }[] }>();
 let last = 0;
 
-/** One explicit, human-initiated place search (no autocomplete), cached 24 h, ≥1.1 s apart, per Nominatim policy. */
+/**
+ * One explicit, human-initiated place search (no autocomplete), ≥1.1 s apart, per provider policy.
+ * Coordinates resolve locally; postcodes are sent as postcode queries; only non-empty answers are cached (6 h).
+ */
 export async function GET(request: NextRequest) {
   const session = await getOwnerSession();
   if (!session) return reply({ error: "No autorizado" }, 403);
-  const q = (request.nextUrl.searchParams.get("q") ?? "").trim().replace(/\s+/g, " ").slice(0, 120);
-  if (q.length < 2) return reply({ error: "Escribe una ciudad, dirección o código postal." }, 400);
-  const key = q.toLowerCase();
+  const q = normalizeQuery(request.nextUrl.searchParams.get("q"));
+  if (q.length < 2) return reply({ error: "Escribe una ciudad, dirección, código postal o coordenadas (lat, lon)." }, 400);
+  const kind = classifyQuery(q);
+  const coords = parseCoordinates(q);
+  if (coords) return reply({ results: [coords], kind, cached: false, attribution: "" });
+  const key = geocodeCacheKey(kind, q);
   const hit = cache.get(key);
-  if (hit && Date.now() - hit.at < 86_400_000) return reply({ results: hit.results, cached: true });
+  if (cacheFresh(hit, Date.now())) return reply({ results: hit!.results, kind, cached: true });
+  if (hit) cache.delete(key);
   if (Date.now() - last < 1100) return reply({ error: "Espera un segundo entre búsquedas de lugar." }, 429);
   last = Date.now();
   const keyValue = process.env.AVALON_GEOAPIFY_PLACES_KEY?.trim();
@@ -32,8 +40,8 @@ export async function GET(request: NextRequest) {
     // Free Geoapify accepts browser/server geocoding, with actual formatted
     // locations. The key is used server-side only and is not returned to React.
     url.search = useGeoapify
-      ? new URLSearchParams({ text:q, format:"json", limit:"5", lang:"es", apiKey:keyValue! }).toString()
-      : new URLSearchParams({ q, format:"jsonv2", limit:"5", addressdetails:"0" }).toString();
+      ? new URLSearchParams({ ...providerParams("geoapify", kind as Exclude<typeof kind, "coordinates">, q), apiKey: keyValue! }).toString()
+      : new URLSearchParams(providerParams("nominatim", kind as Exclude<typeof kind, "coordinates">, q)).toString();
     const res = await fetch(url, {
       headers: { "User-Agent": "AvalonCoreAgency-LeadHunter/2.1 (https://avaloncoreagency.com)", "Accept-Language": "es,en" },
       signal: AbortSignal.timeout(8000), cache: "no-store",
@@ -54,8 +62,8 @@ export async function GET(request: NextRequest) {
       lat: Number(r.lat), lon: Number(r.lon),
     })).filter(r=>r.label && Number.isFinite(r.lat) && Number.isFinite(r.lon));
     if (cache.size > 500) cache.clear();
-    cache.set(key, { at: Date.now(), results });
-    return reply({ results, attribution: useGeoapify
+    if (shouldCache(results)) cache.set(key, { at: Date.now(), results });
+    return reply({ results, kind, cached: false, attribution: useGeoapify
       ? "Powered by Geoapify · © OpenStreetMap contributors"
       : "© OpenStreetMap contributors" });
   } catch { return reply({ error: "No se pudo buscar el lugar. Puedes tocar el mapa para elegir el centro." }, 503); }

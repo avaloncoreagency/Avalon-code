@@ -288,7 +288,9 @@ test("other upstream errors report the status; nothing is persisted", async () =
   const db = fakeDb();
   const out = await search(f).searchAndIngest(db, area, "manual:upstream-1");
   assert.match(out.error, /El proveedor respondió 502\. No se muestran resultados inventados/);
-  assert.equal(db.calls.rpc.length, 0, "no businesses saved");
+  assert.equal(db.calls.rpc.filter(c => c.name === "crm_radar_ingest").length, 0, "no businesses saved");
+  // The failed call is recorded as a failed run (history + daily cap) with a fixed code — never the provider's text.
+  assert.deepEqual(db.calls.rpc.map(c => [c.name, c.args.code, c.args.provider, c.args.run_key]), [["crm_radar_record_failure", "provider_http", "geoapify", "manual:upstream-1"]]);
 });
 
 test("timeout, network failure and malformed answer are three different visible states", async () => {
@@ -306,7 +308,11 @@ test("timeout, network failure and malformed answer are three different visible 
   assert.match(badJson.error, /respuesta que no se pudo interpretar.*No se guardó nada/);
   assert.notEqual(timeout.error, network.error);
   assert.notEqual(network.error, badJson.error);
-  for (const db of dbs) assert.equal(db.calls.rpc.length, 0, "a failed call persists nothing");
+  for (const db of dbs) assert.equal(db.calls.rpc.filter(c => c.name === "crm_radar_ingest").length, 0, "a failed call saves no business");
+  assert.deepEqual(dbs.map(db => db.calls.rpc.map(c => c.name + ":" + c.args.code)),
+    [["crm_radar_record_failure:provider_timeout"], ["crm_radar_record_failure:provider_network"], ["crm_radar_record_failure:provider_parse"]],
+    "each failure is recorded once with its own fixed code");
+  for (const db of dbs) assert.ok(!JSON.stringify(db.calls.rpc).includes(KEY), "the key never reaches the database");
   for (const out of [timeout, network, badJson]) assert.ok(!out.error.includes(KEY));
 });
 

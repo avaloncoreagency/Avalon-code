@@ -1,0 +1,12 @@
+{
+  "_comment": "Avalon Code Exchange (Git remote without GitHub). Public values only: the URL and the PUBLISHABLE key. Tokens are never stored here. Isolated Supabase project; production requires explicit owner approval.",
+  "url": "https://wupvuwmqfcvmjqycmnvg.supabase.co",
+  "publishableKey": "sb_publishable_HCnpr3v_rH7F6i5LxwZjTg_5Mam1fKl",
+  "gates": [["npx", "tsc", "--noEmit"], ["npx", "eslint", "."], ["npm", "test"]],
+  "preview": {
+    "vercelOrg": "team_lHTO3wgJm0yAyexxMDmkIFW4",
+    "vercelProject": "prj_tN1ZYrsx5fqoEePYjThsra3MvocP",
+    "supabaseUrl": "https://wupvuwmqfcvmjqycmnvg.supabase.co",
+    "publishableKey": "sb_publishable_HCnpr3v_rH7F6i5LxwZjTg_5Mam1fKl"
+  }
+}

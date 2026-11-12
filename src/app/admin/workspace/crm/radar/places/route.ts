@@ -13,13 +13,20 @@ const STATES = ["verified_missing", "verified_present", "opportunity_to_improve"
 const METHODS = ["call", "website_review", "public_listing", "owner_statement", "visit", "other"];
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
-/** Accumulated radar inbox: persisted businesses, filterable by view, stars and bounding box. */
+/**
+ * Accumulated radar inbox: persisted businesses, filterable by view, stars and bounding box.
+ * `run=<uuid>` scopes the list to exactly what that search found (new + already known), via crm_radar_run_places.
+ */
 export async function GET(request: NextRequest) {
   const session = await getOwnerSession();
   if (!session) return reply({ error: "No autorizado" }, 403);
   const p = request.nextUrl.searchParams;
   const view = VIEWS.includes(p.get("view") ?? "") ? p.get("view") : "all";
-  let q = session.supabase.from("crm_prospects").select(COLS, { count: "exact" }).not("source_ref", "is", null);
+  const run = p.get("run") ?? "";
+  if (run && !UUID.test(run)) return reply({ error: "Búsqueda inválida." }, 400);
+  let q = session.supabase.from("crm_prospects")
+    .select(run ? COLS + ",crm_radar_run_places!inner(run_id,outcome)" : COLS, { count: "exact" }).not("source_ref", "is", null);
+  if (run) q = q.eq("crm_radar_run_places.run_id", run);
   switch (view) {
     case "new": q = q.eq("research_status", "new").eq("status", "pending").eq("do_not_contact", false); break;
     case "unrated": q = q.is("stars", null).is("stars_override", null).eq("status", "pending").eq("do_not_contact", false); break;
@@ -40,8 +47,12 @@ export async function GET(request: NextRequest) {
   const bbox = (p.get("bbox") ?? "").split(",").map(Number);
   if (bbox.length === 4 && bbox.every(Number.isFinite)) q = q.gte("lat", bbox[0]).lte("lat", bbox[2]).gte("lon", bbox[1]).lte("lon", bbox[3]);
   const { data, error, count } = await q.order("stars", { ascending: false, nullsFirst: false }).order("last_seen_at", { ascending: false }).limit(300);
-  if (error) return reply({ error: error.code === "42703" || error.code === "PGRST204" ? "La migración del radar (20261102190000) no está aplicada en este entorno." : "No se pudieron cargar los negocios." }, 503);
-  return reply({ places: data, count });
+  if (error) {
+    if (run && ["PGRST200", "PGRST100", "42P01", "42703"].includes(error.code ?? ""))
+      return reply({ error: "La migración 20261110140000 (resultados por búsqueda) no está aplicada en este entorno.", blocked: "migration" }, 503);
+    return reply({ error: error.code === "42703" || error.code === "PGRST204" ? "La migración del radar (20261102190000) no está aplicada en este entorno." : "No se pudieron cargar los negocios." }, 503);
+  }
+  return reply({ places: data, count, run: run || null });
 }
 
 /** Owner-only actions; a confirmed score creates the pipeline lead in one action. */

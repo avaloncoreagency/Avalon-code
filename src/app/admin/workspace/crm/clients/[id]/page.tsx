@@ -9,20 +9,25 @@ import { run, type ProjectRow, PROJECT_COLUMNS } from "@/lib/os/data";
 import { SERVICES, isService } from "@/lib/os/client-hud";
 import { label, money } from "@/lib/sales/domain";
 import { ClientWorkspace } from "@/components/sales/client-workspace";
+import { loadAllRows, summarizeClientFinance, emptyLoaded, type FinanceCost, type FinanceSummary } from "@/lib/sales/client-finance";
+import { getCrmCapabilities, loadClientFinance } from "@/lib/sales/client-finance-server";
 import { addClientActivity, addContact, updateClient, updateClientNotes } from "../actions";
 import s from "@/components/sales/sales.module.css";
 export const dynamic = "force-dynamic";
 
 type Client = { id: string; client_code: string; legal_name: string; trade_name: string; website: string; industry: string; country: string; location: string; source: string; notes: string; owner_id: string; origin_lead_id: string | null; status: string; created_at: string; version: number };
 type Contact = { id: string; full_name: string; email: string | null; phone: string; role: string; is_primary: boolean };
-type Sale = { id: string; sale_number: string; sold_on: string; currency: string; total: string; recurring_monthly: string; contract_status: string; delivery_status: string; crm_payments: { amount: string }[]; crm_sale_lines: { id: string }[] };
+type Sale = { id: string; sale_number: string; sold_on: string; currency: string; total: string; recurring_monthly: string; status: string; contract_status: string; delivery_status: string; crm_payments: { amount: string }[]; crm_sale_lines: { id: string }[] };
 type Order = { id: string; sale_id: string; department_id: string; project_id: string | null; status: string; due_on: string | null; assignee_id: string; recurrence: string; crm_departments: { label: string } | null };
 type Task = { id: string; title: string; status: string; priority: string; due_at: string | null; assignee_id: string; project_id: string | null };
 type Event = { id: number; event_type: string; module: string; detail: string; result: string; from_state: string | null; to_state: string | null; actor_id: string | null; created_at: string };
 const OPEN = ["todo", "in_progress", "blocked"];
+const SALE_COLUMNS = "id,sale_number,sold_on,currency,total,recurring_monthly,status,contract_status,delivery_status,crm_payments(amount),crm_sale_lines(id)";
+/** Rows shown in the sales table and used for the service list; totals always come from the FULL ledger below. */
+const SALES_SHOWN = 100;
 
 export default async function Client360({ params, searchParams }: { params: Promise<{ id: string }>; searchParams: Promise<Query> }) {
-  const { supabase, user } = await requireOwner();
+  const { supabase } = await requireOwner();
   const { id } = await params;
   if (!UUID_RE.test(id)) notFound();
   const lang = await getLang();
@@ -31,9 +36,19 @@ export default async function Client360({ params, searchParams }: { params: Prom
   if (!client.error && !client.data) notFound();
   const c = client.data;
   const leadId = c?.origin_lead_id ?? null;
-  const [contacts, sales, orders, projects, legacy, tasks, timeline, owners, lead, activities, meetings] = await Promise.all([
+  // Finance access is a database capability (agency_memberships + crm_private.finance_access), never an e-mail match.
+  const caps = await getCrmCapabilities(supabase);
+  const financeAllowed = caps.financeView;
+  // Client 360° finance (KENJI #98): every sale and every expense is read page by page until the exact server
+  // count is reached. A subtotal is never shown as the client's profitability (see src/lib/sales/client-finance.ts).
+  const [contacts, salesLoaded, costsLoaded, orders, projects, legacy, tasks, timeline, owners, lead, activities, meetings, financeResult] = await Promise.all([
     run<Contact[]>(supabase.from("crm_contacts").select("id,full_name,email,phone,role,is_primary").eq("client_id", id).order("is_primary", { ascending: false }).order("full_name")),
-    run<Sale[]>(supabase.from("crm_sales").select("id,sale_number,sold_on,currency,total,recurring_monthly,contract_status,delivery_status,crm_payments(amount),crm_sale_lines(id)").eq("client_id", id).order("sold_on", { ascending: false }).limit(100)),
+    financeAllowed
+      ? loadAllRows<Sale>((from, to) => supabase.from("crm_sales").select(SALE_COLUMNS, { count: "exact" }).eq("client_id", id).order("sold_on", { ascending: false }).order("id").range(from, to))
+      : Promise.resolve(emptyLoaded<Sale>()),
+    financeAllowed
+      ? loadAllRows<FinanceCost>((from, to) => supabase.from("crm_client_costs").select("id,amount,currency", { count: "exact" }).eq("client_id", id).order("incurred_on", { ascending: false }).order("id").range(from, to))
+      : Promise.resolve(emptyLoaded<FinanceCost>()),
     run<Order[]>(supabase.from("crm_work_orders").select("id,sale_id,department_id,project_id,status,due_on,assignee_id,recurrence,crm_departments(label)").eq("client_id", id).order("created_at").limit(200)),
     run<ProjectRow[]>(supabase.from("os_projects").select(PROJECT_COLUMNS).eq("client_id", id).order("updated_at", { ascending: false }).limit(100)),
     // Compatibility: projects linked earlier through the origin lead id (stable key, never by name).
@@ -45,18 +60,16 @@ export default async function Client360({ params, searchParams }: { params: Prom
     // Activities on the client (FK) and, for history, on its origin lead.
     run<{ id: string; body: string; status: string; kind?: string; due_at: string | null; created_by: string; created_at: string }[]>(supabase.from("crm_activities").select("id,body,status,kind,due_at,created_by,created_at").or(leadId ? `client_id.eq.${id},lead_id.eq.${leadId}` : `client_id.eq.${id}`).order("created_at", { ascending: false }).limit(25)),
     leadId ? run<{ id: string; title: string; starts_at: string; kind: string; status: string }[]>(supabase.from("crm_events").select("id,title,starts_at,kind,status").eq("lead_id", leadId).order("starts_at", { ascending: false }).limit(10)) : Promise.resolve(null),
+    financeAllowed ? loadClientFinance(supabase, id, caps) : Promise.resolve(null),
   ]);
-  const financeAllowed = user.email?.toLowerCase() === "avaloncoreagencysm@gmail.com";
+  // Totals: exact SQL aggregate when available; otherwise the fully paged rows (partial data is labelled partial).
+  const finance: FinanceSummary | null = !financeAllowed ? null
+    : financeResult?.allowed && financeResult.source === "sql_aggregate" ? financeResult.summary
+    : summarizeClientFinance({ sales: salesLoaded, costs: costsLoaded });
+  const sales = salesLoaded.rows;
   const ownerList = owners.data ?? [];
   const now = new Date().toISOString();
   const allProjects = [...(projects.data ?? []), ...(legacy.data ?? [])];
-  const byCurrency = new Map<string, { contracted: number; collected: number; recurring: number }>();
-  for (const sale of sales.data ?? []) {
-    const m = byCurrency.get(sale.currency) ?? { contracted: 0, collected: 0, recurring: 0 };
-    m.contracted += Number(sale.total); m.recurring += Number(sale.recurring_monthly);
-    m.collected += sale.crm_payments.reduce((x, y) => x + Number(y.amount), 0);
-    byCurrency.set(sale.currency, m);
-  }
   const openTasks = (tasks.data ?? []).filter(t => OPEN.includes(t.status));
   const alerts = [
     ...openTasks.filter(t => t.due_at && t.due_at < now).map(t => ({ key: `o-${t.id}`, text: `${pick(lang, "Vencida", "Overdue")}: ${t.title}`, href: `/admin/workspace/crm/tasks?task=${t.id}` })),
@@ -72,14 +85,14 @@ export default async function Client360({ params, searchParams }: { params: Prom
     <OkFlash lang={lang} code={q(p, "ok")} /><ErrorFlash lang={lang} code={q(p, "error")} />
     {client.error ? <Unavailable lang={lang} code={client.error} /> : c && <>
       <section className={s.stats} aria-label={pick(lang, "Resumen del cliente", "Client summary")}>
-        {financeAllowed && [...byCurrency.entries()].map(([cur, m]) => <div key={cur} className={s.stat}><span>{pick(lang, "Contratado", "Contracted")} · {cur}</span><strong>{money(lang, m.contracted, cur)}</strong><small>{pick(lang, "Cobrado", "Collected")} {money(lang, m.collected, cur)} · {pick(lang, "Recurrente/mes", "Recurring/mo")} {money(lang, m.recurring, cur)}</small></div>)}
+        {finance && !salesLoaded.failed && finance.currencies.filter(f => f.sales > 0).map(f => <div key={f.currency} className={s.stat}><span>{pick(lang, "Contratado", "Contracted")} · {f.currency}{salesLoaded.complete ? "" : ` · ${pick(lang, "parcial", "partial")}`}</span><strong>{money(lang, f.contractedCents / 100, f.currency)}</strong><small>{pick(lang, "Cobrado", "Collected")} {money(lang, f.collectedCents / 100, f.currency)} · {pick(lang, "Recurrente/mes", "Recurring/mo")} {money(lang, f.recurringCents / 100, f.currency)}</small></div>)}
         <div className={s.stat}><span>{pick(lang, "Proyectos activos", "Active projects")}</span><strong>{allProjects.filter(x => x.status === "active").length}</strong><small>{allProjects.length} {pick(lang, "en total", "total")}</small></div>
         <div className={s.stat}><span>{pick(lang, "Tareas abiertas", "Open tasks")}</span><strong>{openTasks.length}</strong><small>{(tasks.data ?? []).filter(t => t.status === "done").length} {pick(lang, "hechas", "done")}</small></div>
         <div className={s.stat}><span>{pick(lang, "Alertas", "Alerts")}</span><strong>{alerts.length}</strong><small>{pick(lang, "Responsable", "Owner")}: {ownerName(ownerList, c.owner_id)}</small></div>
       </section>
 
-      <ClientWorkspace supabase={supabase} clientId={c.id} lang={lang} sales={sales.data ?? []}
-        financeAllowed={financeAllowed}
+      <ClientWorkspace supabase={supabase} clientId={c.id} lang={lang} sales={sales.slice(0, SALES_SHOWN)}
+        financeAllowed={financeAllowed} finance={finance}
         demo={c.id === "eb442ca9-8991-4dd0-b7e9-648513613d5a"} />
       {alerts.length > 0 && <section className={s.panel} aria-labelledby="alerts"><h2 id="alerts">{pick(lang, "Alertas", "Alerts")}</h2><ul className={s.list}>{alerts.map(a => <li key={a.key} className={s.notice} data-severity="urgent"><Link href={a.href}>{a.text}</Link></li>)}</ul></section>}
 
@@ -95,9 +108,9 @@ export default async function Client360({ params, searchParams }: { params: Prom
 
       <div className={s.columns}>
         <section className={s.panel} aria-labelledby="sales"><header><h2 id="sales">{pick(lang, "Ventas y servicios", "Sales and services")}</h2></header>
-          {!financeAllowed ? <p className={s.muted}>{pick(lang, "Los importes de ventas se muestran solo al responsable financiero.", "Sales amounts are available only to the finance administrator.")}</p> : sales.error ? <Unavailable lang={lang} code={sales.error} /> : (sales.data ?? []).length === 0 ? <p className={s.muted}>{pick(lang, "Sin ventas registradas.", "No sales recorded.")}</p> :
+          {!financeAllowed ? <p className={s.muted}>{pick(lang, "Los importes de ventas se muestran solo al responsable financiero.", "Sales amounts are available only to the finance administrator.")}</p> : salesLoaded.failed ? <p className={s.flash} data-tone="error" role="alert">{pick(lang, "No se pudieron leer las ventas.", "Sales could not be read.")}</p> : sales.length === 0 ? <p className={s.muted}>{pick(lang, "Sin ventas registradas.", "No sales recorded.")}</p> :
           <div className={s.tableWrap}><table className={s.table}><thead><tr><th>{pick(lang, "Venta", "Sale")}</th><th>{pick(lang, "Fecha", "Date")}</th><th className={s.num}>Total</th><th className={s.num}>{pick(lang, "Cobrado", "Collected")}</th><th>{pick(lang, "Contrato", "Contract")}</th><th>{pick(lang, "Entrega", "Delivery")}</th></tr></thead>
-            <tbody>{sales.data!.map(x => <tr key={x.id}><td><Link href={`/admin/workspace/crm/sales/${x.id}`}>{x.sale_number}</Link><br /><span className={s.muted}>{x.crm_sale_lines.length} {pick(lang, "servicio(s)", "service(s)")}</span></td><td>{formatDate(lang, x.sold_on)}</td><td className={s.num}>{money(lang, x.total, x.currency)}</td><td className={s.num}>{money(lang, x.crm_payments.reduce((a, b) => a + Number(b.amount), 0), x.currency)}</td><td><Tag lang={lang} value={x.contract_status} /></td><td><Tag lang={lang} value={x.delivery_status} /></td></tr>)}</tbody></table></div>}
+            <tbody>{sales.slice(0, SALES_SHOWN).map(x => <tr key={x.id}><td><Link href={`/admin/workspace/crm/sales/${x.id}`}>{x.sale_number}</Link><br /><span className={s.muted}>{x.crm_sale_lines.length} {pick(lang, "servicio(s)", "service(s)")}</span></td><td>{formatDate(lang, x.sold_on)}</td><td className={s.num}>{money(lang, x.total, x.currency)}</td><td className={s.num}>{money(lang, x.crm_payments.reduce((a, b) => a + Number(b.amount), 0), x.currency)}</td><td><Tag lang={lang} value={x.contract_status} /></td><td><Tag lang={lang} value={x.delivery_status} /></td></tr>)}</tbody></table>{sales.length > SALES_SHOWN && <p className={s.muted}>{pick(lang, `Se muestran las ${SALES_SHOWN} ventas más recientes de ${sales.length}; los totales incluyen todas.`, `Showing the ${SALES_SHOWN} most recent of ${sales.length} sales; totals include all of them.`)}</p>}</div>}
           <h3>{pick(lang, "Próximos pasos", "Next steps")}</h3>
           {nextSteps.length === 0 ? <p className={s.muted}>{pick(lang, "Sin tareas próximas.", "No upcoming tasks.")}</p> : <ul className={s.list}>{nextSteps.map(t => <li key={t.id}><Link href={`/admin/workspace/crm/tasks?task=${t.id}`}>{t.title}</Link><span className={s.muted}>{t.due_at ? formatDate(lang, t.due_at, true) : pick(lang, "sin fecha", "no date")} · {ownerName(ownerList, t.assignee_id)}</span></li>)}</ul>}
         </section>

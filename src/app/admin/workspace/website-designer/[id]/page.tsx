@@ -9,7 +9,9 @@ import { getLang } from "@/lib/i18n-server";
 import { pick, formatDate } from "@/lib/i18n";
 import { getProject, run } from "@/lib/os/data";
 import { isUuid } from "@/lib/os/domain";
+import { WEBSITE_PAGE_TEMPLATE_KEYS, WEBSITE_PAGE_TEMPLATE_LABELS } from "@/lib/os/website-templates";
 import { createPage } from "../actions";
+import { saveWebsiteToLibrary } from "../library-actions";
 
 export const dynamic = "force-dynamic";
 const BASE = "/admin/workspace/website-designer";
@@ -31,7 +33,12 @@ export default async function WebsiteProjectPage({ params, searchParams }: { par
   return (
     <Suite active="website-designer">
       <PageHeader eyebrow="Website Designer" title={project.data?.name ?? "—"} description={project.data?.description || undefined}
-        crumbs={[{ href: BASE, label: "Website Designer" }]} />
+        crumbs={[{ href: BASE, label: "Website Designer" }]}
+        actions={project.data ? <div className={s.actions}>
+          <Link className={s.btnPrimary} href={`${BASE}/${id}/studio`} data-testid="open-studio">{pick(lang, "Abrir editor visual (Nova)", "Open visual editor (Nova)")}</Link>
+          <form action={saveWebsiteToLibrary}><input type="hidden" name="projectId" value={id} /><button className={s.btn} type="submit" data-testid="save-to-library">{pick(lang, "Guardar versión en Biblioteca", "Save version to Library")}</button></form>
+          <Link className={s.btnGhost} href={`/admin/workspace/library/${id}`} data-testid="open-library">{pick(lang, "Versiones y publicación", "Versions & publishing")}</Link>
+        </div> : undefined} />
       <Flash lang={lang} ok={param(query, "ok")} error={param(query, "error")} />
       {project.error ? <DbNotice lang={lang} error={project.error} /> : project.data && (
         <div className={s.split}>
@@ -65,6 +72,12 @@ export default async function WebsiteProjectPage({ params, searchParams }: { par
                 <input type="hidden" name="projectId" value={id} />
                 <label className={s.field}><span>{pick(lang, "Título", "Title")} *</span><input className={s.input} name="title" required maxLength={160} /></label>
                 <label className={s.field}><span>{pick(lang, "Ruta (opcional)", "Path (optional)")}</span><input className={s.input} name="slug" maxLength={80} pattern="[a-z0-9]+(-[a-z0-9]+)*" placeholder="servicios" /><small>{pick(lang, "Minúsculas, números y guiones. Se genera desde el título si se deja vacío.", "Lowercase, numbers and hyphens. Generated from the title if empty.")}</small></label>
+                <label className={s.field}><span>{pick(lang, "Plantilla inicial", "Starting template")}</span>
+                  <select className={s.select} name="template" defaultValue="blank">
+                    {WEBSITE_PAGE_TEMPLATE_KEYS.map(key => <option value={key} key={key}>{pick(lang, ...WEBSITE_PAGE_TEMPLATE_LABELS[key])}</option>)}
+                  </select>
+                  <small>{pick(lang, "Contenido editable de ejemplo, sin clientes ni resultados inventados.", "Editable sample copy; no invented clients or results.")}</small>
+                </label>
                 <div className={s.actions}><button className={s.btnPrimary} type="submit">{pick(lang, "Crear página", "Create page")}</button></div>
               </form>
             </Panel>

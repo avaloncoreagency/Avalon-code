@@ -1,0 +1,40 @@
+name: Project Bridge (import, versions, isolated preview)
+on:
+  pull_request:
+    paths:
+      - 'src/lib/project-bridge/**'
+      - 'src/app/admin/workspace/library/**'
+      - 'src/app/api/project-bridge/**'
+      - 'src/components/library/**'
+      - 'supabase/migrations/**'
+      - 'tests/project-bridge*'
+      - 'tests/support/zip-builder.cjs'
+      - '.github/workflows/project-bridge.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  project-bridge:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22.18.0'
+          cache: npm
+      - run: npm ci --no-audit --no-fund
+      - run: npm ci --prefix tests/qa --no-audit --no-fund
+      - name: Safe ZIP reader, inspection and Vercel request logic (synthetic, no network)
+        run: node --test tests/project-bridge-import.test.cjs tests/project-bridge-vercel.test.cjs
+      - name: Migration, RLS, storage rules and the import service on isolated PGlite
+        run: node --test tests/project-bridge.database.cjs tests/project-bridge-service.database.cjs
+        env:
+          NODE_PATH: ./tests/qa/node_modules
+      - run: node tests/qa/node_modules/playwright/cli.js install --with-deps chromium || (echo "::warning::apt mirrors unreachable; installing Chromium without extra system fonts (ubuntu-24.04 already ships Chrome libraries). Browser tests still run." && node tests/qa/node_modules/playwright/cli.js install chromium)
+      - name: Preview isolation in Chromium with an iPhone profile (not Safari)
+        run: node --test tests/project-bridge-preview.browser.cjs
+        env:
+          NODE_PATH: ./tests/qa/node_modules

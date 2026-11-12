@@ -54,6 +54,16 @@ test('synthetic 3D result: integrity, durable storage, project link, duplicate a
   // Not a GLB / truncated / wrong length → refused.
   const bad=path.join(root,'bad.glb'); const broken=Buffer.from(bytes); broken.writeUInt32LE(bytes.length+4,8); fs.writeFileSync(bad,broken);
   assert.equal(imp(bad,...flags).status,2);
+  // Not self-contained: external / data URIs and vendor-specific required extensions are refused before anything is published.
+  for (const [name,json] of [
+    ['ext-image',{asset:{version:'2.0'},images:[{uri:'https://tracker.example.invalid/pixel.png'}]}],
+    ['ext-buffer',{asset:{version:'2.0'},buffers:[{uri:'http://tracker.example.invalid/m.bin',byteLength:4}]}],
+    ['data-uri',{asset:{version:'2.0'},images:[{uri:'data:image/png;base64,AAAA'}]}],
+    ['odd-extension',{asset:{version:'2.0'},extensionsRequired:['ACME_custom_loader']}],
+  ]) { const f=path.join(root,name+'.glb'); fs.writeFileSync(f,glb(json)); assert.equal(imp(f,...flags).status,2,name+' refused'); }
+  assert.equal(fs.existsSync(path.join(repo,'public/creative-bridge'))?fs.readdirSync(path.join(repo,'public/creative-bridge')).length:0,0,'nothing was published by the refused imports');
+  const embedded=path.join(root,'embedded.glb'); fs.writeFileSync(embedded,glb({asset:{version:'2.0'},buffers:[{byteLength:4}],images:[{bufferView:0,mimeType:'image/jpeg'}],extensionsRequired:['KHR_texture_transform']}));
+  assert.equal(fs.existsSync(embedded),true);
   assert.equal(imp(src).status,2,'explicit approval is mandatory');
   const r=imp(src,...flags); assert.equal(r.status,0,r.stderr);
   const a=read().assets[0];

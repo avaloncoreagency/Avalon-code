@@ -1,5 +1,7 @@
 "use server";
 import { revalidatePath } from "next/cache";
+import { getLang } from "@/lib/i18n-server";
+import { websitePageTemplate } from "@/lib/os/website-templates";
 import { back, field, ownerForAction, uuidField } from "@/lib/os/actions";
 import { mapDbError } from "@/lib/os/data";
 import { BLOCK_TYPES, cleanText, emptyBlock, isSlug, moveItem, oneOf, readBlocks, slugify, validateBlock, validateBlocks, MAX_BLOCKS, type Block } from "@/lib/os/domain";
@@ -43,9 +45,14 @@ export async function createPage(form: FormData) {
   if (!title.ok) back(ctx.editor, { error: title.error });
   const slug = field(form, "slug").trim() || slugify(title.value) || "pagina";
   if (!isSlug(slug)) back(ctx.editor, { error: "slug" });
+  const templateName = field(form, "template") || "blank";
+  const preset = websitePageTemplate(templateName, await getLang());
+  if (!preset) back(ctx.editor, { error: "invalid" });
+  const validated = validateBlocks(preset);
+  if (!validated.ok) back(ctx.editor, { error: validated.error });
   const { count } = await ctx.supabase.from("os_website_pages").select("id", { count: "exact", head: true }).eq("project_id", ctx.projectId);
   const { data, error, status } = await ctx.supabase.from("os_website_pages")
-    .insert({ project_id: ctx.projectId, title: title.value, slug, blocks: [emptyBlock("hero")], position: Math.min(count ?? 0, 10000), created_by: ctx.userId })
+    .insert({ project_id: ctx.projectId, title: title.value, slug, blocks: validated.value, position: Math.min(count ?? 0, 10000), created_by: ctx.userId })
     .select("id").single();
   if (error || !data) back(ctx.editor, { error: mapDbError(error, status) });
   revalidatePath(ctx.editor);
