@@ -26,7 +26,14 @@ export default async function CommercialFoundationPage() {
           <Link href="/admin/workspace/marketing-hub/funnels">Funnels</Link>
         </nav>
       </header>
-      <CommercialCalculator lang={lang} />
+              <nav className={styles.toolbar} aria-label={pick(lang, "Otras herramientas comerciales", "Other commercial tools")}>
+          <Link href="/admin/workspace/marketing-hub/commercial/catalog">{pick(lang, "Catálogo y paquetes", "Catalog and packages")}</Link>
+          <Link href="/admin/workspace/marketing-hub/commercial/playbook">{pick(lang, "Manual comercial", "Sales playbook")}</Link>
+          <Link href="/admin/workspace/marketing-hub/commercial/knowledge">{pick(lang, "Biblioteca de IA", "AI knowledge")}</Link>
+          <Link href="/admin/workspace/marketing-hub/commercial/campaigns">{pick(lang, "Borradores de campaña", "Campaign drafts")}</Link>
+          <Link href="/admin/workspace/marketing-hub/commercial/overview">{pick(lang, "Indicadores reales", "Verified metrics")}</Link>
+        </nav>
+<CommercialCalculator lang={lang} />
       <section className={styles.section} aria-labelledby="policy-title">
         <h2 id="policy-title">{pick(lang, "Controles comerciales", "Commercial safeguards")}</h2>
         <div className={styles.grid}>
