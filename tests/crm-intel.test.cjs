@@ -25,23 +25,57 @@ const A = (v) => ({ v, s: "answered" });
 const U = { s: "unknown" };
 const ids = t => t.sections.flatMap(s => s.questions.map(q => q.id));
 
-test("13 industries; HVAC, Barber and Smoke Shop are specialized, the rest use the general template and say so", () => {
+test("all 13 industries have versioned bilingual sector-specific questionnaires with valid dependencies", () => {
   assert.equal(I.INDUSTRIES.length, 13);
-  assert.deepEqual(I.INDUSTRIES.filter(i => i.specialized).map(i => i.key), ["hvac", "barber", "smoke_shop"]);
-  const hvac = T.templateFor("hvac"), barber = T.templateFor("barber"), smoke = T.templateFor("smoke_shop"), roof = T.templateFor("roofing");
-  assert.equal(roof.specialized, false);
-  assert.equal(roof.version, T.GENERAL_VERSION);
-  assert.ok(ids(hvac).includes("h_license_verified") && !ids(hvac).includes("b_cut_price"), "HVAC shows its own questions only");
-  assert.ok(ids(barber).includes("b_occupancy_pct") && !ids(barber).includes("h_techs"));
-  assert.ok(ids(smoke).includes("s_age_verification") && !ids(smoke).includes("h_techs"));
-  for (const t of [hvac, barber, smoke, roof]) {
-    assert.ok(ids(t).includes("g_main_problem"), "general questionnaire everywhere");
-    const all = ids(t); assert.equal(new Set(all).size, all.length, "question ids are unique");
+  assert.ok(I.INDUSTRIES.every(i => i.specialized));
+  for (const industry of I.INDUSTRIES) {
+    const t = T.templateFor(industry.key);
+    assert.equal(t.specialized, true, industry.key);
+    assert.notEqual(t.version, T.GENERAL_VERSION, industry.key);
+    const all = ids(t);
+    assert.ok(all.length > ids(T.templateFor("hvac")).length / 3, "general baseline + sector questions");
+    assert.ok(all.includes("g_main_problem"), "shared general questions included");
+    assert.equal(new Set(all).size, all.length, industry.key + " has unique IDs");
+    const own = t.sections.flatMap(s => s.questions).filter(q => !q.id.startsWith("g_"));
+    assert.ok(own.length >= 10, industry.key + " has >=10 sector-specific questions");
     for (const q of t.sections.flatMap(s => s.questions)) {
-      assert.ok(q.label.es && q.label.en, `${q.id} has ES and EN labels`);
-      if (q.when) assert.ok(all.includes(q.when.q), `${q.id} depends on an existing question`);
+      assert.ok(q.label.es && q.label.en, q.id + " bilingual");
+      if (q.when) assert.ok(all.includes(q.when.q), q.id + " dependency exists");
+      if (q.options) {
+        assert.equal(new Set(q.options.map(o => o.value)).size, q.options.length, q.id + " options unique");
+        assert.ok(q.options.every(o => o.label.es && o.label.en), q.id + " bilingual options");
+      }
     }
   }
+});
+
+test("sector-specific conditional questions require known matching answers", () => {
+  const roof = T.templateFor("roofing");
+  const landsc = T.templateFor("landscaping");
+  const restaurant = T.templateFor("restaurant");
+  const custom = T.templateFor("other");
+  const visible = (t, answers) => F.visibleQuestions(t, answers).flatMap(s => s.questions.map(q => q.id));
+  assert.ok(!visible(roof, {}).includes("rf_claims_process"));
+  assert.ok(visible(roof, {rf_claims: A(true)}).includes("rf_claims_process"));
+  assert.ok(!visible(roof, {rf_claims: U}).includes("rf_claims_process"));
+  assert.ok(!visible(landsc, {}).includes("ls_pesticide_status"));
+  assert.ok(visible(landsc, {ls_services: A(["mowing", "pesticides"])}).includes("ls_pesticide_status"));
+  assert.ok(!visible(landsc, {ls_services: A(["mowing"])}).includes("ls_pesticide_status"));
+  assert.ok(visible(restaurant, {rs_modes: A(["dinein"])}).includes("rs_seats"));
+  assert.ok(!visible(restaurant, {rs_modes: A(["takeout"])}).includes("rs_seats"));
+  assert.ok(visible(custom, {ot_restricted_ads: A(true)}).includes("ot_restriction_notes"));
+  assert.ok(!visible(custom, {ot_restricted_ads: A(false)}).includes("ot_restriction_notes"));
+});
+
+test("sector question validation never accepts implausible amounts or invented option keys", () => {
+  const roof = T.templateFor("roofing"), rest = T.templateFor("restaurant");
+  assert.equal(F.parseAnswer(T.findQuestion(roof, "rf_extra_jobs_month"), "2.4").ok, false);
+  assert.equal(F.parseAnswer(T.findQuestion(rest, "rs_food_cost"), "105").ok, false);
+  assert.equal(F.parseAnswer(T.findQuestion(roof, "rf_license_status"), "verified_by_ai").ok, false);
+  assert.equal(F.parseAnswer(T.findQuestion(roof, "rf_license_status"), "pending").ok, true);
+  assert.deepEqual(F.parseAnswer(T.findQuestion(rest, "rs_modes"), ["dinein", "dinein", "delivery"]), {
+    ok: true, value: ["dinein", "delivery"]
+  });
 });
 
 test("conditional questions appear only after the answer that enables them", () => {
