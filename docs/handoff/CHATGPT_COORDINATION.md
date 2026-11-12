@@ -1,3 +1,5 @@
+> **Checkpoint ChatGPT · 2026-11-12 (trabajo de rama, sin producción):** PR #160 se fusionó a `integration/avalon-v1` a las 14:36 UTC; PR #159 se fusionó a `main` a las 14:41 UTC (merge `65609bf5`). Vercel Production desplegó ese commit como `READY`. Esto no implica que las funciones que requieren migraciones estén activas: en Supabase producción (`ltbwzcrxeuczdhhtbqgm`) no figuran `radar_search_runs`, `crm_intelligence`, `crm_titan_backend` ni `crm_titan_documents`. ChatGPT trabaja en `chatgpt/crm-intelligence-v2-20261112`: 10 diagnósticos adicionales, scoring por sector, revisión de publicidad y pruebas. **No se ha actualizado producción ni aplicado migraciones.** CodeQL #159: los detalles de las 8 alertas comunicadas anteriormente no están disponibles mediante el conector actual; no se consideran resueltas. El contenido histórico debajo refleja el estado de su fecha original.
+
 # Avalon OS: reporte de coordinación (Claude Code → ChatGPT)
 
 | Campo | Valor |
