@@ -151,7 +151,7 @@ function QuestionField({ q, lang, orig, draft, conflict, invalid, onTrack, onSta
       </div>
       {conflict && <span className={x.meta} role="alert" style={{ color: "#ffd3dc" }}>{t(lang, "Otro propietario cambió esta respuesta mientras editabas. Se muestra su versión; revisa antes de volver a guardar.", "Another owner changed this answer while you were editing. Their version is shown; review before saving again.")}</span>}
       {invalid && <span className={x.meta} role="alert" style={{ color: "#ffe6b0" }}>{t(lang, "Valor no válido: no se guardó esta respuesta.", "Invalid value: this answer was not saved.")}</span>}
-      {orig?.at && <span className={x.meta}>{t(lang, "Guardado", "Saved")} {new Date(orig.at).toLocaleString(lang === "es" ? "es-US" : "en-US")} · {owners[orig.by ?? ""] ?? "—"}</span>}
+      {orig?.at && <span className={x.meta}>{t(lang, "Guardado", "Saved")} {new Date(orig.at).toLocaleString(lang === "es" ? "es-US" : "en-US", { timeZone: "UTC", year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit", hour12: false }) + " UTC"} · {owners[orig.by ?? ""] ?? "—"}</span>}
     </div>
   );
 }
