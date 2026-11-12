@@ -1,10 +1,11 @@
 import type { L, Question, QuestionType, Section, Template } from "./types";
 import { INDUSTRIES } from "./industries";
+import { EXTRA_INDUSTRY_SECTIONS, EXTRA_INDUSTRY_VERSIONS } from "./industry-specializations";
 
 // Versioned questionnaire definitions. Bump a template version when questions change meaning; stored answers keep the
 // version they were captured with. Never reuse a question id for a different meaning.
 export const GENERAL_VERSION = "general-1";
-const VERSIONS: Record<string, string> = { hvac: "hvac-fl-1", barber: "barber-1", smoke_shop: "smoke-1" };
+const VERSIONS: Record<string, string> = { hvac: "hvac-fl-1", barber: "barber-1", smoke_shop: "smoke-1", ...EXTRA_INDUSTRY_VERSIONS };
 
 const l = (es: string, en: string): L => ({ es, en });
 const q = (id: string, type: QuestionType, es: string, en: string, extra: Partial<Question> = {}): Question =>
@@ -244,7 +245,7 @@ const SMOKE: Section[] = [
   ] },
 ];
 
-const SPECIFIC: Record<string, Section[]> = { hvac: HVAC, barber: BARBER, smoke_shop: SMOKE };
+const SPECIFIC: Record<string, Section[]> = { hvac: HVAC, barber: BARBER, smoke_shop: SMOKE, ...EXTRA_INDUSTRY_SECTIONS };
 
 export function templateFor(industry: string): Template {
   const specific = SPECIFIC[industry];
