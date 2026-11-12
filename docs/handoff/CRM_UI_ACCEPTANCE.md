@@ -14,13 +14,25 @@ Ownership: frontend, industry templates and browser/UI QA only. Claude owns SQL,
 - Sales desk: added a server-side literal company-name search, industry filter and filter-preserving navigation. Counters remain unfiltered agency-wide counts, intentionally. The list retains its 100-row limit and now labels possible truncation rather than implying a complete list. Fixed the 'Today' view to include earlier items from the same calendar day in the server timezone.
 - Calendar: operational follow-ups link directly to canonical CRM Deal Review; linked events in the daily agenda now offer direct links to their lead/client records when the persisted IDs exist.
 
+## Checkpoint 2 — backend compatibility and browser regression
+
+- Client 360 no longer authorizes private finance via a hard-coded e-mail string. It requests `crm_my_capabilities()` on the signed-in session, requires `owner=true` and `finance_view=true`, and fails closed if the RPC is unavailable. This RPC is implemented on Claude's separate `claude/crm-titan-backend` branch; financial figures will remain hidden until backend integration.
+- Duplicate canonical and legacy project rows are combined by stable project ID, not company name.
+- Origin lead in Client 360 now opens its canonical Deal Review route.
+- The public funnel landing page requires a validated `consent_version` from `crm_growth_funnel_view`. The form displays and submits the identical version in a hidden field. It does not change the backend action, grants or the anonymous publishing gate. Once the branches are merged, Claude's `submitFunnel` forwards the version and the RPC checks it.
+- Admin Funnel Builder explicitly labels client-linked (type B) drafts as not publishable; the UI prevents activating such drafts. The server's own prohibition remains authoritative.
+- Commission approval rejection `commission_approval_forged` now has clear ES/EN messaging.
+- Sales Desk filter's accessible name changed from `Industria` to `Filtrar sector del listado` after browser CI found it collided with Quick Add's industry input. Added browser regression for the search and Roofing-specific discovery.
+
+**CI disclosure:** At commit `64c29a6`, isolated PostgreSQL/RLS and sales browser E2E passed, but the CRM browser check failed with the duplicated accessible label. The label was changed on later commits. Do not treat the old red run as a passing latest run; wait for the latest SHA's CRM/browser checks before merging.
+
 ## Scope and deliberate limitations
 
 - No changes to `supabase/**`, API routes, server actions, authorization helpers, scoring, financial aggregation or production.
 - New sector questions **do not automatically change** lead-scoring weights, legal gating, recommendations or commission approval. Claude must explicitly review any future sector-specific rules, legal policies and use of the new data.
 - Existing saved assessments and answer identifiers are preserved. Newly added templates have distinct versions; saved general answers remain accessible.
 - Sales desk name/industry filters apply to the first 100 matching rows. A future pagination/search contract is needed for complete large datasets and phone/contact search.
-- Existing client finance authorization is email-based in the inherited code; backend Claude owns correcting this. Do not treat the visible finance area as fully accepted until a trusted capability contract is integrated and tested.
+- Client 360 now fails closed using the `crm_my_capabilities` server RPC. The reviewed backend is in a **separate PR/branch** and must be integrated and tested before private financial data are accepted. Current UI still uses fully paginated rows for totals (10,000-row ceiling, partial-state warnings), not the forthcoming SQL summary optimization.
 - Form recovery's current sessionStorage implementation is an emergency fallback; a full browser QA of conditional-field restoration remains pending.
 - A passing isolated CI suite is not proof of an authenticated Vercel Preview or production readiness.
 
