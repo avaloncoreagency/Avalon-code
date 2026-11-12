@@ -8,7 +8,7 @@ alter table public.os_projects
 
 alter table public.os_projects
   add constraint os_projects_module_check
-  check (module in ('website', 'ecommerce', 'crm_creator', 'receptionist', 'marketing', 'chatbots'));
+  check (module in ('website', 'ecommerce', 'crm_creator', 'receptionist', 'marketing', 'apps', 'chatbots'));
 
--- Existing RLS, audit, immutable columns and version triggers are preserved.
+-- Keep the existing 'apps' module from the isolated/shared schema as well.\n-- Existing RLS, audit, immutable columns and version triggers are preserved.
 commit;
