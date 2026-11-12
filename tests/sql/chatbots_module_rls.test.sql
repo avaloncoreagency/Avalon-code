@@ -11,6 +11,8 @@ begin
     returning id into bot_id;
   assert exists (select 1 from public.os_projects where id=bot_id and module='chatbots');
   assert exists (select 1 from public.os_audit where project_id=bot_id and operation='INSERT');
+  -- A pre-existing 'apps' module must remain accepted after adding chatbots.
+  insert into public.os_projects (module,name) values ('apps','Existing apps regression QA');
 end $$;
 select set_config('request.jwt.claim.sub','00000000-0000-4000-8000-000000000002',false);
 do $$
@@ -52,6 +54,7 @@ reset role;
 do $$
 begin
   assert (select count(*) from public.os_projects where module='chatbots')=1,'unexpected chatbot count';
+  assert (select count(*) from public.os_projects where module='apps')=1,'existing apps module lost';
   assert (select relrowsecurity from pg_class where oid='public.os_projects'::regclass), 'RLS missing';
 end $$;
 select 'chatbots_module_rls: passed' as result;
