@@ -31,7 +31,8 @@ export default async function CommercialFoundationPage() {
           <Link href="/admin/workspace/marketing-hub/commercial/playbook">{pick(lang, "Manual comercial", "Sales playbook")}</Link>
           <Link href="/admin/workspace/marketing-hub/commercial/knowledge">{pick(lang, "Biblioteca de IA", "AI knowledge")}</Link>
           <Link href="/admin/workspace/marketing-hub/commercial/campaigns">{pick(lang, "Borradores de campaña", "Campaign drafts")}</Link>
-          <Link href="/admin/workspace/marketing-hub/commercial/overview">{pick(lang, "Indicadores reales", "Verified metrics")}</Link>
+                    <Link href="/admin/workspace/marketing-hub/commercial/router">{pick(lang, "Simular Lead Router", "Simulate Lead Router")}</Link>
+<Link href="/admin/workspace/marketing-hub/commercial/overview">{pick(lang, "Indicadores reales", "Verified metrics")}</Link>
         </nav>
 <CommercialCalculator lang={lang} />
       <section className={styles.section} aria-labelledby="policy-title">
