@@ -23,6 +23,9 @@ test('security CI runs security, reporting and pins regressions', () => {
   const source = fs.readFileSync('.github/workflows/security.yml', 'utf8');
   for (const file of ['security.test.cjs','security-reporting.test.cjs','security-workflow-pins.test.cjs'])
     assert.ok(source.includes(file), file + ' missing from security workflow');
+  const reviewJob = source.split('  dependency-review:')[1]?.split('  security-tests:')[0] || '';
+  assert.ok(reviewJob.includes('fail-on-severity: high'), 'Dependency review must block high severity');
+  assert.ok(!reviewJob.includes('continue-on-error:'), 'Dependency review must not be optional');
 });
 
 test('review ownership and private disclosure docs exist', () => {

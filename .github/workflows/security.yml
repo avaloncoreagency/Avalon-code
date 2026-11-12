@@ -35,9 +35,8 @@ jobs:
     if: github.event_name == 'pull_request'
     runs-on: ubuntu-24.04
     timeout-minutes: 5
-    # Requires "Dependency graph" (Settings → Code security), which an admin must
-    # enable (finding R-09). Informational until then; npm audit above is the gate.
-    continue-on-error: true
+    # Blocking gate for newly introduced high/critical vulnerabilities.
+    # GitHub Dependency review was verified operational in Security Recovery CI.
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
         with:
