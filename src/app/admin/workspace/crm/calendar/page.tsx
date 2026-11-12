@@ -52,7 +52,7 @@ export default async function CalendarPage({ searchParams }: { searchParams: Pro
   const items: Item[] = [
     ...(t.data ?? []).map(x => ({ key: `t${x.id}`, at: x.due_at, kind: "task" as const, title: x.title, href: `/admin/workspace/crm/tasks?task=${x.id}`, owner: x.assignee_id, status: x.status, overdue: x.due_at < nowIso })),
     ...(o.data ?? []).map(x => ({ key: `o${x.id}`, at: `${x.due_on}T17:00:00Z`, kind: "delivery" as const, title: `${x.crm_departments?.label ?? ""} · ${x.crm_clients?.legal_name ?? ""}`, href: `/admin/workspace/crm/sales/${x.sale_id}`, owner: x.assignee_id, status: x.status, overdue: x.due_on < nowIso.slice(0, 10) })),
-    ...(l.data ?? []).map(x => ({ key: `l${x.id}`, at: x.follow_up_at, kind: "followup" as const, title: x.company, href: `/admin/workspace/crm/leads?lead=${x.id}`, owner: x.owner_id, status: "open", overdue: x.follow_up_at < nowIso })),
+    ...(l.data ?? []).map(x => ({ key: `l${x.id}`, at: x.follow_up_at, kind: "followup" as const, title: x.company, href: `/admin/workspace/crm/lead/${x.id}`, owner: x.owner_id, status: "open", overdue: x.follow_up_at < nowIso })),
   ].sort((a, b) => a.at.localeCompare(b.at));
   const byDay = new Map<string, Item[]>();
   for (const item of items) byDay.set(item.at.slice(0, 10), [...(byDay.get(item.at.slice(0, 10)) ?? []), item]);
