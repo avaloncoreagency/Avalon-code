@@ -21,6 +21,9 @@ type Props = {
 export function DiscoveryForm({ lang, lead, industry, section, saved, conflicts, invalid, justSaved, owners }: Props) {
   const [local, setLocal] = useState<Answers>({});
   const [draftFound, setDraftFound] = useState(false);
+  const [restored, setRestored] = useState<Answers>({});
+  const [restoreKey, setRestoreKey] = useState(0);
+  const [restoreWarning, setRestoreWarning] = useState(false);
   const formRef = useRef<HTMLFormElement>(null);
   const key = `avalon:crm-discovery:v1:${lead}:${industry}:${section.id}`;
   const answers = useMemo(() => ({ ...saved, ...local }), [saved, local]);
@@ -36,23 +39,51 @@ export function DiscoveryForm({ lang, lead, industry, section, saved, conflicts,
     const f = formRef.current; if (!f) return;
     const data: [string, string][] = [];
     new FormData(f).forEach((v, k) => { if (typeof v === "string" && (k.startsWith("a__") || k.startsWith("s__"))) data.push([k, v]); });
-    try { sessionStorage.setItem(key, JSON.stringify({ at: Date.now(), data })); } catch { /* storage full or blocked */ }
+    const baseline = Object.fromEntries(section.questions.map(q => [q.id, saved[q.id]?.at ?? null]));
+    try { sessionStorage.setItem(key, JSON.stringify({ at: Date.now(), data, baseline })); } catch { /* storage full or blocked */ }
   };
   const restore = () => {
-    const f = formRef.current; if (!f) return;
     try {
-      const d = JSON.parse(sessionStorage.getItem(key) ?? "null") as { data: [string, string][] } | null;
-      if (!d) return;
+      const d = JSON.parse(sessionStorage.getItem(key) ?? "null") as { data: [string, string][]; baseline?: Record<string, string | null> } | null;
+      if (!d || !Array.isArray(d.data)) return;
       const byName = new Map<string, string[]>();
-      for (const [k, v] of d.data) byName.set(k, [...(byName.get(k) ?? []), v]);
-      for (const el of Array.from(f.elements) as HTMLInputElement[]) {
-        const vals = byName.get(el.name); if (!vals) continue;
-        if (el.type === "checkbox" || el.type === "radio") el.checked = vals.includes(el.value); else el.value = vals[0];
+      for (const entry of d.data) {
+        if (!Array.isArray(entry) || entry.length !== 2 || typeof entry[0] !== "string" || typeof entry[1] !== "string") continue;
+        const [k, v] = entry;
+        byName.set(k, [...(byName.get(k) ?? []), v]);
       }
-      setDraftFound(false);
-    } catch { /* ignore a corrupt copy */ }
+      const recovered: Answers = {};
+      let skipped = 0;
+      for (const question of section.questions) {
+        const id = question.id;
+        // Never reuse a saved draft as the base of a newer owner edit.
+        if (!d.baseline || !Object.prototype.hasOwnProperty.call(d.baseline, id) ||
+          d.baseline[id] !== (saved[id]?.at ?? null)) { skipped++; continue; }
+        const state = byName.get(`s__${id}`)?.[0];
+        if (state === "unknown" || state === "na") { recovered[id] = { s: state }; continue; }
+        const values = byName.get(`a__${id}`) ?? [];
+        if (!values.length) { if (state === "answered") recovered[id] = { v: "", s: "answered" }; continue; }
+        const first = values[0];
+        let value: unknown = first;
+        if (question.type === "yesno") value = first === "yes";
+        else if (question.type === "multi") value = values;
+        else if (["number", "money", "percent", "rating"].includes(question.type)) {
+          const number = Number(first.replace(/[$,\s]/g, ""));
+          if (!Number.isFinite(number)) continue;
+          value = number;
+        }
+        recovered[id] = { v: value, s: "answered" };
+      }
+      // Re-render controlled field state and conditional branches from the same recovered snapshot.
+      // Original server answers remain untouched and keep their conflict-check timestamps.
+      setLocal(recovered); setRestored(recovered);
+      setRestoreKey(k => k + 1); setDraftFound(false); setRestoreWarning(skipped > 0);
+    } catch { /* corrupt or unavailable emergency copy; server answers remain authoritative */ }
   };
   const track = (q: Question, value: unknown) => setLocal(prev => ({ ...prev, [q.id]: { v: value, s: "answered" } }));
+  const trackState = (q: Question, state: string) => setLocal(prev => ({ ...prev,
+    [q.id]: state === "unknown" || state === "na" ? { s: state } : { ...((prev[q.id]?.s === "answered" ? prev[q.id] : restored[q.id]?.s === "answered" ? restored[q.id] : saved[q.id]) ?? {}), s: "answered" },
+  }));
 
   const visible = section.questions.filter(q => conditionMet(q.when, answers));
   return (
@@ -63,9 +94,10 @@ export function DiscoveryForm({ lang, lead, industry, section, saved, conflicts,
         <button type="button" className={s.button} onClick={restore}>{t(lang, "Recuperar", "Recover")}</button>{" "}
         <button type="button" className={s.button} onClick={() => { try { sessionStorage.removeItem(key); } catch {} setDraftFound(false); }}>{t(lang, "Descartar", "Discard")}</button>
       </p>}
+      {restoreWarning && <p className={s.flash} data-tone="warn" role="alert">{t(lang, "Algunas respuestas de la copia no se recuperaron porque el registro cambió o la copia era antigua. Revisa las respuestas actuales; no se sobrescribió nada en Avalon.", "Some backup answers were not restored because the saved record changed or the backup was old. Review current answers; nothing was overwritten in Avalon.")}</p>}
       {section.intro && <p className={s.flash} data-tone="warn">{section.intro[lang]}</p>}
       <div>
-        {visible.map(q => <QuestionField key={q.id} q={q} lang={lang} orig={saved[q.id]} conflict={conflicts.includes(q.id)} invalid={invalid.includes(q.id)} onTrack={track} owners={owners} />)}
+        {visible.map(q => <QuestionField key={`${q.id}:${restoreKey}`} q={q} lang={lang} orig={saved[q.id]} draft={restored[q.id]} conflict={conflicts.includes(q.id)} invalid={invalid.includes(q.id)} onTrack={track} onState={trackState} owners={owners} />)}
       </div>
       <div className={x.stickyBar}>
         <span className={x.meta}>{t(lang, "Se guarda en Avalon solo al pulsar un botón. Puedes dejar preguntas para después.", "Saved in Avalon only when you press a button. You can leave questions for later.")}</span>
@@ -79,13 +111,15 @@ export function DiscoveryForm({ lang, lead, industry, section, saved, conflicts,
   );
 }
 
-function QuestionField({ q, lang, orig, conflict, invalid, onTrack, owners }: {
-  q: Question; lang: Lang; orig?: Answer; conflict: boolean; invalid: boolean; onTrack: (q: Question, v: unknown) => void; owners: Record<string, string>;
+function QuestionField({ q, lang, orig, draft, conflict, invalid, onTrack, onState, owners }: {
+  q: Question; lang: Lang; orig?: Answer; draft?: Answer; conflict: boolean; invalid: boolean; onTrack: (q: Question, v: unknown) => void;
+  onState: (q: Question, v: string) => void; owners: Record<string, string>;
 }) {
-  const [state, setState] = useState<string>(orig?.s ?? "answered");
+  const [state, setState] = useState<string>(draft?.s ?? orig?.s ?? "answered");
   const name = `a__${q.id}`, id = `q-${q.id}`;
   const off = state !== "answered";
-  const v = orig?.s === "answered" ? orig.v : undefined;
+  const active = draft ?? orig;
+  const v = active?.s === "answered" ? active.v : undefined;
   let input: React.ReactNode;
   if (q.type === "long") input = <textarea id={id} name={name} rows={3} maxLength={2000} defaultValue={typeof v === "string" ? v : ""} disabled={off} />;
   else if (q.type === "text") input = <input id={id} name={name} maxLength={q.max ?? 200} defaultValue={typeof v === "string" ? v : ""} disabled={off} />;
@@ -113,7 +147,7 @@ function QuestionField({ q, lang, orig, conflict, invalid, onTrack, owners }: {
       {input}
       <div className={x.stateRow}>
         {[["answered", t(lang, "Respuesta", "Answer")], ["unknown", t(lang, "No lo sabe", "Unknown")], ...(q.allowNA || !q.required ? [["na", t(lang, "No aplica", "N/A")]] : [])]
-          .map(([val, lab]) => <label key={val}><input type="radio" name={`s__${q.id}`} value={val} checked={state === val} onChange={() => setState(val)} />{lab}</label>)}
+          .map(([val, lab]) => <label key={val}><input type="radio" name={`s__${q.id}`} value={val} checked={state === val} onChange={() => { setState(val); onState(q, val); }} />{lab}</label>)}
       </div>
       {conflict && <span className={x.meta} role="alert" style={{ color: "#ffd3dc" }}>{t(lang, "Otro propietario cambió esta respuesta mientras editabas. Se muestra su versión; revisa antes de volver a guardar.", "Another owner changed this answer while you were editing. Their version is shown; review before saving again.")}</span>}
       {invalid && <span className={x.meta} role="alert" style={{ color: "#ffe6b0" }}>{t(lang, "Valor no válido: no se guardó esta respuesta.", "Invalid value: this answer was not saved.")}</span>}
