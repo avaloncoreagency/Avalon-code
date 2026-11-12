@@ -30,6 +30,7 @@ const TEXT: Record<string, [string, string]> = {
   schema_pending: ["La migración de CRM Intelligence (20261111100000) no está aplicada en este entorno.", "The CRM Intelligence migration (20261111100000) is not applied in this environment."],
   invalid: ["Revisa los datos: hay un valor fuera de rango o con formato incorrecto.", "Check the data: a value is out of range or badly formatted."],
   conflict: ["Otra persona guardó cambios mientras editabas. Se recargó la versión actual; revisa y vuelve a guardar.", "Someone else saved changes while you were editing. The current version was reloaded; review and save again."],
+  stale_recommendation: ["Esta recomendación ya no está vigente según el diagnóstico actual. No puede aceptarse ni editarse sin nueva evidencia.", "This recommendation is no longer current under the latest diagnosis. It cannot be accepted or edited without new evidence."],
   loss_reason_required: ["Para marcar como Perdido indica el motivo.", "To mark as Lost, enter the reason."],
   stage_inactive: ["Esa etapa está desactivada.", "That stage is disabled."],
   company_required: ["Escribe al menos el nombre comercial.", "Enter at least the business name."],
