@@ -270,7 +270,12 @@ test('every migration table has RLS enabled and anon revoked (default privileges
     'grant execute on function public.os_code_publish(text, text, text, text, jsonb, uuid[], text) to anon, authenticated;',
     'grant execute on function public.os_code_set_preview(bigint, text, text) to anon, authenticated;',
     'grant execute on function public.os_code_head(text) to anon, authenticated;',
-  ], 'no grants to anon except the reviewed public inquiry, AI control and Project Bridge inbox RPCs');
+    // Reviewed and owner-approved (CRM Titan, 2026-11-12): opt-in funnel intake. Display-only read of an ACTIVE Avalon funnel
+    // and a bounded, validated, throttled submit that writes at most one lead; no table grants. Review in
+    // docs/handoff/CRM_BACKEND_CONTRACT.md §6; locked by tests/growth-funnel.database.cjs and tests/crm-titan.database.cjs.
+    'grant execute on function public.crm_growth_funnel_view(text) to anon;',
+    'grant execute on function public.crm_growth_funnel_submit(jsonb) to anon;',
+  ], 'no grants to anon except the reviewed public inquiry, AI control, Project Bridge inbox and funnel intake RPCs');
   // The control RPC may expose ONLY these four switches; any other key needs a new review.
   const ctl = fs.readFileSync('supabase/migrations/20261106090000_ai_engine.sql', 'utf8');
   const body = ctl.slice(ctl.indexOf('create function public.crm_ai_public_control()'), ctl.indexOf('revoke all on function public.crm_ai_public_control()'));

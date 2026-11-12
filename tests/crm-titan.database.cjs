@@ -215,7 +215,7 @@ test('TITAN backend: commissions, duplicates, links, finance, radar, conversion,
     await fails(`delete from ${table}`, [], /permission denied/);
 });
 
-test('TITAN funnel: closed by default, Type B kept out, durable limits, one lead under replays', { timeout: 300000 }, async () => {
+test('TITAN funnel: anon limited to two RPCs, Type B kept out, durable limits, one lead under replays', { timeout: 300000 }, async () => {
   const { db, as, q, one } = await setup({ transaction: false });
   await as('authenticated', MIGUEL);
   const client = await one(`insert into crm_clients(legal_name, owner_id, source) values('Contratista Sintético', $1, 'manual') returning id`, [MIGUEL]);
@@ -223,10 +223,7 @@ test('TITAN funnel: closed by default, Type B kept out, durable limits, one lead
   await q(`insert into crm_growth_funnels(slug, title, template, status, client_id) values('client-consumers-01', 'Funnel del contratista', 'capture', 'active', $1)`, [client.id]);
   await as('anon');
   const submit = async payload => (await one('select crm_growth_funnel_submit($1::jsonb) r', [JSON.stringify(payload)])).r;
-  await assert.rejects(submit({ slug: 'avalon-capture-01' }), /permission denied/, 'without the reviewed grant anonymous visitors cannot write');
-  await db.exec('reset role');
-  await db.exec(fs.readFileSync('docs/sql/growth-funnel-public-grant.sql', 'utf8'));
-  await as('anon');
+  await assert.rejects(q('select id from crm_growth_funnel_submissions'), /permission denied/, 'anon gets the two RPCs only, never the tables');
   const base = { slug: 'avalon-capture-01', company: 'Synthetic Roofing Co', name: 'Ana Prueba', phone: '', message: 'Quiero información sobre su CRM', consent: true };
   assert.equal((await one(`select crm_growth_funnel_view('client-consumers-01') v`)).v, null, 'Type B funnels are not served');
   assert.equal(await submit({ ...base, slug: 'client-consumers-01', email: 'consumer@roof.example.invalid' }), 'unavailable');

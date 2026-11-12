@@ -10,6 +10,7 @@ import { SERVICES, isService } from "@/lib/os/client-hud";
 import { label, money } from "@/lib/sales/domain";
 import { ClientWorkspace } from "@/components/sales/client-workspace";
 import { loadAllRows, summarizeClientFinance, emptyLoaded, type FinanceCost, type FinanceSummary } from "@/lib/sales/client-finance";
+import { getCrmCapabilities, loadClientFinance } from "@/lib/sales/client-finance-server";
 import { addClientActivity, addContact, updateClient, updateClientNotes } from "../actions";
 import s from "@/components/sales/sales.module.css";
 export const dynamic = "force-dynamic";
@@ -26,7 +27,7 @@ const SALE_COLUMNS = "id,sale_number,sold_on,currency,total,recurring_monthly,st
 const SALES_SHOWN = 100;
 
 export default async function Client360({ params, searchParams }: { params: Promise<{ id: string }>; searchParams: Promise<Query> }) {
-  const { supabase, user } = await requireOwner();
+  const { supabase } = await requireOwner();
   const { id } = await params;
   if (!UUID_RE.test(id)) notFound();
   const lang = await getLang();
@@ -35,10 +36,12 @@ export default async function Client360({ params, searchParams }: { params: Prom
   if (!client.error && !client.data) notFound();
   const c = client.data;
   const leadId = c?.origin_lead_id ?? null;
-  const financeAllowed = user.email?.toLowerCase() === "avaloncoreagencysm@gmail.com";
+  // Finance access is a database capability (agency_memberships + crm_private.finance_access), never an e-mail match.
+  const caps = await getCrmCapabilities(supabase);
+  const financeAllowed = caps.financeView;
   // Client 360° finance (KENJI #98): every sale and every expense is read page by page until the exact server
   // count is reached. A subtotal is never shown as the client's profitability (see src/lib/sales/client-finance.ts).
-  const [contacts, salesLoaded, costsLoaded, orders, projects, legacy, tasks, timeline, owners, lead, activities, meetings] = await Promise.all([
+  const [contacts, salesLoaded, costsLoaded, orders, projects, legacy, tasks, timeline, owners, lead, activities, meetings, financeResult] = await Promise.all([
     run<Contact[]>(supabase.from("crm_contacts").select("id,full_name,email,phone,role,is_primary").eq("client_id", id).order("is_primary", { ascending: false }).order("full_name")),
     financeAllowed
       ? loadAllRows<Sale>((from, to) => supabase.from("crm_sales").select(SALE_COLUMNS, { count: "exact" }).eq("client_id", id).order("sold_on", { ascending: false }).order("id").range(from, to))
@@ -57,8 +60,12 @@ export default async function Client360({ params, searchParams }: { params: Prom
     // Activities on the client (FK) and, for history, on its origin lead.
     run<{ id: string; body: string; status: string; kind?: string; due_at: string | null; created_by: string; created_at: string }[]>(supabase.from("crm_activities").select("id,body,status,kind,due_at,created_by,created_at").or(leadId ? `client_id.eq.${id},lead_id.eq.${leadId}` : `client_id.eq.${id}`).order("created_at", { ascending: false }).limit(25)),
     leadId ? run<{ id: string; title: string; starts_at: string; kind: string; status: string }[]>(supabase.from("crm_events").select("id,title,starts_at,kind,status").eq("lead_id", leadId).order("starts_at", { ascending: false }).limit(10)) : Promise.resolve(null),
+    financeAllowed ? loadClientFinance(supabase, id, caps) : Promise.resolve(null),
   ]);
-  const finance: FinanceSummary | null = financeAllowed ? summarizeClientFinance({ sales: salesLoaded, costs: costsLoaded }) : null;
+  // Totals: exact SQL aggregate when available; otherwise the fully paged rows (partial data is labelled partial).
+  const finance: FinanceSummary | null = !financeAllowed ? null
+    : financeResult?.allowed && financeResult.source === "sql_aggregate" ? financeResult.summary
+    : summarizeClientFinance({ sales: salesLoaded, costs: costsLoaded });
   const sales = salesLoaded.rows;
   const ownerList = owners.data ?? [];
   const now = new Date().toISOString();

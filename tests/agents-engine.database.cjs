@@ -141,7 +141,9 @@ test('engine: security posture reports catalog facts and detects a table without
   await as(MIGUEL);
   let p = (await one('select crm_agent_security_posture() p')).p;
   assert.deepEqual(p.tables_without_rls, [], 'every table in the migration chain has RLS');
-  assert.deepEqual(p.definer_functions_callable_by_anon, ['crm_ai_public_control', 'crm_public_inquiry', 'os_bridge_api_import_status', 'os_bridge_api_open_import'], 'the only anonymous definers are the documented public quote RPC, the reviewed AI control signal (switches only) and the reviewed Project Bridge token inbox');
+  // crm_growth_funnel_view/submit: owner-approved public opt-in intake (20261112110000; review in
+  // docs/handoff/CRM_BACKEND_CONTRACT.md §6, behaviour locked by tests/growth-funnel.database.cjs and crm-titan.database.cjs).
+  assert.deepEqual(p.definer_functions_callable_by_anon, ['crm_ai_public_control', 'crm_growth_funnel_submit', 'crm_growth_funnel_view', 'crm_public_inquiry', 'os_bridge_api_import_status', 'os_bridge_api_open_import'], 'the only anonymous definers are the documented public quote RPC, the reviewed opt-in funnel intake, the reviewed AI control signal (switches only) and the reviewed Project Bridge token inbox');
   assert.equal(p.owner_memberships, 2); assert.equal(p.other_memberships, 1);
   assert.equal(p.kill_switch, false);
   await db.exec('reset role; create table public.forgotten_table(id int);'); await as(MIGUEL);

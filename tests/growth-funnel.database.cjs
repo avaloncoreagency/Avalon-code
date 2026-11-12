@@ -19,13 +19,7 @@ test("GROWTH E2E: public form -> a single audited CRM lead; no sale, outreach or
     if (f.startsWith("20261102053022"))
       await db.exec(`insert into agency_memberships(user_id,role) values('${MIGUEL}','owner'),('${SAMUEL}','owner'),('${OUTSIDER}','operator')`);
   }
-  // Migration 20261112090000 ships the funnel WITHOUT anonymous access. The public grant is a separate, reviewed file
-  // that the owner must approve; this isolated database applies it only after proving the default is closed.
-  await db.exec("set role anon");
-  await assert.rejects(db.query("select public.crm_growth_funnel_submit('{}'::jsonb)"), /permission denied/);
-  await assert.rejects(db.query("select public.crm_growth_funnel_view('capture-demo-001')"), /permission denied/);
-  await db.exec("reset role");
-  await db.exec(fs.readFileSync("docs/sql/growth-funnel-public-grant.sql", "utf8"));
+  // Anonymous access comes only from the owner-approved migration 20261112110000 (two functions, no table grants).
 
   const as = async (role, user = "") => {
     await db.exec("reset role; set request.jwt.claim.sub='" + user + "'; set role " + role + ";");
