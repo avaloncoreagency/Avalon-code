@@ -176,3 +176,35 @@ test('CRM Intelligence: two owners, partial diagnosis, conflicts, history, scori
   await as('authenticated', MIGUEL);
   await fails(`insert into crm_contract_events(contract_id, lead_id, to_status, actor_id) values($1,$2,'verified_signed',$3)`, [c.id, lead.id, MIGUEL], /permission denied/);
 });
+
+
+test('V2: 13 industry templates persist independently with version history and owner-only access', { timeout: 120000 }, async () => {
+  const h = await setup();
+  const { as, q, one } = h;
+  await as('authenticated', MIGUEL);
+  const lead = await one("insert into crm_leads(company, source, owner_id) values('13 sector test - synthetic','manual',$1) returning id", [MIGUEL]);
+  const versions = [
+    ['hvac','general-1+hvac-fl-1'], ['barber','general-1+barber-1'], ['smoke_shop','general-1+smoke-1'],
+    ['roofing','general-1+roofing-1'], ['fencing','general-1+fencing-1'], ['tattoo','general-1+tattoo-1'],
+    ['landscaping','general-1+landscaping-1'], ['plumbing','general-1+plumbing-1'], ['cleaning','general-1+cleaning-1'],
+    ['restaurant','general-1+restaurant-1'], ['electrical','general-1+electrical-1'],
+    ['general_contractor','general-1+general-contractor-1'], ['other','general-1+custom-1'],
+  ];
+  for (const [industry, version] of versions) {
+    const response = (await one('select crm_assessment_save($1,$2,$3,$4::jsonb) as r',
+      [lead.id, industry, version, JSON.stringify({g_main_problem:{s:'answered',v:'Synthetic intake: '+industry}})])).r;
+    assert.equal(response.changed, 1, industry);
+    assert.equal(response.answers.g_main_problem.v, 'Synthetic intake: '+industry);
+  }
+  assert.equal((await one("select count(*)::int as n from crm_lead_assessments where lead_id=$1",[lead.id])).n, 13);
+  assert.deepEqual((await q("select industry_key,template_version from crm_lead_assessments where lead_id=$1 order by industry_key",[lead.id]))
+    .map(x=>[x.industry_key,x.template_version]), [...versions].sort((a,b)=>a[0].localeCompare(b[0])));
+  assert.equal((await one("select count(*)::int as n from crm_lead_assessment_revisions where lead_id=$1",[lead.id])).n, 13);
+  await as('authenticated', SAMUEL);
+  assert.equal((await one("select count(*)::int as n from crm_lead_assessments where lead_id=$1",[lead.id])).n, 13);
+  await as('authenticated', STRANGER);
+  assert.equal((await one("select count(*)::int as n from crm_lead_assessments where lead_id=$1",[lead.id])).n, 0);
+  await as('anon');
+  await assert.rejects(h.db.query("select * from crm_lead_assessments"), /permission denied/);
+  await h.db.close();
+});
