@@ -117,3 +117,12 @@ test('product record distinguishes external source and canonical CRM client from
  assert.doesNotMatch(crm,/Plantilla inicial|Starting template/);
  assert.match(crm,/Mis CRMs/);
 });
+
+test('Communication Hub can link a registered external agent to canonical Client 360 without a new sale',()=>{
+ const hub=read(route+'ai-communications/page.tsx');
+ assert.match(hub,/name="client_id"/);
+ assert.match(hub,/crmClients\.data/);
+ assert.match(hub,/Client 360/);
+ assert.match(hub,/module="chatbots"/);
+ assert.match(hub,/module="receptionist"/);
+});

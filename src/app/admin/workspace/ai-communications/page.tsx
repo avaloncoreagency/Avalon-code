@@ -29,7 +29,7 @@ export default async function CommunicationHub({searchParams}:Params) {
   const page = Number.isSafeInteger(raw) && raw >= 1 && raw <= 1000 ? raw : 1;
   const offset = (page - 1) * PAGE_SIZE;
 
-  const [projects, chatbotCount, receptionistCount, crmChoices] = await Promise.all([
+  const [projects, chatbotCount, receptionistCount, crmChoices, crmClients] = await Promise.all([
     run<ProjectRow[]>(supabase.from("os_projects")
       .select(PROJECT_COLUMNS,{count:"exact"})
       .in("module",["chatbots","receptionist"])
@@ -40,6 +40,9 @@ export default async function CommunicationHub({searchParams}:Params) {
     countRows(supabase,"os_projects",[["eq","module","receptionist"],["neq","status","archived"]]),
     run<CompanyRecord[]>(supabase.from("crm_leads")
       .select("id,company,contact").eq("archived",false).order("company").limit(200)),
+    run<{id:string;legal_name:string;trade_name:string;client_code:string}[]>(
+      supabase.from("crm_clients").select("id,legal_name,trade_name,client_code")
+        .neq("status","archived").order("legal_name").limit(200)),
   ]);
 
   const ids = [...new Set((projects.data ?? []).filter(p=>!p.client_id).map(p => clientId(p.settings)).filter((id):id is string => Boolean(id)))];
@@ -144,6 +147,14 @@ export default async function CommunicationHub({searchParams}:Params) {
                   <option key={company.id} value={company.id}>{company.company}{company.contact?` · ${company.contact}`:""} · {company.id.slice(0,8)}</option>)}
               </select>
             </label>
+            <label>{label("Cliente confirmado de Client 360° (opcional)","Confirmed Client 360 company (optional)")}
+              <select name="client_id" defaultValue="">
+                <option value="">{label("Sin seleccionar","Not selected")}</option>
+                {(crmClients.data ?? []).map(client=><option key={client.id} value={client.id}>
+                  {client.trade_name||client.legal_name} · {client.client_code}
+                </option>)}
+              </select>
+            </label>
             <label>{label("O registrar una empresa nueva (opcional)","Or register a new company (optional)")}
               <input name="company_name" maxLength={200} autoComplete="organization" placeholder={label("Nombre legal / comercial","Legal / trade name")} />
             </label>
@@ -166,10 +177,11 @@ export default async function CommunicationHub({searchParams}:Params) {
             <textarea name="description" rows={3} maxLength={2000} placeholder={label("Qué hará este agente para la empresa","What this agent is intended to handle for the company")} />
           </label>
           <p className={s.muted}>{label(
-            "Elige una empresa existente o escribe una nueva; si completas ambas, prevalece la existente. La empresa nueva se registra como oportunidad del CRM, no como venta. Se muestran hasta 200 empresas activas en el selector.",
-            "Select an existing company or enter a new one; if both are filled, the existing selection wins. A new company is registered as a CRM opportunity, not a sale. The selector shows up to 200 active companies.")}</p>
+            "Elige un cliente confirmado o un lead del CRM. Si eliges ambos, sus identificadores deben corresponder al mismo negocio; si seleccionas un cliente confirmado no se crea un lead duplicado. No se registra una venta.",
+            "Select a confirmed client or CRM lead. If both are selected, their IDs must belong to the same business; selecting a confirmed client does not create a duplicate lead. No sale is recorded.")}</p>
           {crmChoices.error && <DbNotice lang={lang} error={crmChoices.error} />}
-          <div><button type="submit" disabled={Boolean(crmChoices.error || projects.error)}>{label("Registrar agente","Register agent")}</button></div>
+          {crmClients.error && <DbNotice lang={lang} error={crmClients.error} />}
+          <div><button type="submit" disabled={Boolean(crmChoices.error || crmClients.error || projects.error)}>{label("Registrar agente","Register agent")}</button></div>
         </form>
       </section>
 

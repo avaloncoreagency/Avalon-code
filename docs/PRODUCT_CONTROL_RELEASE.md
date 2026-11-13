@@ -58,3 +58,7 @@ Website, E-commerce, CRM Creator and Marketing portfolios use exact server count
 - Confirmed Client 360 links in each product record target `/admin/workspace/crm/clients/[id]`; legacy lead links target `/admin/workspace/clients/[id]`.
 - External creator and reference-vs-pending modes are visible in the product record. Stored project row version is labelled **record version**, not falsely called a sealed code backup.
 - The CRM Creator's primary registration no longer asks for a starter blueprint; previously built internal editor routes remain for backwards compatibility only.
+
+## Communication Hub client identity
+
+The single Communication Hub agent intake form also lets an owner choose an existing verified `crm_clients.id` (beside the historical lead reference). The shared server action validates both against the CRM origin lead; it never creates a sale or an AI call. The same Product HUD, issue workflow, files and delivery inbox are reused for both Chatbot and Receptionist.
