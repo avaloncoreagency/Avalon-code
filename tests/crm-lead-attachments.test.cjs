@@ -102,4 +102,12 @@ test("lead ficha has one attachments panel, note upload, accessible previews and
   assert.match(form, /form\.requestSubmit\(\)/);
   assert.match(form, /input\.value = ""/);
   assert.doesNotMatch(page + gallery + form, /service_role|SERVICE_ROLE/);
+  const drawer = fs.readFileSync("src/components/crm/lead-timeline.tsx", "utf8");
+  assert.match(drawer, /Archivos adjuntos/);
+  assert.match(drawer, /mode === "note" && <label>Adjuntar PDF/);
+  assert.match(drawer, /VIEW_MIMES/);
+  assert.match(drawer, /href \+ "\?preview=1"/);
+  assert.match(drawer, /<a href=\{href\} download>Descargar<\/a>/);
+  assert.match(drawer, /El archivo se guardó en Archivos adjuntos, pero la nota no/);
+  assert.doesNotMatch(drawer, /service_role|SERVICE_ROLE/);
 });
