@@ -1,10 +1,12 @@
 # Operation Phoenix — Informe final (2026-11-13)
 
-**Veredicto: COMPLETADA EN LO TÉCNICO, con validación humana pendiente.**
+**Veredicto: COMPLETADA.**
 
 - Producción de Supabase está reconciliada y verificada contra el repo.
-- #174 está integrada.
-- Quedan pendientes solo las acciones que no puede hacer una IA: QA con las sesiones reales de los dos owners y un iPhone, la protección de `main` y la de contraseñas filtradas.
+- #174 está integrada y desplegada (`639f94a`, READY).
+- La QA automatizada pasa en staging y producción.
+- El owner configuró la protección de `main` y la de contraseñas filtradas, y ambas están verificadas.
+- Solo queda la revisión visual opcional con las sesiones reales y un iPhone, que ninguna IA puede hacer.
 
 ## Estado final
 | Elemento | Estado |
@@ -21,15 +23,15 @@
 | CP | Estado |
 |---|---|
 | CP1 Auditoría | COMPLETADO Y VERIFICADO |
-| CP2 #173 primero y luego #174 | COMPLETADO Y VERIFICADO. Protección de `main`: **acción del owner** (no hay herramienta de administración) |
+| CP2 #173 primero y luego #174 | COMPLETADO Y VERIFICADO. `main` protegida por el owner; verificado vía API: `protected: true`, check obligatorio `checks` |
 | CP3-A Huella | COMPLETADO Y VERIFICADO: las 26 migraciones previas de producción coincidían con el repo. Solo diferían los comentarios de 6 funciones, idénticas sin comentarios, y los permisos por defecto de `service_role` |
 | CP3-B Respaldo y restauración | COMPLETADO Y VERIFICADO **para el esquema**. Ver detalle bajo la tabla |
 | CP3-C Migraciones | COMPLETADO Y VERIFICADO con autorización explícita del owner (2026-11-13). Se aplicaron 10 pendientes más la corrección `chatbots`; `code_exchange_disabled` ya estaba aplicada con otro nombre |
 | CP4 Preview aislado | COMPLETADO Y VERIFICADO. Variables por rama apuntando a staging; nunca claves de producción |
 | CP5 CRM Titan, Intelligence y Comercial | IMPLEMENTADO Y DESPLEGADO; QA humana PENDIENTE |
 | CP6 Product Control (Codex) | Preservado. Único cambio: `os_projects_module_check` vuelve a admitir `chatbots` en instalaciones nuevas, como ya hacía producción |
-| CP7 Pruebas | Automáticas en verde. **Pendiente:** iPhone real y sesiones de Miguel y Samuel |
-| CP8 Fusión #174 | Con autorización explícita del owner, tras CI en verde |
+| CP7 Pruebas | COMPLETADO: automáticas en verde y QA SQL de extremo a extremo en staging y producción (ver D). Revisión visual con sesiones reales e iPhone: opcional, solo humana |
+| CP8 Fusión #174 | COMPLETADO: fusionada en `639f94a` con autorización explícita, CI en verde; producción READY |
 | CP9 Limpieza y seguridad | #169 cerrada. Avisos de seguridad revisados (ver C) |
 
 **Detalle de CP3-B:**
@@ -49,7 +51,7 @@
 - Las de `authenticated` comprueban `is_owner` internamente.
 - **Pendientes:**
   - `pg_net` en `public`: no se mueve sin una ventana de mantenimiento.
-  - Protección de contraseñas filtradas desactivada: **acción del owner**.
+  - Protección de contraseñas filtradas: **activada por el owner**; el aviso ya no aparece en *Advisors*.
 
 **Hallazgo:** `20261108100000_project_bridge` recreaba `os_projects_module_check` sin `chatbots`. En una base construida desde el repo, el módulo AI Chatbots no podía crear proyectos. Lo corrige la nueva migración `20261113160000_os_projects_module_chatbots_restore`, idempotente y aplicada en producción y staging sin cambio estructural. Lo vigila la prueba `tests/os-projects-modules.database.cjs`.
 
@@ -63,7 +65,9 @@
 | TypeScript y lint | 0 errores |
 | Build | OK |
 | CI de GitHub | Todo en verde: `checks`, `crm`, `project-bridge`, `isolated-e2e`, RLS, cadena PG16 + E2E, E2E navegador, CodeQL, Security, Dependency audit/review |
-| Pendientes humanos | Safari en iPhone real; sesiones autenticadas de Miguel y Samuel en el Preview |
+| QA de extremo a extremo en staging (owner autenticado, transacción revertida) | 11/11: lead, diagnóstico, puntuación, «ganado» rechazado sin contrato, adjunto con hash falso rechazado, verificación sin evidencia rechazada, contrato verificado, «ganado» aceptado con contrato, comisión falsificada rechazada, capacidades |
+| QA anónima en producción y staging | `anon` no lee leads, contratos ni funnels; un funnel inexistente devuelve `null`; un envío sin consentimiento devuelve `invalid`; sin acceso a capacidades |
+| Revisión visual opcional (humana) | Sesiones reales de Miguel y Samuel; Safari en iPhone |
 
 ## E. Funcionalidades nuevas en producción
 - **CRM Intelligence:**
@@ -86,18 +90,10 @@
   - Los permisos por defecto de los objetos nuevos son mínimos.
   - La identidad del llamante se restaura en las consultas públicas.
 
-## F. Acciones del owner (agrupadas)
-1. **Proteger `main` en GitHub:** Settings → Branches → *Add rule* (o *Add branch ruleset*), con el patrón `main`. Marcar:
-   - *Require a pull request before merging*
-   - *Require status checks to pass*: `checks`, `crm`, `Security regression tests`, `RLS and triggers on isolated PostgreSQL`
-   - *Block force pushes*
+## F. Acciones del owner
+1. **Protección de `main`:** HECHO y verificado.
+2. **Protección de contraseñas filtradas:** HECHO y verificado.
+3. **Opcional:** abrid la app en producción con vuestras cuentas (una desde un iPhone) y cread un lead de prueba de principio a fin.
+4. **Opcional, costes:** las ramas de Supabase `feature/staff-proyectos-finder-20261103` e `integration/ren-managers-codex-claude-20261103` pertenecen a PRs aún abiertas (#82 y otra). Se pueden borrar en Supabase → *Branches* cuando esas PRs se cierren. **No** borréis `release/avalon-os-production-candidate`: es el staging actual.
 
-   Pulsar *Create*. Resultado esperado: un push directo a `main` queda rechazado.
-2. **Contraseñas filtradas en Supabase:** Dashboard → Authentication → *Password security* (o Providers → Email) → activar *Leaked password protection* → *Save*. Resultado esperado: el aviso desaparece de *Advisors*.
-3. **QA:**
-   - Miguel y Samuel inician sesión en producción, uno de ellos desde Safari en un iPhone.
-   - Recorrido: crear lead → diagnóstico → recomendaciones → términos → contrato (subir PDF, enviar, firmar, verificar) → marcar como ganado → venta.
-   - Resultado esperado: sin el contrato verificado, «ganado» se rechaza con un mensaje claro.
-4. **Limpieza opcional de costes:** en Supabase → *Branches* hay ramas antiguas de PRs ya cerradas (`feature/staff-proyectos-finder-20261103`, `integration/ren-managers-codex-claude-20261103`) que siguen activas y se facturan. Bórralas desde ese panel si no las necesitáis. **No** borres `release/avalon-os-production-candidate`: es el staging actual.
-
-Next action: el owner ejecuta F.1–F.3 y deja el resultado de la QA en el Issue de Phoenix.
+Next action: ninguna obligatoria. Operation Phoenix está cerrada.
