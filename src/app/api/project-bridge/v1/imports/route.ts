@@ -1,7 +1,7 @@
 import { createHash } from "node:crypto";
 import { createClient as createAnon } from "@supabase/supabase-js";
 import { reply, readJson, str } from "@/lib/project-bridge/http";
-import { CATEGORIES, SOURCE_TOOLS } from "@/lib/project-bridge/policy";
+import { CATEGORIES, SOURCE_TOOLS, bridgeCategoryEnabled } from "@/lib/project-bridge/policy";
 
 export const dynamic = "force-dynamic";
 
@@ -22,6 +22,8 @@ export async function POST(req: Request) {
   const key = str(body.idempotencyKey, 100) ?? "";
   const tool = str(body.sourceTool, 20) ?? "api";
   if (!(CATEGORIES as readonly string[]).includes(category) || !(SOURCE_TOOLS as readonly string[]).includes(tool)) return reply({ error: "invalid_body" }, 400);
+  if (!bridgeCategoryEnabled(category,process.env.AVALON_PRODUCT_CONTROL_EXTENDED_UPLOADS === "true"))
+    return reply({ error: "category_not_enabled" }, 409);
   if (!/\.zip$/i.test(name) || key.length < 8) return reply({ error: "invalid_body", detail: "fileName must end in .zip; idempotencyKey ≥ 8 chars" }, 400);
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL, anon = process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY;
   if (!url || !anon) return reply({ error: "not_configured" }, 503);
