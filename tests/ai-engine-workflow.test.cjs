@@ -33,6 +33,7 @@ test('no workflow in the repository schedules REN, the managers, intake or Dev B
     assert.doesNotMatch(text, /ren-dev-task|scripts\/ai-engine\/operate\.cjs|--mode (routine|intake)/, `${f} must not run REN or the managers`);
   }
   assert.ok(!fs.existsSync('scripts/ai-engine/ren-dev-task.cjs'), 'REN autonomous task script is retired');
+  for (const f of files) assert.doesNotMatch(active(read(f)), /enable_pull_request_automerge|gh pr merge|--auto\b/, `${f} can never merge on its own`);
 });
 
 test('paused automations stay manual-only (Dev Bridge sync, office managers)', () => {
