@@ -22,6 +22,17 @@ test('public inquiry: anon creates a pending prospect only, validated, throttled
   assert.equal(await call({ ...base, email: 'ANA@nova.example.invalid' }), 'ok');
   assert.equal(await call(base), 'ok', 'third request of the day still accepted');
   assert.equal(await call(base), 'throttled', 'fourth within 24 h is throttled');
+
+  // Even when several statements share a transaction, anonymous callers must
+  // not retain the temporary owner JWT claim used to create the pending prospect.
+  await db.exec('begin');
+  assert.equal(await call({ ...base, email: 'identity-restore@nova.example.invalid' }), 'ok');
+  const subject = (await db.query("select current_setting('request.jwt.claim.sub', true) as subject")).rows[0].subject;
+  assert.equal(subject ?? '', '', 'anonymous subject restored immediately after inquiry');
+  await assert.rejects(db.query('select id from crm_prospects'), /permission denied/,
+    'anonymous caller cannot read prospects after calling the public RPC');
+  await db.exec('rollback');
+
   await assert.rejects(db.query('select count(*) from crm_prospects'), /permission denied/, 'anon cannot read');
   await assert.rejects(db.query("insert into crm_prospects(company,source,owner_id,opportunity,acquired_at) values('x','x',$1,'x',now())", [MIGUEL]), /permission denied/);
   await db.exec('reset role;');

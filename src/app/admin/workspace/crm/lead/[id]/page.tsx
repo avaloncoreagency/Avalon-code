@@ -119,6 +119,11 @@ export default async function LeadPage({ params, searchParams }: { params: Promi
                 <ul>{legal.flags.map(f => <li key={f.code}>{f.label[lang]}</li>)}</ul>
                 <small>{pick(lang, "No es asesoría legal. Verificar con las fuentes oficiales vigentes.", "Not legal advice. Verify with current official sources.")}</small>
               </div>}
+              {lead.industry_key && !["hvac", "barber", "smoke_shop"].includes(lead.industry_key) && <div className={s.flash} data-tone="warn" role="note">
+                {pick(lang,
+                  "Verificación sectorial pendiente: el diagnóstico recopila información, pero la calificación y las reglas legales automáticas todavía son generales para esta industria. Comprueba licencias, permisos y restricciones antes de ofrecer publicidad o contratar.",
+                  "Industry compliance review pending: discovery captures information, but automated scoring and legal rules are still general for this sector. Verify licensing, permits and advertising restrictions before selling or activating ads.")}
+              </div>}
               {score?.breakdown?.length ? <div style={{ marginTop: 12 }}>
                 {score.breakdown.map(c => <div key={c.category} className={x.cat}>
                   <header><span>{c.label[lang]}</span><strong>{c.earned === null ? pick(lang, "sin datos", "no data") : `${c.earned} / ${c.max}`}</strong></header>

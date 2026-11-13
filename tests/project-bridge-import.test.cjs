@@ -131,3 +131,11 @@ test('path and file policy helpers', () => {
   assert.equal(filePolicy('a.weird').reason, 'file_type_not_allowed:weird');
   assert.ok(zlib.crc32, 'node:zlib crc32 is available in this runtime');
 });
+
+// Operation Phoenix (from #169): a token without the import scope gets 403, not a misleading 503.
+test("import status route maps insufficient_scope (42501) to 403", () => {
+  const src = require("node:fs").readFileSync("src/app/api/project-bridge/v1/imports/[importId]/route.ts", "utf8");
+  assert.match(src, /"42501": \["insufficient_scope", 403\]/);
+  const sql = require("node:fs").readFileSync("supabase/migrations/20261112190000_bridge_scope_hardening.sql", "utf8");
+  assert.match(sql, /insufficient_scope' using errcode = '42501'/);
+});

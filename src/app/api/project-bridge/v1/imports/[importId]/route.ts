@@ -13,7 +13,7 @@ async function status(req: Request, importId: string, markUploaded: boolean) {
   const db = createAnon(url, anon, { auth: { persistSession: false, autoRefreshToken: false } });
   const r = await db.rpc("os_bridge_api_import_status", { p_token_sha256: createHash("sha256").update(token).digest("hex"), p_import: importId, p_mark_uploaded: markUploaded });
   if (r.error) {
-    const map: Record<string, [string, number]> = { "28000": ["invalid_token", 401], P0002: ["not_found", 404], "22023": ["archive_not_uploaded", 409] };
+    const map: Record<string, [string, number]> = { "28000": ["invalid_token", 401], P0002: ["not_found", 404], "22023": ["archive_not_uploaded", 409], "42501": ["insufficient_scope", 403] };
     const [code, st] = map[r.error.code ?? ""] ?? ["unavailable", 503];
     return reply({ error: code }, st);
   }
