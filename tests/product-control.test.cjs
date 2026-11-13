@@ -29,6 +29,12 @@ test('all five product modules have external product portfolios',()=>{
   const group=read('src/components/os/company-portfolio.tsx');
   assert.match(group,/\/admin\/workspace\/products\/\$\{p.id\}/);
 });
+test('registering an external product opens canonical Product Control HUD, not legacy editors',()=>{
+  const actions=read(route+'project-actions.ts');
+  assert.match(actions,/back\(\x60\/admin\/workspace\/products\/\$\{data\.id\}\x60, \{ ok: "created" \} \)/);
+  assert.match(actions,/revalidatePath\(\x60\/admin\/workspace\/products\/\$\{data\.id\}\x60\)/);
+  assert.doesNotMatch(actions,/back\(\x60\$\{base\}\/\$\{data\.id\}\x60, \{ ok: "created" \} \)/);
+});
 test('manual registration preserves ownership, source provenance and URL reference states',()=>{
   const code=read(route+'project-actions.ts');
   assert.match(code,/ownerForAction\(\)/);

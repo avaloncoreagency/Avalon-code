@@ -112,7 +112,9 @@ export async function createProject(form: FormData) {
     revalidatePath(`/admin/workspace/clients/${leadId}`);
     revalidatePath("/admin/workspace/crm/leads");
   }
-  back(`${base}/${data.id}`, { ok: "created" });
+  // External products open in their canonical Control HUD, not the legacy internal editor.
+  revalidatePath(`/admin/workspace/products/${data.id}`);
+  back(`/admin/workspace/products/${data.id}`, { ok: "created" });
 }
 
 export async function updateProject(form: FormData) {
