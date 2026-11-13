@@ -53,8 +53,18 @@ export function Importer({ lang, projectId, defaultCategory = "website", lockedC
         clearAttempt();
         setPhase({ kind: "done", projectId: j.projectId, number: j.number, duplicate: j.status === "duplicate", warnings: j.inspection?.warnings ?? [] });
       } else {
-        if (!j.retryable) clearAttempt();
-        setPhase({ kind: "error", message: j.message ?? messages[j.reason] ?? String(j.reason ?? j.error ?? r.status), problems: j.problems, importId, retryable: j.retryable });
+        // A ZIP that never reached Storage cannot be fixed by retrying only the
+        // validator. Keep the idempotency key so resubmitting the file reuses
+        // the original owner-scoped upload slot instead of creating duplicates.
+        const waitingForUpload = j.reason === "archive_missing" || j.reason === "archive_not_uploaded";
+        const canRetryProcessing = !waitingForUpload && (j.retryable === true || j.status === "busy");
+        if (!waitingForUpload && !canRetryProcessing) clearAttempt();
+        const message = waitingForUpload
+          ? lang === "es" ? "No llegó el archivo. Presiona Importar proyecto nuevamente." : "File not received. Press Import project to upload again."
+          : j.status === "busy"
+            ? lang === "es" ? "Ya se está validando esta entrega. Espera y reintenta." : "This import is already processing. Wait and retry."
+            : j.message ?? messages[j.reason] ?? String(j.reason ?? j.error ?? r.status);
+        setPhase({ kind: "error", message, problems: j.problems, importId, retryable: canRetryProcessing });
       }
     } catch {
       // A transient network error is NOT proof the server discarded the import.
