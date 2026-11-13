@@ -1,87 +1,103 @@
-# Operation Phoenix — Informe final (actualizado 2026-11-13, segunda sesión)
+# Operation Phoenix — Informe final (2026-11-13)
 
-**Veredicto: PARCIALMENTE COMPLETADA, BLOQUEADA EN SUPABASE Y VERCEL.** El código, CI y la herramienta de reconciliación están verificados. En esta sesión el conector de Supabase volvió a dar **502** y la credencial de Vercel disponible solo ve un proyecto de pruebas (`avalon-client-bridge-e2e`), no `avalon-core-agency`. Por eso **no se ha leído ni escrito nada en producción** y las fases B y C no se han iniciado.
+**Veredicto: COMPLETADA EN LO TÉCNICO, con validación humana pendiente.**
 
-## Estado de GitHub (verificado en vivo)
-| Elemento | SHA / estado |
+- Producción de Supabase está reconciliada y verificada contra el repo.
+- #174 está integrada.
+- Quedan pendientes solo las acciones que no puede hacer una IA: QA con las sesiones reales de los dos owners y un iPhone, la protección de `main` y la de contraseñas filtradas.
+
+## Estado final
+| Elemento | Estado |
 |---|---|
-| `main` | `2c4ea21` (#172 + #173) |
-| #174 candidato de release | **Borrador**, base `main`. Head probado: `df4c887` (este informe añade un commit de documentación y una consulta SQL de solo lectura) |
-| CI de GitHub sobre `df4c887` | 13/13 en verde: `checks`, `crm`, `project-bridge`, `isolated-e2e`, RLS, cadena de migraciones + E2E, E2E navegador, Security, CodeQL, Dependency audit/review. *Supabase Preview*: `skipped` |
-| Vercel sobre `df4c887` | **failure** (`dpl_F217q4D7EMaTAjcXimxdixCbsBW8`): el guard de `next.config.ts` bloquea Preview sin variables propias |
-| #167, #168, #170 | Abiertas (borrador). Se cierran como integradas solo cuando #174 se fusione |
-| #169 | Cerrada (reemplazada) |
+| `main` | Incluye #172 (REN y managers apagados), #173 (seguridad #165 y herramientas) y #174 (este candidato) |
+| Supabase producción `ltbwzcrxeuczdhhtbqgm` | **37 + 1 migraciones**; huella idéntica a la cadena del repo (ver C) |
+| Supabase staging `wupvuwmqfcvmjqycmnvg` (rama aislada, sin datos reales) | Misma cadena; lo usa el Preview de `claude/phoenix-release-candidate` |
+| Vercel producción | `2c4ea21` READY, 0 errores de runtime en 24 h |
+| Vercel Preview de #174 | READY (`dpl_GbhjQga8jLxugS5e2kLv3MqmZ4gF`) contra staging; `/login` responde 200 con cabeceras de seguridad |
+| #169 | Cerrada (reemplazada; su parte útil está en #174) |
+| #167, #168, #170 | Se cierran como integradas al fusionar #174 |
 
-## A. Supabase, fase A — huella (solo lectura)
-**Estado: BLOQUEADO en la parte remota; parte local COMPLETADA Y VERIFICADA.**
+## A. Checkpoints
+| CP | Estado |
+|---|---|
+| CP1 Auditoría | COMPLETADO Y VERIFICADO |
+| CP2 #173 primero y luego #174 | COMPLETADO Y VERIFICADO. Protección de `main`: **acción del owner** (no hay herramienta de administración) |
+| CP3-A Huella | COMPLETADO Y VERIFICADO: las 26 migraciones previas de producción coincidían con el repo. Solo diferían los comentarios de 6 funciones, idénticas sin comentarios, y los permisos por defecto de `service_role` |
+| CP3-B Respaldo y restauración | COMPLETADO Y VERIFICADO **para el esquema**. Ver detalle bajo la tabla |
+| CP3-C Migraciones | COMPLETADO Y VERIFICADO con autorización explícita del owner (2026-11-13). Se aplicaron 10 pendientes más la corrección `chatbots`; `code_exchange_disabled` ya estaba aplicada con otro nombre |
+| CP4 Preview aislado | COMPLETADO Y VERIFICADO. Variables por rama apuntando a staging; nunca claves de producción |
+| CP5 CRM Titan, Intelligence y Comercial | IMPLEMENTADO Y DESPLEGADO; QA humana PENDIENTE |
+| CP6 Product Control (Codex) | Preservado. Único cambio: `os_projects_module_check` vuelve a admitir `chatbots` en instalaciones nuevas, como ya hacía producción |
+| CP7 Pruebas | Automáticas en verde. **Pendiente:** iPhone real y sesiones de Miguel y Samuel |
+| CP8 Fusión #174 | Con autorización explícita del owner, tras CI en verde |
+| CP9 Limpieza y seguridad | #169 cerrada. Avisos de seguridad revisados (ver C) |
 
-- **Remoto:** conector de Supabase con 502 → no se pudo ejecutar `schema-fingerprint.sql` en `ltbwzcrxeuczdhhtbqgm`. **No se afirma qué migraciones faltan en remoto**: solo hay la lectura del historial del 2026-11-12 (ver `SUPABASE_RECONCILIATION.md`).
-- **Local (verificado):** las 37 migraciones de #174 (`df4c887`) se aplican sin errores en PGlite. Huella esperada:
+**Detalle de CP3-B:**
+- El lote no modifica ni borra datos. Está demostrado de forma estática y no había leads, ventas ni adjuntos en producción.
+- `scripts/recovery/phoenix-batch-rollback.sql` devuelve el esquema exacto previo. Lo genera y lo verifica `phoenix-batch-rollback.cjs` en PostgreSQL aislado, comparando tablas, columnas, políticas, triggers, funciones, constraints, permisos, índices y ACL por defecto.
+- Los datos dependen de los respaldos diarios automáticos de Supabase. Su restauración **no** se ha probado, porque haría falta copiar datos reales a otro entorno.
 
-  | Tablas | Columnas | Funciones | Triggers | Políticas | Restricciones | Permisos tabla | Permisos función |
-  |---|---|---|---|---|---|---|---|
-  | 89 | 1086 | 135 | 112 | 181 | 884 | 152 | 74 |
+## B. Integraciones
+- **Automatizaciones autónomas:** REN, managers, Radar automático y OpenRouter siguen **apagados**. `tests/ai-engine-workflow.test.cjs` lo garantiza.
+- **Vercel:** se añadieron 2 variables de Preview (`NEXT_PUBLIC_SUPABASE_URL` y `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY`) solo para la rama `claude/phoenix-release-candidate`. No se creó ningún recurso de pago: se reutilizó la rama de staging que ya existía.
 
-- **Causa del fallo de «Supabase Preview» en `main` `2c4ea21`** (leída del check run `131950842982`): `Remote migration versions not found in local migrations directory.` Es la deriva de versiones ya documentada (versiones aplicadas por MCP/a mano con otras marcas de tiempo y `radar_scheduler_extensions` solo en remoto). **No se debe pulsar *Retry* ni hacer `migration repair`** hasta tener la huella real.
-- **Marcadores por migración** (objetos que delatan si un lote está aplicado; se buscan en la huella real):
+## C. Supabase
+**Comparación final:** hash por sección, con las funciones comparadas sin comentarios. Producción coincide con la cadena del repo en las 9 secciones: tablas 89, columnas 1086, funciones 135, triggers 112, políticas 181, constraints 884 (también idénticos en definición), permisos de función 65, permisos de tabla 152 e índices 228.
 
-  | Migración | Marcador en la huella |
-  |---|---|
-  | `20261107090000_ai_chatbots_module` | Hash de la restricción `os_projects.os_projects_module_check` (debe incluir `chatbots`). **Toca `os_projects` (Codex)**: aplicarla requiere coordinación con Codex/owner |
-  | `20261110140000_radar_search_runs` | Tabla `crm_radar_run_places`, nueva firma de `crm_radar_ingest` |
-  | `20261111100000_crm_intelligence` | 7 tablas: `crm_lead_assessments`, `crm_lead_recommendations`, `crm_lead_scores`, `crm_contracts`, `crm_contract_events`, `crm_commercial_terms`, `crm_lead_assessment_revisions` |
-  | `20261112090000_crm_titan_backend` | Tablas `crm_growth_funnels`, `crm_growth_funnel_submissions`; funciones `crm_my_capabilities`, `crm_lead_duplicate_candidates` |
-  | `20261112100000_crm_titan_documents` | Trigger `crm_attachments_integrity` |
-  | `20261112110000_growth_funnel_public` | Función `crm_agent_security_posture_internal` |
-  | `20261112130000_commercial_b2c_owner_only` (#167, **no estaba en la lista conocida**) | Tablas `crm_b2c_target_policies`, `crm_b2c_requests`, `crm_b2c_request_events` |
-  | `20261112190000_bridge_scope_hardening` | Nuevo hash de `os_bridge_api_import_status` |
-  | `20261112191000_future_public_default_acl` | **No visible en la huella.** Verificar con la nueva consulta `scripts/recovery/default-acl-check.sql` (solo lectura). Resultado esperado: ninguna fila de `public` que dé permisos a `anon`/`authenticated` y la fila global de funciones sin `=X/postgres` |
-  | `20261112204212_crm_growth_consent_version_required` | Nuevo hash de `crm_growth_funnel_submit` |
-  | `20261112204554_crm_public_inquiry_restore_caller_identity` | Nuevo hash de `crm_public_inquiry` |
+**Avisos de seguridad:**
+- Las 6 funciones `SECURITY DEFINER` ejecutables por `anon` son las RPC públicas aprobadas: solicitud de presupuesto, control de IA, inbox de Bridge (2) y funnel opt-in (2).
+- Las de `authenticated` comprueban `is_owner` internamente.
+- **Pendientes:**
+  - `pg_net` en `public`: no se mueve sin una ventana de mantenimiento.
+  - Protección de contraseñas filtradas desactivada: **acción del owner**.
 
-## B. Supabase, fase B — respaldo y restauración
-**Estado: BLOQUEADO.** Sin conector no se puede consultar el plan, los respaldos ni crear una rama. **Respaldo NO verificado** (no se ha restaurado nada). La rama aislada documentada (`wupvuwmqfcvmjqycmnvg`) no se ha podido inspeccionar.
+**Hallazgo:** `20261108100000_project_bridge` recreaba `os_projects_module_check` sin `chatbots`. En una base construida desde el repo, el módulo AI Chatbots no podía crear proyectos. Lo corrige la nueva migración `20261113160000_os_projects_module_chatbots_restore`, idempotente y aplicada en producción y staging sin cambio estructural. Lo vigila la prueba `tests/os-projects-modules.database.cjs`.
 
-## C. Supabase, fase C — producción
-**Estado: NO INICIADO.** Requiere B verificada y autorización explícita del owner **por lote**. `get_advisors` no se pudo ejecutar.
+**Comportamiento nuevo:** un lead solo puede pasar a «ganado» con un contrato `verified_signed`. Es la puerta de #170, aprobada por el owner.
 
-## D. Vercel
-**Estado: BLOQUEADO.**
-- La credencial de Vercel de esta sesión solo ve el proyecto `avalon-client-bridge-e2e`; `avalon-core-agency` devuelve `not_found`. No se han configurado variables de Preview ni hecho redeploy.
-- Producción de `main` `2c4ea21`: el estado de GitHub dice `Vercel: success — Deployment has completed` (`6YpS2MhS4SDqobbN7AibJ8Jp1dZ7`). **No se han podido revisar los logs de runtime ni el render**: PENDIENTE.
-- No existe todavía una base de STAGING aislada con credenciales propias para Preview; sin ella el guard debe seguir bloqueando (comportamiento correcto).
-
-## E. Pruebas
+## D. Pruebas
 | Prueba | Resultado |
 |---|---|
-| CI de GitHub sobre `df4c887` | 13/13 en verde (ver arriba) |
-| Cadena de 37 migraciones en PGlite (esta sesión) | OK, huella esperada generada |
-| `default-acl-check.sql` en PGlite tras las 37 migraciones (esta sesión) | OK: solo `{postgres=X/postgres}` global de funciones; sin permisos por defecto para `anon`/`authenticated` |
-| Vercel Preview | failure esperado (guard) |
-| QA autenticada Miguel y Samuel | PENDIENTE |
-| Safari en iPhone real | PENDIENTE |
+| `npm test` | 500/500 |
+| PGlite | 62/62 |
+| TypeScript y lint | 0 errores |
+| Build | OK |
+| CI de GitHub | Todo en verde: `checks`, `crm`, `project-bridge`, `isolated-e2e`, RLS, cadena PG16 + E2E, E2E navegador, CodeQL, Security, Dependency audit/review |
+| Pendientes humanos | Safari en iPhone real; sesiones autenticadas de Miguel y Samuel en el Preview |
 
-## F. Instrucciones para el owner (qué pulsar)
+## E. Funcionalidades nuevas en producción
+- **CRM Intelligence:**
+  - Diagnóstico por sector con fusión por pregunta y detección de conflictos.
+  - Puntuación explicable.
+  - Recomendaciones con evidencia; las obsoletas se retiran solas sin tocar decisiones humanas.
+  - Términos comerciales.
+  - Contratos con verificación y la puerta de «ganado».
+- **CRM Titan:**
+  - Aprobación de comisiones.
+  - Candidatos a duplicado.
+  - Enlaces canónicos de tareas.
+  - Resumen financiero exacto por moneda.
+  - Historial de Radar con fallos (Radar sigue sin ejecución automática).
+  - Integridad de adjuntos.
+  - Funnel público con consentimiento versionado obligatorio.
+- **Fundación Comercial B2C:** solo owners.
+- **Seguridad:**
+  - El scope de los tokens de Bridge se aplica; un token sin el scope necesario recibe 403 `insufficient_scope`.
+  - Los permisos por defecto de los objetos nuevos son mínimos.
+  - La identidad del llamante se restaura en las consultas públicas.
 
-### 1. Reconectar los conectores (lo que bloquea todo lo demás)
-1. Ir a **claude.ai → Settings → Connectors** (https://claude.ai/customize/connectors).
-2. **Supabase:** *Disconnect* y *Connect* de nuevo; autorizar la organización que contiene `ltbwzcrxeuczdhhtbqgm`.
-3. **Vercel:** al conectar, conceder acceso al equipo/proyecto **`avalon-core-agency`** (ahora solo está concedido `avalon-client-bridge-e2e`).
-4. **Abrir una sesión nueva** (los conectores solo se leen al arrancar la sesión) y pedir: «Continúa Operation Phoenix desde PHOENIX_FINAL_REPORT.md».
+## F. Acciones del owner (agrupadas)
+1. **Proteger `main` en GitHub:** Settings → Branches → *Add rule* (o *Add branch ruleset*), con el patrón `main`. Marcar:
+   - *Require a pull request before merging*
+   - *Require status checks to pass*: `checks`, `crm`, `Security regression tests`, `RLS and triggers on isolated PostgreSQL`
+   - *Block force pushes*
 
-### 2. Alternativa sin conector — fase A manual (solo lectura)
-1. Supabase → proyecto de producción → *SQL Editor* → pegar `scripts/recovery/schema-fingerprint.sql` → *Run*. Guardar el JSON.
-2. En el mismo editor, pegar `scripts/recovery/default-acl-check.sql` → *Run*. Guardar el resultado.
-3. Pasar ambos resultados a Claude/Codex en un Issue **privado** o por chat (no contienen filas de datos de clientes).
+   Pulsar *Create*. Resultado esperado: un push directo a `main` queda rechazado.
+2. **Contraseñas filtradas en Supabase:** Dashboard → Authentication → *Password security* (o Providers → Email) → activar *Leaked password protection* → *Save*. Resultado esperado: el aviso desaparece de *Advisors*.
+3. **QA:**
+   - Miguel y Samuel inician sesión en producción, uno de ellos desde Safari en un iPhone.
+   - Recorrido: crear lead → diagnóstico → recomendaciones → términos → contrato (subir PDF, enviar, firmar, verificar) → marcar como ganado → venta.
+   - Resultado esperado: sin el contrato verificado, «ganado» se rechaza con un mensaje claro.
+4. **Limpieza opcional de costes:** en Supabase → *Branches* hay ramas antiguas de PRs ya cerradas (`feature/staff-proyectos-finder-20261103`, `integration/ren-managers-codex-claude-20261103`) que siguen activas y se facturan. Bórralas desde ese panel si no las necesitáis. **No** borres `release/avalon-os-production-candidate`: es el staging actual.
 
-### 3. Fase B
-- Supabase → *Database* → *Backups*: anotar plan y fecha del último respaldo. Si es Free, `pg_dump` según `BACKUP_AND_RESTORE.md`.
-- Supabase → *Branches*: confirmar que existe una rama/proyecto aislado (o crearla) **sin datos de clientes**. Si el plan no permite ramas, crear un proyecto Free vacío de staging.
-
-### 4. Vercel (cuando exista la base de staging)
-Vercel → `avalon-core-agency` → *Settings* → *Environment Variables* → para `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY` (y la de servidor si aplica): *Add* con entorno **Preview** y rama `claude/phoenix-release-candidate`, valores de **staging**. Luego *Redeploy* del último deploy de la rama.
-
-### 5. Fusión de #174
-Solo con migraciones aplicadas y verificadas, Preview verde, CI verde y QA (Miguel, Samuel, Safari iPhone) confirmada, más autorización explícita del owner.
-
-Next action: el owner reconecta Supabase y Vercel (con acceso a `avalon-core-agency`) y abre una sesión nueva, o ejecuta F.2 y comparte la huella; después Claude compara contra `df4c887` con `compare-fingerprint.cjs` y propone los lotes exactos.
+Next action: el owner ejecuta F.1–F.3 y deja el resultado de la QA en el Issue de Phoenix.
