@@ -15,6 +15,9 @@ const duration = (sec: unknown) => {
   return `${Math.round(n / 86400)} d`;
 };
 const KIND_LABEL: Record<string, string> = { note: "Nota", call: "Llamada", email: "Email", whatsapp: "WhatsApp", meeting: "Reunión", task: "Tarea", system: "Sistema" };
+const MAX_FILE_BYTES = 5 * 1024 * 1024;
+const VIEW_MIMES = new Set(["application/pdf", "image/jpeg", "image/png", "image/webp"]);
+const PHOTO_MIMES = new Set(["image/jpeg", "image/png", "image/webp"]);
 const kb = (n: unknown) => (Number(n) < 1024 * 1024 ? `${Math.max(1, Math.round(Number(n) / 1024))} KB` : `${(Number(n) / 1048576).toFixed(1)} MB`);
 
 /** Card history drawer: stage changes, notes, scheduled activities and files of one lead. */
@@ -57,23 +60,49 @@ export function LeadTimeline({ lead, stages, revision, onClose, onEdit, onEditAc
   async function submit(form: HTMLFormElement) {
     setSaving(true); setError(""); setOk("");
     const fd = new FormData(form);
+    let uploaded = false;
     try {
       let r: Response;
       if (mode === "file") {
+        const file = fd.get("file");
+        if (!(file instanceof File) || file.size < 1 || file.size > MAX_FILE_BYTES)
+          throw new Error("Selecciona un archivo de hasta 5 MB.");
         fd.set("lead", id);
-        r = await fetch(`${base}/files`, { method: "POST", body: fd });
+        r = await fetch(base + "/files", { method: "POST", body: fd });
       } else {
+        // Attach one document directly while composing a note. The existing
+        // private/immutable lead attachment route performs signature, quota
+        // and owner checks; this UI never bypasses it.
+        const noteFile = mode === "note" ? fd.get("file") : null;
+        if (noteFile instanceof File && noteFile.size > 0) {
+          if (noteFile.size > MAX_FILE_BYTES) throw new Error("Archivo mayor de 5 MB.");
+          const data = new FormData();
+          data.set("lead", id);
+          data.set("file", noteFile);
+          data.set("note", String(fd.get("body") ?? "").trim().slice(0, 500));
+          const fileResponse = await fetch(base + "/files", { method: "POST", body: data });
+          const result = await fileResponse.json().catch(() => ({}));
+          if (!fileResponse.ok || !result.id) throw new Error(result.error ?? "No se pudo subir el archivo.");
+          uploaded = true;
+        }
         r = await fetch(base, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({
-          lead: id, body: fd.get("body"), kind: fd.get("kind") ?? "note", due_at: mode === "activity" ? fd.get("due_at") || new Date().toISOString() : null }) });
+          lead: id, body: fd.get("body"), kind: fd.get("kind") ?? "note",
+          due_at: mode === "activity" ? fd.get("due_at") || new Date().toISOString() : null }) });
       }
-      const d = await r.json();
+      const d = await r.json().catch(() => ({}));
       if (!r.ok) throw new Error(d.error ?? "No se pudo guardar");
       form.reset();
-      setOk(mode === "file" ? "Archivo subido." : mode === "activity" ? "Actividad programada." : "Nota guardada.");
+      setOk(mode === "file" ? "Archivo subido." : mode === "activity" ? "Actividad programada." :
+        uploaded ? "Nota y archivo guardados." : "Nota guardada.");
       setTick(n => n + 1);
       onChanged?.();
-    } catch (e) { setError((e as Error).message); } finally { setSaving(false); }
+    } catch (e) {
+      const message = e instanceof Error ? e.message : "No se pudo guardar";
+      setError(uploaded ? "El archivo se guardó en Archivos adjuntos, pero la nota no. " + message : message);
+      if (uploaded) setTick(n => n + 1);
+    } finally { setSaving(false); }
   }
+
   return (
     <div className={s.scrim} onClick={e => e.target === e.currentTarget && onClose()}>
       <aside ref={dialog} tabIndex={-1} className={s.drawer} role="dialog" aria-modal="true" aria-label={`Historial de ${lead.company}`}>
@@ -108,6 +137,7 @@ export function LeadTimeline({ lead, stages, revision, onClose, onEdit, onEditAc
                 </div>
               )}
               <label>{mode === "note" ? "Nota" : "Descripción"}<textarea name="body" required maxLength={4000} rows={3} placeholder={mode === "note" ? "Escribe lo que pasó, acuerdos, próximos pasos…" : "Ej.: Llamar para revisar la propuesta"} /></label>
+              {mode === "note" && <label>Adjuntar PDF, foto o documento (opcional, hasta 5 MB)<input type="file" name="file" accept=".pdf,.png,.jpg,.jpeg,.webp,.txt,.csv,.docx,.xlsx" /></label>}
             </>
           )}
           <button type="submit" className={s.primary} disabled={saving}>{saving ? "Guardando…" : mode === "file" ? "Subir archivo" : mode === "activity" ? "Programar actividad" : "Guardar nota"}</button>
@@ -115,6 +145,34 @@ export function LeadTimeline({ lead, stages, revision, onClose, onEdit, onEditAc
           {error && <p role="alert" className={s.error}>{error}</p>}
           {warning && <p role="status" className={s.warn}>{warning}</p>}
         </form>
+        <section aria-labelledby="lead-files-title">
+          <h3 id="lead-files-title" className={s.timelineTitle}>Archivos adjuntos ({entries?.filter(entry => entry.type === "file").length ?? 0})</h3>
+          {!entries ? <p role="status">Cargando archivos…</p> : (
+            <ul className={s.attachmentShelf}>
+              {entries.filter(entry => entry.type === "file").map(entry => {
+                const mime = String(entry.data.mime ?? "");
+                const href = base + "/files/" + encodeURIComponent(String(entry.data.id));
+                return <li key={entry.id} className={s.attachmentCard}>
+                  {PHOTO_MIMES.has(mime)
+                    // Private image URL uses owner cookies; avoid Next image optimizer.
+                    // eslint-disable-next-line @next/next/no-img-element
+                    ? <img src={href + "?preview=1"} alt={String(entry.data.filename)} loading="lazy" className={s.attachmentThumb} />
+                    : <span className={s.attachmentIcon} aria-hidden="true">{mime === "application/pdf" ? "📄" : "📎"}</span>}
+                  <div className={s.attachmentInfo}>
+                    <strong>{String(entry.data.filename)}</strong>
+                    <small>{kb(entry.data.size_bytes)} · {when(entry.at)}</small>
+                    {entry.data.note ? <span>{String(entry.data.note)}</span> : null}
+                  </div>
+                  <div className={s.attachmentLinks}>
+                    {VIEW_MIMES.has(mime) && <a href={href + "?preview=1"} target="_blank" rel="noopener noreferrer">Ver</a>}
+                    <a href={href} download>Descargar</a>
+                  </div>
+                </li>;
+              })}
+              {!entries.some(entry => entry.type === "file") && <li className={s.empty}>Aún no hay documentos adjuntos.</li>}
+            </ul>
+          )}
+        </section>
         <h3 className={s.timelineTitle}>Historial</h3>
         {!entries ? <p role="status">Cargando historial…</p> : (
           <ol className={s.timeline}>
