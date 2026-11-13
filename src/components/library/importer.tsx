@@ -67,7 +67,7 @@ export function Importer({ lang, projectId, defaultCategory = "website", lockedC
     ev.preventDefault();
     const form = new FormData(ev.currentTarget);
     const file = form.get("file");
-    if (!(file instanceof File) || !/\\.(zip|html?)$/i.test(file.name))
+    if (!(file instanceof File) || !/\.(zip|html?)$/i.test(file.name))
       return setPhase({ kind: "error", message: t.choose });
     if (file.size > 25 * 1024 * 1024) return setPhase({ kind: "error", message: t.big });
     // Keep a stable idempotency key only while retrying the identical file/form.
