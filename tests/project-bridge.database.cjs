@@ -168,6 +168,9 @@ test('Product Control extended imports preserve canonical projects, versions and
   await h.as('authenticated', MIGUEL);
   const categories = ['website','ecommerce','crm_creator','apps','receptionist','chatbots','marketing'];
   for (const category of categories) {
+    // Each category is verified in an isolated savepoint, respecting the real
+    // Project Bridge limit of two concurrent pending imports per owner.
+    await h.db.exec('savepoint product_category');
     const project = await h.one(`insert into os_projects(module,name) values($1,$2) returning id`, [category,'External ' + category]);
     const id = crypto.randomUUID();
     const created = await h.one(`insert into os_project_imports(id,project_id,category,original_name,source_tool,archive_path,idempotency_key)
@@ -175,6 +178,11 @@ test('Product Control extended imports preserve canonical projects, versions and
       [id, project.id, category, `incoming/${MIGUEL}/${id}.zip`, 'product-test-' + id]);
     assert.equal(created.category, category);
     assert.equal(created.project_id, project.id);
+    if (category === 'website') await h.db.exec('release savepoint product_category');
+    else {
+      await h.db.exec('rollback to savepoint product_category');
+      await h.db.exec('release savepoint product_category');
+    }
   }
   const id = crypto.randomUUID();
   await h.fails(`insert into os_project_imports(id,category,original_name,source_tool,archive_path,idempotency_key)
