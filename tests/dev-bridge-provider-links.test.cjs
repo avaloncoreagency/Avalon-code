@@ -51,4 +51,5 @@ test("Dev Bridge uses validated links for all external PR, Issue, commit and dep
     assert.ok(page.includes("href={" + path + "}"), "expected provider source: " + path);
   }
   assert.doesNotMatch(page, /<a href=\{(?:pr|issue|i|p|c|d)\.url\}/);
+  assert.doesNotMatch(page, /\{state\[name\]\.error \?\?/, "raw provider errors must not be rendered");
 });
