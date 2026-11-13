@@ -66,7 +66,7 @@ test('Tasks page uses the filtered link for open, close and paging', () => {
 
 test('task forms include the list context and view tabs retain active filters', () => {
   const page = fs.readFileSync('src/app/admin/workspace/crm/tasks/page.tsx', 'utf8');
-  assert.equal((page.match(/\{taskContextFields\}/g) || []).length, 3, 'status, comment and create forms');
+  assert.ok((page.match(/\{taskContextFields\}/g) || []).length >= 5, 'status, comments, creation and both quick-complete forms preserve context');
   for (const name of ['view', 'page', 'client', 'work_order']) {
     assert.match(page, new RegExp('name="' + name + '"'));
   }
