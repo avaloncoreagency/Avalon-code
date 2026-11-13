@@ -149,7 +149,8 @@ test('workforce: five active managers with objectives and real executors; five r
   const reserved = E.WORKFORCE.filter(w => w.status === 'reserved');
   assert.equal(reserved.length, 5);
   for (const w of reserved) { assert.match(w.department, /Equipo de Samuel/); assert.deepEqual([w.objectives, w.executors, w.ai], [[], [], null]); }
-  assert.ok(E.profileOf('ren').executors.some(x => x.effect === 'branch_pr' && x.requiresApproval));
+  // Operation Phoenix: no worker has an executor that can open branches/PRs on its own.
+  assert.ok(E.WORKFORCE.every(w => w.executors.every(x => x.effect !== 'branch_pr')), 'REN autonomous PR executor retired');
 });
 
 test('memory: bounded, per manager, recalled in order', () => {
