@@ -17,6 +17,20 @@ export default async function DevBridge() {
   return <Suite active="dev-bridge"><div className={s.bridge}><BridgeAutoRefresh />
     <header className={s.hero}><small>AVALON / ENGINEERING</small><h1>Dev Bridge <span>2.0</span></h1><p>Contexto compartido. Evidencia verificable. Un siguiente paso seguro.</p><Link href="/admin/dev-bridge">Actualizar lectura ↻</Link><p className={s.muted}>Consulta: {state.at}. Actualización automática cada cinco minutos cuando está visible; caché de 5 minutos (15 si GitHub está en modo público limitado). READY describe un build; la salud de la aplicación sigue UNKNOWN sin una prueba real.</p></header>
     <section className={s.sources} aria-label="Conexiones">{(['github','vercel','supabase'] as const).map(name => <article className={s.card} key={name}><small>{name.toUpperCase()}</small><h2>{freshness<unknown>(state[name]).status}</h2><p>Última verificación: {state[name].verified_at ?? 'Nunca'}</p><p>{state[name].error ?? 'Metadatos consultados; no equivale a una prueba funcional.'}</p></article>)}</section>
+    <section className={s.section} aria-label="Guía de uso de Dev Bridge">
+      <h2>Cómo usar Dev Bridge · Miguel y Samuel</h2>
+      <p>Este panel observa cambios técnicos, no ejecuta tareas ni comprueba por sí solo que el CRM esté funcionando.</p>
+      <details>
+        <summary>Entender estados, avisos y próximos pasos</summary>
+        <ol>
+          <li><strong>Verifica las conexiones:</strong> VERIFIED significa que se consultaron metadatos; STALE conserva datos anteriores y UNKNOWN significa que no hay evidencia suficiente. Ninguno confirma por sí solo la salud del sitio.</li>
+          <li><strong>Revisa primero CI fallido y conflictos confirmados.</strong> Los solapamientos de archivos y las ramas con bases diferentes son advertencias de coordinación, no errores confirmados. Un build de Vercel ERROR no es automáticamente un test de GitHub fallido.</li>
+          <li><strong>Coordina una tarea:</strong> abre el PR, comprueba el commit exacto y enlaza una Issue con una única etiqueta owner:miguel u owner:samuel y una línea Next action:. No atribuyas trabajo sin etiquetas verificadas.</li>
+          <li><strong>Prepara una continuación</strong> únicamente con GitHub completo y autenticado. Un resumen público limitado no permite handoff seguro; ninguna acción de este panel fusiona código.</li>
+        </ol>
+        <p>Diagnóstico técnico con acceso al repositorio: <code>npm run bridge:doctor</code> → <code>npm run bridge:sync</code> → <code>npm run bridge:status</code> → <code>npm run bridge:check</code>. Los tokens deben configurarse como secretos del servidor, nunca en la página ni en el repositorio.</p>
+      </details>
+    </section>
     <section className={s.section}><h2>Prioridades y bloqueos</h2><p>Salud global: {state.findings.length ? 'REQUIERE REVISIÓN' : 'UNKNOWN · aplicación no sondeada'}</p><ul>{state.findings.slice(0,30).map(f => <li key={f.id}><strong>{f.claim}</strong> · {f.message}</li>)}</ul>{state.findings.length > 30 ? <p>Hay más hallazgos en bridge:report.</p> : null}</section>
 
     {publicOnly ? <section className={s.section}><h2>GitHub · consulta pública limitada</h2><p>Los PRs, Issues y SHA públicos se pueden leer sin configurar un token de GitHub en Vercel. Esta lectura NO incluye checks de CI, archivos, conflictos, comentarios ni migraciones. Las continuaciones están desactivadas hasta tener una verificación completa autenticada.</p></section> : null}
