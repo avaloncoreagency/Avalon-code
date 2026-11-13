@@ -16,14 +16,21 @@ export async function ProjectsIndex({lang,module,base,projects,noun,createFields
   lang:Lang;module:ModuleKey;base:string;projects:Loaded<ProjectRow[]>;noun:{es:string;en:string};createFields?:ReactNode;showArchived:boolean;
 }) {
   const {supabase}=await requireOwner();
-  const ids=[...new Set((projects.data??[]).map(p=>clientId(p.settings)).filter((id):id is string=>Boolean(id)))];
-  const [linked,choices]=await Promise.all([
-    ids.length?run<CompanyRecord[]>(supabase.from('crm_leads').select('id,company,contact').in('id',ids)):null,
+  const leadIds=[...new Set((projects.data??[]).filter(p=>!p.client_id).map(p=>clientId(p.settings)).filter((id):id is string=>Boolean(id)))];
+  const clientIds=[...new Set((projects.data??[]).map(p=>p.client_id).filter((id):id is string=>Boolean(id)))];
+  const [linked,choices,confirmed,clientOptions]=await Promise.all([
+    leadIds.length?run<CompanyRecord[]>(supabase.from('crm_leads').select('id,company,contact').in('id',leadIds)):null,
     run<CompanyRecord[]>(supabase.from('crm_leads').select('id,company,contact').eq('archived',false).order('company').limit(200)),
+    clientIds.length?run<{id:string;legal_name:string;trade_name:string}[]>(supabase.from('crm_clients').select('id,legal_name,trade_name').in('id',clientIds)):null,
+    run<{id:string;legal_name:string;trade_name:string;client_code:string}[]>(supabase.from('crm_clients').select('id,legal_name,trade_name,client_code').neq('status','archived').order('legal_name').limit(200)),
   ]);
+  const companyNames=[
+    ...(linked?.data??[]),
+    ...(confirmed?.data??[]).map(c=>({id:c.id,company:c.trade_name||c.legal_name})),
+  ];
   return <div>
-    {projects.error?<DbNotice lang={lang} error={projects.error}/>:!projects.data.length?<Empty title={pick(lang,`A\u00fan no hay ${noun.es}`,`No ${noun.en} yet`)} body={pick(lang,'Registra un producto creado fuera de Avalon y vincúlalo al cliente del CRM.','Register a product built outside Avalon and link it to its CRM company.')}/>:<CompanyPortfolio lang={lang} module={module} groups={groupCompanies(projects.data,linked?.data??[])}/>}
-    {linked?.error&&<p className={s.meta}>{pick(lang,'No se pudieron leer los nombres del CRM. Las referencias se conservan, sin agrupar empresas por nombre.','CRM names could not be read. References are preserved; companies are not grouped by name.')}</p>}
+    {projects.error?<DbNotice lang={lang} error={projects.error}/>:!projects.data.length?<Empty title={pick(lang,`A\u00fan no hay ${noun.es}`,`No ${noun.en} yet`)} body={pick(lang,'Registra un producto creado fuera de Avalon y vincúlalo al cliente del CRM.','Register a product built outside Avalon and link it to its CRM company.')}/>:<CompanyPortfolio lang={lang} module={module} groups={groupCompanies(projects.data,companyNames)}/>}
+    {(linked?.error||confirmed?.error)&&<p className={s.meta}>{pick(lang,'No se pudieron leer los nombres del CRM. Las referencias se conservan, sin agrupar empresas por nombre.','CRM names could not be read. References are preserved; companies are not grouped by name.')}</p>}
     <p className={s.meta} style={{marginTop:12}}><Link href={showArchived?base:`${base}?archived=1`}>{showArchived?pick(lang,'Ocultar archivados','Hide archived'):pick(lang,'Mostrar archivados','Show archived')}</Link></p>
     <div id="new"><Panel title={pick(lang,'Agregar producto externo','Add external product')} id="create-title"><form action={createProject} className={s.form}>
       <input type="hidden" name="module" value={module}/>
@@ -45,6 +52,15 @@ export async function ProjectsIndex({lang,module,base,projects,noun,createFields
           <option value="other">{pick(lang,"Otra herramienta","Other tool")}</option>
         </select>
       </label>
+      <label className={s.field}><span>{pick(lang,"Cliente confirmado en Client 360° (opcional)","Confirmed CRM client (optional)")}</span>
+        <select name="client_id" className={s.select} defaultValue="">
+          <option value="">{pick(lang,"Sin vincular / usar lead del CRM","Not linked / use CRM lead")}</option>
+          {(clientOptions.data??[]).map(c=><option key={c.id} value={c.id}>{c.trade_name||c.legal_name} · {c.client_code}</option>)}
+        </select>
+      </label>
+      <p className={s.meta}>{pick(lang,
+        "Selecciona un cliente confirmado o un lead del CRM. Si eliges ambos, deben ser el mismo negocio según el ID del lead de origen. No registra una venta.",
+        "Select a confirmed client or CRM lead. If both are selected, they must match by originating lead ID. This does not register a sale.")}</p>
       <OperationsFields lang={lang} companies={choices.data??undefined}/>{createFields}
       <div className={s.actions}><button className={s.btnPrimary} type="submit" disabled={Boolean(projects.error)}>{pick(lang,'Registrar producto','Register product')}</button></div>
       {projects.error==='schema_pending'&&<p className={s.meta}>{pick(lang,'Disponible cuando se aplique la migraci\u00f3n de m\u00f3dulos.','Available once the module migration is applied.')}</p>}

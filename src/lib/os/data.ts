@@ -36,6 +36,7 @@ export type ProjectRow = {
   module: ModuleKey;
   name: string;
   description: string;
+  client_id?: string | null;
   status: "draft" | "active" | "archived";
   settings: Record<string, unknown>;
   created_by: string;
@@ -43,7 +44,7 @@ export type ProjectRow = {
   updated_at: string;
   version: number;
 };
-export const PROJECT_COLUMNS = "id,module,name,description,status,settings,created_by,created_at,updated_at,version";
+export const PROJECT_COLUMNS = "id,module,name,description,status,client_id,settings,created_by,created_at,updated_at,version";
 
 export function listProjects(supabase: SupabaseClient, module: ModuleKey, { includeArchived = false } = {}) {
   let query = supabase.from("os_projects").select(PROJECT_COLUMNS).eq("module", module).order("updated_at", { ascending: false }).limit(100);

@@ -58,13 +58,23 @@ export async function createProject(form: FormData) {
   // Existing owner-led project flow remains unchanged when Higgsfield fields
   // are absent. Agents without an authorized owner session cannot write here.
   const metadata = await projectOperations(form, supabase);
+  const clientRaw = field(form,"client_id");
+  const confirmedClientId = uuidField(form,"client_id");
+  if (clientRaw && !confirmedClientId) back(base,{error:"invalid"});
+  const confirmedClient = confirmedClientId
+    ? await supabase.from("crm_clients").select("id,origin_lead_id")
+        .eq("id",confirmedClientId).neq("status","archived").maybeSingle()
+    : null;
+  if (confirmedClient?.error || (confirmedClientId && !confirmedClient?.data)) back(base,{error:"invalid"});
+  const originatingLead = confirmedClient?.data?.origin_lead_id ?? null;
+  if (confirmedClientId && metadata.client_lead_id && metadata.client_lead_id !== originatingLead) back(base,{error:"conflict"});
   let companyName: string;
   let creativeRef: string;
   try {
     companyName = exactCompanyName(field(form, "company_name"));
     creativeRef = parseCreativeRef(field(form, "higgsfield_ref"));
   } catch { back(base, { error: "invalid" }); }
-  if (creativeRef && (!metadata.url && !metadata.repository || !companyName && !metadata.client_lead_id))
+  if (creativeRef && (!metadata.url && !metadata.repository || !companyName && !metadata.client_lead_id && !confirmedClientId))
     back(base, { error: "invalid" });
 
   if (creativeRef) {
@@ -78,8 +88,8 @@ export async function createProject(form: FormData) {
     if ((existing.data?.length ?? 0) > 1) back(base, { error: "conflict" });
   }
 
-  let leadId = metadata.client_lead_id;
-  if (!leadId && companyName) {
+  let leadId = metadata.client_lead_id || originatingLead || "";
+  if (!leadId && !confirmedClientId && companyName) {
     const resolved = await resolveOrCreateProductLead(supabase, userId, companyName);
     if (!resolved.ok) back(base, { error: resolved.error === "ambiguous" ? "conflict" : "unavailable" });
     leadId = resolved.id;
@@ -93,10 +103,11 @@ export async function createProject(form: FormData) {
   };
   const { data, error, status } = await supabase.from("os_projects")
     .insert({ module: moduleKey.value, name: name.value, description: description.value, status: "draft",
-      settings, created_by: userId })
+      settings, client_id: confirmedClientId, created_by: userId })
     .select("id").single();
   if (error || !data) back(base, { error: mapDbError(error, status) });
   revalidatePath(base);
+  if (confirmedClientId) revalidatePath(`/admin/workspace/crm/clients/${confirmedClientId}`);
   if (leadId) {
     revalidatePath(`/admin/workspace/clients/${leadId}`);
     revalidatePath("/admin/workspace/crm/leads");

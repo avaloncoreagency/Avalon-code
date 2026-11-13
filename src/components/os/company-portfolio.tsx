@@ -45,7 +45,7 @@ export function CompanyPortfolio({ groups, module, lang }: { groups: CompanyGrou
       <span className={s.initial} aria-hidden="true">{g.name.slice(0,1).toLocaleUpperCase()}</span>
       <h3>{g.name}</h3>
       {g.linked
-        ? <Link href={`/admin/workspace/clients/${g.id}?tool=${module}`}>{pick(lang,"Ver empresa en CRM","View CRM company")}</Link>
+        ? <Link href={g.linkKind==="client"?`/admin/workspace/crm/clients/${g.id}`:`/admin/workspace/clients/${g.id}?tool=${module}`}>{pick(lang,"Ver empresa en CRM","View CRM company")}</Link>
         : <span className={s.tag}>{pick(lang,"Sin empresa vinculada","Not linked to a company")}</span>}
       <ul className={s.list}>{g.projects.map(p=><li className={s.row} key={p.id}>
         <strong>{p.name}</strong>

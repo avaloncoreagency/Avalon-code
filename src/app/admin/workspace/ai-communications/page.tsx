@@ -42,11 +42,16 @@ export default async function CommunicationHub({searchParams}:Params) {
       .select("id,company,contact").eq("archived",false).order("company").limit(200)),
   ]);
 
-  const ids = [...new Set((projects.data ?? []).map(p => clientId(p.settings)).filter((id):id is string => Boolean(id)))];
-  const companies = ids.length ? await run<CompanyRecord[]>(
-    supabase.from("crm_leads").select("id,company,contact").in("id",ids).limit(PAGE_SIZE)
-  ) : null;
-  const groups = groupCompanies(projects.data ?? [], companies?.data ?? []);
+  const ids = [...new Set((projects.data ?? []).filter(p=>!p.client_id).map(p => clientId(p.settings)).filter((id):id is string => Boolean(id)))];
+  const clientIds = [...new Set((projects.data??[]).map(p=>p.client_id).filter((id):id is string=>Boolean(id)))];
+  const [companies,confirmed]=await Promise.all([
+    ids.length ? run<CompanyRecord[]>(supabase.from("crm_leads").select("id,company,contact").in("id",ids).limit(PAGE_SIZE)) : null,
+    clientIds.length ? run<{id:string;legal_name:string;trade_name:string}[]>(supabase.from("crm_clients").select("id,legal_name,trade_name").in("id",clientIds).limit(PAGE_SIZE)) : null,
+  ]);
+  const groups = groupCompanies(projects.data ?? [], [
+    ...(companies?.data??[]),
+    ...(confirmed?.data??[]).map(c=>({id:c.id,company:c.trade_name||c.legal_name})),
+  ]);
   const linked = groups.filter(g => g.linked).length;
   const unlinked = groups.filter(g => !g.linked).reduce((total,g) => total + g.projects.length,0);
   const total = projects.count;

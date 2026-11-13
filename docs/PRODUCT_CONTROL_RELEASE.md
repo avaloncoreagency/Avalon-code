@@ -38,3 +38,9 @@
 - Revert PR #175 code to restore the old UI without deleting files/projects; do not drop any table or bucket.
 - All claims require exact-head CI and isolated Preview evidence; 320px/390px and real Safari QA are distinct checks.
 
+
+## Client 360 identity guard
+
+The registration UI now accepts the verified `crm_clients.id` of an existing confirmed client, not just a legacy `crm_leads.id`. If both are supplied the server compares `crm_clients.origin_lead_id` to the lead ID and rejects mismatched associations. It never creates a sale, receipt or payment. The canonical `os_projects.client_id` FK remains the authoritative link into Client 360; legacy lead-linked projects remain accessible. Portfolios prefer client FK grouping and link directly to the Client 360 page, preserving older lead-group behavior.
+
+This requires the existing Sales Core schema already present in production; it does not apply DDL. Owner-only and database RLS remain required.

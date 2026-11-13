@@ -74,3 +74,20 @@ test('new upload categories require a separate SQL review, never a blind product
   assert.doesNotMatch(review,/drop table|drop schema/i);
   assert.ok(!fs.existsSync('supabase/migrations/20261113120000_product_control_bridge_categories.sql'));
 });
+
+// Confirmed customer FK is not inferred from company names.
+test('confirmed CRM client identity is verified and linked without generating sales',()=>{
+ const actions=read(route+'project-actions.ts');
+ assert.match(actions,/\.from\("crm_clients"\)/);
+ assert.match(actions,/origin_lead_id/);
+ assert.match(actions,/client_id: confirmedClientId/);
+ assert.match(actions,/metadata\.client_lead_id !== originatingLead/);
+ const index=read('src/components/os/projects.tsx');
+ assert.match(index,/name="client_id"/);
+ assert.match(index,/confirmed\?\.data/);
+ const data=read('src/lib/os/data.ts');
+ assert.match(data,/client_id/);
+ const group=read('src/lib/os/client-hud.ts');
+ assert.match(group,/project\.client_id/);
+ assert.match(group,/linkKind/);
+});

@@ -171,9 +171,9 @@ export function applyProductAction(settings: Record<string, unknown>, service: S
   if (new TextEncoder().encode(JSON.stringify(updated)).byteLength > 240000) throw Error('too_long');
   return updated;
 }
-export type PortfolioProject = { id: string; module: Service; name: string; description: string; status: string; settings: Record<string, unknown>; updated_at: string };
+export type PortfolioProject = { id: string; module: Service; name: string; description: string; status: string; settings: Record<string, unknown>; client_id?: string | null; updated_at: string };
 export type CompanyRecord = { id: string; company: string; contact?: string; email?: string | null; phone?: string; source?: string };
-export type CompanyGroup = { id: string; name: string; linked: boolean; active: number; drafts: number; projects: Omit<PortfolioProject, 'settings'>[]; updated_at: string };
+export type CompanyGroup = { id: string; name: string; linked: boolean; linkKind: 'client' | 'lead' | 'unlinked'; active: number; drafts: number; projects: Omit<PortfolioProject, 'settings'>[]; updated_at: string };
 export function clientId(settings: Record<string, unknown>): string | null {
   const operations = settings.operations;
   if (!operations || typeof operations !== 'object' || Array.isArray(operations)) return null;
@@ -183,20 +183,31 @@ export function clientId(settings: Record<string, unknown>): string | null {
 export function groupCompanies(projects: PortfolioProject[], companies: CompanyRecord[]): CompanyGroup[] {
   const groups = new Map<string, CompanyGroup>();
   for (const project of projects) {
-    const id = clientId(project.settings);
-    // Unknown projects remain separate; names are never an identity key.
-    const key = id ? `crm:${id}` : `project:${project.id}`;
+    const client = validId(project.client_id) ? project.client_id : null;
+    const lead = client ? null : clientId(project.settings);
+    const id = client ?? lead;
+    // Canonical client FK is preferred over the legacy lead link. No guessing based on company name.
+    const linkKind: CompanyGroup['linkKind'] = client ? 'client' : lead ? 'lead' : 'unlinked';
+    const key = id ? `${linkKind}:${id}` : `project:${project.id}`;
     let group = groups.get(key);
     if (!group) {
-      group = { id: id ?? project.id, name: companies.find(c => c.id === id)?.company || (id ? 'CRM ' + id.slice(0, 8) : project.name), linked: Boolean(id), active: 0, drafts: 0, projects: [], updated_at: project.updated_at };
-      groups.set(key, group);
+      group = {
+        id: id ?? project.id,
+        name: companies.find(c => c.id === id)?.company || (id ? `${client ? 'Cliente' : 'CRM'} ${id.slice(0,8)}` : project.name),
+        linked: Boolean(id), linkKind, active:0, drafts:0, projects:[], updated_at:project.updated_at,
+      };
+      groups.set(key,group);
     }
-    group.projects.push({id:project.id,module:project.module,name:project.name,description:project.description,status:project.status,updated_at:project.updated_at});
-    group.active += Number(project.status === 'active');
-    group.drafts += Number(project.status === 'draft');
-    if (project.updated_at > group.updated_at) group.updated_at = project.updated_at;
+    group.projects.push({
+      id:project.id,module:project.module,name:project.name,description:project.description,
+      status:project.status,updated_at:project.updated_at,
+      ...(project.client_id ? { client_id:project.client_id } : {}),
+    });
+    group.active += Number(project.status==='active');
+    group.drafts += Number(project.status==='draft');
+    if (project.updated_at>group.updated_at) group.updated_at=project.updated_at;
   }
-  return [...groups.values()].sort((a, b) => b.updated_at.localeCompare(a.updated_at));
+  return [...groups.values()].sort((a,b)=>b.updated_at.localeCompare(a.updated_at));
 }
 /** Latest manual result per checklist item, not live uptime or automated monitoring. */
 export function latestChecks(checks: TestRecord[]): TestRecord[] {

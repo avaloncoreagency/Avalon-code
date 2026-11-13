@@ -85,3 +85,19 @@ test('legacy issue remains readable and malformed rich state is refused',()=>{
  const invalid=structuredClone(s);invalid.client_hud.requests[0].notes=[{id:'bad',body:'x',author:A,created_at:NOW}];
  assert.throws(()=>d.readProductState(invalid.client_hud));
 });
+
+test('canonical Client 360 ID takes precedence over a legacy lead and does not merge other clients',()=>{
+ const one={...project(B,A),client_id:B};
+ const two={...project(C,A),client_id:C};
+ const g=d.groupCompanies([one,two],[{id:B,company:'Client B'},{id:C,company:'Client C'}]);
+ assert.equal(g.length,2);
+ assert.equal(g[0].linkKind,'client');
+ assert.ok(g.some(x=>x.id===B&&x.name==='Client B'));
+ assert.ok(g.some(x=>x.id===C&&x.name==='Client C'));
+});
+test('legacy leads remain grouped by their exact lead ID',()=>{
+ const g=d.groupCompanies([project(B,A),project(C,A)],[{id:A,company:'Lead A'}]);
+ assert.equal(g.length,1);
+ assert.equal(g[0].linkKind,'lead');
+ assert.equal(g[0].id,A);
+});
