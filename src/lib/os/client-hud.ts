@@ -68,7 +68,7 @@ export function readProductState(value: unknown): ProductState {
     if (!validId(r.id) || !validId(r.created_by) || !validId(r.updated_by)) throw Error('invalid');
     const items: IssueItem[] = r.items === undefined ? [] : Array.isArray(r.items) && r.items.length <= 15
       ? r.items.map(value => { const item = object(value);
-          if (typeof item.id !== 'string' || !/^i\\d{1,2}$/.test(item.id) || typeof item.done !== 'boolean') throw Error('invalid');
+          if (typeof item.id !== 'string' || !/^i\d{1,2}$/.test(item.id) || typeof item.done !== 'boolean') throw Error('invalid');
           return { id: item.id, text: text(item.text, 240, true), done: item.done };
         }) : (() => { throw Error('invalid'); })();
     const notes: IssueNote[] = r.notes === undefined ? [] : Array.isArray(r.notes) && r.notes.length <= 40
@@ -112,7 +112,7 @@ export function applyProductAction(settings: Record<string, unknown>, service: S
     const priority = severity ? (severity==='P0'||severity==='P1'?'urgent':'normal') : choice(input.priority,['urgent','normal']);
     const assignee = text(input.assignee_id ?? '',36);
     if (assignee && !validId(assignee)) throw Error('invalid');
-    const lines = text(input.checklist ?? '',1600).split('\\n').map(line=>line.trim()).filter(Boolean);
+    const lines = text(input.checklist ?? '',1600).split('\n').map(line=>line.trim()).filter(Boolean);
     if (lines.length > 15) throw Error('invalid');
     state.requests.push({
       id: newId, title: text(input.title,120,true), details: text(input.details,4000,true), priority,
