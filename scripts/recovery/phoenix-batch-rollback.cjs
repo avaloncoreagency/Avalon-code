@@ -5,7 +5,6 @@
 //  3. Verify: apply the generated rollback on B; its fingerprint (comments ignored) and index list must equal A's.
 // Usage: NODE_PATH=./tests/qa/node_modules node scripts/recovery/phoenix-batch-rollback.cjs > scripts/recovery/phoenix-batch-rollback.sql
 const fs = require('node:fs');
-const crypto = require('node:crypto');
 const { PGlite } = require('@electric-sql/pglite');
 const PENDING = ['20261110140000', '20261111100000', '20261112'];
 const SCHEMAS = "('public','crm_private','os_private')";
