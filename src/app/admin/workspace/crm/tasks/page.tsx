@@ -2,12 +2,13 @@ import Link from "next/link";
 import { Suite } from "@/components/suite/suite";
 import { OpsHeader, OkFlash, ErrorFlash, Tag, Unavailable, ownerName, q, UUID_RE, type Query } from "@/components/sales/ui";
 import { TzOffset } from "@/components/sales/tz-offset";
+import { TaskEditForm } from "@/components/sales/task-edit-form";
 import { requireOwner } from "@/lib/auth/session";
 import { getLang } from "@/lib/i18n-server";
 import { pick, formatDate } from "@/lib/i18n";
 import { run } from "@/lib/os/data";
 import { label, TASK_PRIORITIES, TASK_STATUSES } from "@/lib/sales/domain";
-import { commentTask, createTask, updateTask } from "./actions";
+import { commentTask, createTask, updateTask, transitionTask } from "./actions";
 import { taskLink } from "@/lib/crm/task-links";
 import s from "@/components/sales/sales.module.css";
 export const dynamic = "force-dynamic";
@@ -84,6 +85,22 @@ export default async function TasksPage({ searchParams }: { searchParams: Promis
         </dl>
         {detail.data.description && <p className={s.muted} style={{ whiteSpace: "pre-wrap" }}>{detail.data.description}</p>}
         <div style={{ marginTop: 12 }}>{statusForm(detail.data, "detail")}</div>
+        <details className={s.notice} style={{ marginTop: 12 }}>
+          <summary>{pick(lang, "Editar título, descripción, responsable y vencimiento", "Edit title, description, assignee and due date")}</summary>
+          <TaskEditForm task={detail.data} owners={ownerList} view={view} page={page}
+            client={client && UUID_RE.test(client) ? client : undefined}
+            workOrder={workOrder && UUID_RE.test(workOrder) ? workOrder : undefined} lang={lang} />
+        </details>
+        <form action={transitionTask} className={s.inline} style={{ marginTop: 12 }}>
+          {taskContextFields}
+          <input type="hidden" name="task_id" value={detail.data.id} />
+          <input type="hidden" name="version" value={detail.data.version} />
+          {OPEN.includes(detail.data.status)
+            ? <button className={s.button} type="submit" name="operation" value="complete">{pick(lang, "Completar tarea", "Complete task")}</button>
+            : ["done", "cancelled"].includes(detail.data.status)
+              ? <button className={s.button} type="submit" name="operation" value="reopen">{pick(lang, "Reabrir tarea", "Reopen task")}</button>
+              : null}
+        </form>
         <h3>{pick(lang, "Comentarios", "Comments")}</h3>
         {comments?.error ? <Unavailable lang={lang} code={comments.error} /> : <ul className={s.list}>{(comments?.data ?? []).map(c => <li key={c.id}><span style={{ whiteSpace: "pre-wrap" }}>{c.body}</span><small className={s.muted}>{ownerName(ownerList, c.created_by)} · {formatDate(lang, c.created_at, true)}</small></li>)}</ul>}
         <form action={commentTask} className={s.form} style={{ marginTop: 10 }}>{taskContextFields}<input type="hidden" name="task_id" value={detail.data.id} />
@@ -105,6 +122,12 @@ export default async function TasksPage({ searchParams }: { searchParams: Promis
           <div className={s.actions} style={{ justifyContent: "space-between" }}><Link href={taskHref(t.id)}><strong>{t.title}</strong></Link><span className={s.inline}><Tag lang={lang} value={t.priority} /><Tag lang={lang} value={t.status} />{isOverdue(t) && <span className={s.tag} data-tone="danger">{pick(lang, "Vencida", "Overdue")}</span>}</span></div>
           <span className={s.muted}>{[t.crm_clients?.legal_name, t.crm_departments?.label, t.due_at ? `${pick(lang, "vence", "due")} ${formatDate(lang, t.due_at, true)}` : null, `${pick(lang, "resp.", "owner")} ${ownerName(ownerList, t.assignee_id)}`].filter(Boolean).join(" · ")}</span>
           {statusForm(t)}
+          {OPEN.includes(t.status) && <form action={transitionTask} className={s.inline} style={{ marginTop: 8 }}>
+            {taskContextFields}
+            <input type="hidden" name="task_id" value={t.id} />
+            <input type="hidden" name="version" value={t.version} />
+            <button className={s.button} type="submit" name="operation" value="complete">{pick(lang, "Completar", "Complete")}</button>
+          </form>}
         </li>)}</ul>}
         <div className={s.actions} style={{ marginTop: 12 }}>{page > 0 && <Link className={s.button} href={taskHref(undefined, page - 1)}>{pick(lang, "Anterior", "Previous")}</Link>}{(page + 1) * PAGE < (tasks.count ?? 0) && <Link className={s.button} href={taskHref(undefined, page + 1)}>{pick(lang, "Siguiente", "Next")}</Link>}</div>
       </section>
