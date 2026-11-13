@@ -1,7 +1,8 @@
 name: Avalon security checks
 on:
   pull_request:
-    branches: [main]
+    # Stacked PRs must pass security CI before integration into main.
+    branches: [main, integration/avalon-v1, claude/crm-intelligence]
   push:
     branches: [main]
   schedule:
@@ -18,10 +19,10 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
         with:
           persist-credentials: false
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
         with:
           node-version: '22'
       - name: Full audit report (informational)
@@ -34,14 +35,13 @@ jobs:
     if: github.event_name == 'pull_request'
     runs-on: ubuntu-24.04
     timeout-minutes: 5
-    # Requires "Dependency graph" (Settings → Code security), which an admin must
-    # enable (finding R-09). Informational until then; npm audit above is the gate.
-    continue-on-error: true
+    # Blocking gate for newly introduced high/critical vulnerabilities.
+    # GitHub Dependency review was verified operational in Security Recovery CI.
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
         with:
           persist-credentials: false
-      - uses: actions/dependency-review-action@v4
+      - uses: actions/dependency-review-action@3c4e3dcb1aa7874d2c16be7d79418e9b7efd6261
         with:
           fail-on-severity: high
 
@@ -50,16 +50,16 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
         with:
           persist-credentials: false
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
         with:
           node-version: '22'
           cache: npm
       - run: npm ci --ignore-scripts
       - name: Static security, authorization and migration guards
-        run: node --test tests/security.test.cjs
+        run: node --test tests/security.test.cjs tests/security-reporting.test.cjs tests/security-workflow-pins.test.cjs
 
   codeql:
     name: CodeQL
@@ -70,13 +70,13 @@ jobs:
       security-events: write
       actions: read
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
         with:
           persist-credentials: false
-      - uses: github/codeql-action/init@v3
+      - uses: github/codeql-action/init@9418214df1f2c4b8128c770156c409013b07d6b9
         with:
           languages: javascript-typescript
           queries: security-extended
-      - uses: github/codeql-action/analyze@v3
+      - uses: github/codeql-action/analyze@9418214df1f2c4b8128c770156c409013b07d6b9
         with:
           category: "/language:javascript-typescript"

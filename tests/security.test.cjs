@@ -293,3 +293,27 @@ test('CI workflows use least-privilege tokens and never run untrusted code with 
   }
   assert.ok(fs.existsSync('.github/dependabot.yml'));
 });
+
+
+test('future public objects do not inherit broad Supabase API grants', () => {
+  const migration = read('supabase/migrations/20261112191000_future_public_default_acl.sql');
+  for (const kind of ['tables', 'sequences', 'functions']) {
+    assert.match(migration,
+      new RegExp('alter default privileges for role postgres in schema public\\s+revoke all on ' + kind + ' from anon, authenticated', 'i'));
+  }
+  assert.match(migration,
+    /alter default privileges for role postgres\s+revoke execute on functions from public/i);
+  assert.doesNotMatch(migration, /drop (table|function|schema)|truncate|delete from/i,
+    'future default privilege change must not mutate existing rows or objects');
+});
+
+test('Bridge status requires an import:create scope before any state transition', () => {
+  const migration = read('supabase/migrations/20261112190000_bridge_scope_hardening.sql');
+  assert.match(migration, /security definer\s+set search_path = ''/i);
+  assert.match(migration, /if p_mark_uploaded and not \('import:create' = any \(t\.scopes\)\) then[\s\S]*?insufficient_scope/);
+  const transition = migration.indexOf('update public.os_project_imports set status');
+  const guard = migration.indexOf('if p_mark_uploaded and not');
+  assert.ok(guard >= 0 && guard < transition, 'scope validation must run before an import update');
+  assert.match(read('tests/project-bridge.database.cjs'),
+    /read-only scoped token|Read-scoped tokens/i);
+});
