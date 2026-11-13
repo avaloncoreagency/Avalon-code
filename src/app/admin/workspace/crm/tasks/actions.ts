@@ -90,7 +90,7 @@ export async function commentTask(form: FormData) {
 function taskIdentity(form: FormData) {
   const id = uuidField(form, "task_id");
   const raw = field(form, "version");
-  if (!id || !/^(0|[1-9]\\d{0,9})$/.test(raw)) return null;
+  if (!id || !/^(0|[1-9]\d{0,9})$/.test(raw)) return null;
   const version = Number(raw);
   return Number.isSafeInteger(version) ? { id, version } : null;
 }
@@ -109,7 +109,7 @@ export async function saveTaskDetails(form: FormData) {
   // UTC instant is produced from a browser-local datetime and must round-trip.
   let due_at: string | null = null;
   if (dueIso) {
-    if (!/^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}\\.\\d{3}Z$/.test(dueIso) ||
+    if (!/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/.test(dueIso) ||
         !Number.isFinite(Date.parse(dueIso)) || new Date(dueIso).toISOString() !== dueIso) {
       back(PATH, { ...context, ...detail, error: "sale_invalid_date" });
     }
