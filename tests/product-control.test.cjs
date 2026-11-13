@@ -54,6 +54,9 @@ test('manual ZIP retries are scoped to the original request and recover lost net
   assert.match(importer,/file\.lastModified/);
   assert.match(importer,/j\.replayed === true && status === 409/);
   assert.match(importer,/retryable: true/);
+  assert.match(importer,/waitingForUpload/);
+  assert.match(importer,/j\.status === "busy"/);
+  assert.match(importer,/!waitingForUpload && !canRetryProcessing/);
 });
 test('module ZIP import and agent API inbox are scoped and owner-approved',()=>{
   const policy=read('src/lib/project-bridge/policy.ts');
