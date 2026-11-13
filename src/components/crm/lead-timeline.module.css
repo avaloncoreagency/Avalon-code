@@ -56,3 +56,17 @@
 @media (max-width: 700px) { .board { grid-auto-columns:minmax(78vw, 1fr); } .drawer { width:100%; border-left:0; } }
 @media (prefers-reduced-motion: reduce) { .column { transition:none; } }
 .inlineEdit { display:block; margin-top:4px; min-height:32px !important; font-size:12px !important; padding:2px 10px !important; }
+
+
+/* Lead drawer: the same private attachments available in the full lead record. */
+.attachmentShelf { list-style:none; display:grid; gap:8px; margin:8px 0 0; padding:0; }
+.attachmentCard { display:grid; grid-template-columns:48px minmax(0,1fr); gap:9px; min-width:0; padding:10px; background:#0b1a31; border:1px solid #2b4a75; border-radius:11px; }
+.attachmentThumb,.attachmentIcon { width:46px; height:46px; border-radius:8px; border:1px solid #395a80; object-fit:cover; background:#10233e; }
+.attachmentIcon { display:grid; place-items:center; font-size:22px; }
+.attachmentInfo { min-width:0; display:grid; gap:3px; }
+.attachmentInfo strong { font-size:14px; overflow-wrap:anywhere; color:#e6f1ff; }
+.attachmentInfo small { font-size:12px; color:#9fb3cf; }
+.attachmentInfo span { white-space:pre-wrap; overflow-wrap:anywhere; font-size:13px; }
+.attachmentLinks { grid-column:1 / -1; display:flex; gap:8px; }
+.attachmentLinks a { display:inline-flex; align-items:center; justify-content:center; min-height:42px; flex:1 1 120px; padding:6px 10px; border:1px solid #416892; border-radius:9px; color:#e0f3ff; text-decoration:none; }
+.attachmentLinks a:focus-visible { outline:3px solid #22d3ee; outline-offset:2px; }

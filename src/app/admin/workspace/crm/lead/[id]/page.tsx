@@ -2,7 +2,8 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { Suite } from "@/components/suite/suite";
 import { OpsHeader, ownerName, q, UUID_RE, type Query } from "@/components/sales/ui";
-import { TzOffset } from "@/components/sales/tz-offset";
+import { LeadInteractionForm } from "@/components/crm/lead-interaction-form";
+import { LeadAttachments, type LeadAttachment } from "@/components/crm/lead-attachments";
 import { ContractUpload } from "@/components/crm/intel/contract-upload";
 import { requireOwner } from "@/lib/auth/session";
 import { getLang } from "@/lib/i18n-server";
@@ -15,7 +16,7 @@ import { progress } from "@/lib/crm/intel/form";
 import { recommend } from "@/lib/crm/intel/recommendations";
 import { legalOf, extractFacts, type CategoryResult } from "@/lib/crm/intel/scoring";
 import type { Answers } from "@/lib/crm/intel/types";
-import { adjustScore, createContract, decideRecommendation, logInteraction, saveTerms, transitionContract, updateLeadMeta } from "../actions";
+import { adjustScore, createContract, decideRecommendation, saveTerms, transitionContract, updateLeadMeta } from "../actions";
 import s from "@/components/sales/sales.module.css";
 import x from "@/components/crm/intel/intel.module.css";
 export const dynamic = "force-dynamic";
@@ -62,7 +63,7 @@ export default async function LeadPage({ params, searchParams }: { params: Promi
     run<Rec[]>(supabase.from("crm_lead_recommendations").select("*").eq("lead_id", id).order("created_at")),
     run<Terms[]>(supabase.from("crm_commercial_terms").select("*").eq("lead_id", id)),
     run<Contract[]>(supabase.from("crm_contracts").select("*").eq("lead_id", id).order("created_at", { ascending: false })),
-    run<{ id: string; filename: string; created_at: string }[]>(supabase.from("crm_attachments").select("id,filename,created_at").eq("lead_id", id).order("created_at", { ascending: false })),
+    run<LeadAttachment[]>(supabase.from("crm_attachments").select("id,filename,mime,size_bytes,note,created_by,created_at").eq("lead_id", id).order("created_at", { ascending: false }).limit(500)),
     run<{ id: string; body: string; kind: string; status: string; due_at: string | null; created_by: string; created_at: string }[]>(supabase.from("crm_activities").select("id,body,kind,status,due_at,created_by,created_at").eq("lead_id", id).order("created_at", { ascending: false }).limit(40)),
     run<{ id: string; operation: string; actor_id: string; before_data: Record<string, unknown> | null; after_data: Record<string, unknown>; created_at: string }[]>(supabase.from("crm_audit").select("id,operation,actor_id,before_data,after_data,created_at").eq("record_id", id).order("created_at", { ascending: false }).limit(40)),
     run<{ id: string; changes: Record<string, unknown>; conflicts: string[]; changed_by: string; created_at: string }[]>(supabase.from("crm_lead_assessment_revisions").select("id,changes,conflicts,changed_by,created_at").eq("lead_id", id).order("created_at", { ascending: false }).limit(40)),
@@ -91,7 +92,7 @@ export default async function LeadPage({ params, searchParams }: { params: Promi
         <OpsHeader lang={lang} active="" crm="desk" eyebrow={`${industryLabel(lead.industry_key, lang)} · ${(lead.crm_stages as { label: string } | null)?.label ?? lead.stage_id}`} title={lead.company}
           lead={pick(lang, `Responsable: ${who(lead.owner_id)} · Creado por ${who(lead.created_by)} el ${formatDate(lang, lead.created_at)} · Última actualización ${formatDate(lang, lead.updated_at, true)}`,
             `Owner: ${who(lead.owner_id)} · Created by ${who(lead.created_by)} on ${formatDate(lang, lead.created_at)} · Last update ${formatDate(lang, lead.updated_at, true)}`)}
-          actions={<><Link className={`${s.button} ${s.primary}`} href={`${base}/discovery`}>{pick(lang, "Diagnóstico", "Discovery")}</Link><Link className={s.button} href="/admin/workspace/crm/desk">{pick(lang, "Mesa comercial", "Sales desk")}</Link></>} />
+          actions={<><Link className={`${s.button} ${s.primary}`} href={`${base}/discovery`}>{pick(lang, "Diagnóstico", "Discovery")}</Link><Link className={s.button} href={`${base}?tab=summary#lead-attachments`}>{pick(lang, "Archivos adjuntos", "Attachments")}{files.error ? "" : ` (${files.data?.length ?? 0})`}</Link><Link className={s.button} href="/admin/workspace/crm/desk">{pick(lang, "Mesa comercial", "Sales desk")}</Link></>} />
         {ok && <p className={s.flash} data-tone="ok" role="status">{ok === "created" ? pick(lang, "Lead creado. Completa el diagnóstico cuando tengas la información.", "Lead created. Complete the diagnosis when you have the information.") : pick(lang, "Cambios guardados en Avalon.", "Changes saved in Avalon.")}</p>}
         {err && <p className={s.flash} data-tone="error" role="alert">{intelErrorText(lang, err)}</p>}
         <nav className={x.tabs} aria-label={pick(lang, "Secciones del lead", "Lead sections")}>
@@ -165,17 +166,7 @@ export default async function LeadPage({ params, searchParams }: { params: Promi
           <div className={x.split}>
             <section className={s.panel} aria-labelledby="log-title">
               <h2 id="log-title">{pick(lang, "Después de la llamada", "After the call")}</h2>
-              <form action={logInteraction} className={s.form}>
-                <input type="hidden" name="lead" value={id} /><input type="hidden" name="version" value={lead.version} /><TzOffset />
-                <div className={s.row}>
-                  <label className={s.field}><span>{pick(lang, "Tipo", "Type")}</span><select name="kind" defaultValue="call">
-                    {[["call", "Llamada", "Call"], ["meeting", "Reunión", "Meeting"], ["whatsapp", "WhatsApp", "WhatsApp"], ["email", "Correo", "Email"], ["note", "Nota interna", "Internal note"]].map(([v, es, en]) => <option key={v} value={v}>{pick(lang, es, en)}</option>)}</select></label>
-                  <label className={s.field}><span>{pick(lang, "Próximo contacto", "Next contact")}</span><input type="datetime-local" name="next_at" /></label>
-                  <label className={s.field}><span>{pick(lang, "Próxima acción", "Next action")}</span><input name="next_action" maxLength={300} defaultValue={lead.next_action} /></label>
-                </div>
-                <label className={s.field}><span>{pick(lang, "Resultado / notas", "Result / notes")}</span><textarea name="body" rows={3} maxLength={4000} /></label>
-                <div className={s.actions}><button className={`${s.button} ${s.primary}`}>{pick(lang, "Registrar", "Log it")}</button></div>
-              </form>
+              <LeadInteractionForm leadId={id} version={lead.version} nextAction={lead.next_action} lang={lang} />
             </section>
 
             <section className={s.panel} aria-labelledby="assign-title">
@@ -201,6 +192,7 @@ export default async function LeadPage({ params, searchParams }: { params: Promi
               </form>
             </section>
           </div>
+          <LeadAttachments leadId={id} lang={lang} files={files.data ?? []} unavailable={!!files.error} />
         </>}
 
         {tab === "recs" && <section className={s.panel} aria-labelledby="recs-title">

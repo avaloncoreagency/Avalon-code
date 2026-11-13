@@ -37,7 +37,10 @@ test("pipeline routes: owner session, same-origin writes, safe download headers"
     assert.doesNotMatch(src, /service_role|SERVICE_ROLE/, f);
   }
   const dl = fs.readFileSync("src/app/admin/workspace/crm/pipeline/files/[id]/route.ts", "utf8");
-  assert.match(dl, /Content-Disposition": `attachment;/);
+  assert.match(dl, /Content-Disposition": `\$\{disposition\};/);
+  assert.match(dl, /VIEWABLE_MIMES/);
+  assert.match(dl, /preview/);
+  assert.match(dl, /Cross-Origin-Resource-Policy/);
   assert.match(dl, /nosniff/);
   assert.match(dl, /sandbox/);
   const up = fs.readFileSync("src/app/admin/workspace/crm/pipeline/files/route.ts", "utf8");
