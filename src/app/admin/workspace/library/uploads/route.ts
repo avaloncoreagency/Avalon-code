@@ -1,5 +1,5 @@
 import { getOwnerSession } from "@/lib/auth/session";
-import { BRIDGE_BUCKET, BRIDGE_LIMITS, CATEGORIES, SOURCE_TOOLS, type Category } from "@/lib/project-bridge/policy";
+import { BRIDGE_BUCKET, BRIDGE_LIMITS, CATEGORIES, SOURCE_TOOLS, bridgeCategoryEnabled, type Category } from "@/lib/project-bridge/policy";
 import { readJson, reply, sameOrigin, str, UUID } from "@/lib/project-bridge/http";
 
 export const dynamic = "force-dynamic";
@@ -26,6 +26,8 @@ export async function POST(req: Request) {
   if (!name || !ext) return reply({ error: "unsupported_upload_type" }, 400);
   if (size < 1 || size > BRIDGE_LIMITS.archiveBytes) return reply({ error: "archive_too_large" }, 413);
   if (!category || !CATEGORIES.includes(category)) return reply({ error: "invalid_category" }, 400);
+  if (!bridgeCategoryEnabled(category,process.env.AVALON_PRODUCT_CONTROL_EXTENDED_UPLOADS === "true"))
+    return reply({ error: "category_not_enabled" }, 409);
   if (!(SOURCE_TOOLS as readonly string[]).includes(sourceTool)) return reply({ error: "invalid_source_tool" }, 400);
   if (!key || key.length < 8) return reply({ error: "invalid_idempotency_key" }, 400);
   if (projectId !== null && !UUID.test(projectId)) return reply({ error: "invalid_project" }, 400);

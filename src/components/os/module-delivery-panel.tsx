@@ -2,7 +2,7 @@ import Link from "next/link";
 import { requireOwner } from "@/lib/auth/session";
 import { pick, type Lang } from "@/lib/i18n";
 import { bridgeMessages } from "@/lib/project-bridge/messages";
-import { CATEGORY_LABEL, type Category } from "@/lib/project-bridge/policy";
+import { CATEGORY_LABEL, bridgeCategoryEnabled, type Category } from "@/lib/project-bridge/policy";
 import { Importer, ProcessButton } from "@/components/library/importer";
 import { assignPendingImport } from "@/app/admin/workspace/product-delivery-actions";
 import { Panel } from "./ui";
@@ -10,12 +10,11 @@ import s from "./os.module.css";
 
 type DeliveryRow = { id: string; status: string; original_name: string; source_tool: string; project_id: string | null; created_at: string };
 type ProductOption = { id: string; name: string };
-const ORIGINAL_CATEGORIES = new Set<Category>(["website","ecommerce","crm_creator","apps"]);
 
 /** Shared Bridge, separate module portfolios. Extended categories are disabled pending reviewed SQL approval. */
 export async function ModuleDeliveryPanel({ lang, module }: { lang: Lang; module: Category }) {
   const { supabase } = await requireOwner();
-  const enabled = ORIGINAL_CATEGORIES.has(module) || process.env.AVALON_PRODUCT_CONTROL_EXTENDED_UPLOADS === "true";
+  const enabled = bridgeCategoryEnabled(module,process.env.AVALON_PRODUCT_CONTROL_EXTENDED_UPLOADS === "true");
   const [rows, projects] = await Promise.all([
     supabase.from("os_project_imports").select("id,status,original_name,source_tool,project_id,created_at")
       .eq("category",module).order("created_at",{ascending:false}).limit(30),

@@ -87,7 +87,7 @@ export async function createProject(form: FormData) {
   const settings = {
     ...initialSettings(moduleKey.value, form),
     operations: { ...metadata, client_lead_id: leadId },
-    product_control: { source_tool: source.value, mode: "external_reference", recorded_at: new Date().toISOString() },
+    product_control: { source_tool: source.value, mode: metadata.url ? "external_reference" : "pending_delivery", recorded_at: new Date().toISOString() },
     ...(creativeRef ? { creative: { provider: "higgsfield", external_ref: creativeRef,
       state: "reference_only", added_at: new Date().toISOString() } } : {}),
   };

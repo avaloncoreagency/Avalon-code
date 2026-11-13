@@ -41,8 +41,8 @@ export function CommunicationsPortfolio({ groups, lang, page, loaded, total }: {
       </div>
       <span className={s.muted}>{t("Actualizado","Updated")} {formatDate(lang,p.updated_at)}</span>
       <div className={s.projectActions}>
-        <Link href={href}>{t("Administrar agente","Manage agent")}</Link>
-        {p.module === "chatbots" && <Link href={href + "/studio"}>{t("Abrir constructor","Open builder")}</Link>}
+        <Link href={`/admin/workspace/products/${p.id}`}>{t("Abrir ficha, errores y versiones","Open record, issues and versions")}</Link>
+        <Link href={href}>{t("Configuración existente","Existing configuration")}</Link>
       </div>
     </li>;
   };

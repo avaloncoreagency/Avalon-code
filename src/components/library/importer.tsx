@@ -83,7 +83,7 @@ export function Importer({ lang, projectId, defaultCategory = "website", lockedC
         <label>{t.name}<input name="projectName" maxLength={120} disabled={busy}/></label>
       </div>}
       {(projectId || lockedCategory) && <input type="hidden" name="category" value={lockedCategory ?? defaultCategory} />}
-      <label>{t.tool}<select name="sourceTool" defaultValue="chatgpt" disabled={busy}>{TOOLS.map(([v, l]) => <option key={v} value={v}>{l}</option>)}</select></label>
+      <label>{t.tool}<select name="sourceTool" defaultValue="manual" disabled={busy}>{TOOLS.map(([v, l]) => <option key={v} value={v}>{l}</option>)}</select></label>
       <button className={s.primary} disabled={busy}>{t.go}</button>
       <div aria-live="polite" className={s.status}>
         {phase.kind === "uploading" && <><span>{t.up} {phase.pct}%</span><progress max={100} value={phase.pct} /></>}

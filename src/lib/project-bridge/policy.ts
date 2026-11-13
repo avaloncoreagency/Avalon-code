@@ -25,6 +25,12 @@ export const BRIDGE_LIMITS = {
 } as const;
 
 export const BRIDGE_BUCKET = "avalon-projects";
+/** Extended categories require a separately reviewed, applied SQL migration. UI is not an authorization boundary. */
+export const BRIDGE_LEGACY_CATEGORIES = ["website","ecommerce","crm_creator","apps"] as const;
+export function bridgeCategoryEnabled(category: string, extended = false): boolean {
+  return (BRIDGE_LEGACY_CATEGORIES as readonly string[]).includes(category) ||
+    (extended && ["receptionist","chatbots","marketing"].includes(category));
+}
 
 export type Category = "website" | "ecommerce" | "crm_creator" | "receptionist" | "chatbots" | "marketing" | "apps";
 export const CATEGORIES: readonly Category[] = ["website", "ecommerce", "crm_creator", "receptionist", "chatbots", "marketing", "apps"];
