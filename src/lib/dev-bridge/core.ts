@@ -116,11 +116,22 @@ export async function github(config:Config, since?:string, previous?:Github, api
     // Avoid one redundant HTTP request per PR (often dozens in Avalon).
     const detail=p.head && p.base && typeof p.title==='string' ? p : row(await api.get(base+`/pulls/${n}`));
     const head=row(detail.head), baseRef=row(detail.base), sha=str(head.sha);
+    // File paths and divergence are immutable for the same head/base SHAs.
+    // Reuse ONLY a previously authenticated full snapshot with the exact same
+    // PR update timestamp; public summaries intentionally have no such proof.
+    // Checks and reviews remain live on every synchronization: a newly failed
+    // workflow or a revoked approval must never be hidden by cached metadata.
+    const currentBase=str(baseRef.sha), updatedAt=str(detail.updated_at);
+    const previousPull=previous?.coverage==='full'?previous.pulls.find(pr=>pr.number===n):undefined;
+    const canReuse=!!(previousPull && previousPull.files.length && updatedAt &&
+      previousPull.head_sha===sha && previousPull.base_sha===currentBase &&
+      previousPull.updated_at===updatedAt && previousPull.branch===str(head.ref) &&
+      previousPull.base_branch===str(baseRef.ref));
     const [files,checks,reviews,comparison]=await Promise.all([
-      api.pages(base+`/pulls/${n}/files`),
+      canReuse ? Promise.resolve(previousPull!.files) : api.pages(base+`/pulls/${n}/files`).then(rows=>rows.map(f=>str(f.filename))),
       api.get(base+`/commits/${sha}/check-runs?per_page=100`),
       api.pages(base+`/pulls/${n}/reviews`),
-      api.get(base+`/compare/${encodeURIComponent(str(head.ref))}...${encodeURIComponent(str(baseRef.ref))}`),
+      canReuse ? Promise.resolve(previousPull!.behind) : api.get(base+`/compare/${encodeURIComponent(str(head.ref))}...${encodeURIComponent(str(baseRef.ref))}`).then(value=>Number(row(value).ahead_by??0)),
     ]);
     // Recent main commits come from the first /commits read. PR heads
     // already carry their verified SHA and need no expensive commit histories.
@@ -134,7 +145,7 @@ export async function github(config:Config, since?:string, previous?:Github, api
     const ci=!Number.isFinite(total)||total>100||!runs.length?'UNKNOWN'
       :runs.some(r=>['failure','cancelled','timed_out','action_required'].includes(str(r.conclusion)))?'FAILED'
       :runs.every(r=>['success','skipped','neutral'].includes(str(r.conclusion)))?'PASSED':'PENDING';
-    return {number:n,title:redact(str(detail.title)),branch:str(head.ref),base_branch:str(baseRef.ref),base_sha:str(baseRef.sha),head_sha:sha,url:str(detail.html_url),files:files.map(f=>str(f.filename)),ci,reviews:reviews.map(r=>str(r.state)),conflict:typeof detail.mergeable==='boolean' ? !detail.mergeable : null,behind:Number(row(comparison).ahead_by??0),issues:issueRefsFromBody(str(detail.body)),updated_at:str(detail.updated_at)};
+    return {number:n,title:redact(str(detail.title)),branch:str(head.ref),base_branch:str(baseRef.ref),base_sha:str(baseRef.sha),head_sha:sha,url:str(detail.html_url),files,ci,reviews:reviews.map(r=>str(r.state)),conflict:typeof detail.mergeable==='boolean' ? !detail.mergeable : null,behind:comparison,issues:issueRefsFromBody(str(detail.body)),updated_at:updatedAt};
   };
   for(let index=0;index<prs.length;index+=5) {
     const batch=await Promise.all(prs.slice(index,index+5).map(p=>inspectPull(p)));
