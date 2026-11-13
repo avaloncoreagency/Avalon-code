@@ -139,8 +139,8 @@ export function Office({ lang }: { lang: Lang }) {
   return (
     <div className={s.office}>
       {hq}
-      <p className={s.sceneHint}>{t("Toca un manager, un puesto o a una persona en la sede. Dirección: verde disponible, ámbar ocupado en calendario, rojo fuera de horario (no indica conexión en línea). Los managers solo se animan durante una ejecución real.",
-        "Tap a manager, a seat or a person in the HQ. Direction: green available, amber busy on the calendar, red off hours (not an online signal). Managers only animate during a real run.")}</p>
+      <p className={s.sceneHint}>{t("Toca una persona o un puesto en la sede. Verde: disponible, amarillo: ocupado en calendario y rojo: fuera de horario. No indica conexión en línea.",
+        "Tap a person or desk in HQ. Green: available, amber: calendar busy, red: out of hours. This is not an online status signal.")}</p>
       <header className={s.hero}>
         <div>
           <p className={s.eyebrow}>Avalon Headquarters</p>
@@ -159,7 +159,6 @@ export function Office({ lang }: { lang: Lang }) {
         <label>{t("Rol", "Role")}<select value={role} onChange={e => setRole(e.target.value)}>
           <option value="all">{t("Todos", "All")}</option>
           {[...new Set(data.members.map(m => m.role))].map(r => <option key={r} value={r}>{t(...ROLE[r] ?? [r, r])}</option>)}
-          <option value="ai">{t("Managers de IA", "AI managers")}</option>
         </select></label>
         <label>{t("Departamento", "Department")}<select value={department} onChange={e => setDepartment(e.target.value)} disabled={!departments.length}>
           <option value="all">{departments.length ? t("Todos", "All") : t("Sin departamentos", "No departments")}</option>
@@ -174,18 +173,19 @@ export function Office({ lang }: { lang: Lang }) {
       <section className={s.directory} aria-label={t("Directorio", "Directory")}>
         <h2>{t("Personas", "People")} <small>{members.length}</small></h2>
         <div className={s.grid}>{members.map(card)}{!members.length && <p className={s.empty}>{t("Nadie coincide con los filtros.", "Nobody matches the filters.")}</p>}</div>
-        {managers.length > 0 && <><h2>{t("Managers virtuales de IA", "Virtual AI managers")} <small>{managers.length}</small></h2><div className={s.grid}>{managers.map(agentCard)}</div></>}
+        {managers.length > 0 && <details className={s.defs}>
+          <summary>{t("Herramientas futuras · managers de IA (no prioritario)", "Future tools · AI managers (not prioritized)")}</summary>
+          <p>{t("Se conserva su configuración histórica; no forma parte de la operación diaria de los propietarios.", "Historical configuration is preserved; these are not part of daily owner operations.")}</p>
+          <div className={s.grid}>{managers.map(agentCard)}</div>
+        </details>}
       </section>
 
       <section className={s.kpis} aria-label={t("Estadísticas de la Oficina", "Office statistics")}>
         <Kpi label={t("Miembros humanos", "Human members")} value={data.members.length} />
-        <Kpi label={t("Managers virtuales configurados", "Virtual managers configured")} value={data.managers.length} />
         <Kpi label={t("Tareas activas", "Active tasks")} value={data.tasksReady ? (filtered ? totals.open : data.team.active) : null} />
         <Kpi label={t("Tareas vencidas", "Overdue tasks")} value={data.tasksReady ? (filtered ? totals.overdue : data.team.overdue) : null} tone={(filtered ? totals.overdue : data.team.overdue) > 0 ? "danger" : undefined} />
         <Kpi label={t("Completadas en el periodo", "Completed in period")} value={data.tasksReady ? (filtered ? totals.done : data.team.done) : null} />
         <Kpi label={t("Proyectos activos", "Active projects")} value={data.team.projects} />
-        <Kpi label={t("Agentes con integración", "Agents with integration")} value={data.managers.filter(m => m.status === "available").length} />
-        <Kpi label={t("Agentes sin conexión", "Agents offline")} value={data.managers.filter(m => m.status !== "available").length} tone="muted" />
       </section>
 
       <div className={s.lower}>
