@@ -58,3 +58,30 @@ test('server action rejects stale versions before updating',async()=>{const h=ac
 test('server action enforces archived read-only',async()=>{const h=actionHarness({status:'archived'});await assert.rejects(h.actions.saveProductOperation(h.form),/denied/);assert.equal(h.writes.length,0);});
 test('server action uses project ID, module and optimistic version filters',async()=>{const h=actionHarness();await assert.rejects(h.actions.saveProductOperation(h.form),/:saved$/);assert.equal(h.writes.length,1);assert.ok(h.calls.some(v=>Array.isArray(v)&&v[0]==='version'&&v[1]===3));assert.ok(h.calls.some(v=>Array.isArray(v)&&v[0]==='module'&&v[1]==='website'));assert.equal(h.writes[0].settings.client_hud.requests[0].created_by,B);});
 test('concurrent update is reported, never claimed saved',async()=>{const h=actionHarness({conflict:true});await assert.rejects(h.actions.saveProductOperation(h.form),/conflict/);});
+
+// Product Control: richer issues preserve all legacy schema:1 records without a migration.
+test('rich issue accepts priority, assignee, evidence and checklist without erasing older fields',()=>{
+ const s=apply({currency:'USD'},'request',{title:'Mobile header broken',details:'On iPhone menu overlaps',kind:'bug',severity:'P0',assignee_id:A,expected:'Clean layout',actual:'Overflow',reproduction:'Open at 390px',evidence:'https://example.com/issue',checklist:'Reproduce on iPhone\\nFix and verify'});
+ const r=d.readProductState(s.client_hud).requests[0];
+ assert.equal(r.priority,'urgent');assert.equal(r.severity,'P0');assert.equal(r.kind,'bug');assert.equal(r.assignee_id,A);
+ assert.equal(r.items.length,2);assert.equal(r.items[0].done,false);assert.equal(s.currency,'USD');
+});
+test('issue notes, checklist and safe reopening have owner-bound evidence',()=>{
+ let s=apply({},'request',{...req,kind:'bug',severity:'P1'});
+ s=apply(s,'request_add_item',{request_id:B,item:'Verify mobile nav'},'website',C);
+ s=apply(s,'request_item_status',{request_id:B,item_id:'i0',done:'true'},'website',C);
+ s=apply(s,'request_note',{request_id:B,body:'Reproduced in isolated preview'},'website',C);
+ let r=d.readProductState(s.client_hud).requests[0];
+ assert.equal(r.items[0].done,true);assert.equal(r.notes[0].author,A);assert.equal(r.notes[0].body,'Reproduced in isolated preview');
+ for(const status of ['approved','in_progress','review','done'])s=apply(s,'status',{request_id:B,status},'website',C);
+ s=apply(s,'reopen',{request_id:B},'website',C);
+ r=d.readProductState(s.client_hud).requests[0];assert.equal(r.status,'in_progress');assert.equal(r.notes.length,1);
+});
+test('legacy issue remains readable and malformed rich state is refused',()=>{
+ let s=apply();const legacy=s.client_hud.requests[0];delete legacy.kind;delete legacy.severity;
+ assert.equal(d.readProductState(s.client_hud).requests[0].severity,'P2');
+ assert.throws(()=>apply({},'request',{...req,kind:'bug',severity:'P9'}));
+ assert.throws(()=>apply({},'request',{...req,kind:'bug',severity:'P0',assignee_id:'invalid'}));
+ const invalid=structuredClone(s);invalid.client_hud.requests[0].notes=[{id:'bad',body:'x',author:A,created_at:NOW}];
+ assert.throws(()=>d.readProductState(invalid.client_hud));
+});
