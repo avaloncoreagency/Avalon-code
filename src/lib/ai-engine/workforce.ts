@@ -25,9 +25,10 @@ export const WORKFORCE: WorkerProfile[] = [
   { key: "ren", name: "REN", department: "Dirección y desarrollo", status: "active",
     objectives: [
       { id: "ren.plan", text: "Plan operativo diario priorizado a partir de los otros cuatro managers", kpi: "misión diaria completada" },
-      { id: "ren.dev", text: "Descubrir y resolver tareas de desarrollo de bajo riesgo en rama propia con pruebas", kpi: "PR borrador con CI verde / semana" },
     ],
-    executors: [sql("operations_plan"), { id: "ren.dev_task", kind: "github_worker", effect: "branch_pr", ref: ".github/workflows/ai-engine.yml#ren-dev-task", requiresApproval: true }],
+    // Operation Phoenix (2026-11-13): REN's autonomous GitHub executor (own branch + draft PR) was retired by the owners.
+    // REN keeps only the read-only operations plan; no executor can open PRs or tasks on its own.
+    executors: [sql("operations_plan")],
     ai: { requirements: { caps: ["code", "json"], minQuality: 3, minContext: 16000 }, dataClasses: ["public_repo", "synthetic"] } },
   { key: "shin", name: "SHIN", department: "Seguridad e infraestructura", status: "active",
     objectives: [{ id: "shin.posture", text: "Revisar la postura de seguridad y señalar regresiones", kpi: "hallazgos abiertos por severidad" }],
