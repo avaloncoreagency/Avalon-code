@@ -20,6 +20,7 @@ const F = load("src/lib/crm/intel/form.ts");
 const S = load("src/lib/crm/intel/scoring.ts");
 const R = load("src/lib/crm/intel/recommendations.ts");
 const I = load("src/lib/crm/intel/industries.ts");
+const C = load("src/lib/crm/intel/reconcile.ts");
 
 const A = (v) => ({ v, s: "answered" });
 const U = { s: "unknown" };
@@ -220,4 +221,27 @@ test("Smoke Shop: restricted products → legal 'restricted', no paid-ads recomm
   const recs = R.recommend("smoke_shop", s).map(x => x.ruleId);
   assert.ok(recs.includes("ads_restricted") && recs.includes("inventory"));
   assert.ok(!recs.includes("evaluate_ads"), "a great score never overrides a legal restriction");
+});
+
+// Ported from PR #168 (CRM Intelligence V2): stale automatic recommendations are reconciled without touching human decisions.
+test("reconciliation withdraws only stale suggested rules, preserving human decisions", () => {
+  const existing = [
+    {id:"1", rule_id:"evaluate_ads", status:"suggested", note:"", decided_by:null, version:3},
+    {id:"2", rule_id:"website", status:"accepted", note:"Approved", decided_by:"owner", version:1},
+    {id:"3", rule_id:"follow_up", status:"dismissed", note:"Not right now", decided_by:"owner", version:4},
+    {id:"4", rule_id:"missed_calls", status:"edited", note:"Manual edit", decided_by:"owner", version:2}
+  ];
+  const result = C.reconcileRecommendations(existing, [{ruleId:"follow_up"}]);
+  assert.deepEqual(result.changes, [{id:"1",version:3,ruleId:"evaluate_ads",action:"withdraw"}]);
+  assert.deepEqual(result.humanReview.sort(), ["missed_calls","website"]);
+});
+
+test("previously auto-withdrawn rules can return without restoring manually dismissed rules", () => {
+  const existing = [
+    {id:"1",rule_id:"evaluate_ads",status:"dismissed",note:C.AUTO_WITHDRAW_NOTE,decided_by:null,version:5},
+    {id:"2",rule_id:"website",status:"dismissed",note:"Owner said no",decided_by:"owner",version:2}
+  ];
+  const r = C.reconcileRecommendations(existing, [{ruleId:"evaluate_ads"},{ruleId:"website"}]);
+  assert.deepEqual(r.changes,[{id:"1",version:5,ruleId:"evaluate_ads",action:"restore"}]);
+  assert.deepEqual(r.humanReview,[]);
 });
