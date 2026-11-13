@@ -4,6 +4,7 @@ import { exactCompanyName, parseCreativeRef, resolveOrCreateProductLead } from "
 import { revalidatePath } from "next/cache";
 import { back, field, ownerForAction, uuidField } from "@/lib/os/actions";
 import { mapDbError } from "@/lib/os/data";
+import { SOURCE_TOOLS } from "@/lib/project-bridge/policy";
 import {
   BLUEPRINT_TEMPLATES, CURRENCIES, MODULE_KEYS, PROJECT_STATUSES, cleanText, emptyBlueprint, oneOf, type ModuleKey,
 } from "@/lib/os/domain";
@@ -50,6 +51,8 @@ export async function createProject(form: FormData) {
   const { supabase, userId } = await ownerForAction();
   const name = cleanText(field(form, "name"), { min: 1, max: 120 });
   const description = cleanText(field(form, "description"), { max: 2000 });
+  const source = oneOf(field(form,"source_tool") || "manual", SOURCE_TOOLS);
+  if (!source.ok) back(base,{error:"invalid"});
   if (!name.ok) back(base, { error: name.error });
   if (!description.ok) back(base, { error: description.error });
   // Existing owner-led project flow remains unchanged when Higgsfield fields
@@ -84,6 +87,7 @@ export async function createProject(form: FormData) {
   const settings = {
     ...initialSettings(moduleKey.value, form),
     operations: { ...metadata, client_lead_id: leadId },
+    product_control: { source_tool: source.value, mode: "external_reference", recorded_at: new Date().toISOString() },
     ...(creativeRef ? { creative: { provider: "higgsfield", external_ref: creativeRef,
       state: "reference_only", added_at: new Date().toISOString() } } : {}),
   };

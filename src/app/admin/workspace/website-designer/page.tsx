@@ -16,8 +16,8 @@ export default async function WebsiteDesignerPage({ searchParams }: { searchPara
   const projects = await listProjects(supabase, "website", { includeArchived: showArchived });
   return (
     <Suite active="website-designer">
-      <PageHeader eyebrow="Website Designer" title={pick(lang, "Proyectos web", "Web projects")}
-        description={pick(lang, "Gestiona webs de clientes, responsables, repositorios y tareas. Las páginas locales son recursos de Avalon; editar o publicar un sitio externo requiere su conexión autorizada.", "Manage client websites, owners, repositories and tasks. Local pages are Avalon resources; editing or publishing an external site requires its authorized connection.")} />
+      <PageHeader eyebrow="Website Designer" title={pick(lang, "Mis Websites", "My Websites")}
+        description={pick(lang, "Registra websites creados con Claude, Codex u otras herramientas. Abre su URL, conserva versiones y anota errores sin generar websites aquí.", "Register websites built with Claude, Codex or other tools. Open their URL, save versions and track issues without generating websites here.")} />
       <Flash lang={lang} ok={param(params, "ok")} error={param(params, "error")} />
       <ProjectsIndex lang={lang} module="website" base="/admin/workspace/website-designer" projects={projects} noun={{ es: "proyectos web", en: "web projects" }} showArchived={showArchived} />
     </Suite>

@@ -18,8 +18,8 @@ export default async function EcommerceDesignerPage({ searchParams }: { searchPa
   const projects = await listProjects(supabase, "ecommerce", { includeArchived: showArchived });
   return (
     <Suite active="ecommerce-designer">
-      <PageHeader eyebrow="E-commerce Designer" title={pick(lang, "Tiendas en línea", "Online stores")}
-        description={pick(lang, "Gestiona catálogos de proyectos de tienda: productos, categorías, precios, inventario e imágenes. Sin pagos reales y sin tocar la tienda pública actual.", "Manage store project catalogs: products, categories, pricing, inventory and images. No real payments and no changes to the current public store.")} />
+      <PageHeader eyebrow="E-commerce Designer" title={pick(lang, "Mis Tiendas", "My Stores")}
+        description={pick(lang, "Administra tiendas creadas fuera de Avalon: URL, hosting, archivos, versiones y mantenimiento. Sin gestionar pagos externos sin conexión autorizada.", "Manage externally built stores: URL, hosting, files, versions and maintenance. No external payments without an authorized integration.")} />
       <Flash lang={lang} ok={param(params, "ok")} error={param(params, "error")} />
       <ProjectsIndex lang={lang} module="ecommerce" base="/admin/workspace/ecommerce-designer" projects={projects} noun={{ es: "tiendas", en: "stores" }} showArchived={showArchived}
         createFields={

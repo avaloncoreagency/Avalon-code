@@ -3,6 +3,7 @@
 // real progress, then the server validates and registers it. Every state the user sees is a state the server returned.
 import { useRef, useState } from "react";
 import Link from "next/link";
+import type { Category } from "@/lib/project-bridge/policy";
 import s from "./library.module.css";
 
 type Lang = "es" | "en";
@@ -34,7 +35,7 @@ function put(url: string, file: File, type: string, onPct: (n: number) => void) 
   });
 }
 
-export function Importer({ lang, projectId, defaultCategory = "website", messages }: { lang: Lang; projectId?: string; defaultCategory?: string; messages: Record<string, string> }) {
+export function Importer({ lang, projectId, defaultCategory = "website", lockedCategory, messages }: { lang: Lang; projectId?: string; defaultCategory?: string; lockedCategory?: Category; messages: Record<string, string> }) {
   const t = T[lang];
   const [phase, setPhase] = useState<Phase>({ kind: "idle" });
   const key = useRef<string>("");
@@ -77,18 +78,18 @@ export function Importer({ lang, projectId, defaultCategory = "website", message
         <span>{t.file}</span>
         <input name="file" type="file" accept=".zip,.html,.htm,application/zip,text/html" required disabled={busy} />
       </label>
-      {!projectId && <div className={s.row}>
+      {!projectId && !lockedCategory && <div className={s.row}>
         <label>{t.category}<select name="category" defaultValue={defaultCategory} disabled={busy}>{CATS.map(([v, l]) => <option key={v} value={v}>{l}</option>)}</select></label>
         <label>{t.name}<input name="projectName" maxLength={120} disabled={busy} /></label>
       </div>}
-      {projectId && <input type="hidden" name="category" value={defaultCategory} />}
+      {(projectId || lockedCategory) && <input type="hidden" name="category" value={lockedCategory ?? defaultCategory} />}
       <label>{t.tool}<select name="sourceTool" defaultValue="chatgpt" disabled={busy}>{TOOLS.map(([v, l]) => <option key={v} value={v}>{l}</option>)}</select></label>
       <button className={s.primary} disabled={busy}>{t.go}</button>
       <div aria-live="polite" className={s.status}>
         {phase.kind === "uploading" && <><span>{t.up} {phase.pct}%</span><progress max={100} value={phase.pct} /></>}
         {phase.kind === "validating" && <span className={s.pulse}>{t.val}</span>}
         {phase.kind === "done" && <p data-state={phase.duplicate ? "duplicate" : "registered"}>
-          {phase.duplicate ? `${t.dup} ${phase.number}.` : `${t.ok} · ${t.version} ${phase.number}.`} <Link href={`/admin/workspace/library/${phase.projectId}`}>{t.open}</Link>
+          {phase.duplicate ? `${t.dup} ${phase.number}.` : `${t.ok} · ${t.version} ${phase.number}.`} <Link href={`/admin/workspace/products/${phase.projectId}`}>{t.open}</Link>
           {phase.warnings.length > 0 && <small> {phase.warnings.join(" · ")}</small>}
         </p>}
         {phase.kind === "error" && <div role="alert" data-state="error">

@@ -18,8 +18,8 @@ export default async function CrmCreatorPage({ searchParams }: { searchParams: S
   const projects = await listProjects(supabase, "crm_creator", { includeArchived: showArchived });
   return (
     <Suite active="crm-creator">
-      <PageHeader eyebrow="CRM Creator" title={pick(lang, "Diseñador de CRM para clientes", "CRM designer for clients")}
-        description={pick(lang, "Define entidades, campos, pipelines, etapas y permisos por proyecto. Exporta la definición (JSON) y una vista previa SQL revisable. No ejecuta migraciones desde el navegador.", "Define entities, fields, pipelines, stages and permissions per project. Export the definition (JSON) and a reviewable SQL preview. No migrations are executed from the browser.")} />
+      <PageHeader eyebrow="CRM Creator" title={pick(lang, "Mis CRMs", "My Client CRMs")}
+        description={pick(lang, "Registra CRMs externos creados con Claude o Codex. Abre su acceso autorizado, conserva entregas y lleva sus incidencias; no los construimos aquí.", "Register client CRMs built with Claude or Codex. Open authorized access, retain deliveries and track issues; they are not built here.")} />
       <Flash lang={lang} ok={param(params, "ok")} error={param(params, "error")} />
       <ProjectsIndex lang={lang} module="crm_creator" base="/admin/workspace/crm-creator" projects={projects} noun={{ es: "diseños de CRM", en: "CRM designs" }} showArchived={showArchived}
         createFields={
