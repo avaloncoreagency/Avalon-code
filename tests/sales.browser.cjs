@@ -79,7 +79,7 @@ test('Nova Restaurant through the real app: one form, three departments, no dupl
     const ctx = await browser.newContext({ viewport, locale: 'es-ES' });
     await ctx.addCookies([{ name: cookieName, value: cookieValue(s), url: origin }]);
     const page = await ctx.newPage();
-    page.on('pageerror', e => errors.push(`pageerror: ${e.message}`));
+    page.on('pageerror', e => errors.push(`pageerror [${page.url()}]: ${e.message}`));
     return page;
   };
   const page = await context(miguel);
@@ -600,7 +600,7 @@ test('Nova Restaurant through the real app: one form, three departments, no dupl
   // ── Public website: quote request → pending Lead Hunter prospect only ──
   const visitor = await browser.newContext({ viewport: { width: 320, height: 720 } });
   const pub = await visitor.newPage();
-  pub.on('pageerror', e => errors.push(`pageerror: ${e.message}`));
+  pub.on('pageerror', e => errors.push(`pageerror [${pub.url()}]: ${e.message}`));
   await pub.goto(origin + '/');
   await pub.getByRole('heading', { name: 'Tecnología que hace crecer tu negocio.' }).waitFor();
   await pub.getByLabel('Empresa').fill('Visitante Sintético LLC');
