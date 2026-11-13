@@ -61,7 +61,7 @@ test('concurrent update is reported, never claimed saved',async()=>{const h=acti
 
 // Product Control: richer issues preserve all legacy schema:1 records without a migration.
 test('rich issue accepts priority, assignee, evidence and checklist without erasing older fields',()=>{
- const s=apply({currency:'USD'},'request',{title:'Mobile header broken',details:'On iPhone menu overlaps',kind:'bug',severity:'P0',assignee_id:A,expected:'Clean layout',actual:'Overflow',reproduction:'Open at 390px',evidence:'https://example.com/issue',checklist:'Reproduce on iPhone\\nFix and verify'});
+ const s=apply({currency:'USD'},'request',{title:'Mobile header broken',details:'On iPhone menu overlaps',kind:'bug',severity:'P0',assignee_id:A,expected:'Clean layout',actual:'Overflow',reproduction:'Open at 390px',evidence:'https://example.com/issue',checklist:['Reproduce on iPhone','Fix and verify'].join(String.fromCharCode(10))});
  const r=d.readProductState(s.client_hud).requests[0];
  assert.equal(r.priority,'urgent');assert.equal(r.severity,'P0');assert.equal(r.kind,'bug');assert.equal(r.assignee_id,A);
  assert.equal(r.items.length,2);assert.equal(r.items[0].done,false);assert.equal(s.currency,'USD');
