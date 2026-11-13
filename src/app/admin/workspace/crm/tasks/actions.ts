@@ -100,7 +100,7 @@ export async function saveTaskDetails(form: FormData) {
   const { supabase } = await ownerForAction();
   const context = listContext(form);
   const row = taskIdentity(form);
-  const detail = row ? { task: row.id } : {};
+  const detail: Record<string, string> = row ? { task: row.id } : {};
   const title = field(form, "title").trim();
   const description = field(form, "description").trim();
   const priority = field(form, "priority");
