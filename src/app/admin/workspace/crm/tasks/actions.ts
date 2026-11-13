@@ -90,7 +90,7 @@ export async function commentTask(form: FormData) {
 function taskIdentity(form: FormData) {
   const id = uuidField(form, "task_id");
   const raw = field(form, "version");
-  if (!id || !/^[1-9]\\d{0,9}$/.test(raw)) return null;
+  if (!id || !/^(0|[1-9]\\d{0,9})$/.test(raw)) return null;
   const version = Number(raw);
   return Number.isSafeInteger(version) ? { id, version } : null;
 }
