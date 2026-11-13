@@ -80,6 +80,13 @@ export function recommend(industry: string, answers: Answers): Recommendation[] 
       benefit: L_("No pagar por clientes que no se pueden atender", "Avoid paying for customers they cannot serve"),
       evidence: [{ label: "Capacidad adicional", value: String(f.extraCapacity ?? "no acepta trabajos nuevos") }], missing: [],
       nextAction: L_("No recomendar anuncios todavía; mejorar operación, precios o seguimiento", "Do not recommend ads yet; improve operations, pricing or follow-up") });
+  else if (s.legal.status === "review")
+    out.push({ ruleId: "ads_review_required", service: "Revisión de cumplimiento publicitario", kind: "advisory",
+      problem: L_("Antes de anunciarse se deben verificar requisitos sectoriales y de las plataformas", "Industry and platform policies must be checked before running ads"),
+      benefit: L_("Evitar promesas de publicación o campañas sin autorización", "Avoid promising or launching campaigns before verification"),
+      evidence: s.legal.flags.map(x => ({ label: "Revisión pendiente", value: x.code })),
+      missing: ["Jurisdicción aplicable, documentos vigentes y política actual de cada plataforma"],
+      nextAction: L_("Revisar documentos y restricciones con el propietario; revaluar publicidad después", "Review documentation and platform restrictions with the owner; reconsider ads afterward") });
   else {
     const profit = cat("profitability"), budget = cat("budget");
     const budgetLow = (f.avalonBudget !== undefined && f.avalonBudget < 300) || (f.adBudget !== undefined && f.adBudget < 400);

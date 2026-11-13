@@ -19,6 +19,7 @@ export default async function GrowthHub() {
         <p>Campaigns administra acciones multicanal; Meta Ads será su integración especializada. Funnel Builder recibe solicitudes voluntarias. Ningún módulo publica anuncios, consume presupuesto ni crea métricas simuladas.</p>
         <nav className={styles.toolbar} aria-label="Herramientas de marketing">
           <Link href="/admin/workspace/marketing-hub/funnels">Funnel Builder</Link>
+          <Link href="/admin/workspace/marketing-hub/commercial">Commercial Foundation</Link>
           <Link href="/admin/workspace/marketing-hub">Campaigns existentes</Link>
           <Link href="/admin/creative-bridge">Creative Assets</Link>
           <Link href="/admin/workspace/crm/leads">CRM</Link>
@@ -44,6 +45,12 @@ export default async function GrowthHub() {
             <h3>Campaigns</h3>
             <p>Usa los proyectos de Marketing Hub y su calendario editorial. Presupuesto interno por campaña todavía requiere contrato y persistencia aprobados.</p>
             <Link href="/admin/workspace/marketing-hub">Abrir Campaigns</Link>
+          </article>
+          <article className={styles.card}>
+            <span className={styles.badge}>Herramienta privada · sin guardado</span>
+            <h3>Commercial Foundation</h3>
+            <p>Calcula márgenes y comisiones con importes introducidos por los propietarios. Sin precios aprobados, sin cobros y sin distribución real de leads.</p>
+            <Link href="/admin/workspace/marketing-hub/commercial">Abrir estimador comercial</Link>
           </article>
           <article className={styles.card}>
             <span className={styles.badge}>Sin conexión externa</span>

@@ -26,7 +26,7 @@ export default async function NewSalePage({ searchParams }: { searchParams: Prom
   return <Suite active="crm"><div className={s.hud}>
     <OpsHeader lang={lang} active="new" crm="sales" eyebrow="CRM / Ventas" title={pick(lang, "Registrar venta", "Record a sale")}
       lead={pick(lang, "Registra la venta una sola vez: Avalon crea o vincula el cliente, genera las órdenes de trabajo, los proyectos por departamento, las tareas iniciales y los avisos.", "Record the sale once: Avalon creates or links the client and generates work orders, departmental projects, starter tasks and notices.")} />
-    {failed ? <Unavailable lang={lang} code={failed} /> : <SaleForm lang={lang} idempotencyKey={randomUUID()} me={userId}
+    {failed ? <Unavailable lang={lang} code={failed} /> : <SaleForm lang={lang} idempotencyKey={randomUUID()} initialDate={new Date().toISOString().slice(0, 10)} me={userId}
       services={(services.data ?? []).map<CatalogService>(x => ({ code: x.code, name: x.name, name_en: x.name_en, billing_type: x.billing_type, suggested_price: x.suggested_price, department: x.crm_departments?.label ?? "" }))}
       clients={(clients.data ?? []).map(c => ({ id: c.id, label: `${c.legal_name} · ${c.client_code}` }))}
       leads={(leads.data ?? []).map(l => ({ id: l.id, label: l.contact ? `${l.company} · ${l.contact}` : l.company }))}
