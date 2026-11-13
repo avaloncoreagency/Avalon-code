@@ -30,7 +30,7 @@ export async function GET(request: NextRequest) {
   const [history, activities, files] = await Promise.all([
     db.from("crm_lead_stage_history").select("id,from_stage,to_stage,actor_id,seconds_in_previous,changed_at").eq("lead_id", lead).order("changed_at", { ascending: false }).limit(200),
     db.from("crm_activities").select("id,kind,body,status,due_at,created_by,created_at").eq("lead_id", lead).order("created_at", { ascending: false }).limit(200),
-    db.from("crm_attachments").select("id,filename,mime,size_bytes,note,created_by,created_at").eq("lead_id", lead).order("created_at", { ascending: false }).limit(100),
+    db.from("crm_attachments").select("id,filename,mime,size_bytes,note,created_by,created_at").eq("lead_id", lead).order("created_at", { ascending: false }).limit(500),
   ]);
   if (activities.error) return reply({ error: "No se pudo cargar el historial." }, 503);
   return reply({
