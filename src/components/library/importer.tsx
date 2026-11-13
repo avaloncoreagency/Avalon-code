@@ -23,14 +23,15 @@ const CATS: [string, string][] = [["website", "Website Designer"], ["ecommerce",
 const TOOLS: [string, string][] = [["chatgpt", "ChatGPT"], ["claude_code", "Claude Code"], ["codex", "Codex"], ["higgsfield", "Higgsfield"], ["editor", "Editor"], ["manual", "Manual"], ["other", "Other"]];
 
 function put(url: string, file: File, type: string, onPct: (n: number) => void) {
-  return new Promise<boolean>(resolve => {
+  return new Promise<number>(resolve => {
     const x = new XMLHttpRequest();
     x.open("PUT", url);
     x.setRequestHeader("content-type", type);
     x.setRequestHeader("x-upsert", "false");
     x.upload.onprogress = e => e.lengthComputable && onPct(Math.round((e.loaded / e.total) * 100));
-    x.onload = () => resolve(x.status >= 200 && x.status < 300);
-    x.onerror = () => resolve(false);
+    x.onload = () => resolve(x.status);
+    x.onerror = () => resolve(0);
+    x.onabort = () => resolve(0);
     x.send(file);
   });
 }
@@ -39,35 +40,64 @@ export function Importer({ lang, projectId, defaultCategory = "website", lockedC
   const t = T[lang];
   const [phase, setPhase] = useState<Phase>({ kind: "idle" });
   const key = useRef<string>("");
+  const fingerprint = useRef<string>("");
   const busy = phase.kind === "uploading" || phase.kind === "validating";
+  const clearAttempt = () => { key.current = ""; fingerprint.current = ""; };
 
   async function process(importId: string) {
     setPhase({ kind: "validating" });
-    const r = await fetch(`/admin/workspace/library/imports/${importId}/process`, { method: "POST", headers: { "accept-language": lang } });
-    const j = await r.json().catch(() => ({}));
-    if (j.status === "registered" || j.status === "duplicate")
-      setPhase({ kind: "done", projectId: j.projectId, number: j.number, duplicate: j.status === "duplicate", warnings: j.inspection?.warnings ?? [] });
-    else setPhase({ kind: "error", message: j.message ?? messages[j.reason] ?? String(j.reason ?? j.error ?? r.status), problems: j.problems, importId, retryable: j.retryable });
+    try {
+      const r = await fetch(`/admin/workspace/library/imports/${importId}/process`, { method: "POST", headers: { "accept-language": lang } });
+      const j = await r.json().catch(() => ({}));
+      if (j.status === "registered" || j.status === "duplicate") {
+        clearAttempt();
+        setPhase({ kind: "done", projectId: j.projectId, number: j.number, duplicate: j.status === "duplicate", warnings: j.inspection?.warnings ?? [] });
+      } else {
+        if (!j.retryable) clearAttempt();
+        setPhase({ kind: "error", message: j.message ?? messages[j.reason] ?? String(j.reason ?? j.error ?? r.status), problems: j.problems, importId, retryable: j.retryable });
+      }
+    } catch {
+      // A transient network error is NOT proof the server discarded the import.
+      // Retain the key and let the owner retry processing this same ID.
+      setPhase({ kind: "error", message: t.net, importId, retryable: true });
+    }
   }
 
   async function submit(ev: React.FormEvent<HTMLFormElement>) {
     ev.preventDefault();
     const form = new FormData(ev.currentTarget);
     const file = form.get("file");
-    if (!(file instanceof File) || !/\.(zip|html?)$/i.test(file.name)) return setPhase({ kind: "error", message: t.choose });
+    if (!(file instanceof File) || !/\\.(zip|html?)$/i.test(file.name))
+      return setPhase({ kind: "error", message: t.choose });
     if (file.size > 25 * 1024 * 1024) return setPhase({ kind: "error", message: t.big });
-    key.current = key.current || crypto.randomUUID();
+    // Keep a stable idempotency key only while retrying the identical file/form.
+    const attemptFingerprint = [file.name, file.size, file.lastModified, form.get("category"),
+      form.get("projectName"), form.get("sourceTool"), projectId ?? ""].join("|");
+    if (!key.current || fingerprint.current !== attemptFingerprint) {
+      key.current = crypto.randomUUID();
+      fingerprint.current = attemptFingerprint;
+    }
     const r = await fetch("/admin/workspace/library/uploads", {
       method: "POST", headers: { "content-type": "application/json" },
-      body: JSON.stringify({ name: file.name, size: file.size, category: form.get("category"), projectName: form.get("projectName") || null, sourceTool: form.get("sourceTool"), projectId: projectId ?? null, idempotencyKey: key.current }),
-    });
+      body: JSON.stringify({ name: file.name, size: file.size, category: form.get("category"),
+        projectName: form.get("projectName") || null, sourceTool: form.get("sourceTool"),
+        projectId: projectId ?? null, idempotencyKey: key.current }),
+    }).catch(() => null);
+    if (!r) return setPhase({ kind: "error", message: t.net });
     const j = await r.json().catch(() => ({}));
-    if (!r.ok || !j.importId) return setPhase({ kind: "error", message: messages[j.error] ?? String(j.error ?? r.status) });
-    key.current = "";
+    if (!r.ok || !j.importId) {
+      if (r.status !== 503 && r.status !== 429) clearAttempt();
+      return setPhase({ kind: "error", message: messages[j.error] ?? String(j.error ?? r.status) });
+    }
     if (j.upload) {
       setPhase({ kind: "uploading", pct: 0 });
-      const ok = await put(j.upload.url, file, j.upload.contentType, pct => setPhase({ kind: "uploading", pct }));
-      if (!ok) return setPhase({ kind: "error", message: t.net, importId: j.importId, retryable: false });
+      let status = 0;
+      try { status = await put(j.upload.url, file, j.upload.contentType, pct => setPhase({ kind: "uploading", pct })); }
+      catch { status = 0; }
+      // A replayed path may already contain the FIRST successful upload. Never
+      // overwrite it; the server validates the stored bytes during processing.
+      const uploaded = (status >= 200 && status < 300) || (j.replayed === true && status === 409);
+      if (!uploaded) return setPhase({ kind: "error", message: t.net, importId: j.importId, retryable: false });
     }
     await process(j.importId);
   }
@@ -108,10 +138,15 @@ export function ProcessButton({ importId, label }: { importId: string; label: st
   return <span className={s.inline}>
     <button type="button" className={s.ghost} disabled={state === "…"} onClick={async () => {
       setState("…");
-      const r = await fetch(`/admin/workspace/library/imports/${importId}/process`, { method: "POST" });
-      const j = await r.json().catch(() => ({}));
-      setState(j.status === "registered" ? "✓" : j.message ?? j.status ?? String(r.status));
-      if (j.status === "registered") window.location.reload();
+      try {
+        const r = await fetch(`/admin/workspace/library/imports/${importId}/process`, { method: "POST" });
+        const j = await r.json().catch(() => ({}));
+        const complete = j.status === "registered" || j.status === "duplicate";
+        setState(complete ? "✓" : j.message ?? j.status ?? String(r.status));
+        if (complete) window.location.reload();
+      } catch {
+        setState("Error de conexión / Network error — retry");
+      }
     }}>{label}</button>
     {state && <small aria-live="polite">{state}</small>}
   </span>;

@@ -39,8 +39,28 @@ export async function POST(req: Request) {
     if (!project.data || project.data.module!==category || project.data.status==="archived")
       return reply({error:"invalid_project"},400);
   }
-  const existing = await db.from("os_project_imports").select("id,status,archive_path").eq("created_by", session.user.id).eq("idempotency_key", key).maybeSingle();
-  if (existing.data) return reply({ importId: existing.data.id, status: existing.data.status, replayed: true });
+  const existing = await db.from("os_project_imports")
+    .select("id,status,archive_path,category,original_name,archive_bytes,project_id,source_tool,project_name")
+    .eq("created_by", session.user.id).eq("idempotency_key", key).maybeSingle();
+  if (existing.error) return reply({ error: "unavailable" }, 503);
+  if (existing.data) {
+    const previous = existing.data;
+    // A retry is for the SAME owner, archive, target and category. Never reuse an
+    // import ID for a changed form payload (even if a browser retained the key).
+    if (previous.category !== category || previous.original_name !== name ||
+        Number(previous.archive_bytes) !== size || previous.project_id !== projectId ||
+        previous.source_tool !== sourceTool || previous.project_name !== projectName)
+      return reply({ error: "idempotency_key_in_use" }, 409);
+    const replay = { importId: previous.id, status: previous.status, replayed: true };
+    if (!previous.archive_path || !["received", "failed", "awaiting_upload"].includes(previous.status))
+      return reply(replay, 200);
+    // A lost first response must not strand a pending import: reissue a short-lived
+    // upload URL for the existing private path, with Storage upsert still forbidden.
+    const retrySigned = await db.storage.from(BRIDGE_BUCKET).createSignedUploadUrl(previous.archive_path);
+    if (retrySigned.error || !retrySigned.data) return reply({ error: "storage_unavailable" }, 503);
+    return reply({ ...replay, upload: { url: retrySigned.data.signedUrl, method: "PUT",
+      contentType: ext === "zip" ? "application/zip" : "text/html" } }, 200);
+  }
   const importId = crypto.randomUUID();
   const path = `incoming/${session.user.id}/${importId}.${ext}`;
   const ins = await db.from("os_project_imports").insert({

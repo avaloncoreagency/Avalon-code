@@ -44,6 +44,17 @@ test('manual registration preserves ownership, source provenance and URL referen
   assert.match(code,/client_lead_id/);
   assert.doesNotMatch(code,/service_role/);
 });
+test('manual ZIP retries are scoped to the original request and recover lost network responses',()=>{
+  const upload=read(route+'library/uploads/route.ts');
+  const importer=read('src/components/library/importer.tsx');
+  assert.match(upload,/idempotency_key_in_use/);
+  assert.match(upload,/previous\.project_id !== projectId/);
+  assert.match(upload,/createSignedUploadUrl\(previous\.archive_path\)/);
+  assert.match(upload,/replayed: true/);
+  assert.match(importer,/file\.lastModified/);
+  assert.match(importer,/j\.replayed === true && status === 409/);
+  assert.match(importer,/retryable: true/);
+});
 test('module ZIP import and agent API inbox are scoped and owner-approved',()=>{
   const policy=read('src/lib/project-bridge/policy.ts');
   for(const category of ['website','ecommerce','crm_creator','receptionist','chatbots','marketing','apps'])
