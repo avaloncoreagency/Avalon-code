@@ -277,6 +277,7 @@ export function Crm({ section = "leads", focusLeadId }: { section?: CrmSection; 
                         <button onClick={() => setDetail(row)}>
                           Notas e historial
                         </button>
+                        {!row.archived && <Link href={`/admin/workspace/crm/sales/new?lead=${encodeURIComponent(String(row.id))}`}>Registrar venta</Link>}
                         <button
                           disabled={busy}
                           onClick={() => {
