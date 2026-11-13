@@ -33,7 +33,11 @@ export async function ModuleDeliveryPanel({ lang, module }: { lang: Lang; module
         "La importación ZIP de esta categoría está preparada, pero inactiva hasta aprobar y aplicar la ampliación SQL de Project Bridge y habilitarla en el servidor. El registro manual de URL sí está disponible.",
         "ZIP imports for this category are prepared but disabled until the Project Bridge SQL extension is reviewed and applied, then enabled server-side. Manual URL registration remains available.")}</p>}
     {rows.error && <p role="alert" className={s.meta}>{t("Bandeja no disponible: verificar esquema y permisos de Project Bridge.","Inbox unavailable: check Project Bridge schema and permissions.")}</p>}
-    {pending.length>0&&<div className={s.row}>
+    {!enabled && pending.length > 0 && <p role="status" className={s.meta}>{t(
+      "Hay entregas pendientes preservadas para esta categoría. Se mostrarán cuando la importación ZIP sea autorizada; no pueden procesarse ni vincularse mientras esté deshabilitada.",
+      "Pending deliveries for this category are preserved. They become actionable only when ZIP imports are authorized; linking and processing remain disabled meanwhile."
+    )}</p>}
+    {enabled && pending.length>0&&<div className={s.row}>
       <h3>{t("Entregas pendientes de revisión","Deliveries awaiting review")}</h3>
       <ul>{pending.map(r=><li key={r.id}>
         <strong>{r.original_name}</strong> · {r.source_tool} · {r.status}

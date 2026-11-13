@@ -52,7 +52,12 @@ test('module ZIP import and agent API inbox are scoped and owner-approved',()=>{
   assert.match(ingress,/project\.data\.module!==category/);
   assert.match(ingress,/bridgeCategoryEnabled\(/);
   assert.match(read('src/app/api/project-bridge/v1/imports/route.ts'),/bridgeCategoryEnabled\(/);
+  const processing=read(route+'library/imports/[importId]/process/route.ts');
+  assert.match(processing,/bridgeCategoryEnabled\(/);
+  assert.match(processing,/category_not_enabled/);
+  assert.match(panel,/enabled && pending\.length/);
   const action=read(route+'product-delivery-actions.ts');
+  assert.match(action,/bridgeCategoryEnabled\(/);
   for(const term of ['ownerForAction()','product.data.module!==category','.is("project_id",null)'])
     assert.ok(action.includes(term),term);
 });

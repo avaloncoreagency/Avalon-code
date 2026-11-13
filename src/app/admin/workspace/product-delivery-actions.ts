@@ -1,7 +1,7 @@
 "use server";
 import { revalidatePath } from "next/cache";
 import { back, field, ownerForAction, uuidField } from "@/lib/os/actions";
-import { CATEGORIES, type Category } from "@/lib/project-bridge/policy";
+import { CATEGORIES, bridgeCategoryEnabled, type Category } from "@/lib/project-bridge/policy";
 import { isService, SERVICES } from "@/lib/os/client-hud";
 
 const destination=(module:Category)=>isService(module)?`/admin/workspace/${SERVICES[module].slug}`:"/admin/dashboard";
@@ -14,6 +14,8 @@ export async function assignPendingImport(form: FormData) {
   const category=field(form,"category") as Category;
   if (!CATEGORIES.includes(category) || !importId || !projectId) back("/admin/dashboard",{error:"invalid"});
   const target=destination(category);
+  if (!bridgeCategoryEnabled(category, process.env.AVALON_PRODUCT_CONTROL_EXTENDED_UPLOADS === "true"))
+    back(target,{error:"category_not_enabled"});
   const [imp,product]=await Promise.all([
     supabase.from("os_project_imports").select("id,category,status,project_id").eq("id",importId).maybeSingle(),
     supabase.from("os_projects").select("id,module,status").eq("id",projectId).maybeSingle(),
