@@ -10,7 +10,7 @@ export const SERVICES = {
 export type Service = keyof typeof SERVICES;
 export const isService = (v: unknown): v is Service => typeof v === 'string' && Object.hasOwn(SERVICES, v);
 export const validId = (v: unknown): v is string => typeof v === 'string' && /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(v);
-export const STATES = ['requested', 'approved', 'in_progress', 'review', 'done', 'cancelled'] as const;
+export const STATES = ['requested', 'approved', 'in_progress', 'review', 'blocked', 'fixed', 'verified', 'closed', 'done', 'cancelled'] as const;
 export type RequestState = typeof STATES[number];
 export const ISSUE_KINDS = ['bug','improvement','feature','design','mobile','performance','integration','content','maintenance','client_request'] as const;
 export const ISSUE_SEVERITIES = ['P0','P1','P2','P3'] as const;
@@ -98,7 +98,16 @@ export function readProductState(value: unknown): ProductState {
   return { schema: 1, brief: readBrief(state.brief), requests, checks };
 }
 const transitions: Record<RequestState, readonly RequestState[]> = {
-  requested: ['approved', 'cancelled'], approved: ['in_progress', 'cancelled'], in_progress: ['review', 'cancelled'], review: ['done', 'in_progress', 'cancelled'], done: [], cancelled: [],
+  requested:['approved','cancelled'],
+  approved:['in_progress','cancelled'],
+  in_progress:['review','fixed','blocked','cancelled'],
+  review:['fixed','in_progress','blocked','done','cancelled'],
+  blocked:['in_progress','cancelled'],
+  fixed:['verified','in_progress','blocked'],
+  verified:['closed','in_progress'],
+  closed:[],
+  done:[], // Historical completion state remains readable.
+  cancelled:[],
 };
 export const nextStates = (state: RequestState) => transitions[state];
 export function applyProductAction(settings: Record<string, unknown>, service: Service, action: string, input: Record<string, unknown>, actor: string, now: string, newId: string): Record<string, unknown> {
@@ -154,12 +163,18 @@ export function applyProductAction(settings: Record<string, unknown>, service: S
     item.done = input.done==='true'; request.updated_at=now; request.updated_by=actor;
   } else if (action === 'reopen') {
     const request = state.requests.find(r=>r.id===input.request_id);
-    if (!request || !['done','cancelled'].includes(request.status)) throw Error('invalid');
+    if (!request || !['done','closed','cancelled'].includes(request.status)) throw Error('invalid');
     request.status='in_progress'; request.updated_at=now; request.updated_by=actor;
   } else if (action === 'status') {
     const request = state.requests.find(r => r.id === input.request_id);
     const next = choice(input.status, STATES);
     if (!request || !nextStates(request.status).includes(next)) throw Error('invalid');
+    if (next === 'verified') {
+      // Fixed is not verified. Record a timestamped owner-authored manual test note.
+      const note=text(input.verification_notes ?? '',1000,true);
+      if (note.length < 15 || (request.notes?.length ?? 0) >= 40) throw Error('verification_evidence_required');
+      request.notes=[...(request.notes??[]),{id:newId,body:note,author:actor,created_at:now}];
+    }
     request.status = next; request.updated_at = now; request.updated_by = actor;
   } else if (action === 'check') {
     if (state.checks.length >= 200 || state.checks.some(r => r.id === newId)) throw Error('invalid');

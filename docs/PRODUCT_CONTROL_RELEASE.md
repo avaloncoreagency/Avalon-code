@@ -44,3 +44,7 @@
 The registration UI now accepts the verified `crm_clients.id` of an existing confirmed client, not just a legacy `crm_leads.id`. If both are supplied the server compares `crm_clients.origin_lead_id` to the lead ID and rejects mismatched associations. It never creates a sale, receipt or payment. The canonical `os_projects.client_id` FK remains the authoritative link into Client 360; legacy lead-linked projects remain accessible. Portfolios prefer client FK grouping and link directly to the Client 360 page, preserving older lead-group behavior.
 
 This requires the existing Sales Core schema already present in production; it does not apply DDL. Owner-only and database RLS remain required.
+
+## Distinguish repair from verification
+
+New issues support `blocked → in_progress` and `fixed → verified → closed` transitions. The `verified` transition requires a dated, owner-authored manual test note with at least 15 characters; a mere code commit cannot advance the status. This is recorded user evidence, not an independently verified functional test. Legacy `done` remains valid and reopenable for backwards compatibility.

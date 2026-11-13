@@ -130,9 +130,16 @@ export async function updateProject(form: FormData) {
   if (!name.ok) back(path, { error: name.error });
   if (!description.ok) back(path, { error: description.error });
   if (!status.ok || !Number.isSafeInteger(version)) back(path, { error: "invalid" });
-  const current = await supabase.from('os_projects').select('settings').eq('id',id).eq('module',moduleKey.value).eq('version',version).maybeSingle();
+  const current = await supabase.from('os_projects').select('settings,client_id').eq('id',id).eq('module',moduleKey.value).eq('version',version).maybeSingle();
   if(current.error || !current.data)back(path,{error:'conflict'});
   const metadata = await projectOperations(form, supabase);
+  // A confirmed client FK must never be given a mismatched legacy lead through settings.
+  if (current.data.client_id && metadata.client_lead_id) {
+    const related=await supabase.from("crm_clients").select("origin_lead_id")
+      .eq("id",current.data.client_id).maybeSingle();
+    if (related.error || !related.data || related.data.origin_lead_id!==metadata.client_lead_id)
+      back(path,{error:"conflict"});
+  }
   const { data, error, status: http } = await supabase.from("os_projects")
     .update({ name: name.value, description: description.value, status: status.value, settings: { ...current.data.settings, operations: metadata } })
     .eq("id", id).eq("module", moduleKey.value).eq("version", version).select("id");

@@ -9,7 +9,11 @@ import type { ReactNode } from 'react';
 import s from './client-hud.module.css';
 
 const STATUS: Record<RequestState,[string,string]> = {
-  requested:['Solicitado','Requested'], approved:['Aprobado','Approved'], in_progress:['En desarrollo','In progress'], review:['En revisi\u00f3n','In review'], done:['Completado','Completed'], cancelled:['Cancelado','Cancelled'],
+  requested:['Solicitado','Requested'], approved:['Aprobado','Approved'],
+  in_progress:['En progreso','In progress'], review:['En revisión','In review'],
+  blocked:['Bloqueado','Blocked'], fixed:['Corregido','Fixed'],
+  verified:['Verificado manualmente','Manually verified'], closed:['Cerrado','Closed'],
+  done:['Completado (histórico)','Completed (legacy)'], cancelled:['Cancelado','Cancelled'],
 };
 const RESULT: Record<'passed'|'failed'|'blocked',[string,string]> = { passed:['Aprobada','Passed'], failed:['Fallida','Failed'], blocked:['Bloqueada','Blocked'] };
 function validLink(value:unknown) {try{return safeLink(value);}catch{return '';}}
@@ -33,7 +37,7 @@ export function ProductHud({lang,project,company,metrics,audit,ok,error,context,
   const generatedWithHiggsfield = creative?.provider === "higgsfield";
   const higgsfieldRef = typeof creative?.external_ref === "string" ? creative.external_ref.slice(0, 120) : "";
   const latest=latestChecks(state.checks);
-  const pending=state.requests.filter(r=>!['done','cancelled'].includes(r.status));
+  const pending=state.requests.filter(r=>!['done','closed','cancelled'].includes(r.status));
   const urgent=pending.filter(r=>r.priority==='urgent');
   const failures=latest.filter(c=>c.result==='failed');
   const names=(key:string)=>service.labels[service.checks.findIndex(c=>c===key)]||key;
@@ -108,9 +112,14 @@ export function ProductHud({lang,project,company,metrics,audit,ok,error,context,
             <Fields project={project} operation="status"/><input type="hidden" name="request_id" value={r.id}/>
             <label className={s.field}>{pick(lang,'Siguiente estado','Next state')}
               <select name="status" disabled={disabled}>{nextStates(r.status).map(st=><option value={st} key={st}>{pick(lang,...STATUS[st])}</option>)}</select></label>
+            {nextStates(r.status).includes('verified') && <label className={s.field}>
+              {pick(lang,'Prueba manual de la corrección (obligatoria para Verificado)','Manual verification evidence (required for Verified)')}
+              <textarea name="verification_notes" maxLength={1000} rows={2} disabled={disabled}
+                placeholder={pick(lang,'Qué se probó, con qué dispositivo y cuál fue el resultado','What was tested, on which device and what was the result')}/>
+            </label>}
             <button className={s.button} disabled={disabled}>{pick(lang,'Actualizar','Update')}</button>
           </form>}
-          {['done','cancelled'].includes(r.status)&&<form action={saveProductOperation}>
+          {['done','closed','cancelled'].includes(r.status)&&<form action={saveProductOperation}>
             <Fields project={project} operation="reopen"/><input type="hidden" name="request_id" value={r.id}/>
             <button className={s.button} disabled={disabled}>{pick(lang,'Reabrir','Reopen')}</button>
           </form>}

@@ -101,3 +101,23 @@ test('legacy leads remain grouped by their exact lead ID',()=>{
  assert.equal(g[0].linkKind,'lead');
  assert.equal(g[0].id,A);
 });
+
+test('issue workflow distinguishes fixed, manually verified and closed, preserving legacy done',()=>{
+ let s=apply();
+ for(const status of ['approved','in_progress','fixed']) s=apply(s,'status',{request_id:B,status},'website',C);
+ assert.equal(s.client_hud.requests[0].status,'fixed');
+ assert.throws(()=>apply(s,'status',{request_id:B,status:'verified'}),/verification_evidence_required|invalid/);
+ assert.throws(()=>apply(s,'status',{request_id:B,status:'verified',verification_notes:'ok'},'website',C));
+ s=apply(s,'status',{request_id:B,status:'verified',verification_notes:'Tested iPhone 390px after change; navigation now works'},'website',C);
+ let r=d.readProductState(s.client_hud).requests[0];
+ assert.equal(r.status,'verified');assert.equal(r.notes.at(-1).author,A);
+ s=apply(s,'status',{request_id:B,status:'closed'},'website',C);
+ assert.equal(s.client_hud.requests[0].status,'closed');
+ s=apply(s,'reopen',{request_id:B},'website',C);
+ assert.equal(s.client_hud.requests[0].status,'in_progress');
+});
+test('blocked issue can resume without claiming correction',()=>{
+ let s=apply();
+ for(const status of ['approved','in_progress','blocked','in_progress'])s=apply(s,'status',{request_id:B,status},'website',C);
+ assert.equal(d.readProductState(s.client_hud).requests[0].status,'in_progress');
+});
