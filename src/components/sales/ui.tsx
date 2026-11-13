@@ -3,6 +3,7 @@ import type { ReactNode } from "react";
 import { CrmNavigation } from "@/components/crm/navigation";
 import { pick, type Lang } from "@/lib/i18n";
 import { label, saleErrorText, tone } from "@/lib/sales/domain";
+import { workspaceFeedback } from "@/lib/crm/workspace-feedback";
 import s from "./sales.module.css";
 
 export type Query = Record<string, string | string[] | undefined>;
@@ -45,7 +46,7 @@ export function Tag({ lang, value }: { lang: Lang; value: string }) {
 
 export function ErrorFlash({ lang, code }: { lang: Lang; code?: string | null }) {
   if (!code) return null;
-  return <p className={s.flash} data-tone="error" role="alert">{saleErrorText(lang, code)}</p>;
+  return <p className={s.flash} data-tone="error" role="alert">{workspaceFeedback("error", lang, code) ?? saleErrorText(lang, code)}</p>;
 }
 
 const OK: Record<string, [string, string]> = {
@@ -56,8 +57,11 @@ const OK: Record<string, [string, string]> = {
   created: ["Creado correctamente.", "Created."],
 };
 export function OkFlash({ lang, code }: { lang: Lang; code?: string }) {
-  if (!code || !OK[code]) return null;
-  return <p className={s.flash} data-tone="ok" role="status">{pick(lang, ...OK[code])}</p>;
+  const message = code ? workspaceFeedback("ok", lang, code) : null;
+  // URL query codes are untrusted; inherited Object keys are never valid success codes.
+  const legacy = code && Object.hasOwn(OK, code) ? OK[code] : undefined;
+  if (!message && !legacy) return null;
+  return <p className={s.flash} data-tone="ok" role="status">{message ?? (legacy ? pick(lang, ...legacy) : "")}</p>;
 }
 
 export function Unavailable({ lang, code }: { lang: Lang; code: string }) {
