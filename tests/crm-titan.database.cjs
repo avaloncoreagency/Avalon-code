@@ -224,7 +224,9 @@ test('TITAN funnel: anon limited to two RPCs, Type B kept out, durable limits, o
   await as('anon');
   const submit = async payload => (await one('select crm_growth_funnel_submit($1::jsonb) r', [JSON.stringify(payload)])).r;
   await assert.rejects(q('select id from crm_growth_funnel_submissions'), /permission denied/, 'anon gets the two RPCs only, never the tables');
-  const base = { slug: 'avalon-capture-01', company: 'Synthetic Roofing Co', name: 'Ana Prueba', phone: '', message: 'Quiero información sobre su CRM', consent: true };
+  const base = { slug: 'avalon-capture-01', company: 'Synthetic Roofing Co', name: 'Ana Prueba', phone: '', message: 'Quiero información sobre su CRM', consent: true, consent_version: 'avalon-optin-v1' };
+  // Since 20261112204212 (#170) the consent version is mandatory: a submission without it is invalid.
+  assert.equal(await submit({ ...base, consent_version: undefined, email: 'noversion@roof.example.invalid' }), 'invalid');
   assert.equal((await one(`select crm_growth_funnel_view('client-consumers-01') v`)).v, null, 'Type B funnels are not served');
   assert.equal(await submit({ ...base, slug: 'client-consumers-01', email: 'consumer@roof.example.invalid' }), 'unavailable');
   // Replays of the same visitor (double click, retried request) → one lead, one submission.
