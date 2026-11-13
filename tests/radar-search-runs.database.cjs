@@ -58,6 +58,24 @@ test('radar runs: results scoped by run, replay-safe history, no approval', { ti
   assert.deepEqual([h.postcode.label, h.postcode.radius_m, h.postcode.center_lat, h.postcode.industries, h.postcode.status, h.postcode.found], ['33101, Miami', 1609, 25.7743, ['restaurant'], 'succeeded', 3]);
   assert.equal(h.address.label, '100 Las Olas Blvd');
 
+  // Synthetic no-provider regression for ZIP switching: a 33311 run must never show the
+  // preceding 33009 results, nor accept a stale replay as a newly ingested search.
+  const a33311 = await ingest([place(101, 'Servicio 33311 A'), place(102, 'Servicio 33311 B')],
+    'qa:postcode-33311-0001', { kind: 'postcode', lat: 26.15, lon: -80.18, radius_m: 1609, label: '33311', industries: [] });
+  const b33009 = await ingest([place(201, 'Servicio 33009 A'), place(202, 'Servicio 33009 B')],
+    'qa:postcode-33009-0001', { kind: 'postcode', lat: 25.98, lon: -80.15, radius_m: 1609, label: '33009', industries: [] });
+  assert.notEqual(a33311.run_id, b33009.run_id, 'ZIP-specific runs have separate durable IDs');
+  assert.deepEqual((await runPlaces(a33311.run_id)).map(x => x.source_ref), ['osm:node/101', 'osm:node/102']);
+  assert.deepEqual((await runPlaces(b33009.run_id)).map(x => x.source_ref), ['osm:node/201', 'osm:node/202']);
+  const zipRows = await rows("select id,label,query_kind from crm_radar_runs where id in ($1,$2) order by label", [a33311.run_id, b33009.run_id]);
+  assert.deepEqual(zipRows.map(x => [x.label, x.query_kind]), [['33009', 'postcode'], ['33311', 'postcode']]);
+  const replay33311 = await ingest([place(301, 'Resultado obsoleto')], 'qa:postcode-33311-0001');
+  assert.equal(replay33311.replayed, true);
+  assert.equal(replay33311.run_id, a33311.run_id);
+  assert.equal((await runPlaces(a33311.run_id)).length, 2, 'a stale replay does not alter the earlier ZIP run');
+  assert.equal((await runPlaces(b33009.run_id)).length, 2, 'the newer ZIP run remains unchanged');
+
+
   // Legacy 3-argument call (scheduler, older callers) still works and is linked; kind defaults to unknown.
   const legacy = await one('select crm_radar_ingest($1::jsonb, $2) r', [JSON.stringify([place(20, 'Legacy Sintético')]), 'legacy-run-0003']).then(x => x.r);
   assert.equal((await runPlaces(legacy.run_id)).length, 1);

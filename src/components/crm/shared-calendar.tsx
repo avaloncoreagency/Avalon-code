@@ -289,6 +289,8 @@ export function SharedCalendar({ events, banners, owners, clients, leads, userId
             <button type="button" onClick={() => editEvent(event)}>{event.title}</button>
             <span className={s.sideMeta}>{timeLabel(event)} · {ownerName(event.owner_id)}</span>
             <span className={s.sideMeta}>{TYPE[event.kind]?.[lang === "es" ? 0 : 1] || event.kind}</span>
+            {event.lead_id && <a className={s.sideMeta} href={`/admin/workspace/crm/lead/${event.lead_id}`}>{t("Abrir diagnóstico del lead", "Open lead review")}</a>}
+            {event.client_id && <a className={s.sideMeta} href={`/admin/workspace/crm/clients/${event.client_id}`}>{t("Abrir Cliente 360°", "Open Client 360°")}</a>}
             {event.location && <span className={s.sideMeta}>📍 {event.location}</span>}
             {event.meeting_url && <a href={event.meeting_url} target="_blank" rel="noopener noreferrer" className={s.sideMeta}>{t("Abrir enlace de reunión", "Open meeting link")}</a>}
           </li>)}</ul>}

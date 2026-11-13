@@ -41,6 +41,10 @@ test("radar geocode: empty answers are never cached; entries expire", () => {
   assert.equal(g.cacheFresh({ at: now - g.GEOCODE_CACHE_TTL_MS - 1 }, now), false);
   assert.equal(g.cacheFresh(undefined, now), false);
   assert.notEqual(g.geocodeCacheKey("postcode", "33101"), g.geocodeCacheKey("place", "33101"));
+  assert.equal(g.classifyQuery("33311"), "postcode");
+  assert.equal(g.classifyQuery("33009"), "postcode");
+  assert.notEqual(g.geocodeCacheKey("postcode", "33311"), g.geocodeCacheKey("postcode", "33009"),
+    "switching Florida ZIP codes must never reuse the prior geocode cache entry");
 });
 
 test("radar routes: search scoped by run_id, history route, kind persisted", () => {
