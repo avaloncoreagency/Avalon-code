@@ -34,3 +34,13 @@ test("large historical PR queues summarize advisory overlaps without hiding real
   assert.ok(!ids.some(id => id.startsWith("overlap:")), "avoid hundreds of duplicated pair alerts");
   assert.ok(findings.length < 20, "large queue should not flood the dashboard");
 });
+
+test("owner dashboard explains evidence and never presents public mode as a safe handoff", () => {
+  const fs = require("node:fs");
+  const page = fs.readFileSync("src/app/admin/dev-bridge/page.tsx", "utf8");
+  for (const phrase of ["Cómo usar Dev Bridge", "STALE", "UNKNOWN", "owner:miguel", "owner:samuel", "Next action:", "npm run bridge:doctor"]) {
+    assert.ok(page.includes(phrase), "Missing operator guidance: " + phrase);
+  }
+  assert.match(page, /no permite handoff seguro/);
+  assert.match(page, /ninguna acción de este panel fusiona código/i);
+});
