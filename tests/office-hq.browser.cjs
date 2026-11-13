@@ -42,8 +42,26 @@ test('Avalon HQ 3D: owner-only, ten stations, real manager data, actions, light 
   let output = ''; child.stdout.on('data', c => (output += c)); child.stderr.on('data', c => (output += c));
   t.after(async () => { child.kill(); await new Promise(r => child.once('exit', r)); });
   for (let i = 0; i < 150; i++) { try { if ((await fetch(origin + '/login')).status < 500) break; } catch {} if (i === 149) assert.fail(output); await new Promise(r => setTimeout(r, 100)); }
-  const cookieName = 'sb-127-auth-token', cookieValue = s => `base64-${Buffer.from(JSON.stringify(s)).toString('base64url')}`;
-  const get = (p, s) => fetch(origin + p, { redirect: 'manual', headers: { cookie: s ? `${cookieName}=${cookieValue(s)}` : '' } });
+  // Use the real @supabase/ssr cookie encoder instead of guessing its storage-key or token wire format.
+  // The issuer and the Auth/Data bridge are 100% synthetic; no production keys or accounts are used.
+  async function cookieJar(session) {
+    const jar = new Map();
+    const client = require('@supabase/ssr').createServerClient(bridge.url, 'synthetic-key', {
+      cookies: {
+        getAll: () => [...jar].map(([name, value]) => ({ name, value })),
+        setAll: values => values.forEach(({ name, value }) => jar.set(name, value)),
+      },
+    });
+    const { error } = await client.auth.setSession({ access_token: session.access_token, refresh_token: session.refresh_token });
+    assert.equal(error, null, 'synthetic session creation must use the real auth-js API');
+    assert.ok([...jar.keys()].some(name => name.endsWith('auth-token')), 'Supabase SSR wrote its real auth cookie');
+    return [...jar].map(([name, value]) => ({ name, value }));
+  }
+  const ownerCookies = await cookieJar(miguel);
+  const outsiderCookies = await cookieJar(outsider);
+  const get = (p, s) => fetch(origin + p, { redirect: 'manual', headers: {
+    cookie: (s === miguel ? ownerCookies : s === outsider ? outsiderCookies : []).map(({ name, value }) => `${name}=${value}`).join('; '),
+  } });
 
   for (const route of ['/admin/workspace/crm/office', '/admin/workspace/crm/office/hq', '/admin/workspace/crm/office/manager-activity', '/admin/workspace/crm/office/executive']) {
     assert.equal((await get(route)).status, 307, route + ' signed out');
@@ -65,7 +83,7 @@ test('Avalon HQ 3D: owner-only, ten stations, real manager data, actions, light 
   t.after(() => browser.close());
   const open = async (options) => {
     const ctx = await browser.newContext({ locale: 'es-ES', ...options });
-    await ctx.addCookies([{ name: cookieName, value: cookieValue(miguel), url: origin }]);
+    await ctx.addCookies(ownerCookies.map(({ name, value }) => ({ name, value, url: origin })));
     const page = await ctx.newPage(); page.on('pageerror', e => errors.push('pageerror: ' + e.message)); return page;
   };
   const page = await open({ viewport: { width: 1440, height: 900 }, deviceScaleFactor: 1 });
@@ -106,6 +124,12 @@ test('Avalon HQ 3D: owner-only, ten stations, real manager data, actions, light 
   await page.locator('button[aria-label$="Abrir perfil"]').first().click();
   await page.getByRole('dialog').waitFor({ timeout: 30000 });
   await page.keyboard.press('Escape');
+  // The preserved directory uses the SAME activity as HQ rather than legacy "offline" placeholders.
+  await page.getByRole('button', { name: /Abrir ficha de HARU/ }).click();
+  const runDrawer = await page.getByRole('dialog').innerText();
+  assert.match(runDrawer, /Última ejecución completada/);
+  assert.doesNotMatch(runDrawer, /no tiene un backend de ejecución conectado/i);
+  await page.keyboard.press('Escape');
   await page.locator('section[aria-labelledby="exec-title"]').scrollIntoViewIfNeeded();
   await page.getByText('Completadas con evidencia').waitFor();
   await page.screenshot({ path: path.join(EVIDENCE, 'hq-desktop-executive.png'), fullPage: true });
@@ -126,6 +150,21 @@ test('Avalon HQ 3D: owner-only, ten stations, real manager data, actions, light 
   await phone.getByRole('button', { name: /^SORA/ }).tap();
   await phone.getByRole('heading', { name: 'SORA' }).waitFor(); await phone.waitForTimeout(1200);
   await phone.screenshot({ path: path.join(EVIDENCE, 'hq-iphone-sora.png') });
+  await phone.getByRole('button', { name: '← Vista general' }).tap();
+  const teamCamera = phone.getByRole('button', { name: 'Equipo', exact: true });
+  await teamCamera.tap();
+  assert.equal(await teamCamera.getAttribute('aria-pressed'), 'true', 'camera shortcut stays selected instead of jumping back to overview');
+  const tapHeights = await phone.locator('nav[aria-label="Vistas de cámara"] button').evaluateAll(
+    buttons => buttons.map(b => b.getBoundingClientRect().height));
+  assert.ok(tapHeights.length === 5 && tapHeights.every(h => h >= 44), 'all five iPhone camera targets are at least 44px high');
+  await phone.screenshot({ path: path.join(EVIDENCE, 'hq-iphone-camera-controls.png') });
+  // Synthetic context-lost event exercises React fallback, not a real device GPU fault.
+  await phone.locator('canvas').evaluate(canvas => canvas.dispatchEvent(new Event('webglcontextlost', { cancelable: true })));
+  await phone.getByText(/Vista ligera activada; las diez estaciones siguen disponibles/).waitFor();
+  assert.equal(await phone.locator('canvas').count(), 0, 'iPhone falls back to light view when WebGL is lost');
+  assert.equal(await phone.locator('section[aria-label="Avalon HQ"] ol').first().locator('li').count(), 10,
+    'all five manager desks and five unassigned seats stay accessible');
+  await phone.screenshot({ path: path.join(EVIDENCE, 'hq-iphone-context-fallback.png') });
   const reduced = await open({ viewport: { width: 1024, height: 768 }, reducedMotion: 'reduce' });
   await reduced.goto(origin + '/admin/workspace/crm/office/hq?vista=ligera');
   assert.equal(await reduced.locator('canvas').count(), 0, 'light view requested by URL');
