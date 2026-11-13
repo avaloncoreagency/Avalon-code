@@ -16,6 +16,8 @@
 ## Important release gates
 
 1. **Do not merge or deploy without owner approval.** Claude owns migration reconciliation and security. This PR has no applied migrations or production writes.
+**Schema review, 2026-11-13 (metadata read-only):** `os_projects_module_check` already allows receptionist/chatbots/marketing; only `os_project_imports_category_check` still restricts imports to the four legacy categories. The review-only SQL now updates ONLY the import constraint and fails closed if module constraints do not match. This is a point-in-time observation, not migration authorization. Recheck it before applying any DDL.
+
 2. New ZIP categories `receptionist`, `chatbots`, `marketing` are disabled unless `AVALON_PRODUCT_CONTROL_EXTENDED_UPLOADS=true`. The API AND owner UI enforce this. The separate review-only SQL proposal is `docs/sql/product-control-bridge-categories-review.sql`. It MUST be verified against the actual isolated schema and coordinated with Claude BEFORE becoming a forward-only migration. Do not set the flag until the SQL migration is approved and applied.
 3. **Automatic ZIP intake has limits.** It only creates an authenticated, pending import with a verified server token. A human owner must review and process. It does not contain a verified external customer identity on receipt, and it does not publish.
 4. Manual URL registration is a reference, not hosting or uptime checks. The CRM relationship via `client_lead_id` is a lead reference; `os_projects.client_id` for a confirmed sale remains a distinct relationship managed through Sales Core and must be reconciled with Claude's CRM Titan changes.

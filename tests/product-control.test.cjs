@@ -71,6 +71,8 @@ test('new upload categories require a separate SQL review, never a blind product
   assert.match(review,/SECURITY REVIEW ONLY/);
   assert.match(review,/os_project_imports_category_check/);
   assert.match(review,/chatbots/);
+  assert.match(review,/os_projects_module_check/);
+  assert.doesNotMatch(review,/alter\s+table\s+public\.os_projects\b/i);
   assert.doesNotMatch(review,/drop table|drop schema/i);
   assert.ok(!fs.existsSync('supabase/migrations/20261113120000_product_control_bridge_categories.sql'));
 });
