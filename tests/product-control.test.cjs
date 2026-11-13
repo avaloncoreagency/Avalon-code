@@ -80,9 +80,12 @@ test('extended ZIP schema change is forward-only, guarded and does not change ca
   assert.doesNotMatch(review,/alter\s+table\s+public\.os_projects\b/i);
   assert.doesNotMatch(review,/drop table|drop schema/i);
   const migration=read('supabase/migrations/20261113173000_product_control_extended_import_categories.sql');
-  assert.match(migration,/Partial category expansion detected/);
+  assert.match(migration,/Historical replay caveat/);
+  assert.match(migration,/Unexpected os_projects module constraint/);
+  assert.match(migration,/Unexpected os_project_imports category constraint/);
   assert.match(migration,/os_project_imports_category_check/);
-  assert.doesNotMatch(migration,/alter\s+table\s+public\.os_projects\b/i);
+  assert.match(migration,/alter table public.os_projects drop constraint os_projects_module_check/);
+  assert.match(migration,/alter table public.os_project_imports drop constraint os_project_imports_category_check/);
   assert.doesNotMatch(migration,/drop table|drop schema|service_role|grant |disable row level security/i);
 });
 

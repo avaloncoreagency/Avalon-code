@@ -1,8 +1,12 @@
 -- AVALON PRODUCT CONTROL - SECURITY REVIEW ONLY, NOT AN APPLIED MIGRATION.
 -- Forward-only proposal. Claude Code owns the Supabase migration-history reconciliation.
--- READ-ONLY inspection (2026-11-13): os_projects_module_check ALREADY accepts the
--- seven module categories; os_project_imports_category_check accepts only four.
--- Avoid touching os_projects here: recreating a correct constraint adds lock risk.
+-- READ-ONLY hosted inspection (2026-11-13): the hosted database already accepts
+-- seven os_projects modules, while os_project_imports accepts four.
+-- Clean PGlite replay differs: the older Project Bridge migration resets the module
+-- check after AI Chatbots was added. Use the *forward migration* in
+-- supabase/migrations/20261113173000_product_control_extended_import_categories.sql
+-- for BOTH cases; this historical review-only proposal is NOT the release artifact.
+-- The forward migration avoids touching os_projects when the seven-module check exists.
 -- Reconfirm both constraints against the exact target database before approval.
 -- Must first test against an isolated restored schema. Never run via blind db push.
 -- This changes no grants, RLS, tokens, storage, execution or publication behavior.
