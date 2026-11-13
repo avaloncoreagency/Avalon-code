@@ -541,6 +541,9 @@ test('Nova Restaurant through the real app: one form, three departments, no dupl
   await page.getByRole('heading', { name: 'Avalon HQ', level: 1 }).waitFor();
   assert.match(page.url(), /\/admin\/workspace\/crm\/office\/hq$/);
   const scene = page.getByRole('region', { name: 'Directorio' });
+  // The owners are the primary office experience. Historical virtual-manager
+  // controls remain available on demand, but no longer crowd the directory.
+  await scene.getByText(/Herramientas futuras · managers de IA/).click();
   for (const name of ['REN', 'SHIN', 'HARU', 'SORA', 'KENJI']) await scene.getByRole('button', { name: new RegExp('^Abrir perfil de ' + name + ' \\(manager virtual de IA\\)') }).waitFor();
   assert.equal(await scene.getByRole('button', { name: /^Abrir perfil de (miguel|samuel)$/ }).count(), 2, 'both owners come from agency_memberships');
   // Own profile: edit (self-only).
