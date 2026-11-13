@@ -120,7 +120,7 @@ export function LeadBoard({ stages, leads, total, page, busy, currentOwnerId, on
                       <div className={s.actions}>
                         <button type="button" disabled={busy} onClick={() => onDetail(lead)}>Ficha</button>
                         <button type="button" disabled={busy} onClick={() => onEdit(lead)}>Editar</button>
-                        <Link href={`/admin/workspace/crm/sales/new?lead=${encodeURIComponent(String(lead.id))}`} draggable={false} aria-label={`Registrar venta para ${String(lead.company)}`}>Registrar venta</Link>
+                        {!lead.archived && <Link href={`/admin/workspace/crm/sales/new?lead=${encodeURIComponent(String(lead.id))}`} draggable={false} aria-label={`Registrar venta para ${String(lead.company)}`}>Registrar venta</Link>}
                          <Link href={`/admin/workspace/crm/lead/${String(lead.id)}`} draggable={false}>Deal Review</Link>
                          <Link href={`/admin/workspace/clients/${String(lead.id)}`} draggable={false}>Proyectos</Link>
                       </div>
