@@ -26,12 +26,15 @@ export const BRIDGE_LIMITS = {
 
 export const BRIDGE_BUCKET = "avalon-projects";
 
-export type Category = "website" | "ecommerce" | "crm_creator" | "apps";
-export const CATEGORIES: readonly Category[] = ["website", "ecommerce", "crm_creator", "apps"];
+export type Category = "website" | "ecommerce" | "crm_creator" | "receptionist" | "chatbots" | "marketing" | "apps";
+export const CATEGORIES: readonly Category[] = ["website", "ecommerce", "crm_creator", "receptionist", "chatbots", "marketing", "apps"];
 export const CATEGORY_LABEL: Record<Category, { es: string; en: string }> = {
   website: { es: "Website Designer", en: "Website Designer" },
   ecommerce: { es: "E-commerce Designer", en: "E-commerce Designer" },
   crm_creator: { es: "CRM Creator", en: "CRM Creator" },
+  receptionist: { es: "AI Receptionist", en: "AI Receptionist" },
+  chatbots: { es: "AI Chatbots", en: "AI Chatbots" },
+  marketing: { es: "Marketing Hub", en: "Marketing Hub" },
   apps: { es: "Apps", en: "Apps" },
 };
 export const SOURCE_TOOLS = ["chatgpt", "claude_code", "codex", "higgsfield", "editor", "manual", "api", "other"] as const;

@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { Suite } from "@/components/suite/suite";
 import { CommunicationsPortfolio } from "@/components/communications/communications-portfolio";
+import { ModuleDeliveryPanel } from "@/components/os/module-delivery-panel";
 import { requireOwner } from "@/lib/auth/session";
 import { getLang } from "@/lib/i18n-server";
 import { pick } from "@/lib/i18n";
@@ -165,6 +166,12 @@ export default async function CommunicationHub({searchParams}:Params) {
           {crmChoices.error && <DbNotice lang={lang} error={crmChoices.error} />}
           <div><button type="submit" disabled={Boolean(crmChoices.error || projects.error)}>{label("Registrar agente","Register agent")}</button></div>
         </form>
+      </section>
+
+      <section className={s.section} aria-labelledby="external-deliveries-title">
+        <div className={s.sectionHead}><div><h2 id="external-deliveries-title">{label("Recepción de agentes externos","External agent deliveries")}</h2></div></div>
+        <ModuleDeliveryPanel lang={lang} module="receptionist"/>
+        <ModuleDeliveryPanel lang={lang} module="chatbots"/>
       </section>
 
       <section className={s.section} aria-labelledby="tools-title">

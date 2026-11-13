@@ -78,9 +78,9 @@ export function Importer({ lang, projectId, defaultCategory = "website", lockedC
         <span>{t.file}</span>
         <input name="file" type="file" accept=".zip,.html,.htm,application/zip,text/html" required disabled={busy} />
       </label>
-      {!projectId && !lockedCategory && <div className={s.row}>
-        <label>{t.category}<select name="category" defaultValue={defaultCategory} disabled={busy}>{CATS.map(([v, l]) => <option key={v} value={v}>{l}</option>)}</select></label>
-        <label>{t.name}<input name="projectName" maxLength={120} disabled={busy} /></label>
+      {!projectId && <div className={s.row}>
+        {!lockedCategory && <label>{t.category}<select name="category" defaultValue={defaultCategory} disabled={busy}>{CATS.map(([v, l]) => <option key={v} value={v}>{l}</option>)}</select></label>}
+        <label>{t.name}<input name="projectName" maxLength={120} disabled={busy}/></label>
       </div>}
       {(projectId || lockedCategory) && <input type="hidden" name="category" value={lockedCategory ?? defaultCategory} />}
       <label>{t.tool}<select name="sourceTool" defaultValue="chatgpt" disabled={busy}>{TOOLS.map(([v, l]) => <option key={v} value={v}>{l}</option>)}</select></label>
@@ -89,7 +89,7 @@ export function Importer({ lang, projectId, defaultCategory = "website", lockedC
         {phase.kind === "uploading" && <><span>{t.up} {phase.pct}%</span><progress max={100} value={phase.pct} /></>}
         {phase.kind === "validating" && <span className={s.pulse}>{t.val}</span>}
         {phase.kind === "done" && <p data-state={phase.duplicate ? "duplicate" : "registered"}>
-          {phase.duplicate ? `${t.dup} ${phase.number}.` : `${t.ok} · ${t.version} ${phase.number}.`} <Link href={`/admin/workspace/products/${phase.projectId}`}>{t.open}</Link>
+          {phase.duplicate ? `${t.dup} ${phase.number}.` : `${t.ok} · ${t.version} ${phase.number}.`} <Link href={`/admin/workspace/${defaultCategory === "apps" ? "library" : "products"}/${phase.projectId}`}>{t.open}</Link>
           {phase.warnings.length > 0 && <small> {phase.warnings.join(" · ")}</small>}
         </p>}
         {phase.kind === "error" && <div role="alert" data-state="error">

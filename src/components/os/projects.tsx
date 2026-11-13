@@ -49,9 +49,7 @@ export async function ProjectsIndex({lang,module,base,projects,noun,createFields
       <div className={s.actions}><button className={s.btnPrimary} type="submit" disabled={Boolean(projects.error)}>{pick(lang,'Registrar producto','Register product')}</button></div>
       {projects.error==='schema_pending'&&<p className={s.meta}>{pick(lang,'Disponible cuando se aplique la migraci\u00f3n de m\u00f3dulos.','Available once the module migration is applied.')}</p>}
     </form></Panel></div>
-    {(module === 'website' || module === 'ecommerce' || module === 'crm_creator')
-      ? <ModuleDeliveryPanel lang={lang} module={module} />
-      : <p className={s.meta}>{pick(lang,'Las referencias externas ya pueden registrarse aquí. Los ZIP y la recepción automática de esta categoría requieren ampliar el contrato de Project Bridge y verificar su migración.','External references can be registered here. ZIPs and automatic delivery for this category require an approved Project Bridge schema extension.')}</p>}
+    <ModuleDeliveryPanel lang={lang} module={module} />
   </div>;
 }
 

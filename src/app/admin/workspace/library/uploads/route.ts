@@ -31,6 +31,12 @@ export async function POST(req: Request) {
   if (projectId !== null && !UUID.test(projectId)) return reply({ error: "invalid_project" }, 400);
 
   const db = session.supabase;
+  if (projectId) {
+    const project = await db.from("os_projects").select("id,module,status").eq("id",projectId).maybeSingle();
+    if (project.error) return reply({error:"unavailable"},503);
+    if (!project.data || project.data.module!==category || project.data.status==="archived")
+      return reply({error:"invalid_project"},400);
+  }
   const existing = await db.from("os_project_imports").select("id,status,archive_path").eq("created_by", session.user.id).eq("idempotency_key", key).maybeSingle();
   if (existing.data) return reply({ importId: existing.data.id, status: existing.data.status, replayed: true });
   const importId = crypto.randomUUID();
