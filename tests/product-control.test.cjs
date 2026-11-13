@@ -71,7 +71,7 @@ test('issues are saved inside each product with repair brief, checklist and auth
   assert.match(hud,/request_note/);
   assert.match(read(route+'products/[id]/brief/route.ts'),/getOwnerSession\(\)/);
 });
-test('new upload categories require a separate SQL review, never a blind production migration',()=>{
+test('extended ZIP schema change is forward-only, guarded and does not change canonical projects',()=>{
   const review=read('docs/sql/product-control-bridge-categories-review.sql');
   assert.match(review,/SECURITY REVIEW ONLY/);
   assert.match(review,/os_project_imports_category_check/);
@@ -79,7 +79,11 @@ test('new upload categories require a separate SQL review, never a blind product
   assert.match(review,/os_projects_module_check/);
   assert.doesNotMatch(review,/alter\s+table\s+public\.os_projects\b/i);
   assert.doesNotMatch(review,/drop table|drop schema/i);
-  assert.ok(!fs.existsSync('supabase/migrations/20261113120000_product_control_bridge_categories.sql'));
+  const migration=read('supabase/migrations/20261113173000_product_control_extended_import_categories.sql');
+  assert.match(migration,/Partial category expansion detected/);
+  assert.match(migration,/os_project_imports_category_check/);
+  assert.doesNotMatch(migration,/alter\\s+table\\s+public\\.os_projects\\b/i);
+  assert.doesNotMatch(migration,/drop table|drop schema|service_role|grant |disable row level security/i);
 });
 
 // Confirmed customer FK is not inferred from company names.
