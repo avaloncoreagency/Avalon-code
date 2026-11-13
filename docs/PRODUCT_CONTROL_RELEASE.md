@@ -52,3 +52,9 @@ New issues support `blocked → in_progress` and `fixed → verified → closed`
 ## Portfolio pagination
 
 Website, E-commerce, CRM Creator and Marketing portfolios use exact server counts and stable 50-record pages (`page=1..1000`) without changing legacy callers of `listProjects`, which remain capped at 100. The search box filters the **loaded page**, not the entire database; server-wide search would require a separate bounded index/query contract. Communication Hub retains its existing 60-record page behavior. Any 1000-page upper bound is explicit and must be revisited when product volumes justify it.
+
+## Final UX notes
+
+- Confirmed Client 360 links in each product record target `/admin/workspace/crm/clients/[id]`; legacy lead links target `/admin/workspace/clients/[id]`.
+- External creator and reference-vs-pending modes are visible in the product record. Stored project row version is labelled **record version**, not falsely called a sealed code backup.
+- The CRM Creator's primary registration no longer asks for a starter blueprint; previously built internal editor routes remain for backwards compatibility only.

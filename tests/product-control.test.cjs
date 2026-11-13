@@ -107,3 +107,13 @@ test('module portfolios paginate server-side without hiding products after the f
  assert.match(index,/Siguiente/);
  assert.match(index,/Anterior/);
 });
+
+test('product record distinguishes external source and canonical CRM client from mere URL registration',()=>{
+ const hud=read('src/components/os/product-hud.tsx');
+ assert.match(hud,/productMeta\.source_tool/);
+ assert.match(hud,/productMeta\.mode/);
+ assert.match(hud,/\/admin\/workspace\/crm\/clients\/\$\{confirmedClient\}/);
+ const crm=read(route+'crm-creator/page.tsx');
+ assert.doesNotMatch(crm,/Plantilla inicial|Starting template/);
+ assert.match(crm,/Mis CRMs/);
+});
