@@ -174,6 +174,13 @@ test('API tokens: hashed and scoped; a token only opens an inbox import; revoked
   await h.fails(`select token_sha256 from os_project_api_tokens`, [], '42501');
   await h.fails(`insert into os_project_api_tokens(name,token_sha256,prefix,scopes,expires_at) values('x',$1,'avb_wxyz','{deploy:production}',now()+interval '1 day')`, [sha('2')], '23514');
   await h.as('anon');
+  // Read-scoped tokens must never be allowed to transition an import.
+  // Even for a missing import ID, scope validation must fail first.
+  await h.fails(`select os_bridge_api_import_status($1,$2,true)`,
+    [sha('dash-token'), crypto.randomUUID()], '42501');
+  // Read-only polling is allowed, but a guessed import ID is never disclosed.
+  await h.fails(`select os_bridge_api_import_status($1,$2,false)`,
+    [sha('dash-token'), crypto.randomUUID()], 'P0002');
   const opened = (await h.one(`select os_bridge_api_open_import($1,'website','Landing IA','landing.zip','claude_code','tool-run-0001') as r`, [hash])).r;
   assert.equal(opened.status, 'awaiting_upload');
   assert.equal(opened.upload_path, `inbox/${opened.import_id}.zip`);
