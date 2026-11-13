@@ -91,6 +91,7 @@ test("lead ficha has one attachments panel, note upload, accessible previews and
   const gallery = fs.readFileSync("src/components/crm/lead-attachments.tsx", "utf8");
   const form = fs.readFileSync("src/components/crm/lead-interaction-form.tsx", "utf8");
   assert.match(page, /<LeadAttachments leadId=\{id\}/);
+  assert.ok(page.includes("tab=summary#lead-attachments"));
   assert.match(page, /<LeadInteractionForm leadId=\{id\}/);
   assert.match(page, /crm_attachments/);
   assert.match(gallery, /Archivos adjuntos/);
