@@ -15,13 +15,15 @@ export default async function CrmCreatorPage({ searchParams }: { searchParams: S
   const { supabase } = await requireOwner();
   const lang = await getLang();
   const showArchived = param(params, "archived") === "1";
-  const projects = await listProjects(supabase, "crm_creator", { includeArchived: showArchived });
+  const pageRaw=Number(param(params,"page") || "1");
+  const page=Number.isSafeInteger(pageRaw) && pageRaw>=1 && pageRaw<=1000?pageRaw:1;
+  const projects = await listProjects(supabase, "crm_creator", { includeArchived: showArchived, page });
   return (
     <Suite active="crm-creator">
       <PageHeader eyebrow="CRM Creator" title={pick(lang, "Mis CRMs", "My Client CRMs")}
         description={pick(lang, "Registra CRMs externos creados con Claude o Codex. Abre su acceso autorizado, conserva entregas y lleva sus incidencias; no los construimos aquí.", "Register client CRMs built with Claude or Codex. Open authorized access, retain deliveries and track issues; they are not built here.")} />
       <Flash lang={lang} ok={param(params, "ok")} error={param(params, "error")} />
-      <ProjectsIndex lang={lang} module="crm_creator" base="/admin/workspace/crm-creator" projects={projects} noun={{ es: "diseños de CRM", en: "CRM designs" }} showArchived={showArchived}
+      <ProjectsIndex lang={lang} module="crm_creator" base="/admin/workspace/crm-creator" projects={projects} noun={{ es: "diseños de CRM", en: "CRM designs" }} showArchived={showArchived} page={page}
         createFields={
           <label className={s.field}><span>{pick(lang, "Plantilla inicial", "Starting template")}</span>
             <select className={s.select} name="template" defaultValue="">

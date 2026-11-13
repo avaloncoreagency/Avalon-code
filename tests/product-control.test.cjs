@@ -91,3 +91,19 @@ test('confirmed CRM client identity is verified and linked without generating sa
  assert.match(group,/project\.client_id/);
  assert.match(group,/linkKind/);
 });
+
+test('module portfolios paginate server-side without hiding products after the first hundred',()=>{
+ const source=read('src/lib/os/data.ts');
+ assert.match(source,/page\?: number/);
+ assert.match(source,/\.range\(\(safePage!/);
+ assert.match(source,/count: "exact"/);
+ const modules=['website-designer','ecommerce-designer','crm-creator','marketing-hub'];
+ for(const slug of modules) {
+   const page=read(route+slug+'/page.tsx');
+   assert.match(page,/page=Number\.isSafeInteger/);
+   assert.match(page,/page=\{page\}/);
+ }
+ const index=read('src/components/os/projects.tsx');
+ assert.match(index,/Siguiente/);
+ assert.match(index,/Anterior/);
+});

@@ -58,7 +58,7 @@ export function CompanyPortfolio({ groups, module, lang }: { groups: CompanyGrou
     </article>)}</div>
     {!shown.length&&<p className={s.empty}>{pick(lang,"No hay productos para estos filtros.","No products match these filters.")}</p>}
     <p className={s.muted}>{pick(lang,
-      "Hasta 100 registros recientes por módulo. «Activo» indica el estado interno en Avalon; no confirma que el producto externo esté online ni pagado.",
-      "Up to 100 recent records per module. “Active” is an internal Avalon status, not proof that the external product is online or paid.")}</p>
+      "Mostrando esta página del portafolio. «Activo» es el estado interno en Avalon, no demuestra disponibilidad ni pago del producto externo.",
+      "Showing this portfolio page. “Active” is Avalon's internal state, not proof that the external product is online or paid.")}</p>
   </section>;
 }

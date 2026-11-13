@@ -12,8 +12,8 @@ import { createProject, updateProject } from '@/app/admin/workspace/project-acti
 import { DbNotice, Empty, Panel, statusLabel } from './ui';
 import s from './os.module.css';
 
-export async function ProjectsIndex({lang,module,base,projects,noun,createFields,showArchived}:{
-  lang:Lang;module:ModuleKey;base:string;projects:Loaded<ProjectRow[]>;noun:{es:string;en:string};createFields?:ReactNode;showArchived:boolean;
+export async function ProjectsIndex({lang,module,base,projects,noun,createFields,showArchived,page=1}:{
+  lang:Lang;module:ModuleKey;base:string;projects:Loaded<ProjectRow[]>;noun:{es:string;en:string};createFields?:ReactNode;showArchived:boolean;page?:number;
 }) {
   const {supabase}=await requireOwner();
   const leadIds=[...new Set((projects.data??[]).filter(p=>!p.client_id).map(p=>clientId(p.settings)).filter((id):id is string=>Boolean(id)))];
@@ -31,7 +31,13 @@ export async function ProjectsIndex({lang,module,base,projects,noun,createFields
   return <div>
     {projects.error?<DbNotice lang={lang} error={projects.error}/>:!projects.data.length?<Empty title={pick(lang,`A\u00fan no hay ${noun.es}`,`No ${noun.en} yet`)} body={pick(lang,'Registra un producto creado fuera de Avalon y vincúlalo al cliente del CRM.','Register a product built outside Avalon and link it to its CRM company.')}/>:<CompanyPortfolio lang={lang} module={module} groups={groupCompanies(projects.data,companyNames)}/>}
     {(linked?.error||confirmed?.error)&&<p className={s.meta}>{pick(lang,'No se pudieron leer los nombres del CRM. Las referencias se conservan, sin agrupar empresas por nombre.','CRM names could not be read. References are preserved; companies are not grouped by name.')}</p>}
-    <p className={s.meta} style={{marginTop:12}}><Link href={showArchived?base:`${base}?archived=1`}>{showArchived?pick(lang,'Ocultar archivados','Hide archived'):pick(lang,'Mostrar archivados','Show archived')}</Link></p>
+    <div className={s.actions} style={{marginTop:12}}>
+      <Link href={showArchived?base:`${base}?archived=1`}>{showArchived?pick(lang,'Ocultar archivados','Hide archived'):pick(lang,'Mostrar archivados','Show archived')}</Link>
+      {!projects.error&&<span className={s.meta}>{pick(lang,'Página','Page')} {page}
+        {projects.count!==null?` · ${projects.count} ${pick(lang,'productos totales','total products')}`:''}</span>}
+      {page>1&&<Link href={`${base}?${new URLSearchParams({...showArchived?{archived:'1'}:{},page:String(page-1)})}`}>{pick(lang,'Anterior','Previous')}</Link>}
+      {!projects.error && (projects.count??0)>page*50&&<Link href={`${base}?${new URLSearchParams({...showArchived?{archived:'1'}:{},page:String(page+1)})}`}>{pick(lang,'Siguiente','Next')}</Link>}
+    </div>
     <div id="new"><Panel title={pick(lang,'Agregar producto externo','Add external product')} id="create-title"><form action={createProject} className={s.form}>
       <input type="hidden" name="module" value={module}/>
       <label className={s.field}><span>{pick(lang,'Nombre del producto','Product name')} *</span><input className={s.input} name="name" required maxLength={120} autoComplete="off"/></label>
