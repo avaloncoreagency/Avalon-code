@@ -1,13 +1,14 @@
-import { agreementLines, type AgreementData } from "./agreement";
+import { agreementLines, type AgreementSnapshot } from "./agreement";
 
 /** Dependency-free, server-side PDF for immutable, owner-scoped contract snapshots. */
-export function renderAgreementPdf(input: AgreementData, id: string): Uint8Array {
+export function renderAgreementPdf(snapshot: AgreementSnapshot, id: string): Uint8Array {
+  const input = snapshot.data;
   const W = 612, H = 792, margin = 48, leading = 13;
   type Draw = { x:number; y:number; text:string; font:"F1"|"F2"; size:number; color:string };
   const pages: Draw[][] = [[]];
   let y = H - 64;
   const current = () => pages[pages.length-1];
-  const clean = (s: string) => s.normalize("NFKD").replace(/[\u0300-\u036f]/g,"").replace(/[\u2010-\u2015]/g,"-").replace(/[\u2018\u2019]/g,"'").replace(/[\u201c\u201d]/g,'"').replace(/[^\x20-\x7e]/g,"?");
+  const clean = (s: string) => s.normalize("NFC").replace(/[\u2010-\u2015]/g,"-").replace(/[\u2018\u2019]/g,"'").replace(/[\u201c\u201d]/g,'"').replace(/[^\x20-\x7e\xa0-\xff]/g,"?");
   const wrap = (s: string,max:number):string[] => {
     const out:string[]=[];
     for(const paragraph of clean(s).split(/\r?\n/)) {
@@ -38,7 +39,8 @@ export function renderAgreementPdf(input: AgreementData, id: string): Uint8Array
   for(const [i,s] of wrap(input.clientName,55).slice(0,2).entries())
     coverText(49,453-i*20,s,"F2",16,"0.11 0.16 0.32");
   coverText(49,372,"AGENCY","F2",9,"0.42 0.29 0.70");
-  coverText(49,349,input.agencyName,"F1",11,"0.11 0.16 0.32");
+  for(const [i,s] of wrap(input.agencyName,60).slice(0,2).entries())
+    coverText(49,349-i*17,s,"F1",11,"0.11 0.16 0.32");
   coverText(49,308,"EFFECTIVE DATE","F2",9,"0.42 0.29 0.70");
   coverText(49,287,input.effectiveDate,"F1",11,"0.11 0.16 0.32");
   coverText(49,225,"VERSION "+id.toUpperCase().slice(0,8)+" / "+input.county+" COUNTY, FLORIDA","F1",9,"0.37 0.41 0.50");
@@ -46,7 +48,7 @@ export function renderAgreementPdf(input: AgreementData, id: string): Uint8Array
   coverText(49,119,"NOT SIGNED. GENERATION IS NOT ACCEPTANCE.","F1",9,"0.62 0.25 0.34");
   pages.push([]);
   y=H-64;
-  for(const entry of agreementLines(input,id)){
+  for(const entry of agreementLines(snapshot,id)){
     const heading = clean(entry.heading);
     const lines=wrap(entry.text,94);
     next((heading?20:0)+Math.min(lines.length,2)*leading+10);
@@ -57,8 +59,8 @@ export function renderAgreementPdf(input: AgreementData, id: string): Uint8Array
   const objects:string[]=[];
   const add=(s:string)=>{objects.push(s);return objects.length;};
   const catalog=add(""); const pagesRoot=add("");
-  const fontRegular=add("<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>");
-  const fontBold=add("<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica-Bold >>");
+  const fontRegular=add("<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica /Encoding /WinAnsiEncoding >>");
+  const fontBold=add("<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica-Bold /Encoding /WinAnsiEncoding >>");
   const pageIds:number[]=[];
   const esc=(s:string)=>s.replace(/\\/g,"\\\\").replace(/\(/g,"\\(").replace(/\)/g,"\\)");
   for(let i=0;i<pages.length;i++){
@@ -69,7 +71,7 @@ export function renderAgreementPdf(input: AgreementData, id: string): Uint8Array
     }
     cmds.push("BT","0.46 0.5 0.57 rg","/F1 8 Tf","1 0 0 1 48 30 Tm","("+esc("ATTORNEY REVIEW DRAFT | NOT SIGNED | Page "+(i+1)+" of "+pages.length)+") Tj","ET");
     const stream=cmds.join("\n")+"\n";
-    const bytes=new TextEncoder().encode(stream).length;
+    const bytes=Buffer.byteLength(stream,"latin1");
     const content=add("<< /Length "+bytes+" >>\nstream\n"+stream+"endstream");
     const page=add("<< /Type /Page /Parent "+pagesRoot+" 0 R /MediaBox [0 0 "+W+" "+H+"] /Resources << /Font << /F1 "+fontRegular+" 0 R /F2 "+fontBold+" 0 R >> >> /Contents "+content+" 0 R >>");
     pageIds.push(page);
@@ -77,10 +79,10 @@ export function renderAgreementPdf(input: AgreementData, id: string): Uint8Array
   objects[catalog-1]="<< /Type /Catalog /Pages "+pagesRoot+" 0 R >>";
   objects[pagesRoot-1]="<< /Type /Pages /Kids ["+pageIds.map(x=>x+" 0 R").join(" ")+"] /Count "+pageIds.length+" >>";
   let pdf="%PDF-1.4\n%AVALON\n";const offsets=[0];
-  for(let i=0;i<objects.length;i++){offsets.push(new TextEncoder().encode(pdf).length);pdf+=(i+1)+" 0 obj\n"+objects[i]+"\nendobj\n";}
-  const xref=new TextEncoder().encode(pdf).length;
+  for(let i=0;i<objects.length;i++){offsets.push(Buffer.byteLength(pdf,"latin1"));pdf+=(i+1)+" 0 obj\n"+objects[i]+"\nendobj\n";}
+  const xref=Buffer.byteLength(pdf,"latin1");
   pdf+="xref\n0 "+(objects.length+1)+"\n0000000000 65535 f \n";
   for(const offset of offsets.slice(1))pdf+=String(offset).padStart(10,"0")+" 00000 n \n";
   pdf+="trailer\n<< /Size "+(objects.length+1)+" /Root "+catalog+" 0 R >>\nstartxref\n"+xref+"\n%%EOF";
-  return new TextEncoder().encode(pdf);
+  return new Uint8Array(Buffer.from(pdf,"latin1"));
 }
