@@ -6,6 +6,7 @@ import { usePathname } from "next/navigation";
 import { useEffect, useId, useRef, useState, type ReactNode } from "react";
 import type { Lang } from "@/lib/i18n";
 import { LanguageSwitch } from "./language-switch";
+import { SUITE_POLL_INTERVAL_MS, shouldRefreshNow } from "./poll-policy";
 import { Icon } from "./icons";
 import s from "./suite.module.css";
 
@@ -42,6 +43,8 @@ export function SuiteChrome({ lang, collapsed: initialCollapsed, section, user, 
   const menuId = useId();
   const searchRef = useRef<HTMLInputElement>(null);
   const alertsId = useId();
+  const inboxLastAttemptAt = useRef(0);
+  const presenceLastAttemptAt = useRef(0);
   // A dedicated thumb-friendly dock keeps the highest-frequency workflows visible.
   // Drawer navigation remains the complete, accessible route list.
   const salesActive = pathname.startsWith("/admin/workspace/crm/sales");
@@ -63,17 +66,24 @@ export function SuiteChrome({ lang, collapsed: initialCollapsed, section, user, 
   // Fetch only the signed-in member's persisted inbox; refresh on focus and navigation.
   useEffect(() => {
     let alive = true;
-    const refresh = async () => {
+    let inFlight = false;
+    const refresh = async (throttle = false) => {
+      if (inFlight) return;
+      const now = Date.now();
+      if (throttle && !shouldRefreshNow(inboxLastAttemptAt.current, now, document.visibilityState === "visible")) return;
+      inboxLastAttemptAt.current = now;
+      inFlight = true;
       try {
         const response = await fetch("/admin/api/notifications", { cache: "no-store" });
         if (!response.ok) throw Error("inbox");
         const data = await response.json() as { notices: StaffNotice[]; unread: number };
         if (alive) { setStaffNotices(data.notices ?? []); setUnread(data.unread ?? 0); setNoticeError(false); }
       } catch { if (alive) setNoticeError(true); }
+      finally { inFlight = false; }
     };
     void refresh();
-    const interval = window.setInterval(() => { if (document.visibilityState === "visible") void refresh(); }, 30000);
-    const onFocus = () => { void refresh(); };
+    const interval = window.setInterval(() => { if (document.visibilityState === "visible") void refresh(true); }, SUITE_POLL_INTERVAL_MS);
+    const onFocus = () => { if (document.visibilityState === "visible") void refresh(true); };
     window.addEventListener("focus", onFocus);
     return () => { alive = false; window.clearInterval(interval); window.removeEventListener("focus", onFocus); };
   }, [pathname]);
@@ -81,20 +91,28 @@ export function SuiteChrome({ lang, collapsed: initialCollapsed, section, user, 
   // Synchronized with Office every 30s. Shows schedule-based availability, not a login signal.
   useEffect(() => {
     let active = true;
-    const update = async () => {
+    let inFlight = false;
+    const update = async (throttle = false) => {
+      if (inFlight) return;
+      const now = Date.now();
+      if (throttle && !shouldRefreshNow(presenceLastAttemptAt.current, now, document.visibilityState === "visible")) return;
+      presenceLastAttemptAt.current = now;
+      inFlight = true;
       try {
         const response = await fetch("/admin/api/staff-presence", { cache: "no-store" });
         if (!response.ok) return;
         const info = await response.json() as { presence?: StaffPresence };
         if (active && info.presence) setMyPresence(info.presence);
       } catch { /* Keep last known status on a transient connectivity failure. */ }
+      finally { inFlight = false; }
     };
     void update();
     const timer = window.setInterval(() => {
-      if (document.visibilityState === "visible") void update();
-    }, 30000);
-    window.addEventListener("focus", update);
-    return () => { active = false; window.clearInterval(timer); window.removeEventListener("focus", update); };
+      if (document.visibilityState === "visible") void update(true);
+    }, SUITE_POLL_INTERVAL_MS);
+    const onFocus = () => { if (document.visibilityState === "visible") void update(true); };
+    window.addEventListener("focus", onFocus);
+    return () => { active = false; window.clearInterval(timer); window.removeEventListener("focus", onFocus); };
   }, [pathname]);
 
   const markNotice = async (id: string) => {
