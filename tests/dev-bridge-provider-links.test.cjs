@@ -27,8 +27,10 @@ test("only real GitHub and Avalon/Vercel HTTPS origins become clickable", () => 
   assert.equal(verifiedProviderHref("http://github.com/owner/repo", "github"), null);
   assert.equal(verifiedProviderHref("/admin/dev-bridge", "github"), null);
   assert.equal(verifiedProviderHref(null, "github"), null);
-  assert.match(verifiedProviderHref("https://avalon-core-agency-abc.vercel.app", "vercel"), /vercel\.app/);
-  assert.match(verifiedProviderHref("https://avaloncoreagency.com", "vercel"), /avaloncoreagency\.com/);
+  assert.equal(verifiedProviderHref("https://avalon-core-agency-abc.vercel.app", "vercel"), "https://avalon-core-agency-abc.vercel.app/");
+  assert.equal(verifiedProviderHref("https://avaloncoreagency.com", "vercel"), "https://avaloncoreagency.com/");
+  assert.equal(verifiedProviderHref("https://avaloncoreagency.com.evil.invalid", "vercel"), null);
+  assert.equal(verifiedProviderHref("https://fakeavaloncoreagency.com", "vercel"), null);
   assert.equal(verifiedProviderHref("https://github.com/owner/repo", "vercel"), null);
   assert.equal(verifiedProviderHref("https://vercel.app.evil.invalid", "vercel"), null);
 });
