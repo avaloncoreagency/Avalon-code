@@ -18,7 +18,7 @@ const fields = [
   ["agencyEmail","Agency notices email","Correo legal de Avalon","email",""],
   ["clientAddress","Client registered address","Dirección registrada del cliente","text",""],
   ["clientEmail","Client notices email","Correo de notificaciones del cliente","email",""],
-  ["county","Florida governing county","Condado de Florida","text","Broward"],
+  ["county","Florida governing county","Condado de Florida","text",""],
   ["scope","Specific services included","Servicios específicos incluidos","textarea",""],
   ["exclusions","Excluded work","Trabajo excluido","textarea",""],
   ["deliverables","Deliverables and handover format","Entregables y forma de entrega","textarea",""],
