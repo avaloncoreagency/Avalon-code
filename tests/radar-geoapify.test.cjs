@@ -24,8 +24,8 @@ const geo = compile("src/lib/crm/radar-geoapify.ts",{"./radar":radar});
 const tiles = compile("src/lib/crm/radar-map-tiles.ts");
 const quota = compile("src/lib/crm/radar-quota.ts");
 // Minimal stand-in for the supabase-js query builder used by searchAndIngest (runs table reads only).
-function fakeDb({ runs = [], rpcResult } = {}) {
-  const calls = { rpc: [], from: [] };
+function fakeDb({ runs = [], rpcResult, quotaError = null, quotaCount } = {}) {
+  const calls = { rpc: [], from: [], queryOptions: [] };
   const db = {
     calls,
     rpc: async (name, args) => { calls.rpc.push({ name, args }); return { data: rpcResult ?? { run_id: "mock", found: 2, inserted: 2, updated: 0, replayed: false }, error: null }; },
@@ -33,11 +33,12 @@ function fakeDb({ runs = [], rpcResult } = {}) {
       calls.from.push(table);
       const q = { filters: [], head: false };
       const api = {
-        select: (_cols, opts) => { q.head = !!opts?.head; return api; },
+        select: (_cols, opts) => { q.head = !!opts?.head; calls.queryOptions.push({ table, head: q.head }); return api; },
+        range: (first, last) => { q.range = [first, last]; return api; },
         eq: (col, val) => { q.filters.push(["eq", col, val]); return api; },
         gte: (col, val) => { q.filters.push(["gte", col, val]); return api; },
         maybeSingle: async () => ({ data: runs.find(r => q.filters.every(([, c, v]) => r[c] === v)) ?? null, error: null }),
-        then: (resolve) => resolve({ count: runs.length, data: null, error: null }),
+        then: (resolve) => resolve({ count: quotaCount ?? (quotaError ? null : runs.length), data: null, error: quotaError }),
       };
       return api;
     },
@@ -320,4 +321,22 @@ test("providerFailure labels the licensed/community timeout with its own limit",
   const seconds = (n) => search(failing(named("Error"))).providerFailure(named("TimeoutError"), n).error;
   assert.match(seconds(65), /\(65 s\)/);
   assert.match(seconds(16), /\(16 s\)/);
+});
+
+test("Geoapify quota errors fail closed before any provider request (including a missing CRM table)", async () => {
+  for (const code of ["PGRST205", "42P01", "42501"]) {
+    const http = { calls: 0, async fetch() { this.calls++; throw Error("should not query Geoapify"); } };
+    const search = loadSearch({ VERCEL_ENV: "production", AVALON_GEOAPIFY_PLACES_KEY: KEY }, (...args) => http.fetch(...args));
+    const db = fakeDb({ quotaError: { code } });
+    assert.equal(await search.radarQuota(db), null, "a missing or inaccessible table is not quota 0");
+    const result = await search.searchAndIngest(db, area, "manual:missing-quota-" + code);
+    assert.equal(result.ok, false);
+    assert.equal(result.status, 503);
+    assert.equal(result.blocked, "quota");
+    assert.match(result.error, /No se pudo verificar la cuota diaria/);
+    assert.equal(http.calls, 0, "zero vendor calls and zero credits burned");
+    assert.equal(db.calls.rpc.length, 0, "no ingest or misleading success");
+    assert.ok(db.calls.queryOptions.some(q => q.table === "crm_radar_runs" && q.head === false),
+      "quota must use a GET to expose missing PostgREST tables");
+  }
 });

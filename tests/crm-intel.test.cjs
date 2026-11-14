@@ -245,3 +245,22 @@ test("previously auto-withdrawn rules can return without restoring manually dism
   assert.deepEqual(r.changes,[{id:"1",version:5,ruleId:"evaluate_ads",action:"restore"}]);
   assert.deepEqual(r.humanReview,[]);
 });
+
+test("roofing and fencing cover ads, lead handling, closing, team, marketing budget and proposed commission", () => {
+  const roofing = T.templateFor("roofing"), fencing = T.templateFor("fencing"), hvac = T.templateFor("hvac");
+  for (const id of ["rf_weekly_estimates", "rf_lead_handler", "rf_response_minutes", "rf_close_process", "rf_ad_budget", "rf_license_review", "rf_avg_replacement", "rf_direct_cost", "rf_service_zips"])
+    assert.ok(ids(roofing).includes(id), id);
+  for (const id of ["fc_team_size", "fc_marketing_budget", "fc_commission_open", "fc_commission_proposed", "fc_materials", "fc_avg_sale", "fc_quote_days", "fc_area"])
+    assert.ok(ids(fencing).includes(id), id);
+  assert.ok(!ids(hvac).some(id => id.startsWith("rf_") || id.startsWith("fc_")), "other industries are unchanged");
+  const visible = (t, a) => F.visibleQuestions(t, a).flatMap(s => s.questions.map(q => q.id));
+  assert.ok(!visible(roofing, {}).includes("rf_response_minutes"));
+  assert.ok(!visible(roofing, { rf_lead_handler: A("nobody") }).includes("rf_response_minutes"));
+  assert.ok(visible(roofing, { rf_lead_handler: A("office") }).includes("rf_response_minutes"));
+  assert.ok(!visible(fencing, { fc_commission_open: A(false) }).includes("fc_commission_proposed"));
+  assert.ok(visible(fencing, { fc_commission_open: A(true) }).includes("fc_commission_proposed"));
+  // Older roofing answers (captured before these questions existed) still parse and score.
+  const old = { g_main_problem: A("Pocos leads"), rf_services: A(["repairs"]), rf_crews: A(2) };
+  assert.ok(F.progress(roofing, old));
+  assert.ok(S.scoreLead("roofing", old));
+});

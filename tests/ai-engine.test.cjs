@@ -67,8 +67,9 @@ test('automatic failover: 429 on Groq → cooldown recorded → task completes o
   // auth failure and 5xx also fail over; the second provider is never retried after an auth error.
   const G = fleet({ groq: () => json(401, {}), cloudflare: () => json(503, {}) });
   const r2 = await E.runTask(new E.MemoryStore(), E.createAdapters(ENV, G.f), task(), { env: ENV });
-  assert.equal(r2.task.result.provider, 'openrouter');
-  assert.deepEqual(r2.task.attempts.map(a => a.outcome), ['auth', 'unavailable', 'ok']);
+  assert.equal(r2.task.result, null, 'disallowed OpenRouter must not rescue a failed request');
+  assert.deepEqual(r2.task.attempts.map(a => a.outcome), ['auth', 'unavailable']);
+  assert.equal(G.calls.filter(c => c.p === 'openrouter').length, 0, 'no OpenRouter discovery or inference');
 });
 
 test('state persists and resumes: crash after a failed attempt, resume keeps the attempt history and continues; a succeeded task is never re-sent', async () => {
@@ -97,10 +98,12 @@ test('$0 guard: a reported cost or HTTP 402 blocks the provider; the ledger neve
   const r = await E.runTask(store, E.createAdapters(ENV, F.f), task(), { env: ENV });
   const s = store.load();
   assert.deepEqual(s.blocked, { groq: 'payment_required', cloudflare: 'cost_reported' });
-  assert.equal(r.task.result.provider, 'openrouter');
+  assert.equal(r.task.result, null, 'OpenRouter is disabled even when free');
   assert.equal(E.totalCost(s), 0);
+  const callsBefore = F.calls.length;
   const again = await E.runTask(store, E.createAdapters(ENV, F.f), task(), { env: ENV });
-  assert.ok(again.task.attempts.every(a => a.provider === 'openrouter'), 'blocked providers stay out until a human clears them');
+  assert.equal(again.task.status, 'blocked', 'blocked providers stay out until a human clears them');
+  assert.equal(F.calls.length, callsBefore, 'blocked providers trigger no new discovery');
 });
 
 test('daily caps below the free allowance: an exhausted provider is skipped without a request', async () => {
@@ -110,8 +113,8 @@ test('daily caps below the free allowance: an exhausted provider is skipped with
   s.usage[E.usageKey(day, 'groq')] = { requests: E.PROVIDERS.groq.daily.requests, tokens: 0, neurons: 0, costUsd: 0 };
   s.usage[E.usageKey(day, 'cloudflare')] = { requests: 0, tokens: 0, neurons: E.PROVIDERS.cloudflare.daily.neurons, costUsd: 0 };
   const r = await E.runTask(new E.MemoryStore(s), E.createAdapters(ENV, F.f), task(), { env: ENV });
-  assert.deepEqual(r.task.attempts.map(a => `${a.provider}:${a.outcome}`), ['groq:budget', 'cloudflare:budget', 'openrouter:ok']);
-  assert.deepEqual(F.chats().map(c => c.p), ['openrouter']);
+  assert.deepEqual(r.task.attempts.map(a => `${a.provider}:${a.outcome}`), ['groq:budget', 'cloudflare:budget']);
+  assert.deepEqual(F.chats().map(c => c.p), [], 'exhausted allowances cannot fail over to OpenRouter');
 });
 
 test('data protection: client personal data, emails, phones, cards and keys never leave Avalon', async () => {
@@ -133,7 +136,7 @@ test('Oracle is prepared but not routable until verified; unconfigured providers
   const { live, notes } = await E.discover(E.createAdapters({ GROQ_API_KEY: 'g' }, F.f), E.emptyState(), { GROQ_API_KEY: 'g' }, new Date());
   assert.equal(notes.oracle, 'prepared_not_operational');
   assert.equal(notes.cloudflare, 'not_configured');
-  assert.equal(notes.openrouter, 'not_configured');
+  assert.equal(notes.openrouter, 'disabled_by_policy');
   assert.deepEqual(Object.keys(live), ['groq']);
   const G = fleet();
   const r = await E.runTask(new E.MemoryStore(), E.createAdapters({}, G.f), task(), { env: {} });
@@ -205,4 +208,46 @@ test('circuit breaker: three consecutive 5xx put a provider in cooldown across t
   const st = new E.MemoryStore(store.load());
   await E.runTask(st, E.createAdapters(ENV, G.f), task({ id: 'brk-task-0010' }), { env: ENV, now: () => new Date(now.getTime() + 20 * 60_000) });
   assert.equal(st.load().failures.groq, 0);
+});
+
+test('owner routing excludes OpenRouter even when explicitly requested, while direct adapter tests remain available', async () => {
+  const F = fleet();
+  const adapters = E.createAdapters(ENV, F.f);
+  const order = ['openrouter', 'groq'];
+  const s = E.emptyState();
+  const { live, notes } = await E.discover(adapters, s, ENV, new Date('2026-11-14T10:00:00Z'), order);
+  assert.equal(notes.openrouter, 'disabled_by_policy');
+  assert.deepEqual(Object.keys(live), ['groq']);
+  assert.ok(E.selectModels({ caps: ['json'], minQuality: 2 }, live, order).every(x => x.provider === 'groq'));
+  await E.runTask(new E.MemoryStore(), adapters, task({ id: 'no-openrouter-explicit' }), { env: ENV, order });
+  assert.equal(F.calls.filter(c => c.p === 'openrouter').length, 0);
+});
+
+test('provider inventory is reused for 30 minutes and refreshed after expiry', async () => {
+  const F = fleet();
+  const a = E.createAdapters(ENV, F.f), state = E.emptyState();
+  const start = new Date('2026-11-14T10:00:00Z');
+  await E.discover(a, state, ENV, start);
+  const first = F.calls.length;
+  assert.ok(first >= 2, 'initial live inventory is fetched');
+  const again = await E.discover(a, state, ENV, new Date(start.getTime() + 60_000));
+  assert.equal(F.calls.length, first, 'no repeat model-list calls in TTL');
+  assert.match(again.notes.groq, /^cached:/);
+  await E.discover(a, state, ENV, new Date(start.getTime() + 31 * 60_000));
+  assert.ok(F.calls.length > first, 'expired cache is refreshed');
+});
+
+test('provider attempts remain capped across repeated resumptions, including when maxAttempts is excessive', async () => {
+  const F = fleet({
+    groq: () => json(503, {}),
+    cloudflare: () => json(503, {}),
+    openrouter: () => json(200, completion('should never be used')),
+  });
+  const store = new E.MemoryStore(), t = task({ id: 'bounded-task' });
+  for (let i = 0; i < 4; i++) {
+    const result = await E.runTask(store, E.createAdapters(ENV, F.f), t, { env: ENV, maxAttempts: 99 });
+    assert.ok(result.task.attempts.filter(a => a.outcome !== 'budget' && a.outcome !== 'cooldown').length <= 3);
+  }
+  assert.ok(F.chats().length <= 3, 'no extra model requests on repeated resumptions');
+  assert.ok(F.chats().every(c => c.p !== 'openrouter'));
 });
