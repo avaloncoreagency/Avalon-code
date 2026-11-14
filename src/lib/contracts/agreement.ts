@@ -31,6 +31,12 @@ export const SERVICE_OPTIONS = [
   "Automation", "Other",
 ] as const;
 
+export function canonicalAgreement(input: AgreementData): string {
+  // PostgreSQL jsonb does not preserve object key order. Hash a stable representation.
+  const entries = Object.keys(input).sort().map(k => [k, input[k as keyof AgreementData]]);
+  return JSON.stringify(Object.fromEntries(entries));
+}
+
 export const AGREEMENT_VERSION = master.version;
 export const AGREEMENT_CLAUSES = master.clauses;
 
