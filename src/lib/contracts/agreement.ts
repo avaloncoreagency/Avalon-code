@@ -1,4 +1,5 @@
 import master from "./master.json";
+import { SERVICE_SCHEDULES } from "./service-schedules";
 
 /** Only the real contracting person(s) or an actually formed legal entity may be named as Agency. */
 export type AgencyLegalForm = "individual" | "joint_individuals" | "registered_entity";
@@ -36,6 +37,7 @@ export type AgreementSnapshot = {
   data: AgreementData;
   /** Frozen clause text: re-rendering an old draft must not silently change its legal terms. */
   clauses: [string, string][];
+  schedules: [string, string][];
 };
 
 export const SERVICE_OPTIONS = [
@@ -86,6 +88,12 @@ export function validateAgreement(input: AgreementData): string[] {
     if (value.length > max || /[\u0000-\u0008\u000B\u000C\u000E-\u001F]/.test(value)) errors.push(key);
   }
   if (input.agencyBrand?.length > 120) errors.push("agencyBrand");
+  // PDF currently uses WinAnsiEncoding. Do not silently replace non-Latin legal identities.
+  for (const k of ["agencyName", "clientName"] as const) {
+    if (typeof input[k] === "string" && /[^\x20-\x7e\xa0-\xff]/.test(
+      input[k].normalize("NFC").replace(/[\u2018\u2019]/g, "'").replace(/[\u2010-\u2015]/g, "-")))
+      errors.push(k);
+  }
   return [...new Set(errors)];
 }
 
@@ -102,6 +110,7 @@ export function makeAgreementSnapshot(data: AgreementData): AgreementSnapshot {
   return {
     schemaVersion: 1, templateVersion: AGREEMENT_VERSION, data,
     clauses: AGREEMENT_CLAUSES.map(([heading, body]) => [heading, body]),
+    schedules: data.services.map(service => [service, SERVICE_SCHEDULES[service]]),
   };
 }
 
@@ -111,9 +120,16 @@ export function isAgreementSnapshot(v: unknown): v is AgreementSnapshot {
   if (s.schemaVersion !== 1 || typeof s.templateVersion !== "string" ||
     !s.data || !Array.isArray(s.clauses) || s.clauses.length < 10 ||
     s.clauses.length > 60 || s.clauses.some(c => !Array.isArray(c) || c.length !== 2 ||
-    typeof c[0] !== "string" || typeof c[1] !== "string" || c[1].length > 10000))
+    typeof c[0] !== "string" || typeof c[1] !== "string" || c[1].length > 10000) ||
+    !Array.isArray(s.schedules) || s.schedules.length > 10 ||
+    s.schedules.some(c => !Array.isArray(c) || c.length !== 2 ||
+    typeof c[0] !== "string" || typeof c[1] !== "string" || c[1].length > 5000))
     return false;
-  return validateAgreement(s.data as AgreementData).length === 0;
+  try {
+    return validateAgreement(s.data as AgreementData).length === 0 &&
+      s.schedules.length === s.data.services.length &&
+      s.schedules.every(([name], i) => name === s.data.services[i]);
+  } catch { return false; }
 }
 
 export function agreementLines(snapshot: AgreementSnapshot, id: string): { heading: string; text: string }[] {
@@ -153,6 +169,8 @@ export function agreementLines(snapshot: AgreementSnapshot, id: string): { headi
     { heading: "Third-party and advertising spend", text: data.adSpend },
     { heading: "Commission, if any", text: data.commission },
     { heading: "Additional negotiated terms", text: data.specialTerms || "None." },
+    { heading: "EXHIBIT B / SERVICE-SPECIFIC CONDITIONS", text: "Only the following selected service schedules apply. They supplement the Master Agreement and the signed Statement of Work. The scope and compensation must still be specified in Exhibit A." },
+    ...snapshot.schedules.map(([service, text]) => ({ heading: service + " / Specific terms", text })),
     { heading: "AUTHORIZED SIGNATURES", text: "Both parties must sign an approved final document; these are not electronic signatures." },
     ...signatureAgency,
     { heading: "Client authorized signatory", text: "Legal name: __________________________ Title: __________________________ Signature: _______________________ Date: __________" },
