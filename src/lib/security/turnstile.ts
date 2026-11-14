@@ -24,9 +24,11 @@ export async function verifyLoginHuman(
   if (status !== "enabled") return "unavailable";
   if (typeof token !== "string" || !token || token.length > 2048) return "invalid";
 
-  // Exact hostname, never inferred from request headers supplied by a user.
-  const expectedHostname = env.TURNSTILE_EXPECTED_HOSTNAME?.trim();
-  if (!expectedHostname || !/^[a-z0-9.-]+$/i.test(expectedHostname)) return "unavailable";
+  // Exact hostnames, never inferred from untrusted request headers or a suffix match.
+  const expectedHostnames = (env.TURNSTILE_EXPECTED_HOSTNAME ?? "")
+    .split(",").map(host => host.trim().toLowerCase()).filter(Boolean);
+  if (!expectedHostnames.length || expectedHostnames.length > 4 ||
+      expectedHostnames.some(host => !/^[a-z0-9.-]+$/i.test(host))) return "unavailable";
   try {
     const response = await (options.fetcher ?? fetch)("https://challenges.cloudflare.com/turnstile/v0/siteverify", {
       method: "POST",
@@ -40,7 +42,7 @@ export async function verifyLoginHuman(
     if (!body || typeof body !== "object") return "unavailable";
     const result = body as { success?: unknown; action?: unknown; hostname?: unknown };
     if (result.success !== true || result.action !== "avalon_login" ||
-        result.hostname !== expectedHostname) return "invalid";
+        typeof result.hostname !== "string" || !expectedHostnames.includes(result.hostname.toLowerCase())) return "invalid";
     return "ok";
   } catch {
     return "unavailable";
