@@ -7,6 +7,7 @@ on:
       - 'tests/crm*'
       - 'tests/radar-profile.database.cjs'
       - 'tests/crm-intel*'
+      - 'tests/prod-schema-compat.browser.cjs'
       - 'tests/helpers/**'
       - 'supabase/migrations/*radar*.sql'
       - 'tests/qa/**'
