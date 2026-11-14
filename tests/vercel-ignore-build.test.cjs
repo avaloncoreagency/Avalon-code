@@ -118,3 +118,21 @@ test('GitHub unavailable or malformed comparison always builds; production never
   assert.equal(production.skip, false);
   assert.equal(called, false, 'never request an API comparison for production');
 });
+
+test('unsafe Preview pointing at production Supabase is skipped before build CPU is consumed', async () => {
+  const env = {
+    VERCEL_ENV: 'preview',
+    NEXT_PUBLIC_SUPABASE_URL: 'https://ltbwzcrxeuczdhhtbqgm.supabase.co',
+    VERCEL_GIT_PREVIOUS_SHA: sha1,
+    VERCEL_GIT_COMMIT_SHA: sha2,
+  };
+  let invoked = false;
+  const noGit = () => { invoked = true; throw Error('git must not run'); };
+  const noApi = async () => { invoked = true; throw Error('network must not run'); };
+  assert.deepEqual(decision(env, noGit), { skip: true, reason: 'blocked_unsafe_preview_database' });
+  assert.deepEqual(await decisionWithNetwork(env, noGit, noApi), { skip: true, reason: 'blocked_unsafe_preview_database' });
+  assert.equal(invoked, false);
+  assert.equal(decision({ ...env, VERCEL_ENV: 'production' }).skip, false, 'production deployments still build');
+  assert.equal(decision({ ...env, NEXT_PUBLIC_SUPABASE_URL: 'https://wupvuwmqfcvmjqycmnvg.supabase.co' }, () => ({status: 0,stdout: 'src/app/page.tsx\0'})).skip, false,
+    'proper isolated staging runs application build');
+});
