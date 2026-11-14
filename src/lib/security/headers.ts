@@ -16,11 +16,12 @@ export const ENFORCED_CSP = ["frame-ancestors 'none'", "object-src 'none'", "bas
 
 export const REPORT_ONLY_CSP = [
   "default-src 'self'",
-  "script-src 'self' 'unsafe-inline'",
+  "script-src 'self' 'unsafe-inline' https://challenges.cloudflare.com",
   "style-src 'self' 'unsafe-inline'",
   "img-src 'self' data: https:",
   "font-src 'self' data:",
-  "connect-src 'self'",
+  "connect-src 'self' https://challenges.cloudflare.com",
+  "frame-src https://challenges.cloudflare.com",
   // Server actions post to self; OAuth (currently hidden) redirects via Supabase to Google.
   `form-action 'self' ${SUPABASE_ORIGIN} https://accounts.google.com`,
   "frame-ancestors 'none'",

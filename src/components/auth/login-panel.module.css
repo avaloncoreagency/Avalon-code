@@ -36,3 +36,10 @@
   .platform { max-width: 100%; }
   .footer { margin-top: 22px; }
 }
+
+/* Cloudflare Managed Turnstile stays centered and legible in the private login. */
+.turnstile{display:flex;justify-content:center;min-height:65px;margin:10px 0 4px;overflow:hidden}
+@media(max-width:380px){
+  .turnstile{justify-content:flex-start;min-height:56px}
+  .turnstile :global(.cf-turnstile){transform:scale(.82);transform-origin:top left}
+}
