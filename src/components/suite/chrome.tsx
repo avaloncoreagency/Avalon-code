@@ -57,7 +57,11 @@ export function SuiteChrome({ lang, collapsed: initialCollapsed, section, user, 
     if (!drawer) return;
     const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") setDrawer(false); };
     document.addEventListener("keydown", onKey);
-    return () => document.removeEventListener("keydown", onKey);
+    // iOS Safari: keep the page behind the open drawer from scrolling, and start keyboard focus inside the drawer.
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    document.querySelector<HTMLElement>("#os-sidebar button[data-drawer-close]")?.focus();
+    return () => { document.removeEventListener("keydown", onKey); document.body.style.overflow = previousOverflow; };
   }, [drawer]);
 
   // Fetch only the signed-in member's persisted inbox; refresh on focus and navigation.
@@ -145,7 +149,7 @@ export function SuiteChrome({ lang, collapsed: initialCollapsed, section, user, 
             aria-label={collapsed ? (es ? "Expandir menú" : "Expand menu") : (es ? "Contraer menú" : "Collapse menu")}>
             <Icon name="dots" />
           </button>
-          <button type="button" className={s.drawerClose} onClick={() => setDrawer(false)} aria-label={es ? "Cerrar menú" : "Close menu"}>
+          <button type="button" className={s.drawerClose} data-drawer-close onClick={() => setDrawer(false)} aria-label={es ? "Cerrar menú" : "Close menu"}>
             <Icon name="close" />
           </button>
         </div>
