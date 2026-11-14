@@ -21,7 +21,7 @@ export async function GET(_request: Request, { params }: { params: Promise<{id:s
   if (data.template_version !== AGREEMENT_VERSION)
     return NextResponse.json({error:"Archived template unavailable; original version must be restored"},{status:409});
   const digest = createHash("sha256")
-    .update(data.template_version + "\\n" + canonicalAgreement(data.snapshot as AgreementData))
+    .update(data.template_version + "\n" + canonicalAgreement(data.snapshot as AgreementData))
     .digest("hex");
   if (digest !== data.snapshot_sha256)
     return NextResponse.json({error:"Agreement integrity check failed"},{status:409});
