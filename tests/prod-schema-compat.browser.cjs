@@ -42,8 +42,12 @@ test('new code on the production schema: no private page crashes before migratio
   // honest unavailable state, not a 500 when an existing client is opened.
   const missingContractTable = await db.query("select to_regclass('public.crm_client_agreement_drafts') as relation");
   assert.equal(missingContractTable.rows[0].relation, null, "production does not yet have contract drafts");
+  // Guarded CRM triggers require an owner auth.uid, even during synthetic fixture setup.
+  // Emulate the signed-in owner for this one insert; do not disable trigger/RLS checks.
+  await db.exec(`select set_config('request.jwt.claim.sub', '${MIGUEL}', false);`);
   await db.exec(`insert into public.crm_clients (id, legal_name, source, owner_id, created_by)
     values ('${CLIENT}', 'Synthetic QA Client', 'synthetic_test', '${MIGUEL}', '${MIGUEL}');`);
+  await db.exec("select set_config('request.jwt.claim.sub', '', false);");
   const users = new Map();
   const exp = Math.floor(Date.now() / 1000) + 3600;
   const enc = x => Buffer.from(JSON.stringify(x)).toString('base64url');
