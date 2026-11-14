@@ -41,10 +41,32 @@ export async function createTask(form: FormData) {
   const priority = field(form, "priority") || "normal";
   const department = field(form, "department_id");
   const client_id = uuidField(form, "client_id");
+  const submittedWorkOrder = field(form, "work_order");
+  // Context is only a navigation hint until the order has been fetched under
+  // owner authorization. Never trust the submitted client/sale/project fields.
+  if (submittedWorkOrder && !returnContext.work_order) back(PATH, { ...returnContext, error: "sale_invalid" });
   if (!title || title.length > 200 || description.length > 4000 || !assignee_id || !(TASK_PRIORITIES as readonly string[]).includes(priority) || (department && !DEPARTMENTS.includes(department))) back(PATH, { ...returnContext, error: "sale_invalid" });
   let due_at: string | null;
   try { due_at = dueAt(field(form, "due_at"), field(form, "tz_offset")); } catch { back(PATH, { ...returnContext, error: "sale_invalid_date" }); }
-  const { data, error } = await supabase.from("crm_tasks").insert({ title, description, assignee_id, priority, due_at, client_id, department_id: department || null }).select("id").single();
+  let linkedOrder: { id: string; client_id: string; sale_id: string; project_id: string | null; department_id: string } | null = null;
+  if (returnContext.work_order) {
+    const { data, error } = await supabase.from("crm_work_orders")
+      .select("id,client_id,sale_id,project_id,department_id")
+      .eq("id", returnContext.work_order).maybeSingle();
+    if (error) back(PATH, { ...returnContext, error: saleErrorCode(error) });
+    if (!data || (client_id && client_id !== data.client_id)) back(PATH, { ...returnContext, error: "sale_invalid" });
+    linkedOrder = data;
+  }
+  const { data, error } = await supabase.from("crm_tasks").insert({
+    title, description, assignee_id, priority, due_at,
+    client_id: linkedOrder?.client_id ?? client_id,
+    department_id: linkedOrder?.department_id ?? (department || null),
+    ...(linkedOrder ? {
+      work_order_id: linkedOrder.id,
+      sale_id: linkedOrder.sale_id,
+      project_id: linkedOrder.project_id,
+    } : {}),
+  }).select("id").single();
   if (error) back(PATH, { ...returnContext, error: saleErrorCode(error) });
   revalidatePath(PATH);
   back(PATH, { ...returnContext, ok: "created", task: data.id });
