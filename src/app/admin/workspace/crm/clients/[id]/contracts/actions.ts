@@ -3,7 +3,7 @@
 import { createHash } from "node:crypto";
 import { revalidatePath } from "next/cache";
 import { back, ownerForAction, uuidField } from "@/lib/os/actions";
-import { AGREEMENT_VERSION, validateAgreement, type AgreementData } from "@/lib/contracts/agreement";
+import { AGREEMENT_VERSION, canonicalAgreement, validateAgreement, type AgreementData } from "@/lib/contracts/agreement";
 
 const BASE = "/admin/workspace/crm/clients";
 const PROPS: (keyof AgreementData)[] = [
@@ -27,7 +27,7 @@ export async function createClientAgreement(form: FormData) {
   } as AgreementData;
   const errors = validateAgreement(input);
   if (errors.length) back(here, { error: "fields" });
-  const canonical = JSON.stringify(input);
+  const canonical = canonicalAgreement(input);
   const digest = createHash("sha256").update(AGREEMENT_VERSION + "\n" + canonical).digest("hex");
   const { data, error } = await supabase.from("crm_client_agreement_drafts")
     .insert({client_id:clientId,template_version:AGREEMENT_VERSION,
