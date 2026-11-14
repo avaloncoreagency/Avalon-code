@@ -40,6 +40,14 @@ export const INDUSTRY_SPECIALIZATIONS: Record<string, Section[]> = {
       q("rf_estimate_days", "number", "Días promedio para visitar y cotizar", "Average days to inspect and quote"),
       q("rf_quote_followup", "choice", "Seguimiento de cotizaciones", "Quote follow-up", { options: opts(
         ["none", "No se realiza", "Not tracked"], ["manual", "Manual", "Manual"], ["crm", "Con CRM", "With a CRM"]) }),
+      q("rf_weekly_estimates", "number", "Inspecciones o cotizaciones que puede atender por semana", "Inspections or estimates they can handle per week"),
+      q("rf_lead_handler", "choice", "¿Quién responde los leads nuevos?", "Who answers new leads?", { options: opts(
+        ["owner", "El dueño", "The owner"], ["office", "Personal de oficina", "Office staff"],
+        ["sales", "Vendedor / estimador", "Salesperson / estimator"], ["nobody", "Nadie asignado", "Nobody assigned"]) }),
+      q("rf_response_minutes", "number", "Minutos promedio para responder a un lead nuevo", "Average minutes to respond to a new lead",
+        { when: { q: "rf_lead_handler", in: ["owner", "office", "sales"] } }),
+      q("rf_close_process", "long", "Proceso desde la cotización hasta el contrato firmado", "Process from estimate to signed contract"),
+      q("rf_ad_budget", "money", "Presupuesto mensual de publicidad (lo paga el cliente a la plataforma)", "Monthly ad budget (paid by the client to the platform)", { allowNA: true }),
     ] },
   ],
   fencing: [
@@ -69,6 +77,10 @@ export const INDUSTRY_SPECIALIZATIONS: Record<string, Section[]> = {
       q("fc_lost_reason", "choice", "Motivo más frecuente de ventas perdidas", "Most frequent reason for lost quotes", { options: opts(
         ["price", "Precio", "Price"], ["delay", "Tiempo de respuesta", "Response time"],
         ["competitor", "Competidor", "Competitor"], ["unknown", "No se mide", "Not tracked"]) }),
+      q("fc_team_size", "number", "Personas en el equipo de instalación", "People on the installation team"),
+      q("fc_marketing_budget", "money", "Presupuesto mensual de marketing (lo paga el cliente a la plataforma)", "Monthly marketing budget (paid by the client to the platform)", { allowNA: true }),
+      q("fc_commission_open", "yesno", "¿Está abierto a un modelo con comisión para Avalon?", "Open to a commission model for Avalon?"),
+      q("fc_commission_proposed", "percent", "Comisión propuesta para Avalon (%) — no acordada", "Proposed commission for Avalon (%) — not agreed", { when: yes("fc_commission_open") }),
     ] },
   ],
   tattoo: [
