@@ -1,5 +1,59 @@
+.asset {
+  margin: 0;
+  min-width: 0;
+  overflow: hidden;
+  border: 1px solid #304668;
+  border-radius: 14px;
+  background: #0b1429;
+}
+.assetHeading { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 8px; padding: 10px 12px; }
+.typeTag { color: #bfdaff; font-size: .76rem; font-weight: 750; }
+.assetState { padding: 4px 9px; border: 1px solid; border-radius: 100px; font-size: .7rem; font-weight: 750; }
+.imported { color: #a2f2d2; border-color: #368e7d; background: #133a37; }
+.pending { color: #ffe3ad; border-color: #89703b; background: #332b19; }
+.blocked { color: #ffbfc4; border-color: #975663; background: #3d2631; }
+.reference { color: #d8dcf1; border-color: #576483; background: #222e48; }
+.mediaFrame { background: radial-gradient(ellipse at center, #152446 4%, #070c1b 95%); }
+.image, .motion { display: block; width: 100%; height: auto; max-height: 320px; object-fit: contain; }
+.videoWrap { min-width: 0; }
+.unavailable {
+  min-height: 140px;
+  padding: 22px;
+  border-top: 1px dashed #394e70;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-direction: column;
+  text-align: center;
+  background: #0b152b;
+}
+.unavailable > span { color: #728aaf; font-size: 2.5rem; line-height: 1; }
+.unavailable strong { font-size: .88rem; margin: 9px 0 0; color: #e3ecfc; }
+.unavailable p { color: #9fb0ca; font-size: .79rem; margin: 7px 0 0; }
+.meta { display: grid; gap: 5px; padding: 12px; border-top: 1px solid #2b3d5b; color: #9fb3d2; font-size: .73rem; word-break: break-word; }
+.meta strong { color: #ebf4ff; font-size: .85rem; }
 .still { display: none; }
-@media(prefers-reduced-motion: reduce) {
+.modelBlock { padding: 12px; display: grid; gap: 10px; justify-items: stretch; }
+.modelButton {
+  min-height: 42px;
+  padding: 11px 15px;
+  border-radius: 9px;
+  background: #1b365b;
+  color: #e5f8ff;
+  border: 1px solid #5279a5;
+  font: inherit;
+  font-size: .82rem;
+  cursor: pointer;
+}
+.modelCanvas { height: clamp(210px, 24vw, 330px); min-height: 210px; border: 1px solid #3b577a; border-radius: 10px; overflow: hidden; touch-action: none; }
+.modelCanvas canvas { display: block; }
+.modelStatus { font-size: .76rem; color: #becfe8; margin: 0; }
+.sourceLink { font-size: .76rem; color: #93dfff; padding: 6px 0; }
+@media (prefers-reduced-motion: reduce) {
   .motion { display: none; }
   .still { display: block; }
+}
+@media (max-width: 730px) {
+  .modelCanvas { height: 245px; }
+  .image, .motion { max-height: 260px; }
 }
