@@ -1,4 +1,5 @@
 "use client";
+import Script from "next/script";
 import { useState } from "react";
 import { useFormStatus } from "react-dom";
 import { signIn } from "@/app/login/actions";
@@ -12,6 +13,7 @@ const copy = {
     pending: "Signing in…", email: "Email address", password: "Password", login: "Log in",
     access: "Admin-only access", identity: "Email and password", data: "Protected data", note: "Private workspace · Authorized owners only",
     callback: "Sign-in could not be completed. Please start again.", unauthorized: "This account is not authorized to access the admin portal.", invalid: "Unable to sign in. Check your email and password.", unavailable: "Avalon could not connect to authentication right now. Your password has not been rejected; please try again shortly.", throttled: "Too many attempts. Please wait a few minutes and try again.",
+    human: "Human verification was not completed. Please verify and try again.", humanUnavailable: "Human verification is temporarily unavailable. Please retry shortly.",
     tagline: "AI. PEOPLE. SYSTEMS. A BRIGHTER TOMORROW.",
   },
   es: {
@@ -19,6 +21,7 @@ const copy = {
     pending: "Iniciando sesión…", email: "Correo electrónico", password: "Contraseña", login: "Iniciar sesión",
     access: "Acceso administrativo", identity: "Correo y contraseña", data: "Datos protegidos", note: "Espacio privado · Solo propietarios autorizados",
     callback: "No se pudo completar el acceso. Inicia el proceso de nuevo.", unauthorized: "Esta cuenta no está autorizada para acceder al portal administrativo.", invalid: "No se pudo iniciar sesión. Comprueba tu correo y contraseña.", unavailable: "Avalon no pudo conectar con el servicio de acceso. Esto no significa que tu contraseña sea incorrecta. Inténtalo de nuevo en un momento.", throttled: "Demasiados intentos. Espera unos minutos e inténtalo de nuevo.",
+    human: "No se completó la verificación humana. Verifícate e inténtalo otra vez.", humanUnavailable: "La verificación humana no está disponible por ahora. Inténtalo nuevamente en un momento.",
     tagline: "IA. PERSONAS. SISTEMAS. UN MAÑANA MÁS BRILLANTE.",
   },
 };
@@ -36,12 +39,13 @@ function SecurityIcon({ kind }: { kind: "shield" | "lock" | "data" }) {
   </svg>;
 }
 
-export function LoginPanel({ error, updated, initialLanguage = "es" }: { error?: string; updated?: boolean; initialLanguage?: Lang }) {
+export function LoginPanel({ error, updated, initialLanguage = "es", turnstileSiteKey }: { error?: string; updated?: boolean; initialLanguage?: Lang; turnstileSiteKey?: string }) {
   const [showPassword, setShowPassword] = useState(false);
   const [language, setLanguage] = useState<Lang>(initialLanguage);
   const t = copy[language];
-  const message = error ? ({ callback: t.callback, unauthorized: t.unauthorized, invalid: t.invalid, throttled: t.throttled, unavailable: t.unavailable }[error] ?? t.callback) : null;
+  const message = error ? ({ callback: t.callback, unauthorized: t.unauthorized, invalid: t.invalid, throttled: t.throttled, unavailable: t.unavailable, human: t.human, "human-unavailable": t.humanUnavailable }[error] ?? t.callback) : null;
   return <main className={styles.scene} lang={language}>
+    {turnstileSiteKey && <Script src="https://challenges.cloudflare.com/turnstile/v0/api.js" strategy="afterInteractive" />}
     <LanguageSwitch lang={language} className={styles.languages} onChange={setLanguage} />
     <div className={styles.sideNote} aria-hidden="true">INTELLIGENCE<br />AUTOMATION<br />SCALING<br />A BRIGHTER TOMORROW</div>
     <header className={styles.brand}><div className={styles.wordmark}>AVALON</div><div className={styles.agency}>CORE AGENCY</div><p>{t.portal}</p></header>
@@ -60,6 +64,7 @@ export function LoginPanel({ error, updated, initialLanguage = "es" }: { error?:
           </button>
         </div>
         <a className={styles.forgot} href="/admin/forgot-password">{language === "es" ? "Olvidé mi contraseña" : "Forgot password"}</a>
+        {turnstileSiteKey && <div className={styles.turnstile}><div className="cf-turnstile" data-sitekey={turnstileSiteKey} data-action="avalon_login" data-theme="dark" /></div>}
         <Submit label={t.login} pendingLabel={t.pending} />
       </form>
       <p className={styles.note}>{t.note}<br /><a href="/admin/signup">{language === "es" ? "Activar cuenta por invitación" : "Activate invited account"}</a></p>

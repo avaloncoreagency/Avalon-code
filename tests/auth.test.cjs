@@ -13,6 +13,7 @@ function load(file, mocks = {}) {
   const localRequire = id => {
     if (id in mocks) return mocks[id];
     if (id === 'server-only') return {};
+    if (id === '@/lib/security/turnstile') return load('src/lib/security/turnstile.ts');
     if (id === 'next/headers') return { headers: async () => new Headers(), cookies: async () => ({ get: () => undefined, set: () => {} }) };
     if (id === '@/lib/security/rate-limit') return load('src/lib/security/rate-limit.ts');
     if (id.startsWith('.')) return load(path.resolve(path.dirname(filename), id + '.ts'), mocks);

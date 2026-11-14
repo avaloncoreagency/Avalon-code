@@ -9,5 +9,5 @@ export default async function LoginPage({ searchParams }: { searchParams: Promis
   const params = await searchParams;
   const member = await getAuthorizedMember();
   if (member) redirect("/admin/dashboard");
-  return <LoginPanel initialLanguage={await getLang()} updated={params.updated === "1"} error={params.error} />;
+  return <LoginPanel initialLanguage={await getLang()} updated={params.updated === "1"} error={params.error} turnstileSiteKey={process.env.TURNSTILE_SITE_KEY?.trim()} />;
 }
