@@ -1,0 +1,32 @@
+name: Client workspace isolated SQL acceptance
+on:
+  pull_request:
+    paths:
+      - 'supabase/migrations/**'
+      - 'tests/sql/**'
+      - 'tests/client-workspace.database.cjs'
+      - '.github/workflows/client-workspace.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: client-workspace-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+jobs:
+  sql-acceptance:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: tests/qa/package-lock.json
+      - run: npm ci --prefix tests/qa --ignore-scripts --no-audit --no-fund
+      - run: node --test tests/client-workspace.database.cjs
+        env:
+          NODE_PATH: ./tests/qa/node_modules
+      - run: echo 'Existing SQL acceptance executed with synthetic identities on isolated PostgreSQL WASM. No hosted database or human E2E.' >> "$GITHUB_STEP_SUMMARY"
