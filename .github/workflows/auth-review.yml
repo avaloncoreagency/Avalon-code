@@ -36,7 +36,10 @@ jobs:
           if [[ "$base_sha" =~ ^[0-9a-f]{40}$ ]] && git fetch --no-tags --depth=1 origin "$base_sha"; then
             changed="$(mktemp)"
             if git diff --name-only -z --no-ext-diff "$base_sha" HEAD -- > "$changed"; then
-              if classified="$(node scripts/ci/docs-only.cjs "$changed")"; then result="$classified"; fi
+              # A PR must not change the classifier/workflow and simultaneously skip tests.
+              if git diff --quiet "$base_sha" HEAD -- scripts/ci/docs-only.cjs .github/workflows/auth-review.yml; then
+                if classified="$(node scripts/ci/docs-only.cjs "$changed")"; then result="$classified"; fi
+              fi
             fi
           fi
           printf 'docs_only=%s\n' "$result" >> "$GITHUB_OUTPUT"

@@ -30,3 +30,9 @@ test('docs-only CLI reads a verified NUL-delimited diff, fails open on invalid i
     result = cli(); assert.equal(result.stdout, 'false');
   } finally { fs.rmSync(path.dirname(file), { recursive: true, force: true }); }
 });
+
+test('workflow never trusts an altered CI classifier or workflow to bypass required checks', () => {
+  const workflow = fs.readFileSync('.github/workflows/auth-review.yml', 'utf8');
+  assert.match(workflow, /git diff --quiet "\$base_sha" HEAD -- scripts\/ci\/docs-only\.cjs \.github\/workflows\/auth-review\.yml/);
+  assert.match(workflow, /if classified="\$\(node scripts\/ci\/docs-only\.cjs "\$changed"\)"/);
+});
