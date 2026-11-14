@@ -11,6 +11,12 @@ on:
       - feature/avalon-auth-rls
       - feature/sprint-01-miguel-google-auth
       - feature/avalon-profile-menu-preview
+# Cancel outdated checks when the same branch/PR receives a newer commit.
+# Different PRs and the protected main branch remain isolated.
+concurrency:
+  group: auth-review-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
 permissions:
   contents: read
 jobs:
