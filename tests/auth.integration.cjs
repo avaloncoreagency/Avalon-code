@@ -4,9 +4,10 @@ const { createServer } = require('node:http');
 const { spawn } = require('node:child_process');
 const { createHash } = require('node:crypto');
 
-// Real Next.js + @supabase/ssr over HTTP. Only the remote Google/Auth/Data
-// service is synthetic; no production keys, users or database are involved.
-test('OAuth PKCE, SSR cookies, owner gate, refresh and logout over HTTP', { timeout: 60000 }, async t => {
+// Real Next.js + @supabase/ssr over HTTP. Auth/Data providers are synthetic;
+// password-only sign-in is verified for TWO owners and a rejected non-owner.
+// No production keys, user accounts or database are involved.
+test('password-only owners, legacy PKCE, SSR cookies, MFA, rate limits and logout over HTTP', { timeout: 60000 }, async t => {
   let scenario = 'owner';
   let refreshCount = 0;
   let passwordAttempts = 0;
@@ -16,10 +17,10 @@ test('OAuth PKCE, SSR cookies, owner gate, refresh and logout over HTTP', { time
   const logoutCalls = [];
   const membershipChecks = [];
   let origin;
-  function makeSession(kind, expiresIn = 3600) {
+  function makeSession(kind, expiresIn = 3600, provider = 'google') {
     const user = {
       id: kind === 'nonmember' ? '00000000-0000-4000-8000-000000000003' : kind === 'owner2' ? '00000000-0000-4000-8000-000000000002' : kind === 'mfa' ? '00000000-0000-4000-8000-000000000004' : '00000000-0000-4000-8000-000000000001',
-      aud: 'authenticated', role: 'authenticated', app_metadata: { provider: 'google', providers: ['google'] },
+      aud: 'authenticated', role: 'authenticated', app_metadata: { provider, providers: [provider] },
       user_metadata: {}, identities: [], created_at: '2026-01-01T00:00:00Z',
     };
     // Owner with a verified TOTP factor whose session is still AAL1.
@@ -50,8 +51,16 @@ test('OAuth PKCE, SSR cookies, owner gate, refresh and logout over HTTP', { time
       }
       if (url.searchParams.get('grant_type') === 'password') {
         passwordAttempts++;
-        if (body.password === 'synthetic-correct-password') return json(200, makeSession('owner'));
-        if (body.password === 'synthetic-mfa-password') return json(200, makeSession('mfa'));
+        // The real sign-in action must normalize the email. A correct password
+        // for another identity must not grant this owner session.
+        if (body.email === 'owner@example.invalid' && body.password === 'synthetic-correct-password')
+          return json(200, makeSession('owner', 3600, 'email'));
+        if (body.email === 'owner2@example.invalid' && body.password === 'synthetic-second-owner-password')
+          return json(200, makeSession('owner2', 3600, 'email'));
+        if (body.email === 'outsider@example.invalid' && body.password === 'synthetic-nonowner-password')
+          return json(200, makeSession('nonmember', 3600, 'email'));
+        if (body.email === 'mfa-owner@example.invalid' && body.password === 'synthetic-mfa-password')
+          return json(200, makeSession('mfa', 3600, 'email'));
         return json(400, { error: 'invalid_credentials' });
       }
       assert.equal(url.searchParams.get('grant_type'), 'pkce');
@@ -147,16 +156,7 @@ test('OAuth PKCE, SSR cookies, owner gate, refresh and logout over HTTP', { time
     assert.equal((await request('/api/dev-bridge/resume?issue=8&as=samuel')).status, 401);
     assert.equal(new URL((await request('/admin/dev-bridge')).headers.get('location'), origin).pathname, '/admin/login');
   });
-  await check('password-only UI and actual password action work with legacy flag false', async () => {
-    const page=await request('/admin/login');const html=await page.text();
-    assert.match(html,/name="email"/);assert.match(html,/name="password"/);
-    assert.doesNotMatch(html,/>Continue with Google<|>Continuar con Google</);
-    const body=actionBody(actionId(html));body.set('email','owner@example.invalid');body.set('password','incorrect');
-    const invalid=await request('/admin/login',{method:'POST',headers:{origin},body});assert.match(invalid.headers.get('location'),/error=invalid/);
-    body.set('password','synthetic-correct-password');
-    const valid=await request('/admin/login',{method:'POST',headers:{origin},body});assert.equal(new URL(valid.headers.get('location'),origin).pathname,'/admin/dashboard');
-    jar.clear();
-  });
+
   await check('password-only UI and actual password action work with legacy flag false', async () => {
     const page=await request('/admin/login');const html=await page.text();
     assert.match(html,/name="email"/);assert.match(html,/name="password"/);
@@ -171,6 +171,32 @@ test('OAuth PKCE, SSR cookies, owner gate, refresh and logout over HTTP', { time
     assert.match(sessionCookie, /SameSite=Lax/i);
     assert.match(sessionCookie, /Max-Age=43200/i);
     assert.match(sessionCookie, /Path=\//i);
+    jar.clear();
+  });
+  await check('second owner uses email/password and receives the same private access', async () => {
+    const page = await request('/admin/login');
+    const body = actionBody(actionId(await page.text()));
+    // Uppercase and surrounding spaces must be normalized before Supabase Auth.
+    body.set('email', '  OWNER2@EXAMPLE.INVALID  ');
+    body.set('password', 'synthetic-second-owner-password');
+    const signedIn = await request('/admin/login', { method: 'POST', headers: { origin }, body });
+    assert.equal(new URL(signedIn.headers.get('location'), origin).pathname, '/admin/dashboard');
+    for (const path of ['/admin/dashboard', '/admin/workspace/crm', '/admin/workspace/crm/sales']) {
+      assert.equal((await request(path)).status, 200, 'second owner must access ' + path);
+    }
+    jar.clear();
+  });
+  await check('valid password never bypasses the owner membership gate', async () => {
+    const page = await request('/admin/login');
+    const body = actionBody(actionId(await page.text()));
+    body.set('email', 'outsider@example.invalid');
+    body.set('password', 'synthetic-nonowner-password');
+    const rejected = await request('/admin/login', { method: 'POST', headers: { origin }, body });
+    assert.match(rejected.headers.get('location'), /error=unauthorized$/);
+    assert.ok(![...jar.keys()].some(key => key.endsWith('auth-token')), 'no session persists for non-owner');
+    assert.equal((await request('/api/private')).status, 401);
+    assert.equal(new URL((await request('/admin/workspace/crm')).headers.get('location'), origin).pathname, '/admin/login');
+    assert.ok(logoutCalls.includes('local'), 'sign-in rejects and signs out the non-owner');
     jar.clear();
   });
   let consumedCallback;
@@ -289,5 +315,5 @@ test('OAuth PKCE, SSR cookies, owner gate, refresh and logout over HTTP', { time
     assert.equal(passwordAttempts - before, 8, 'the 9th attempt never reaches Supabase');
   });
   assert.deepEqual(verifierChecks, ['owner', 'owner2', 'nonmember']);
-  assert.ok(membershipChecks.includes('owner') && membershipChecks.includes('nonmember'));
+  assert.ok(membershipChecks.includes('owner') && membershipChecks.includes('owner2') && membershipChecks.includes('nonmember'));
 });
