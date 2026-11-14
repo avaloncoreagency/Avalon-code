@@ -3,6 +3,7 @@ const assert = require("node:assert/strict");
 const fs = require("node:fs");
 const path = require("node:path");
 const Module = require("node:module");
+const crypto = require("node:crypto");
 const ts = require("typescript");
 
 const BASE = "src/app/admin/workspace/crm/";
@@ -10,11 +11,11 @@ const ID = "11111111-1111-4111-8111-111111111111";
 const FILENAME = "Presupuesto de prueba.pdf";
 const data = Buffer.from("%PDF-1.7\nsynthetic", "utf8");
 
-function route({ owner = true, mime = "application/pdf", filename = FILENAME, content = data } = {}) {
+function route({ owner = true, mime = "application/pdf", filename = FILENAME, content = data, corrupt = false } = {}) {
   const calls = { queried: 0 };
   class FakeResponse extends Response {
     static json(payload, options) {
-      return new Response(JSON.stringify(payload), { ...options, headers: { "content-type": "application/json" } });
+      return new Response(JSON.stringify(payload), { ...options, headers: { ...options?.headers, "content-type": "application/json" } });
     }
   }
   const db = {
@@ -24,7 +25,7 @@ function route({ owner = true, mime = "application/pdf", filename = FILENAME, co
       const chain = {
         select: () => chain,
         eq: () => chain,
-        maybeSingle: async () => ({ data: { filename, mime, content: "\\x" + content.toString("hex") }, error: null })
+        maybeSingle: async () => ({ data: { filename, mime, sha256: corrupt ? "0".repeat(64) : crypto.createHash("sha256").update(content).digest("hex"), size_bytes: content.length, content: "\\x" + content.toString("hex") }, error: null })
       };
       return chain;
     }
@@ -112,3 +113,8 @@ test("lead ficha has one attachments panel, note upload, accessible previews and
   assert.match(drawer, /El archivo se guardó en Archivos adjuntos, pero la nota no/);
   assert.doesNotMatch(drawer, /service_role|SERVICE_ROLE/);
 });
+
+ test("corrupted stored bytes are never returned as a successful download", async()=>{
+ const {GET}=route({corrupt:true});const result=await GET(request(false),params);
+ assert.equal(result.status,409);assert.match(result.headers.get("cache-control"),/no-store/);assert.ok(!(await result.text()).includes("synthetic"));
+ });
