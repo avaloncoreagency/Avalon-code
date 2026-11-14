@@ -13,7 +13,8 @@ export const dynamic = "force-dynamic";
 type Client = { id:string;legal_name:string; location:string;country:string;origin_lead_id:string|null };
 type Draft = {id:string;template_version:string;created_at:string;created_by:string;status:string};
 const fields = [
-  ["agencyName","Agency registered legal name","Nombre legal registrado de Avalon", "text", ""],
+  ["agencyName","Legal name of the real contracting individual(s) or registered entity","Nombre legal real de la(s) persona(s) firmante(s) o entidad registrada", "text", ""],
+  ["agencyBrand","Brand/project name (not a legal entity) - optional","Nombre comercial o del proyecto (no es entidad legal) - opcional","text","Avalon Core Agency"],
   ["agencyAddress","Agency legal address","Dirección legal de Avalon","text",""],
   ["agencyEmail","Agency notices email","Correo legal de Avalon","email",""],
   ["clientAddress","Client registered address","Dirección registrada del cliente","text",""],
@@ -83,12 +84,30 @@ export default async function ClientContracts({params, searchParams}:{
         <input type="hidden" name="client_id" value={id}/>
         <div className={s.fieldset}>
           <h3>{name(lang,"Identidad y notificaciones","Entities and notices")}</h3>
-          <p className={s.muted}><strong>{name(lang,"Cliente verificado en el CRM","Verified CRM client")}:</strong> {client.legal_name}</p>
+          <p className={s.muted}><strong>{name(lang,"Cliente guardado en CRM (verifica el nombre legal)","Client recorded in CRM (verify legal name)")}:</strong> {client.legal_name}</p>
+          <p className={s.flash} data-tone="warn">
+            {name(lang,
+              "Avalon Core Agency todavía no está constituida: NO la introduzcas como LLC o empresa registrada. Escribe los nombres legales reales de quien(es) contratan. Usar un nombre comercial en Florida puede requerir registro como fictitious name (DBA) antes de operar.",
+              "Avalon Core Agency is not yet formed: do NOT identify it as an LLC or registered company. Use the actual legal name(s) of the contracting person(s). Doing business under a separate trade name in Florida may require fictitious-name registration before operating.")}
+          </p>
+          <label className={s.field}>{name(lang,"Forma legal REAL del proveedor","ACTUAL legal form of service provider")}
+            <select name="agencyLegalForm" defaultValue="" required>
+              <option value="" disabled>{name(lang,"Selecciona la situación verdadera","Select the truthful status")}</option>
+              <option value="individual">{name(lang,"Una persona natural (sin entidad constituida)","One individual (no formed entity)")}</option>
+              <option value="joint_individuals">{name(lang,"Dos personas naturales, ambas firmarán","Two natural persons; both will sign")}</option>
+              <option value="registered_entity">{name(lang,"Entidad legal registrada y verificable","Registered and verifiable legal entity")}</option>
+            </select>
+          </label>
+          <label className={s.muted}>
+            <input name="entityExistsConfirm" type="checkbox" value="yes"/>{" "}
+            {name(lang,"Solo si eliges entidad registrada: confirmo que existe legalmente y que verificaré su registro antes de firmar.",
+              "Only if registered entity is selected: I confirm it legally exists and will verify its registration before signing.")}
+          </label>
           <label className={s.field}>{name(lang,"Fecha de vigencia","Effective date")}
             <input name="effectiveDate" type="date" defaultValue={new Date().toISOString().slice(0,10)} required/>
           </label>
-          {fields.slice(0,6).map(([key,en,es,kind,def])=><label className={s.field} key={key}>{name(lang,es,en)}
-            <input name={key} type={kind} defaultValue={key==="clientAddress"?(client.location||"")+(client.country?", "+client.country:""):def} required/>
+          {fields.slice(0,7).map(([key,en,es,kind,def])=><label className={s.field} key={key}>{name(lang,es,en)}
+            <input name={key} type={kind} defaultValue={key==="clientAddress"?(client.location||"")+(client.country?", "+client.country:""):def} required={key!=="agencyBrand"} maxLength={800}/>
           </label>)}
         </div>
         <fieldset className={s.fieldset}>
@@ -99,7 +118,7 @@ export default async function ClientContracts({params, searchParams}:{
         </fieldset>
         <fieldset className={s.fieldset}>
           <legend>{name(lang,"Alcance y protección comercial","Scope and commercial safeguards")}</legend>
-          {fields.slice(6).map(([key,en,es,kind,def])=><label className={s.field} key={key}>{name(lang,es,en)}
+          {fields.slice(7).map(([key,en,es,kind,def])=><label className={s.field} key={key}>{name(lang,es,en)}
             {kind==="textarea"?<textarea name={key} rows={3} defaultValue={def} required={key!=="exclusions"&&key!=="specialTerms"} maxLength={3000}/>
               :<input name={key} type="text" defaultValue={def} required maxLength={800}/>}
           </label>)}
