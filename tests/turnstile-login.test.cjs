@@ -37,6 +37,16 @@ test('Turnstile only enables when both keys are configured; partial config block
   }
 });
 
+test('exact allowlist permits production apex and www, never deceptive suffixes', async () => {
+  const env = { ...configured, TURNSTILE_EXPECTED_HOSTNAME: 'avaloncoreagency.com,www.avaloncoreagency.com' };
+  for (const hostname of ['avaloncoreagency.com', 'www.avaloncoreagency.com']) {
+    assert.equal(await gate.verifyLoginHuman('token', { env, fetcher: async () => response({ ...good, hostname }) }), 'ok');
+  }
+  for (const hostname of ['attacker.avaloncoreagency.com', 'avaloncoreagency.com.evil.test', 'other.invalid']) {
+    assert.equal(await gate.verifyLoginHuman('token', { env, fetcher: async () => response({ ...good, hostname }) }), 'invalid');
+  }
+});
+
 test('missing, forged, oversized or non-string tokens never contact Cloudflare', async () => {
   let calls = 0;
   const options = { env: configured, fetcher: async () => { calls++; return response(good); } };
