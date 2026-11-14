@@ -36,16 +36,20 @@ const name=(lang:"es"|"en",es:string,en:string)=>pick(lang,es,en);
 
 export default async function ClientContracts({params, searchParams}:{
   params:Promise<{id:string}>;
-  searchParams:Promise<{ok?:string;error?:string;agreement?:string}>;
+  searchParams:Promise<{ok?:string;error?:string;agreement?:string;page?:string}>;
 }){
   const {id}=await params; if(!UUID_RE.test(id))notFound();
   const {supabase}=await requireOwner();
   const lang=await getLang();
   const p=await searchParams;
+  const requestedPage = typeof p.page === "string" && /^[1-9]\d{0,3}$/.test(p.page) ? Number(p.page) : 1;
+  const page = Math.min(500, requestedPage);
+  const PAGE_SIZE = 20;
   const [clientResult,draftsResult]=await Promise.all([
     supabase.from("crm_clients").select("id,legal_name,location,country,origin_lead_id").eq("id",id).maybeSingle(),
-    supabase.from("crm_client_agreement_drafts").select("id,template_version,created_at,created_by,status")
-      .eq("client_id",id).order("created_at",{ascending:false}).limit(30),
+    supabase.from("crm_client_agreement_drafts").select("id,template_version,created_at,created_by,status",{count:"exact"})
+      .eq("client_id",id).order("created_at",{ascending:false}).order("id",{ascending:false})
+      .range((page-1)*PAGE_SIZE,page*PAGE_SIZE-1),
   ]);
   const client=clientResult.data as Client|null; if(!client)notFound();
   const drafts=(draftsResult.data??[]) as Draft[];
@@ -63,7 +67,10 @@ export default async function ClientContracts({params, searchParams}:{
       {" · "}{name(lang,"Crear o descargar un PDF no significa que esté firmado ni que la venta esté autorizada. Las cláusulas y los datos legales requieren revisión de abogado antes del uso con clientes.",
       "Generating or downloading a PDF is not a signature or approval. A Florida attorney must review the legal terms and business details before client use.")}</p>
     </section>
-    {p.ok==="created"&&<p className={s.flash} data-tone="ok" role="status">{name(lang,"Borrador creado. Puedes descargarlo abajo.","Draft created. Download it below.")}</p>}
+    {(p.ok==="created" || p.ok==="existing")&&<p className={s.flash} data-tone="ok" role="status">
+      {p.ok==="existing"?name(lang,"Este borrador ya estaba guardado; no se creó un duplicado.","This exact draft already existed; no duplicate was created."):
+      name(lang,"Borrador creado. Puedes descargarlo abajo.","Draft created. Download it below.")}
+    </p>}
     {p.error&&<p className={s.flash} data-tone="error" role="alert">{p.error==="schema"
       ? name(lang,"La tabla de contratos todavía no está instalada en este entorno.","Contract drafts table is not installed in this environment.")
       : name(lang,"No se pudo guardar. Revisa todos los campos y vuelve a intentarlo.","Could not save. Check all fields and try again.")}</p>}
@@ -76,6 +83,11 @@ export default async function ClientContracts({params, searchParams}:{
         <p className={s.muted}>{new Date(d.created_at).toLocaleDateString(lang==="es"?"es-US":"en-US")} · {d.template_version} · DRAFT</p>
         <Link className={s.button} href={path+"/contracts/"+d.id}>{name(lang,"Descargar PDF","Download PDF")}</Link>
       </article>)}</div>}
+      {!draftsResult.error && (draftsResult.count??0)>PAGE_SIZE && <nav className={s.actions} aria-label={name(lang,"Páginas de contratos","Agreement pages")}>
+        {page>1 && <Link className={s.button} href={path+"/contracts?page="+(page-1)}>{name(lang,"Anterior","Previous")}</Link>}
+        <span className={s.muted}>{name(lang,"Página","Page")} {page} · {draftsResult.count} {name(lang,"borradores","drafts")}</span>
+        {page*PAGE_SIZE<(draftsResult.count??0) && <Link className={s.button} href={path+"/contracts?page="+(page+1)}>{name(lang,"Siguiente","Next")}</Link>}
+      </nav>}
     </section>
     <section className={s.panel}>
       <header><h2>{name(lang,"Generar nuevo contrato","Generate new agreement")}</h2></header>

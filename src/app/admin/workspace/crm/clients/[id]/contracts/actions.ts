@@ -34,6 +34,12 @@ export async function createClientAgreement(form: FormData) {
     .insert({client_id:clientId,template_version:AGREEMENT_VERSION,
       snapshot,snapshot_sha256:digest,created_by:userId,status:"draft"})
     .select("id").single();
+  if (error?.code === "23505") {
+    // A double-tap or network retry must not create a second indistinguishable draft.
+    const already = await supabase.from("crm_client_agreement_drafts")
+      .select("id").eq("client_id", clientId).eq("snapshot_sha256", digest).maybeSingle();
+    if (already.data?.id) back(here, { ok: "existing", agreement: already.data.id });
+  }
   if (error || !data) back(here, { error: error?.code === "42P01" || error?.code === "PGRST205" ? "schema" : "save" });
   revalidatePath(here);
   back(here, { ok: "created", agreement: data.id });

@@ -14,6 +14,8 @@ create table if not exists public.crm_client_agreement_drafts (
 );
 create index if not exists crm_client_agreement_drafts_client_created
   on public.crm_client_agreement_drafts (client_id, created_at desc, id desc);
+create unique index if not exists crm_client_agreement_drafts_dedupe
+  on public.crm_client_agreement_drafts (client_id, snapshot_sha256);
 alter table public.crm_client_agreement_drafts enable row level security;
 revoke all on public.crm_client_agreement_drafts from anon;
 revoke all on public.crm_client_agreement_drafts from authenticated;
