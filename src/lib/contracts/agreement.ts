@@ -77,7 +77,9 @@ export function validateAgreement(input: AgreementData): string[] {
 
   // "Avalon Core Agency" is a project/brand name, not a formed LLC or a substitute for a legal signer.
   const normalized = input.agencyName.toLowerCase().replace(/[.,\s]/g, "");
-  if (normalized === "avaloncoreagency" || normalized === "avaloncoreagencyllc") errors.push("agencyName");
+  if (normalized === "avaloncoreagency" ||
+    (normalized === "avaloncoreagencyllc" && input.agencyLegalForm !== "registered_entity"))
+    errors.push("agencyName");
   if (input.agencyLegalForm !== "registered_entity" &&
     /\b(?:llc|l\.l\.c\.|inc\.?|corp\.?|corporation)\b/i.test(input.agencyName)) errors.push("agencyName");
   if (!/^[a-zA-Z][a-zA-Z\s.'-]{1,79}$/.test(input.county)) errors.push("county");
