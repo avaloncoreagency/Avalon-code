@@ -118,7 +118,7 @@ Next exact task: owner chooses (a) isolated DB for Preview and (b) map/places pr
 drawer per lead: stage changes written by trigger (with time in previous stage), notes, scheduled
 activities and files (≤ 5 MB, type allowlist + signature check, 25 MB/lead, immutable, owner RLS,
 download as attachment + `nosniff` + sandbox CSP). Migration `20261102210000_pipeline_board.sql`:
-**not applied anywhere**. Evidence: `tests/pipeline-board.{test,database}.cjs`, `tests/sales.browser.cjs`.
+**reported as applied to isolated Preview and production on 2026-11-03** (see §9 for the recorded migration ledger and fingerprint; live database not independently rechecked in this documentation update). Evidence: `tests/pipeline-board.{test,database}.cjs`, `tests/sales.browser.cjs`.
 
 ## 9. Avalon OS 2.0 — Oficina / Office (2026-11-03)
 
