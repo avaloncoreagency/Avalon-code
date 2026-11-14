@@ -45,12 +45,12 @@ export function validateAgreement(input: AgreementData): string[] {
   if (!input.services.length || input.services.some(s => !SERVICE_OPTIONS.includes(s as typeof SERVICE_OPTIONS[number])))
     errors.push("services");
   for (const k of ["agencyEmail", "clientEmail"] as const) {
-    if (input[k] && !/^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$/.test(input[k])) errors.push(k);
+    if (input[k] && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(input[k])) errors.push(k);
   }
-  if (!/^\\d{4}-\\d{2}-\\d{2}$/.test(input.effectiveDate) || Number.isNaN(Date.parse(input.effectiveDate)))
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(input.effectiveDate) || Number.isNaN(Date.parse(input.effectiveDate)))
     errors.push("effectiveDate");
   for (const k of ["setupFee", "monthlyFee"] as const) {
-    if (!/^\\d{1,9}(\\.\\d{1,2})?$/.test(input[k]) || Number(input[k]) < 0) errors.push(k);
+    if (!/^\d{1,9}(\.\d{1,2})?$/.test(input[k]) || Number(input[k]) < 0) errors.push(k);
   }
   for (const [k,v] of Object.entries(input)) {
     if (typeof v === "string" && v.length > (["scope","deliverables","exclusions","specialTerms"].includes(k) ? 3000 : 800))
