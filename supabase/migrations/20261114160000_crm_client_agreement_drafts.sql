@@ -15,7 +15,9 @@ create table if not exists public.crm_client_agreement_drafts (
 create index if not exists crm_client_agreement_drafts_client_created
   on public.crm_client_agreement_drafts (client_id, created_at desc, id desc);
 alter table public.crm_client_agreement_drafts enable row level security;
-revoke all on public.crm_client_agreement_drafts from public, anon, authenticated;
+revoke all on public.crm_client_agreement_drafts from anon;
+revoke all on public.crm_client_agreement_drafts from authenticated;
+revoke all on public.crm_client_agreement_drafts from public;
 grant select, insert on public.crm_client_agreement_drafts to authenticated;
 create policy owner_select_agreement_drafts on public.crm_client_agreement_drafts
   for select to authenticated using (agency_key = 'avalon' and (select crm_private.is_owner()));
