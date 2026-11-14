@@ -15,12 +15,16 @@ export type AiTask = {
 export type RunOptions = { env: Record<string, string | undefined>; now?: () => Date; order?: ProviderId[]; maxAttempts?: number };
 export type RunOutcome = { task: TaskRecord; resumed: boolean };
 
-const ROUTABLE: ProviderId[] = ["groq", "cloudflare", "openrouter", "oracle"];
+// Owner policy: OpenRouter is intentionally excluded, even if a stale key exists.
+const ROUTABLE: ProviderId[] = ["groq", "cloudflare", "oracle"];
+const MAX_PROVIDER_ATTEMPTS_PER_TASK = 3;
+const MODEL_INVENTORY_TTL_MS = 30 * 60_000;
+const allowedOrder = (order: ProviderId[] = ROUTABLE) => [...new Set(order)].filter(p => p !== "openrouter");
 
 /** Rank every live model that satisfies the requirements. Pure: used directly by tests and by the worker's plan. */
 export function selectModels(req: Requirements, live: Partial<Record<ProviderId, ModelSpec[]>>, order: ProviderId[] = ROUTABLE): Candidate[] {
   const out: Candidate[] = [];
-  for (const [i, provider] of order.entries()) {
+  for (const [i, provider] of allowedOrder(order).entries()) {
     for (const model of live[provider] ?? []) {
       if (model.quality < req.minQuality) continue;
       if (req.minContext && model.context < req.minContext) continue;
@@ -60,14 +64,26 @@ function addUsage(s: State, p: ProviderId, day: string, r: ChatResult | null) {
 export async function discover(adapters: Record<ProviderId, Adapter>, s: State, env: Record<string, string | undefined>, now: Date, order = ROUTABLE) {
   const live: Partial<Record<ProviderId, ModelSpec[]>> = {};
   const notes: Record<string, string> = {};
-  for (const p of order) {
+  if (order.includes("openrouter")) notes.openrouter = "disabled_by_policy";
+  for (const p of allowedOrder(order)) {
     if (PROVIDERS[p].status !== "operational" && env.ORACLE_AI_VERIFIED !== "true") { notes[p] = "prepared_not_operational"; continue; }
     if (s.blocked[p]) { notes[p] = "blocked:" + s.blocked[p]; continue; }
     const cd = s.cooldownUntil[p];
     if (cd && new Date(cd) > now) { notes[p] = "cooldown_until:" + cd; continue; }
     if (!adapters[p].configured) { notes[p] = "not_configured"; continue; }
-    try { live[p] = await adapters[p].listModels(); notes[p] = `${live[p]!.length} modelos gratuitos`; }
-    catch (e) { notes[p] = e instanceof ProviderError ? e.kind : "list_failed"; }
+    const cached = s.modelInventory?.[p];
+    const cacheAge = cached ? now.getTime() - Date.parse(cached.at) : NaN;
+    if (cached && Number.isFinite(cacheAge) && cacheAge >= 0 && cacheAge < MODEL_INVENTORY_TTL_MS) {
+      live[p] = cached.models;
+      notes[p] = `cached:${cached.models.length}`;
+      continue;
+    }
+    try {
+      const models = await adapters[p].listModels();
+      live[p] = models;
+      (s.modelInventory ??= {})[p] = { at: now.toISOString(), models };
+      notes[p] = `${models.length} modelos gratuitos`;
+    } catch (e) { notes[p] = e instanceof ProviderError ? e.kind : "list_failed"; }
   }
   return { live, notes };
 }
@@ -115,14 +131,17 @@ async function execute(store: Store, adapters: Record<ProviderId, Adapter>, t: A
   s.lease = { taskId: t.id, until: new Date(now().getTime() + LEASE_MS).toISOString() };
   store.save(s);
 
-  const { live } = await discover(adapters, s, o.env, now(), o.order);
-  const candidates = selectModels(t.requirements, live, o.order);
+  const order = allowedOrder(o.order);
+  const { live } = await discover(adapters, s, o.env, now(), order);
+  const candidates = selectModels(t.requirements, live, order);
   // Skip (provider, model) pairs that already failed permanently for this task; providers whose failure was transient are
   // re-tried only after their cooldown.
   const deadPairs = new Set(task.attempts.filter(a => ["bad_request", "invalid_response", "guard"].includes(a.outcome)).map(a => a.provider + "|" + a.model));
   const deadProviders = new Set<ProviderId>(task.attempts.filter(a => a.outcome === "auth").map(a => a.provider));
-  const maxAttempts = o.maxAttempts ?? 6;
-  let tried = 0;
+  // A task has one lifetime attempt allowance: resuming it cannot silently buy more provider attempts.
+  const requestedAttempts = Number.isInteger(o.maxAttempts) ? o.maxAttempts! : MAX_PROVIDER_ATTEMPTS_PER_TASK;
+  const maxAttempts = Math.max(0, Math.min(MAX_PROVIDER_ATTEMPTS_PER_TASK, requestedAttempts));
+  let tried = task.attempts.filter(a => a.outcome !== "budget" && a.outcome !== "cooldown").length;
 
   for (const c of candidates) {
     if (tried >= maxAttempts) break;
