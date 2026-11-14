@@ -41,7 +41,7 @@ export default async function Client360({ params, searchParams }: { params: Prom
   const financePermitted = caps.source === "database" && caps.owner && caps.financeView;
   // Client 360° finance (KENJI #98): every sale and every expense is read page by page until the exact server
   // count is reached. A subtotal is never shown as the client's profitability (see src/lib/sales/client-finance.ts).
-  const [contacts, salesLoaded, costsLoaded, orders, projects, legacy, tasks, timeline, owners, lead, activities, meetings, financeResult] = await Promise.all([
+  const [contacts, salesLoaded, , orders, projects, legacy, tasks, timeline, owners, lead, activities, meetings, financeResult] = await Promise.all([
     run<Contact[]>(supabase.from("crm_contacts").select("id,full_name,email,phone,role,is_primary").eq("client_id", id).order("is_primary", { ascending: false }).order("full_name")),
     financePermitted
       ? loadAllRows<Sale>((from, to) => supabase.from("crm_sales").select(SALE_COLUMNS, { count: "exact" }).eq("client_id", id).order("sold_on", { ascending: false }).order("id").range(from, to))
