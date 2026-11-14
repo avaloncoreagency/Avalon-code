@@ -1,6 +1,7 @@
 import Link from "next/link";
 import type { ReactNode } from "react";
 import { CrmNavigation } from "@/components/crm/navigation";
+import { TaskNotificationIndicator } from "@/components/sales/task-notification-indicator";
 import { pick, type Lang } from "@/lib/i18n";
 import { label, saleErrorText, tone } from "@/lib/sales/domain";
 import s from "./sales.module.css";
@@ -15,6 +16,7 @@ const LINKS = [
   ["clients", "/admin/workspace/crm/clients", "Clientes 360°", "Clients 360°"],
   ["activity", "/admin/workspace/crm/activity", "Centro de actividad", "Activity center"],
   ["notifications", "/admin/workspace/crm/notifications", "Avisos", "Notices"],
+  ["task-manage", "/admin/workspace/crm/tasks/manage", "Gestionar tareas", "Manage tasks"],
   ["settings", "/admin/workspace/crm/settings", "Configuración", "Settings"],
 ] as const;
 
@@ -31,7 +33,10 @@ export function OpsHeader({ lang, active, crm, title, eyebrow, lead, actions }: 
 }) {
   return <>
     <CrmNavigation active={crm} />
-    <OpsLinks lang={lang} active={active} />
+    <div className={s.actions} style={{ justifyContent: "space-between" }}>
+      <OpsLinks lang={lang} active={active} />
+      <TaskNotificationIndicator />
+    </div>
     <header className={s.header}>
       <div><p className={s.eyebrow}>{eyebrow}</p><h1>{title}</h1>{lead && <p className={s.lead}>{lead}</p>}</div>
       {actions && <div className={s.actions}>{actions}</div>}
