@@ -21,6 +21,10 @@ const sha = v => typeof v === 'string' && /^[a-f0-9]{40}$/i.test(v);
 const safePath = path => typeof path === 'string' && SAFE_ONLY.some(pattern => pattern.test(path));
 function decision(env = process.env, git = spawnSync) {
   if (env.VERCEL_ENV !== 'preview') return { skip: false, reason: 'not_preview' };
+  // Known unsafe Preview targets fail next.config.ts by design. Skip their entire build
+  // rather than spending CPU to rediscover the same error. Never weaken the guard.
+  if (env.NEXT_PUBLIC_SUPABASE_URL?.includes('ltbwzcrxeuczdhhtbqgm'))
+    return { skip: true, reason: 'blocked_unsafe_preview_database' };
   const previous = env.VERCEL_GIT_PREVIOUS_SHA;
   const current = env.VERCEL_GIT_COMMIT_SHA;
   if (!sha(previous) || !sha(current) || previous.toLowerCase() === current.toLowerCase())
