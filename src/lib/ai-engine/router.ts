@@ -63,8 +63,7 @@ function addUsage(s: State, p: ProviderId, day: string, r: ChatResult | null) {
 /** Discover live free models per provider (cached per call). A provider whose listing fails is simply not routable. */
 export async function discover(adapters: Record<ProviderId, Adapter>, s: State, env: Record<string, string | undefined>, now: Date, order = ROUTABLE) {
   const live: Partial<Record<ProviderId, ModelSpec[]>> = {};
-  const notes: Record<string, string> = {};
-  if (order.includes("openrouter")) notes.openrouter = "disabled_by_policy";
+  const notes: Record<string, string> = { openrouter: "disabled_by_policy" };
   for (const p of allowedOrder(order)) {
     if (PROVIDERS[p].status !== "operational" && env.ORACLE_AI_VERIFIED !== "true") { notes[p] = "prepared_not_operational"; continue; }
     if (s.blocked[p]) { notes[p] = "blocked:" + s.blocked[p]; continue; }
