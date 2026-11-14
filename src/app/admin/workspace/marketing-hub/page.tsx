@@ -15,11 +15,13 @@ export default async function MarketingHubPage({ searchParams }: { searchParams:
   const { supabase } = await requireOwner();
   const lang = await getLang();
   const showArchived = param(params, "archived") === "1";
-  const projects = await listProjects(supabase, "marketing", { includeArchived: showArchived });
+  const pageRaw=Number(param(params,"page") || "1");
+  const page=Number.isSafeInteger(pageRaw) && pageRaw>=1 && pageRaw<=1000?pageRaw:1;
+  const projects = await listProjects(supabase, "marketing", { includeArchived: showArchived, page });
   return (
     <Suite active="marketing-hub">
-      <PageHeader eyebrow="Marketing Hub" title={pick(lang, "Campañas", "Campaigns")}
-        description={pick(lang, "Planifica campañas, calendario editorial, borradores, activos creativos y tareas por canal. Nada se publica en cuentas externas ni se gasta presupuesto publicitario.", "Plan campaigns, editorial calendar, drafts, creative assets and tasks per channel. Nothing is posted to external accounts and no ad budget is spent.")} />
+      <PageHeader eyebrow="Marketing Hub" title={pick(lang, "Mis Campañas y Funnels", "My Campaigns and Funnels")}
+        description={pick(lang, "Administra campañas, funnels y entregables externos por cliente; guarda enlaces, archivos disponibles y mejoras. No se publican anuncios aquí.", "Manage external campaigns, funnels and deliverables by client; record links, available files and improvements. No ads are launched here.")} />
       <section aria-label={pick(lang, "Herramientas creativas", "Creative tools")}
         style={{ margin: "12px 24px", border: "1px solid #4b607f", borderRadius: 12, padding: 16 }}>
         <h2 style={{ fontSize: "1.1rem", marginBottom: 6 }}>Avalon Creative Bridge · Higgsfield</h2>
@@ -31,7 +33,7 @@ export default async function MarketingHubPage({ searchParams }: { searchParams:
         </Link>
       </section>
       <Flash lang={lang} ok={param(params, "ok")} error={param(params, "error")} />
-      <ProjectsIndex lang={lang} module="marketing" base="/admin/workspace/marketing-hub" projects={projects} noun={{ es: "campañas", en: "campaigns" }} showArchived={showArchived}
+      <ProjectsIndex lang={lang} module="marketing" base="/admin/workspace/marketing-hub" projects={projects} noun={{ es: "campañas", en: "campaigns" }} showArchived={showArchived} page={page}
         createFields={<label className={s.field}><span>{pick(lang, "Objetivo", "Goal")}</span><input className={s.input} name="goal" maxLength={500} /></label>} />
     </Suite>
   );

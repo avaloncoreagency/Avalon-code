@@ -41,8 +41,8 @@ export function CommunicationsPortfolio({ groups, lang, page, loaded, total }: {
       </div>
       <span className={s.muted}>{t("Actualizado","Updated")} {formatDate(lang,p.updated_at)}</span>
       <div className={s.projectActions}>
-        <Link href={href}>{t("Administrar agente","Manage agent")}</Link>
-        {p.module === "chatbots" && <Link href={href + "/studio"}>{t("Abrir constructor","Open builder")}</Link>}
+        <Link href={`/admin/workspace/products/${p.id}`}>{t("Abrir ficha, errores y versiones","Open record, issues and versions")}</Link>
+        <Link href={href}>{t("Configuración existente","Existing configuration")}</Link>
       </div>
     </li>;
   };
@@ -80,7 +80,7 @@ export function CommunicationsPortfolio({ groups, lang, page, loaded, total }: {
           <span className={s.chip}>{g.projects.filter(p => p.module === "chatbots").length} chatbots</span>
         </div>
         <ul className={s.projectList}>{g.projects.map(renderProject)}</ul>
-        <div className={s.projectActions}><Link href={`/admin/workspace/clients/${g.id}`}>{t("Abrir ficha CRM","Open CRM record")}</Link></div>
+        <div className={s.projectActions}><Link href={g.linkKind==="client"?`/admin/workspace/crm/clients/${g.id}`:`/admin/workspace/clients/${g.id}`}>{t("Abrir ficha CRM","Open CRM record")}</Link></div>
       </article>)}
     </div>}
     {unlinked.length > 0 && <section className={s.unlinked}>

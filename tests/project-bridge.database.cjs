@@ -163,6 +163,39 @@ test('deployments: never the Avalon OS project; only sealed static versions; pro
   assert.ok(ev.filter(x => x === 'deploy_requested').length === 2 && ev.includes('publish_approved') && ev.includes('deploy_state'), ev.join());
 });
 
+test('Product Control extended imports preserve canonical projects, versions and owner RLS', async () => {
+  const h = await setup();
+  await h.as('authenticated', MIGUEL);
+  const categories = ['website','ecommerce','crm_creator','apps','receptionist','chatbots','marketing'];
+  for (const category of categories) {
+    // Each category is verified in an isolated savepoint, respecting the real
+    // Project Bridge limit of two concurrent pending imports per owner.
+    await h.db.exec('savepoint product_category');
+    const project = await h.one(`insert into os_projects(module,name) values($1,$2) returning id`, [category,'External ' + category]);
+    const id = crypto.randomUUID();
+    const created = await h.one(`insert into os_project_imports(id,project_id,category,original_name,source_tool,archive_path,idempotency_key)
+      values($1,$2,$3,'delivery.zip','claude_code',$4,$5) returning id,category,project_id`,
+      [id, project.id, category, `incoming/${MIGUEL}/${id}.zip`, 'product-test-' + id]);
+    assert.equal(created.category, category);
+    assert.equal(created.project_id, project.id);
+    if (category === 'website') await h.db.exec('release savepoint product_category');
+    else {
+      await h.db.exec('rollback to savepoint product_category');
+      await h.db.exec('release savepoint product_category');
+    }
+  }
+  const id = crypto.randomUUID();
+  await h.fails(`insert into os_project_imports(id,category,original_name,source_tool,archive_path,idempotency_key)
+    values($1,'unapproved','x.zip','manual',$2,$3)`,
+    [id, `incoming/${MIGUEL}/${id}.zip`, 'bad-category-' + id], '23514');
+  await h.as('authenticated', STRANGER);
+  assert.equal((await h.q('select 1 from os_project_imports')).length, 0, 'operator sees no owner imports');
+  const forbidden = crypto.randomUUID();
+  await h.fails(`insert into os_project_imports(id,category,original_name,source_tool,archive_path,idempotency_key)
+    values($1,'chatbots','x.zip','manual',$2,$3)`,
+    [forbidden, `incoming/${STRANGER}/${forbidden}.zip`, 'stranger-' + forbidden], '42501');
+});
+
 test('API tokens: hashed and scoped; a token only opens an inbox import; revoked or expired tokens fail; owners process later', async () => {
   const h = await setup();
   await h.as('authenticated', MIGUEL);

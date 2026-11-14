@@ -1,0 +1,18 @@
+{
+  "production": "ltbwzcrxeuczdhhtbqgm",
+  "staging": "wupvuwmqfcvmjqycmnvg",
+  "differences": [
+    {
+      "production": {
+        "function": "public.os_project_restore_version(p_version uuid, p_note text)",
+        "anon": true,
+        "authenticated": true
+      },
+      "staging": {
+        "function": "public.os_project_restore_version(p_version uuid, p_note text)",
+        "anon": false,
+        "authenticated": true
+      }
+    }
+  ]
+}

@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { createHash } from 'node:crypto';
 import { getOwnerSession } from "@/lib/auth/session";
 import { decodeBytea } from "@/lib/crm/attachments";
 
@@ -15,10 +16,14 @@ export async function GET(_request: NextRequest, { params }: { params: Promise<{
   if (!session) return NextResponse.json({ error: "No autorizado" }, { status: 403 });
   const { id } = await params;
   if (!UUID.test(id)) return NextResponse.json({ error: "Archivo inválido" }, { status: 400 });
-  const { data, error } = await session.supabase.from("crm_attachments").select("filename,mime,content").eq("id", id).maybeSingle();
+  const { data, error } = await session.supabase.from("crm_attachments").select("filename,mime,content,sha256,size_bytes").eq("id", id).maybeSingle();
   if (error || !data) return NextResponse.json({ error: "Archivo no disponible" }, { status: 404 });
   const bytes = decodeBytea(data.content);
   if (!bytes.length) return NextResponse.json({ error: "Archivo no disponible" }, { status: 404 });
+  if (bytes.length !== Number(data.size_bytes) || typeof data.sha256 !== 'string' ||
+      createHash('sha256').update(bytes).digest('hex') !== data.sha256) {
+    return NextResponse.json({error:'No se pudo verificar la integridad del archivo.'},{status:409,headers:{'Cache-Control':'private, no-store'}});
+  }
   const mime = ALLOWED_MIMES.has(data.mime) ? data.mime : "application/octet-stream";
   const preview = _request.nextUrl.searchParams.get("preview") === "1" && VIEWABLE_MIMES.has(mime);
   const disposition = preview ? "inline" : "attachment";

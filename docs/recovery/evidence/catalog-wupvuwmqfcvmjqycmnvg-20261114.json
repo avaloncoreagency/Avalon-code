@@ -1,0 +1,56 @@
+{
+  "read_only": true,
+  "project_id": "wupvuwmqfcvmjqycmnvg",
+  "catalog_v2": [
+    {
+      "section": "columns",
+      "objects": 1086,
+      "digest": "e550213f84fd47baa369ba32ace9f456"
+    },
+    {
+      "section": "constraints",
+      "objects": 884,
+      "digest": "d2d691f8fad958df77dd8c7133f5adf8"
+    },
+    {
+      "section": "default_grants",
+      "objects": 65,
+      "digest": "8fafe2ad830b81a4b61bc887104938f7"
+    },
+    {
+      "section": "function_grants",
+      "objects": 223,
+      "digest": "8f02ab6a6127e9b575b612cf89ce1609"
+    },
+    {
+      "section": "functions",
+      "objects": 135,
+      "digest": "83c97f44d8c944b18a5970994116efb1"
+    },
+    {
+      "section": "indexes",
+      "objects": 228,
+      "digest": "335bf63510573edcb3b99e175f34e0df"
+    },
+    {
+      "section": "policies",
+      "objects": 181,
+      "digest": "43f10c2ca3f1f56d5ce0568622acc379"
+    },
+    {
+      "section": "table_grants",
+      "objects": 1222,
+      "digest": "08f715bbeb6d354eb66e937e2c524543"
+    },
+    {
+      "section": "tables",
+      "objects": 89,
+      "digest": "287200fc8a852bf26b1f13ef3d822be5"
+    },
+    {
+      "section": "triggers",
+      "objects": 112,
+      "digest": "e0941414160a456b72f63e3f74fda190"
+    }
+  ]
+}

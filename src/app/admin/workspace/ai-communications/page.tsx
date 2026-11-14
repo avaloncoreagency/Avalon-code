@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { Suite } from "@/components/suite/suite";
 import { CommunicationsPortfolio } from "@/components/communications/communications-portfolio";
+import { ModuleDeliveryPanel } from "@/components/os/module-delivery-panel";
 import { requireOwner } from "@/lib/auth/session";
 import { getLang } from "@/lib/i18n-server";
 import { pick } from "@/lib/i18n";
@@ -28,7 +29,7 @@ export default async function CommunicationHub({searchParams}:Params) {
   const page = Number.isSafeInteger(raw) && raw >= 1 && raw <= 1000 ? raw : 1;
   const offset = (page - 1) * PAGE_SIZE;
 
-  const [projects, chatbotCount, receptionistCount, crmChoices] = await Promise.all([
+  const [projects, chatbotCount, receptionistCount, crmChoices, crmClients] = await Promise.all([
     run<ProjectRow[]>(supabase.from("os_projects")
       .select(PROJECT_COLUMNS,{count:"exact"})
       .in("module",["chatbots","receptionist"])
@@ -39,13 +40,21 @@ export default async function CommunicationHub({searchParams}:Params) {
     countRows(supabase,"os_projects",[["eq","module","receptionist"],["neq","status","archived"]]),
     run<CompanyRecord[]>(supabase.from("crm_leads")
       .select("id,company,contact").eq("archived",false).order("company").limit(200)),
+    run<{id:string;legal_name:string;trade_name:string;client_code:string}[]>(
+      supabase.from("crm_clients").select("id,legal_name,trade_name,client_code")
+        .neq("status","archived").order("legal_name").limit(200)),
   ]);
 
-  const ids = [...new Set((projects.data ?? []).map(p => clientId(p.settings)).filter((id):id is string => Boolean(id)))];
-  const companies = ids.length ? await run<CompanyRecord[]>(
-    supabase.from("crm_leads").select("id,company,contact").in("id",ids).limit(PAGE_SIZE)
-  ) : null;
-  const groups = groupCompanies(projects.data ?? [], companies?.data ?? []);
+  const ids = [...new Set((projects.data ?? []).filter(p=>!p.client_id).map(p => clientId(p.settings)).filter((id):id is string => Boolean(id)))];
+  const clientIds = [...new Set((projects.data??[]).map(p=>p.client_id).filter((id):id is string=>Boolean(id)))];
+  const [companies,confirmed]=await Promise.all([
+    ids.length ? run<CompanyRecord[]>(supabase.from("crm_leads").select("id,company,contact").in("id",ids).limit(PAGE_SIZE)) : null,
+    clientIds.length ? run<{id:string;legal_name:string;trade_name:string}[]>(supabase.from("crm_clients").select("id,legal_name,trade_name").in("id",clientIds).limit(PAGE_SIZE)) : null,
+  ]);
+  const groups = groupCompanies(projects.data ?? [], [
+    ...(companies?.data??[]).map(c=>({...c,kind:'lead' as const})),
+    ...(confirmed?.data??[]).map(c=>({id:c.id,company:c.trade_name||c.legal_name,kind:'client' as const})),
+  ]);
   const linked = groups.filter(g => g.linked).length;
   const unlinked = groups.filter(g => !g.linked).reduce((total,g) => total + g.projects.length,0);
   const total = projects.count;
@@ -59,10 +68,10 @@ export default async function CommunicationHub({searchParams}:Params) {
         <p className={s.eyebrow}>AVALON OS / AI COMMUNICATIONS</p>
         <h1>COMMUNICATION HUB</h1>
         <p>{label(
-          "Tu centro privado para crear, acumular y administrar recepcionistas con IA y chatbots de cada empresa. Dos productos diferentes, una sola cartera organizada por su referencia real del CRM.",
-          "Your private center to create and manage AI receptionists and chatbots for every company. Two separate products, one portfolio grouped by actual CRM references.")}</p>
+          "Tu centro privado para registrar y administrar agentes creados fuera de Avalon, organizados por empresa y referencia real del CRM.",
+          "Your private workspace to register and manage externally built agents, grouped by company and real CRM reference.")}</p>
         <nav className={s.heroActions} aria-label={label("Acciones rápidas","Quick actions")}>
-          <Link className={s.primaryButton} href="#new-agent">{label("Crear agente","Create agent")}</Link>
+          <Link className={s.primaryButton} href="#new-agent">{label("Agregar agente externo","Add external agent")}</Link>
           <Link className={s.secondaryButton} href="#directory">{label("Ver empresas y agentes","Companies and agents")}</Link>
           <Link className={s.secondaryButton} href="/admin/workspace/crm/clients">{label("Clientes CRM","CRM clients")}</Link>
         </nav>
@@ -92,8 +101,8 @@ export default async function CommunicationHub({searchParams}:Params) {
             <h3>AI Receptionist</h3>
             <p>{label("Organiza asistentes telefónicos por empresa, horarios, saludos, preguntas frecuentes y transferencia a una persona.","Organize telephone assistants per company, hours, greetings, FAQs and human handoff.")}</p>
             <nav className={s.productLinks} aria-label="AI Receptionist">
-              <Link href="/admin/workspace/ai-receptionist">{label("Biblioteca","Library")}</Link>
-              <Link href="/admin/workspace/ai-receptionist/builder">{label("Constructor","Builder")}</Link>
+              <Link href="/admin/workspace/ai-receptionist">{label("Mis recepcionistas","My receptionists")}</Link>
+              <Link href="#new-agent">{label("Registrar recepcionista","Register receptionist")}</Link>
             </nav>
           </article>
           <article className={`${s.product} ${s.productChatbot}`}>
@@ -101,8 +110,8 @@ export default async function CommunicationHub({searchParams}:Params) {
             <h3>AI Chatbots</h3>
             <p>{label("Acumula chatbots web por cliente y edita instrucciones, personalidad, bienvenida y conocimiento guardado.","Keep web chatbots by client and edit instructions, personality, greetings and saved knowledge.")}</p>
             <nav className={s.productLinks} aria-label="AI Chatbots">
-              <Link href="/admin/workspace/ai-chatbots">{label("Biblioteca","Library")}</Link>
-              <Link href="/admin/workspace/ai-chatbots/builder">{label("Constructor","Builder")}</Link>
+              <Link href="/admin/workspace/ai-chatbots">{label("Mis chatbots","My chatbots")}</Link>
+              <Link href="#new-agent">{label("Registrar chatbot","Register chatbot")}</Link>
             </nav>
           </article>
         </div>
@@ -118,7 +127,7 @@ export default async function CommunicationHub({searchParams}:Params) {
       </section>
 
       <section className={s.section} id="new-agent" aria-labelledby="new-agent-title">
-        <div className={s.sectionHead}><div><h2 id="new-agent-title">{label("Registrar nuevo agente","Register a new agent")}</h2>
+        <div className={s.sectionHead}><div><h2 id="new-agent-title">{label("Agregar agente creado externamente","Add externally built agent")}</h2>
           <p>{label("Un mismo cliente puede tener varios recepcionistas y chatbots. Se guardarán por separado.","One client can have multiple receptionists and chatbots. Each is saved separately.")}</p></div></div>
         <form action={createProject} className={s.form}>
           <div className={s.formGrid}>
@@ -138,19 +147,48 @@ export default async function CommunicationHub({searchParams}:Params) {
                   <option key={company.id} value={company.id}>{company.company}{company.contact?` · ${company.contact}`:""} · {company.id.slice(0,8)}</option>)}
               </select>
             </label>
+            <label>{label("Cliente confirmado de Client 360° (opcional)","Confirmed Client 360 company (optional)")}
+              <select name="client_id" defaultValue="">
+                <option value="">{label("Sin seleccionar","Not selected")}</option>
+                {(crmClients.data ?? []).map(client=><option key={client.id} value={client.id}>
+                  {client.trade_name||client.legal_name} · {client.client_code}
+                </option>)}
+              </select>
+            </label>
             <label>{label("O registrar una empresa nueva (opcional)","Or register a new company (optional)")}
               <input name="company_name" maxLength={200} autoComplete="organization" placeholder={label("Nombre legal / comercial","Legal / trade name")} />
             </label>
+          </div>
+          <label>{label("Herramienta de origen","Source tool")}
+            <select name="source_tool" defaultValue="manual">
+              <option value="manual">{label("Registro manual","Manual registration")}</option>
+              <option value="claude_code">Claude Code</option>
+              <option value="codex">Codex</option>
+              <option value="higgsfield">Higgsfield</option>
+              <option value="other">{label("Otra","Other")}</option>
+            </select>
+          </label>
+          <div className={s.formGrid}>
+            <label>{label("URL HTTPS externa","External HTTPS URL")}<input name="url" type="url" maxLength={500}/></label>
+            <label>{label("Repositorio autorizado","Authorized repository")}<input name="repository" type="url" maxLength={500}/></label>
+            <label>{label("Plataforma / proveedor","Platform / provider")}<input name="deployment" maxLength={500}/></label>
           </div>
           <label>{label("Descripción o función del agente","Agent description or purpose")}
             <textarea name="description" rows={3} maxLength={2000} placeholder={label("Qué hará este agente para la empresa","What this agent is intended to handle for the company")} />
           </label>
           <p className={s.muted}>{label(
-            "Elige una empresa existente o escribe una nueva; si completas ambas, prevalece la existente. La empresa nueva se registra como oportunidad del CRM, no como venta. Se muestran hasta 200 empresas activas en el selector.",
-            "Select an existing company or enter a new one; if both are filled, the existing selection wins. A new company is registered as a CRM opportunity, not a sale. The selector shows up to 200 active companies.")}</p>
+            "Elige un cliente confirmado o un lead del CRM. Si eliges ambos, sus identificadores deben corresponder al mismo negocio; si seleccionas un cliente confirmado no se crea un lead duplicado. No se registra una venta.",
+            "Select a confirmed client or CRM lead. If both are selected, their IDs must belong to the same business; selecting a confirmed client does not create a duplicate lead. No sale is recorded.")}</p>
           {crmChoices.error && <DbNotice lang={lang} error={crmChoices.error} />}
-          <div><button type="submit" disabled={Boolean(crmChoices.error || projects.error)}>{label("Guardar y configurar agente","Save and configure agent")}</button></div>
+          {crmClients.error && <DbNotice lang={lang} error={crmClients.error} />}
+          <div><button type="submit" disabled={Boolean(crmChoices.error || crmClients.error || projects.error)}>{label("Registrar agente","Register agent")}</button></div>
         </form>
+      </section>
+
+      <section className={s.section} aria-labelledby="external-deliveries-title">
+        <div className={s.sectionHead}><div><h2 id="external-deliveries-title">{label("Recepción de agentes externos","External agent deliveries")}</h2></div></div>
+        <ModuleDeliveryPanel lang={lang} module="receptionist"/>
+        <ModuleDeliveryPanel lang={lang} module="chatbots"/>
       </section>
 
       <section className={s.section} aria-labelledby="tools-title">

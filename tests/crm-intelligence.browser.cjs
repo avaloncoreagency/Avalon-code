@@ -41,21 +41,22 @@ test('CRM Intelligence in the real app: quick add, discovery, conflicts, score, 
   const port = reservation.address().port;
   await new Promise(r => reservation.close(r));
   const origin = `http://localhost:${port}`;
-  const child = spawn(process.execPath, [require.resolve('next/dist/bin/next'), 'start', '-p', String(port)], {
+  const child = spawn(process.execPath, [require.resolve('next/dist/bin/next'), 'start', '--hostname', '127.0.0.1', '-p', String(port)], {
     env: { ...process.env, APP_ORIGIN: origin, NEXT_PUBLIC_SUPABASE_URL: bridge.url, NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: 'synthetic-key' },
     stdio: ['ignore', 'pipe', 'pipe'],
   });
   let output = '';
   child.stdout.on('data', c => (output += c)); child.stderr.on('data', c => (output += c));
-  t.after(async () => { child.kill(); await new Promise(r => child.once('exit', r)); });
+  t.after(() => require('./support/stop-child.cjs')(child));
   for (let i = 0; i < 150; i++) {
-    try { if ((await fetch(origin + '/login')).status < 500) break; } catch {}
+    if(child.exitCode!==null||child.signalCode!==null)assert.fail(output);
+    try { if ((await fetch(origin + '/login',{signal:AbortSignal.timeout(2000)})).status < 500) break; } catch {}
     if (i === 149) assert.fail(output);
     await new Promise(r => setTimeout(r, 100));
   }
   const cookieName = 'sb-127-auth-token';
   const cookieValue = s => `base64-${Buffer.from(JSON.stringify(s)).toString('base64url')}`;
-  const get = (path, s) => fetch(origin + path, { redirect: 'manual', headers: { cookie: s ? `${cookieName}=${cookieValue(s)}` : '' } });
+  const get = (path, s) => fetch(origin + path, { signal:AbortSignal.timeout(10000),redirect: 'manual', headers: { cookie: s ? `${cookieName}=${cookieValue(s)}` : '' } });
   const asRoot = async () => db.exec('reset role;');
   const one = async (sql, p) => { await asRoot(); return (await db.query(sql, p)).rows[0]; };
 

@@ -38,7 +38,7 @@ test("GROWTH HTTP E2E: public funnel captures a synthetic lead once, 390px respo
 
   const port = await reservePort();
   const origin = "http://127.0.0.1:" + port;
-  const child = spawn(process.execPath, [require.resolve("next/dist/bin/next"), "start", "-p", String(port)], {
+  const child = spawn(process.execPath, [require.resolve("next/dist/bin/next"), "start", "--hostname", "127.0.0.1", "-p", String(port)], {
     env: {
       ...process.env, APP_ORIGIN: origin,
       GH_TOKEN: "", GITHUB_TOKEN: "", BRIDGE_GITHUB_TOKEN: "",
@@ -49,10 +49,7 @@ test("GROWTH HTTP E2E: public funnel captures a synthetic lead once, 390px respo
   let log = "";
   child.stdout.on("data", chunk => { log = (log + chunk).slice(-5000); });
   child.stderr.on("data", chunk => { log = (log + chunk).slice(-5000); });
-  t.after(async () => {
-    child.kill();
-    if (child.exitCode === null) await new Promise(r => child.once("exit", r));
-  });
+  t.after(()=>require('./support/stop-child.cjs')(child));
   let online = false;
   for (let i = 0; i < 120; i++) {
     try { online = (await fetch(origin + "/")).ok; } catch { /* retry */ }
@@ -67,7 +64,7 @@ test("GROWTH HTTP E2E: public funnel captures a synthetic lead once, 390px respo
   assert.equal(direct.status, 200);
   assert.match(await direct.text(), /Captación HTTP Sintética/);
 
-  const browser = await chromium.launch({ headless: true });
+  const browser = await chromium.launch({ executablePath: process.env.CHROME_PATH || undefined, headless: true });
   t.after(() => browser.close());
   const page = await browser.newPage({ viewport: { width: 390, height: 844 } });
   const errors = [];

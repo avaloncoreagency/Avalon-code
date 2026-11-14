@@ -45,13 +45,13 @@ test('Nova Restaurant through the real app: one form, three departments, no dupl
   const port = reservation.address().port;
   await new Promise(r => reservation.close(r));
   const origin = `http://localhost:${port}`;
-  const child = spawn(process.execPath, [require.resolve('next/dist/bin/next'), 'start', '-p', String(port)], {
+  const child = spawn(process.execPath, [require.resolve('next/dist/bin/next'), 'start', '--hostname', '127.0.0.1', '-p', String(port)], {
     env: { ...process.env, APP_ORIGIN: origin, NEXT_PUBLIC_SUPABASE_URL: bridge.url, NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: 'synthetic-key' },
     stdio: ['ignore', 'pipe', 'pipe'],
   });
   let output = '';
   child.stdout.on('data', c => (output += c)); child.stderr.on('data', c => (output += c));
-  t.after(async () => { child.kill(); await new Promise(r => child.once('exit', r)); });
+  t.after(()=>require('./support/stop-child.cjs')(child));
   for (let i = 0; i < 150; i++) {
     try { if ((await fetch(origin + '/login')).status < 500) break; } catch {}
     if (i === 149) assert.fail(output);
@@ -541,6 +541,9 @@ test('Nova Restaurant through the real app: one form, three departments, no dupl
   await page.getByRole('heading', { name: 'Avalon HQ', level: 1 }).waitFor();
   assert.match(page.url(), /\/admin\/workspace\/crm\/office\/hq$/);
   const scene = page.getByRole('region', { name: 'Directorio' });
+  // The owners are the primary office experience. Historical virtual-manager
+  // controls remain available on demand, but no longer crowd the directory.
+  await scene.getByText(/Herramientas futuras · managers de IA/).click();
   for (const name of ['REN', 'SHIN', 'HARU', 'SORA', 'KENJI']) await scene.getByRole('button', { name: new RegExp('^Abrir perfil de ' + name + ' \\(manager virtual de IA\\)') }).waitFor();
   assert.equal(await scene.getByRole('button', { name: /^Abrir perfil de (miguel|samuel)$/ }).count(), 2, 'both owners come from agency_memberships');
   // Own profile: edit (self-only).

@@ -1,0 +1,282 @@
+{
+  "reviewed_at": "2026-11-14 America/New_York",
+  "main": "991e72ddd160b0ea5970897bac76d53b669a9fa9",
+  "priority_prs": [
+    {
+      "number": 184,
+      "title": "feat(crm): recuperar ruta Radar → Lead → Venta → Cliente 360 del PR #128",
+      "url": "https://github.com/avaloncoreagency/Avalon-code/pull/184",
+      "draft": true,
+      "head": "3de4b020a868b1de6012ae4ec924598d4fee2855",
+      "branch": "integration/radar-to-sale-provenance-20261113",
+      "base": "main",
+      "ci": [
+        {
+          "name": "Avalon OS modules verification",
+          "status": "completed",
+          "conclusion": "success",
+          "head_sha": "3de4b020a868b1de6012ae4ec924598d4fee2855",
+          "url": "https://github.com/avaloncoreagency/Avalon-code/actions/runs/43509528515"
+        },
+        {
+          "name": "Avalon security checks",
+          "status": "completed",
+          "conclusion": "success",
+          "head_sha": "3de4b020a868b1de6012ae4ec924598d4fee2855",
+          "url": "https://github.com/avaloncoreagency/Avalon-code/actions/runs/43509528827"
+        },
+        {
+          "name": "Avalon Auth Review CI",
+          "status": "completed",
+          "conclusion": "success",
+          "head_sha": "3de4b020a868b1de6012ae4ec924598d4fee2855",
+          "url": "https://github.com/avaloncoreagency/Avalon-code/actions/runs/43509528658"
+        },
+        {
+          "name": "Sales core (isolated PostgreSQL)",
+          "status": "completed",
+          "conclusion": "success",
+          "head_sha": "3de4b020a868b1de6012ae4ec924598d4fee2855",
+          "url": "https://github.com/avaloncoreagency/Avalon-code/actions/runs/43509528500"
+        },
+        {
+          "name": "CRM isolated verification",
+          "status": "completed",
+          "conclusion": "success",
+          "head_sha": "3de4b020a868b1de6012ae4ec924598d4fee2855",
+          "url": "https://github.com/avaloncoreagency/Avalon-code/actions/runs/43509528513"
+        }
+      ]
+    },
+    {
+      "number": 183,
+      "title": "feat(tasks): completar y editar tareas en la ruta existente, sin duplicar CRM",
+      "url": "https://github.com/avaloncoreagency/Avalon-code/pull/183",
+      "draft": true,
+      "head": "61cdaf4aa09eec31ef5a1aae081abdc5c5d867e4",
+      "branch": "integration/owner-tasks-single-route-20261113",
+      "base": "main",
+      "ci": [
+        {
+          "name": "Avalon OS modules verification",
+          "status": "completed",
+          "conclusion": "success",
+          "head_sha": "61cdaf4aa09eec31ef5a1aae081abdc5c5d867e4",
+          "url": "https://github.com/avaloncoreagency/Avalon-code/actions/runs/43509657525"
+        },
+        {
+          "name": "Avalon Auth Review CI",
+          "status": "completed",
+          "conclusion": "success",
+          "head_sha": "61cdaf4aa09eec31ef5a1aae081abdc5c5d867e4",
+          "url": "https://github.com/avaloncoreagency/Avalon-code/actions/runs/43509657679"
+        },
+        {
+          "name": "Avalon security checks",
+          "status": "completed",
+          "conclusion": "success",
+          "head_sha": "61cdaf4aa09eec31ef5a1aae081abdc5c5d867e4",
+          "url": "https://github.com/avaloncoreagency/Avalon-code/actions/runs/43509657600"
+        },
+        {
+          "name": "CRM isolated verification",
+          "status": "completed",
+          "conclusion": "success",
+          "head_sha": "61cdaf4aa09eec31ef5a1aae081abdc5c5d867e4",
+          "url": "https://github.com/avaloncoreagency/Avalon-code/actions/runs/43509657495"
+        },
+        {
+          "name": "Sales core (isolated PostgreSQL)",
+          "status": "completed",
+          "conclusion": "success",
+          "head_sha": "61cdaf4aa09eec31ef5a1aae081abdc5c5d867e4",
+          "url": "https://github.com/avaloncoreagency/Avalon-code/actions/runs/43509657579"
+        }
+      ]
+    },
+    {
+      "number": 182,
+      "title": "fix(client360): recuperar confirmaciones de guardado y errores claros del PR #103",
+      "url": "https://github.com/avaloncoreagency/Avalon-code/pull/182",
+      "draft": true,
+      "head": "3b2a54eceb6115d1945ffe556f6471da777c9753",
+      "branch": "integration/client360-feedback-recovery-20261113",
+      "base": "main",
+      "ci": [
+        {
+          "name": "Avalon OS modules verification",
+          "status": "completed",
+          "conclusion": "success",
+          "head_sha": "3b2a54eceb6115d1945ffe556f6471da777c9753",
+          "url": "https://github.com/avaloncoreagency/Avalon-code/actions/runs/43508086377"
+        },
+        {
+          "name": "Avalon security checks",
+          "status": "completed",
+          "conclusion": "success",
+          "head_sha": "3b2a54eceb6115d1945ffe556f6471da777c9753",
+          "url": "https://github.com/avaloncoreagency/Avalon-code/actions/runs/43508086584"
+        },
+        {
+          "name": "Avalon Auth Review CI",
+          "status": "completed",
+          "conclusion": "success",
+          "head_sha": "3b2a54eceb6115d1945ffe556f6471da777c9753",
+          "url": "https://github.com/avaloncoreagency/Avalon-code/actions/runs/43508086513"
+        },
+        {
+          "name": "CRM isolated verification",
+          "status": "completed",
+          "conclusion": "success",
+          "head_sha": "3b2a54eceb6115d1945ffe556f6471da777c9753",
+          "url": "https://github.com/avaloncoreagency/Avalon-code/actions/runs/43508086676"
+        },
+        {
+          "name": "Sales core (isolated PostgreSQL)",
+          "status": "completed",
+          "conclusion": "success",
+          "head_sha": "3b2a54eceb6115d1945ffe556f6471da777c9753",
+          "url": "https://github.com/avaloncoreagency/Avalon-code/actions/runs/43508086888"
+        }
+      ]
+    },
+    {
+      "number": 181,
+      "title": "chore: saneamiento inicial de 67 PRs, DEV Bridge, HQ único y medidores IA",
+      "url": "https://github.com/avaloncoreagency/Avalon-code/pull/181",
+      "draft": true,
+      "head": "f3496b22582e9467c6ab284689c9c0c0ffa01c22",
+      "branch": "maintenance/office-devbridge-usage-triage-20261113",
+      "base": "main",
+      "ci": [
+        {
+          "name": "Avalon OS modules verification",
+          "status": "completed",
+          "conclusion": "success",
+          "head_sha": "f3496b22582e9467c6ab284689c9c0c0ffa01c22",
+          "url": "https://github.com/avaloncoreagency/Avalon-code/actions/runs/43509933584"
+        },
+        {
+          "name": "Avalon security checks",
+          "status": "completed",
+          "conclusion": "success",
+          "head_sha": "f3496b22582e9467c6ab284689c9c0c0ffa01c22",
+          "url": "https://github.com/avaloncoreagency/Avalon-code/actions/runs/43509933468"
+        },
+        {
+          "name": "Avalon Auth Review CI",
+          "status": "completed",
+          "conclusion": "success",
+          "head_sha": "f3496b22582e9467c6ab284689c9c0c0ffa01c22",
+          "url": "https://github.com/avaloncoreagency/Avalon-code/actions/runs/43509932990"
+        },
+        {
+          "name": "CRM isolated verification",
+          "status": "completed",
+          "conclusion": "success",
+          "head_sha": "f3496b22582e9467c6ab284689c9c0c0ffa01c22",
+          "url": "https://github.com/avaloncoreagency/Avalon-code/actions/runs/43509933319"
+        },
+        {
+          "name": "Sales core (isolated PostgreSQL)",
+          "status": "completed",
+          "conclusion": "success",
+          "head_sha": "f3496b22582e9467c6ab284689c9c0c0ffa01c22",
+          "url": "https://github.com/avaloncoreagency/Avalon-code/actions/runs/43509933257"
+        }
+      ]
+    },
+    {
+      "number": 175,
+      "title": "DRAFT: Avalon Product Control — portafolios por módulo, recepción externa y mantenimiento",
+      "url": "https://github.com/avaloncoreagency/Avalon-code/pull/175",
+      "draft": true,
+      "head": "b165057672f90a68f9f7137db5d07842f2096aad",
+      "branch": "chatgpt/product-control-module-portfolios-20261113",
+      "base": "main",
+      "ci": [
+        {
+          "name": "Sales core (isolated PostgreSQL)",
+          "status": "completed",
+          "conclusion": "success",
+          "head_sha": "b165057672f90a68f9f7137db5d07842f2096aad",
+          "url": "https://github.com/avaloncoreagency/Avalon-code/actions/runs/43468070837"
+        },
+        {
+          "name": "Avalon Growth funnel isolated E2E",
+          "status": "completed",
+          "conclusion": "cancelled",
+          "head_sha": "b165057672f90a68f9f7137db5d07842f2096aad",
+          "url": "https://github.com/avaloncoreagency/Avalon-code/actions/runs/43468070704"
+        },
+        {
+          "name": "Avalon OS modules verification",
+          "status": "completed",
+          "conclusion": "success",
+          "head_sha": "b165057672f90a68f9f7137db5d07842f2096aad",
+          "url": "https://github.com/avaloncoreagency/Avalon-code/actions/runs/43468070523"
+        },
+        {
+          "name": "FORGE Website Designer acceptance",
+          "status": "completed",
+          "conclusion": "success",
+          "head_sha": "b165057672f90a68f9f7137db5d07842f2096aad",
+          "url": "https://github.com/avaloncoreagency/Avalon-code/actions/runs/43468070509"
+        },
+        {
+          "name": "Avalon security checks",
+          "status": "completed",
+          "conclusion": "success",
+          "head_sha": "b165057672f90a68f9f7137db5d07842f2096aad",
+          "url": "https://github.com/avaloncoreagency/Avalon-code/actions/runs/43468070630"
+        },
+        {
+          "name": "Avalon Auth Review CI",
+          "status": "completed",
+          "conclusion": "success",
+          "head_sha": "b165057672f90a68f9f7137db5d07842f2096aad",
+          "url": "https://github.com/avaloncoreagency/Avalon-code/actions/runs/43468070548"
+        },
+        {
+          "name": "Project Bridge (import, versions, isolated preview)",
+          "status": "completed",
+          "conclusion": "success",
+          "head_sha": "b165057672f90a68f9f7137db5d07842f2096aad",
+          "url": "https://github.com/avaloncoreagency/Avalon-code/actions/runs/43468070513"
+        }
+      ]
+    }
+  ],
+  "production_deployments": [
+    {
+      "id": "dpl_H7AXUpDQEussYDRirHDNXkHjbyuK",
+      "url": "avalon-core-agency-olrk0updq-avalon-core-agency.vercel.app",
+      "state": "READY",
+      "target": "production",
+      "sha": "991e72ddd160b0ea5970897bac76d53b669a9fa9",
+      "created": 1794601915298
+    },
+    {
+      "id": "dpl_H2nmBeFG6GEZYv3zik5rjCC47BwK",
+      "url": "avalon-core-agency-3vmdth1dt-avalon-core-agency.vercel.app",
+      "state": "READY",
+      "target": "production",
+      "sha": "854cec6c3eec39de9db52dc6bd73a3469ceb90f9",
+      "created": 1794594728336
+    }
+  ],
+  "supabase": {
+    "production_migrations": 38,
+    "staging_migrations": 39,
+    "reads_only": true,
+    "branch_main_status": "MIGRATIONS_FAILED",
+    "branch_main_status_updated": "2026-10-31T03:14:16.475523Z",
+    "production_health": "ACTIVE_HEALTHY",
+    "staging_health": "ACTIVE_HEALTHY"
+  },
+  "publication": {
+    "status": "blocked_by_automatic_review",
+    "remote_branch_created": false,
+    "production_changed": false
+  }
+}

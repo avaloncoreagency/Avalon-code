@@ -37,6 +37,7 @@ async function setup() {
     },
     createProject: async (module, name, settings) => (await one('insert into os_projects(module,name,settings) values($1,$2,$3) returning id', [module, name, JSON.stringify(settings)])).id,
     latestSealedVersion: async pid => (await one('select id,number,content_digest from os_project_versions where project_id=$1 and sealed order by number desc limit 1', [pid])) ?? null,
+    sealedVersion:async(pid,id)=>(await one('select id,number from os_project_versions where project_id=$1 and id=$2 and sealed',[pid,id]))??null,
     insertVersion: v => one(`insert into os_project_versions(project_id,number,kind,import_id,source_tool,framework,entry_path,deployable,file_count,total_bytes,content_digest,summary)
       values($1,1,'import',$2,$3,$4,$5,$6,$7,$8,$9,$10) returning id,number`, [v.project_id, v.import_id, v.source_tool, v.framework, v.entry_path, v.deployable, v.file_count, v.total_bytes, v.content_digest, JSON.stringify(v.summary)]),
     async insertFiles(vid, files) { for (const f of files) await q('insert into os_project_files(version_id,path,sha256,size,mime) values($1,$2,$3,$4,$5)', [vid, f.path, f.sha256, f.size, f.mime]); },
@@ -57,7 +58,8 @@ async function setup() {
 test('acceptance path: import ZIP → private blobs → library record → files and version → isolated preview → v2 → restore v1', async () => {
   const h = await setup();
   await h.as(MIGUEL);
-  const first = await processImport(h.repo, h.store, await h.upload(staticSite('Avalon Demo v1')));
+  const originalImport=await h.upload(staticSite('Avalon Demo v1'));
+  const first = await processImport(h.repo, h.store, originalImport);
   assert.equal(first.status, 'registered', JSON.stringify(first));
   assert.equal(first.number, 1);
   assert.equal(first.inspection.deployable, 'static');
@@ -88,6 +90,10 @@ test('acceptance path: import ZIP → private blobs → library record → files
   assert.equal((await h.one('select number from os_project_versions where id=$1', [restored])).number, 3);
   assert.equal((await h.one('select content_digest from os_project_versions where id=$1', [restored])).content_digest,
     (await h.one('select content_digest from os_project_versions where id=$1', [first.versionId])).content_digest, 'restored content == v1');
+
+  const replay=await processImport(h.repo,h.store,originalImport);
+  assert.equal(replay.versionId,first.versionId,'replay identifies the original sealed version');
+  assert.equal(replay.number,1,'replay never reports the latest/restored version number as its own');
 
   // The exact Vercel payload for this version (a client project, never Avalon OS; static: no build/install commands).
   const body = deploymentBody('avalon-client-sitio-demo', files.map(f => ({ path: f.path, sha: 'x'.repeat(40), size: Number(f.size) })), 'preview');

@@ -116,11 +116,22 @@ export async function github(config:Config, since?:string, previous?:Github, api
     // Avoid one redundant HTTP request per PR (often dozens in Avalon).
     const detail=p.head && p.base && typeof p.title==='string' ? p : row(await api.get(base+`/pulls/${n}`));
     const head=row(detail.head), baseRef=row(detail.base), sha=str(head.sha);
+    // File paths and divergence are immutable for the same head/base SHAs.
+    // Reuse ONLY a previously authenticated full snapshot with the exact same
+    // PR update timestamp; public summaries intentionally have no such proof.
+    // Checks and reviews remain live on every synchronization: a newly failed
+    // workflow or a revoked approval must never be hidden by cached metadata.
+    const currentBase=str(baseRef.sha), updatedAt=str(detail.updated_at);
+    const previousPull=previous?.coverage==='full'?previous.pulls.find(pr=>pr.number===n):undefined;
+    const canReuse=!!(previousPull && previousPull.files.length && updatedAt &&
+      previousPull.head_sha===sha && previousPull.base_sha===currentBase &&
+      previousPull.updated_at===updatedAt && previousPull.branch===str(head.ref) &&
+      previousPull.base_branch===str(baseRef.ref));
     const [files,checks,reviews,comparison]=await Promise.all([
-      api.pages(base+`/pulls/${n}/files`),
+      canReuse ? Promise.resolve(previousPull!.files) : api.pages(base+`/pulls/${n}/files`).then(rows=>rows.map(f=>str(f.filename))),
       api.get(base+`/commits/${sha}/check-runs?per_page=100`),
       api.pages(base+`/pulls/${n}/reviews`),
-      api.get(base+`/compare/${encodeURIComponent(str(head.ref))}...${encodeURIComponent(str(baseRef.ref))}`),
+      canReuse ? Promise.resolve(previousPull!.behind) : api.get(base+`/compare/${encodeURIComponent(str(head.ref))}...${encodeURIComponent(str(baseRef.ref))}`).then(value=>Number(row(value).ahead_by??0)),
     ]);
     // Recent main commits come from the first /commits read. PR heads
     // already carry their verified SHA and need no expensive commit histories.
@@ -134,7 +145,7 @@ export async function github(config:Config, since?:string, previous?:Github, api
     const ci=!Number.isFinite(total)||total>100||!runs.length?'UNKNOWN'
       :runs.some(r=>['failure','cancelled','timed_out','action_required'].includes(str(r.conclusion)))?'FAILED'
       :runs.every(r=>['success','skipped','neutral'].includes(str(r.conclusion)))?'PASSED':'PENDING';
-    return {number:n,title:redact(str(detail.title)),branch:str(head.ref),base_branch:str(baseRef.ref),base_sha:str(baseRef.sha),head_sha:sha,url:str(detail.html_url),files:files.map(f=>str(f.filename)),ci,reviews:reviews.map(r=>str(r.state)),conflict:typeof detail.mergeable==='boolean' ? !detail.mergeable : null,behind:Number(row(comparison).ahead_by??0),issues:issueRefsFromBody(str(detail.body)),updated_at:str(detail.updated_at)};
+    return {number:n,title:redact(str(detail.title)),branch:str(head.ref),base_branch:str(baseRef.ref),base_sha:str(baseRef.sha),head_sha:sha,url:str(detail.html_url),files,ci,reviews:reviews.map(r=>str(r.state)),conflict:typeof detail.mergeable==='boolean' ? !detail.mergeable : null,behind:comparison,issues:issueRefsFromBody(str(detail.body)),updated_at:updatedAt};
   };
   for(let index=0;index<prs.length;index+=5) {
     const batch=await Promise.all(prs.slice(index,index+5).map(p=>inspectPull(p)));
@@ -170,17 +181,51 @@ export function freshness<T>(f:Fact<T>,now=Date.now()):Fact<T>{return f.status==
 export function findings(input:Pick<Snapshot,'github'|'vercel'|'supabase'>):Snapshot['findings'] {
   const s={github:freshness(input.github),vercel:freshness(input.vercel),supabase:freshness(input.supabase)};
   const out:Snapshot['findings']=[];
+  // Keep real failures per PR; summarize advisory pairwise overlap warnings in large backlogs.
+  const highVolume=(s.github.data?.pulls.length??0)>20;
   const add=(id:string,message:string,claim:'VERIFIED'|'INFERRED'='VERIFIED')=>out.push({id,severity:'warning',claim,message});
   for(const name of ['github','vercel','supabase'] as const)if(freshness<unknown>(s[name]).status!=='VERIFIED')add('source:'+name,`${name}: UNKNOWN or stale telemetry`);
   if(s.github.status==='VERIFIED'&&s.github.data){const g=s.github.data;
     if(g.coverage==='summary')add('source:github_limited','GitHub public summary: PR titles, refs and Issue labels only. CI, changed files, conflicts and resume are UNKNOWN.','INFERRED');
-    for(const p of g.pulls){if(p.ci==='FAILED')add('ci:'+p.number,`PR #${p.number}: failed CI`);if(p.conflict)add('conflict:'+p.number,`PR #${p.number}: confirmed merge conflict`);if(p.behind)add('behind:'+p.number,`PR #${p.number}: base advanced; inspect divergence`);if(!p.issues.length)add('issue:'+p.number,`PR #${p.number}: no linked work item`);
+    let unlinked=0;
+    for(const p of g.pulls){if(p.ci==='FAILED')add('ci:'+p.number,`PR #${p.number}: failed CI`);if(p.conflict)add('conflict:'+p.number,`PR #${p.number}: confirmed merge conflict`);if(p.behind)add('behind:'+p.number,`PR #${p.number}: base advanced; inspect divergence`);if(!p.issues.length){if(highVolume)unlinked++;else add('issue:'+p.number,`PR #${p.number}: no linked work item`);}
       if(p.files.some(f=>/^(src\/lib\/auth|src\/lib\/supabase|src\/components\/suite|src\/app\/page|src\/app\/globals|\.env|\.github)|types/.test(f))&&!p.reviews.includes('APPROVED'))add('review:'+p.number,`PR #${p.number}: shared/security/public surface needs review`);
     }
-    for(let a=0;a<g.pulls.length;a++)for(let b=a+1;b<g.pulls.length;b++){const x=g.pulls[a],y=g.pulls[b];const overlap=x.files.filter(f=>y.files.includes(f));if(overlap.some(f=>f.startsWith('supabase/migrations/')))add(`migration-conflict:${x.number}:${y.number}`,`Potential migration conflict #${x.number}/#${y.number}; never resolve automatically`,'INFERRED');if(overlap.length)add(`overlap:${x.number}:${y.number}`,`Potential conflict #${x.number}/#${y.number}: ${overlap.join(', ')}`,'INFERRED');if(x.base_branch!==y.base_branch)add(`base:${x.number}:${y.number}`,`Different integration bases #${x.number}/#${y.number}; manual compatibility review`,'INFERRED');}
-    for(const i of g.issues){if(i.open===false)continue;if(!i.owner)add('owner:'+i.number,`Issue #${i.number}: owner UNKNOWN`);if(i.state==='in-progress'&&Date.now()-Date.parse(i.updated_at)>7*86400000)add('stale:'+i.number,`Issue #${i.number}: no update for seven days`,'INFERRED');}
+    if(highVolume&&unlinked)add('issues:unlinked',`${unlinked} PRs have no linked work item; review the unassigned PR list.`,'INFERRED');
+    let overlaps=0, migrationOverlaps=0, differentBases=0;
+    const examples:string[]=[], migrationExamples:string[]=[];
+    for(let a=0;a<g.pulls.length;a++)for(let b=a+1;b<g.pulls.length;b++){
+      const x=g.pulls[a],y=g.pulls[b], paths=new Set(y.files);
+      const shared=x.files.filter(f=>paths.has(f));
+      if(shared.some(f=>f.startsWith('supabase/migrations/'))){
+        migrationOverlaps++;
+        if(highVolume){if(migrationExamples.length<5)migrationExamples.push(`#${x.number}/#${y.number}`);}
+        else add(`migration-conflict:${x.number}:${y.number}`,`Potential migration conflict #${x.number}/#${y.number}; never resolve automatically`,'INFERRED');
+      }
+      if(shared.length){
+        overlaps++;
+        if(highVolume){if(examples.length<5)examples.push(`#${x.number}/#${y.number}`);}
+        else add(`overlap:${x.number}:${y.number}`,`Potential conflict #${x.number}/#${y.number}: ${shared.join(', ')}`,'INFERRED');
+      }
+      if(x.base_branch!==y.base_branch){
+        differentBases++;
+        if(!highVolume)add(`base:${x.number}:${y.number}`,`Different integration bases #${x.number}/#${y.number}; manual compatibility review`,'INFERRED');
+      }
+    }
+    if(highVolume){
+      if(migrationOverlaps)add('migration-conflicts:summary',`${migrationOverlaps} PR pairs touch the same migration paths (e.g. ${migrationExamples.join(', ')}); inspect before merge.`,'INFERRED');
+      if(overlaps)add('overlaps:summary',`${overlaps} PR pairs touch shared paths (e.g. ${examples.join(', ')}); path overlap is not a confirmed conflict.`,'INFERRED');
+      if(differentBases)add('bases:summary',`${differentBases} PR pairs have different base branches; review stacked PR order.`,'INFERRED');
+    }
+    let ownersMissing=0;
+    for(const i of g.issues){if(i.open===false)continue;if(!i.owner){if(highVolume)ownersMissing++;else add('owner:'+i.number,`Issue #${i.number}: owner UNKNOWN`);}if(i.state==='in-progress'&&Date.now()-Date.parse(i.updated_at)>7*86400000)add('stale:'+i.number,`Issue #${i.number}: no update for seven days`,'INFERRED');}
+    if(highVolume&&ownersMissing)add('owners:unassigned',`${ownersMissing} open Issues lack a verified owner; this is not proof of inactivity.`,'INFERRED');
   }
-  if(s.vercel.status==='VERIFIED')for(const d of s.vercel.data??[])if(d.state==='ERROR'||d.state==='CANCELED')add('deployment:'+d.id,`${d.environment} deployment ${d.id}: ${d.state}; application health UNKNOWN`);
+  if(s.vercel.status==='VERIFIED'){
+    const failed=(s.vercel.data??[]).filter(d=>d.state==='ERROR'||d.state==='CANCELED');
+    if(highVolume&&failed.length>10)add('deployments:failures',`${failed.length} historical failed/canceled deployments; check newest separately rather than treating old failures as current downtime.`);
+    else for(const d of failed)add('deployment:'+d.id,`${d.environment} deployment ${d.id}: ${d.state}; application health UNKNOWN`);
+  }
   if(s.github.status==='VERIFIED'&&s.github.data?.coverage!=='summary'&&s.supabase.status==='VERIFIED'&&s.supabase.data){const db=s.supabase.data;const code=s.github.data?.migrations??[];for(const m of new Set([...code,...db.migrations]))if(code.includes(m)!==db.migrations.includes(m))add('migration:'+m,`Migration drift ${m} on ${db.ref}; do not apply automatically`);for(const r of db.rls)if(!r.enabled)add('rls:'+r.table,`RLS disabled: ${r.table}`);for(const a of db.advisors)add('advisor:'+a,a);}
   return out.sort((a,b)=>a.id.localeCompare(b.id));
 }

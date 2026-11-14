@@ -84,3 +84,71 @@ export async function commentTask(form: FormData) {
   revalidatePath(PATH);
   back(PATH, { ...returnContext, task: id, ok: "saved" });
 }
+
+
+/** Exact-version guard shared by details editing and reversible state changes. */
+function taskIdentity(form: FormData) {
+  const id = uuidField(form, "task_id");
+  const raw = field(form, "version");
+  if (!id || !/^(0|[1-9]\d{0,9})$/.test(raw)) return null;
+  const version = Number(raw);
+  return Number.isSafeInteger(version) ? { id, version } : null;
+}
+
+/** Owner-only, preserving the existing task, assignment, notifications and RLS. */
+export async function saveTaskDetails(form: FormData) {
+  const { supabase } = await ownerForAction();
+  const context = listContext(form);
+  const row = taskIdentity(form);
+  const detail: Record<string, string> = row ? { task: row.id } : {};
+  const title = field(form, "title").trim();
+  const description = field(form, "description").trim();
+  const priority = field(form, "priority");
+  const assignee_id = uuidField(form, "assignee_id");
+  const dueIso = field(form, "due_at_iso").trim();
+  // UTC instant is produced from a browser-local datetime and must round-trip.
+  let due_at: string | null = null;
+  if (dueIso) {
+    if (!/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/.test(dueIso) ||
+        !Number.isFinite(Date.parse(dueIso)) || new Date(dueIso).toISOString() !== dueIso) {
+      back(PATH, { ...context, ...detail, error: "sale_invalid_date" });
+    }
+    due_at = dueIso;
+  }
+  if (!row || !title || title.length > 200 || description.length > 4000 ||
+      !(TASK_PRIORITIES as readonly string[]).includes(priority) || !assignee_id) {
+    back(PATH, { ...context, ...detail, error: "sale_invalid" });
+  }
+  const { data, error } = await supabase.from("crm_tasks")
+    .update({ title, description, priority, assignee_id, due_at })
+    .eq("id", row.id).eq("version", row.version).select("id").maybeSingle();
+  if (error) back(PATH, { ...context, ...detail, error: saleErrorCode(error) });
+  if (!data) back(PATH, { ...context, ...detail, error: "conflict" });
+  revalidatePath(PATH);
+  revalidatePath("/admin/workspace/crm/notifications");
+  back(PATH, { ...context, ...detail, ok: "saved" });
+}
+
+/** Complete in one click; cancellation is reversible and preserves audit trail. */
+export async function transitionTask(form: FormData) {
+  const { supabase } = await ownerForAction();
+  const context = listContext(form);
+  const row = taskIdentity(form);
+  const operation = field(form, "operation");
+  const transitions: Record<string, { status: string; from: string[] }> = {
+    complete: { status: "done", from: ["todo", "in_progress", "blocked"] },
+    archive: { status: "cancelled", from: ["todo", "in_progress", "blocked"] },
+    reopen: { status: "todo", from: ["done", "cancelled"] },
+  };
+  const transition = Object.hasOwn(transitions, operation) ? transitions[operation] : undefined;
+  if (!row || !transition) back(PATH, { ...context, error: "sale_invalid" });
+  const { data, error } = await supabase.from("crm_tasks")
+    .update({ status: transition.status })
+    .eq("id", row.id).eq("version", row.version).in("status", transition.from)
+    .select("id").maybeSingle();
+  if (error) back(PATH, { ...context, error: saleErrorCode(error) });
+  if (!data) back(PATH, { ...context, error: "conflict" });
+  revalidatePath(PATH);
+  revalidatePath("/admin/workspace/crm/notifications");
+  back(PATH, { ...context, ok: "saved" });
+}
