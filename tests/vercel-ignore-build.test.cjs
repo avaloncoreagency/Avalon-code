@@ -99,7 +99,7 @@ test('public GitHub comparison securely skips docs-only Preview when Vercel excl
   ], { status: 'diverged', behind_by: 1 }))).skip, false);
   assert.equal((await decisionWithNetwork(env, noGit, fixture(
     Array.from({ length: 300 }, (_, i) => ({ filename: 'docs/guide' + i + '.md', status: 'added' }))
-  )).skip, false, 'truncated (300-file) comparisons cannot skip');
+  ))).skip, false, 'truncated (300-file) comparisons cannot skip');
 });
 
 test('GitHub unavailable or malformed comparison always builds; production never calls network', async () => {
