@@ -131,21 +131,21 @@ export const FINDINGS: Finding[] = [
     evidence: "tests/sql/os_modules_rls.test.sql",
   },
 
-  // 2026-11-12 partial verification: Supabase advisors + read-only PostgreSQL
-  // privilege inspection. These warnings are not all confirmed vulnerabilities.
+  // 2026-11-14 follow-up: Supabase advisors + read-only PostgreSQL privilege and
+  // function-definition inspection. Warnings are not by themselves exploitable vulnerabilities.
   {
     id: "R-17", severity: "medium", status: "implemented", area: "Supabase",
-    title: ["Cuatro funciones con acceso anónimo: validar excepciones y límites", "Four anon-executable functions: validate exceptions and rate limits"],
-    location: "public.crm_public_inquiry · crm_ai_public_control · os_bridge_api_*",
-    fix: ["Mantener cotizaciones públicas; el puente exige tokens válidos y el control IA solo publica indicadores. Completar pruebas negativas y límites.", "Keep public inquiries; bridge RPCs validate tokens, while AI control publishes indicators only. Complete negative tests and rate-limit reviews."],
-    evidence: "2026-11-12: advisor 4 anon DEFiner; pg_get_functiondef; protección parcial sin pruebas dinámicas de abuso",
+    title: ["Funciones públicas con privilegios elevados: revisar excepciones y límites", "Public privileged functions: review exceptions and rate limits"],
+    location: "public.crm_public_inquiry · crm_ai_public_control · crm_growth_funnel_view/submit · os_bridge_api_open_import/import_status",
+    fix: ["Las consultas públicas y funnels tienen controles de entrada y límites; los dos RPC del puente requieren token y scope, y el control IA devuelve solo interruptores. Mantener pruebas negativas, revisar abuso y no revocar flujos legítimos sin estudiar dependencias.", "Public intake and funnel RPCs validate and throttle requests; both bridge RPCs require scoped tokens, and AI control exposes only switches. Keep negative tests, assess abuse, and check dependencies before revoking required access."],
+    evidence: "2026-11-14: Supabase advisor reports 6 anon SECURITY DEFINER functions; read-only pg_proc privileges + pg_get_functiondef inspected. Access is intentional in existing designs; dynamic misuse testing still pending.",
   },
   {
     id: "R-18", severity: "medium", status: "open", area: "Supabase",
-    title: ["36 RPC privilegiadas ejecutables por autenticados; múltiples modelos de autorización", "36 privileged RPCs executable by authenticated users; mixed authorization models"],
+    title: ["RPC privilegiadas accesibles a usuarios autenticados: distintos modelos de autorización", "Privileged RPCs callable by authenticated users: mixed authorization models"],
     location: "public.crm_* · public.os_bridge_* · public.os_code_* · public.office_directory",
     fix: ["Las funciones CRM/Office comprueban owner; otras exigen token u os_private.is_owner(). Auditar el contrato individual y probar usuarios sin membresía.", "CRM/Office check owner; others require tokens or os_private.is_owner(). Audit each contract and test non-members."],
-    evidence: "2026-11-12: pg_proc (37 definer, 4 anon, 36 authenticated), revisión de cuerpos SQL; falta prueba dinámica",
+    evidence: "2026-11-14: Supabase advisor reports 38 SECURITY DEFINER functions callable by authenticated role. Warning does not prove bypass; exhaustive per-RPC owner/scope checks and non-member tests still pending.",
   },
   {
     id: "R-19", severity: "low", status: "blocked", area: "Supabase",
