@@ -85,12 +85,20 @@ test('new code on the production schema: no private page crashes before migratio
     const res = await fetch(origin + route, { redirect: 'manual', headers: { cookie } });
     if (res.status >= 500) crashed.push(`${route} → ${res.status}`);
   }
-  // Radar query is present in the real production schema: it may reject a synthetic
-  // nonexistent run but must not fail as an uninstalled migration or crash.
-  const places = await fetch(origin + '/admin/workspace/crm/radar/places?run=00000000-0000-4000-8000-000000000001', { headers: { cookie } });
-  const body = await places.json();
-  assert.ok(places.status < 500, 'Radar route should not crash: ' + places.status + ' ' + JSON.stringify(body));
-  assert.notEqual(body.blocked, 'migration', 'Radar schema is already installed in production');
+  // Production has the run-to-prospect junction. Our synthetic REST bridge does NOT
+  // implement PostgREST's !inner embedded relationship syntax, so a scoped HTTP
+  // request would return its synthetic PGRST100 and falsely claim missing migration.
+  // Test the actual foreign keys/policies in PostgreSQL, and test HTTP without embed.
+  const runSchema = await db.query(`
+    select
+      (select count(*)::int from pg_constraint
+       where conrelid='public.crm_radar_run_places'::regclass and contype='f') as foreign_keys,
+      (select count(*)::int from pg_policies
+       where schemaname='public' and tablename='crm_radar_run_places') as policies`);
+  assert.equal(Number(runSchema.rows[0].foreign_keys), 2, 'Radar run-place junction has both foreign keys');
+  assert.ok(Number(runSchema.rows[0].policies) >= 1, 'Radar run-place junction retains its RLS policy');
+  const places = await fetch(origin + '/admin/workspace/crm/radar/places', { headers: { cookie } });
+  assert.ok(places.status < 500, 'Unscoped Radar route should not crash: ' + places.status);
   const downloaded = await fetch(origin + `/admin/workspace/crm/clients/${CLIENT}/contracts/00000000-0000-4000-8000-000000000007`, { headers: { cookie } });
   assert.equal(downloaded.status, 404, 'contract PDF cannot be downloaded until the production migration exists');
   assert.deepEqual(crashed, [], 'pages that crash on the production schema:\n' + crashed.join('\n') + '\n' + output.slice(-3000));
