@@ -127,10 +127,12 @@ export function isAgreementSnapshot(v: unknown): v is AgreementSnapshot {
     s.schedules.some(c => !Array.isArray(c) || c.length !== 2 ||
     typeof c[0] !== "string" || typeof c[1] !== "string" || c[1].length > 5000))
     return false;
+  const data = s.data;
+  const schedules = s.schedules;
   try {
-    return validateAgreement(s.data as AgreementData).length === 0 &&
-      s.schedules.length === s.data.services.length &&
-      s.schedules.every(([name], i) => name === s.data.services[i]);
+    return validateAgreement(data as AgreementData).length === 0 &&
+      schedules.length === data.services.length &&
+      schedules.every(([name], i) => name === data.services[i]);
   } catch { return false; }
 }
 
