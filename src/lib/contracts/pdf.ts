@@ -25,6 +25,27 @@ export function renderAgreementPdf(input: AgreementData, id: string): Uint8Array
   const line = (text:string,font:"F1"|"F2",size:number,color:string, x=margin) => {
     next(leading);current().push({x,y,text,font,size,color});y-=leading;
   };
+  // Editorial cover: intentionally separate from the signed legal terms.
+  const cover=pages[0];
+  const coverText=(x:number,y0:number,text:string,font:"F1"|"F2",size:number,color:string)=>{
+    cover.push({x,y:y0,text:clean(text),font,size,color});
+  };
+  coverText(48,680,"AVALON","F2",42,"0.11 0.19 0.40");
+  coverText(50,652,"CORE AGENCY / PRIVATE SERVICES","F2",11,"0.42 0.29 0.70");
+  coverText(48,575,"MASTER SERVICES","F2",24,"0.11 0.16 0.32");
+  coverText(48,544,"AGREEMENT","F2",24,"0.11 0.16 0.32");
+  coverText(49,480,"PREPARED FOR","F2",9,"0.42 0.29 0.70");
+  for(const [i,s] of wrap(input.clientName,55).slice(0,2).entries())
+    coverText(49,453-i*20,s,"F2",16,"0.11 0.16 0.32");
+  coverText(49,372,"AGENCY","F2",9,"0.42 0.29 0.70");
+  coverText(49,349,input.agencyName,"F1",11,"0.11 0.16 0.32");
+  coverText(49,308,"EFFECTIVE DATE","F2",9,"0.42 0.29 0.70");
+  coverText(49,287,input.effectiveDate,"F1",11,"0.11 0.16 0.32");
+  coverText(49,225,"VERSION "+id.toUpperCase().slice(0,8)+" / "+input.county+" COUNTY, FLORIDA","F1",9,"0.37 0.41 0.50");
+  coverText(49,139,"DRAFT FOR FLORIDA COUNSEL REVIEW","F2",10,"0.62 0.25 0.34");
+  coverText(49,119,"NOT SIGNED. GENERATION IS NOT ACCEPTANCE.","F1",9,"0.62 0.25 0.34");
+  pages.push([]);
+  y=H-64;
   for(const entry of agreementLines(input,id)){
     const heading = clean(entry.heading);
     const lines=wrap(entry.text,94);
@@ -42,6 +63,7 @@ export function renderAgreementPdf(input: AgreementData, id: string): Uint8Array
   const esc=(s:string)=>s.replace(/\\/g,"\\\\").replace(/\(/g,"\\(").replace(/\)/g,"\\)");
   for(let i=0;i<pages.length;i++){
     const cmds=["q","0.035 0.055 0.11 rg","0 770 612 22 re f","Q","BT","/F2 9 Tf","0.85 0.89 1 rg","48 777 Td","(AVALON  /  CORE AGENCY) Tj","ET"];
+    if(i===0)cmds.push("q","0.42 0.29 0.70 rg","48 523 516 3 re f","48 192 516 1 re f","Q");
     for(const d of pages[i]){
       cmds.push("BT",d.color+" rg","/"+d.font+" "+d.size+" Tf","1 0 0 1 "+d.x+" "+d.y+" Tm","("+esc(d.text)+") Tj","ET");
     }
