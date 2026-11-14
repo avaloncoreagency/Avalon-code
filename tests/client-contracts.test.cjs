@@ -29,6 +29,8 @@ test("download generates PDF from persisted snapshot and not browser content", (
   const action=read("src/app/admin/workspace/crm/clients/[id]/contracts/actions.ts");
   assert.match(route,/data\.snapshot/);
   assert.match(route,/application\/pdf/);
+  assert.match(route,/snapshot_sha256/);
+  assert.match(route,/canonicalAgreement/);
   assert.match(action,/createHash\("sha256"\)/);
   assert.match(action,/validateAgreement\(input\)/);
 });
