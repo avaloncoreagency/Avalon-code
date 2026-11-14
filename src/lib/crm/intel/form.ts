@@ -39,7 +39,14 @@ export function parseAnswer(q: Question, raw: string | string[] | undefined): { 
     }
     case "number": case "money": case "percent": case "rating": {
       if (!text) return { ok: false, error: "empty" };
-      const n = Number(text.replace(/[$,\s]/g, ""));
+      // Never strip arbitrary commas, currency symbols or whitespace: "1,2" must not become 12.
+      // Accept plain dot-decimal numbers and correctly grouped thousands (e.g. 1,234.50).
+      // A leading $ is allowed only for money fields.
+      const numericText = q.type === "money" ? text.replace(/^\$\s*/, "") : text;
+      if (!/^(?:(?:\d{1,3}(?:,\d{3})+|\d+)(?:\.\d*)?|\.\d+)$/.test(numericText)) {
+        return { ok: false, error: "out_of_range" };
+      }
+      const n = Number(numericText.replace(/,/g, ""));
       const max = q.type === "percent" ? 100 : q.type === "rating" ? 5 : q.type === "number" ? 1_000_000 : 100_000_000;
       if (!Number.isFinite(n) || n < 0 || n > max) return { ok: false, error: "out_of_range" };
       if (q.type === "number" && !Number.isInteger(n)) return { ok: false, error: "integer" };
