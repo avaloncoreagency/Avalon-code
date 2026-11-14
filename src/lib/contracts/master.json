@@ -1,12 +1,12 @@
 {
   "name": "Avalon Core Agency — Master Services Agreement",
-  "version": "ACA-MSA-1.0-2026-11",
+  "version": "ACA-MSA-1.1-2026-11",
   "jurisdiction": "Florida, United States",
   "reviewStatus": "ATTORNEY_REVIEW_REQUIRED",
   "clauses": [
     [
       "01 / Services and signed scope",
-      "This Master Services Agreement is between the legal entities identified on the first page (Agency and Client). The parties will execute a separate Statement of Work (SOW) describing services, deliverables, exclusions, milestones, assumptions, fees, approvals, acceptance criteria and any agreed service levels. Agency has no duty to perform unspecified work. In a conflict, a signed SOW controls its explicit commercial scope, but this Agreement controls general legal terms unless the SOW names the clause that it overrides."
+      "This Master Services Agreement is between the actual legal person(s) or legally formed entity identified as Agency and the Client identified on the first page. The parties will execute a separate Statement of Work (SOW) describing services, deliverables, exclusions, milestones, assumptions, fees, approvals, acceptance criteria and any agreed service levels. Agency has no duty to perform unspecified work. In a conflict, a signed SOW controls its explicit commercial scope, but this Agreement controls general legal terms unless the SOW names the clause that it overrides."
     ],
     [
       "02 / Client cooperation and authority",
