@@ -4,7 +4,7 @@ const { mkdtempSync, mkdirSync, writeFileSync, rmSync } = require('node:fs');
 const { tmpdir } = require('node:os');
 const path = require('node:path');
 const { execFileSync, spawnSync } = require('node:child_process');
-const { decision } = require('../scripts/ci/vercel-ignore-build.cjs');
+const { decision, decisionWithNetwork } = require('../scripts/ci/vercel-ignore-build.cjs');
 
 const sha1 = 'a'.repeat(40);
 const sha2 = 'b'.repeat(40);
@@ -65,4 +65,56 @@ test('single NUL-delimited file paths never allow unknown paths to bypass builds
   assert.equal(result('.vercelignore\0').skip, false);
   assert.equal(result('scripts/build.js\0').skip, false);
   assert.equal(result('public/logo.png\0').skip, false);
+});
+
+test('public GitHub comparison securely skips docs-only Preview when Vercel excludes .git', async () => {
+  const env = { VERCEL_ENV: 'preview', VERCEL_GIT_PREVIOUS_SHA: sha1, VERCEL_GIT_COMMIT_SHA: sha2 };
+  const noGit = () => ({ status: 128, stdout: '', error: null });
+  let calls = [];
+  const fixture = (files, override = {}) => async (url, init) => {
+    calls.push({ url, init });
+    return { ok: true, json: async () => ({
+      status: 'ahead', ahead_by: 1, behind_by: 0, files, ...override,
+    }) };
+  };
+  const docs = await decisionWithNetwork(env, noGit, fixture([
+    { filename: 'docs/guide.md', status: 'modified' },
+    { filename: 'tests/example.test.cjs', status: 'added' },
+    { filename: '.github/workflows/checks.yml', status: 'modified' },
+  ]));
+  assert.equal(docs.skip, true);
+  assert.equal(docs.reason, 'verified_non_runtime_diff');
+  assert.equal(calls.length, 1, 'one public read, no extra provider calls');
+  assert.match(calls[0].url, /^https:\/\/api\.github\.com\/repos\/avaloncoreagency\/Avalon-code\/compare\/a{40}\.\.\.b{40}$/);
+  assert.equal(calls[0].init.redirect, 'error');
+  assert.equal((await decisionWithNetwork(env, noGit, fixture([
+    { filename: 'docs/guide.md', status: 'modified' },
+    { filename: 'src/app/page.tsx', status: 'modified' },
+  ]))).skip, false);
+  assert.equal((await decisionWithNetwork(env, noGit, fixture([
+    { filename: 'docs/replaced.tsx', previous_filename: 'src/app/page.tsx', status: 'renamed' },
+  ]))).skip, false, 'renamed application code must build');
+  assert.equal((await decisionWithNetwork(env, noGit, fixture([
+    { filename: 'docs/guide.md', status: 'modified' },
+  ], { status: 'diverged', behind_by: 1 }))).skip, false);
+  assert.equal((await decisionWithNetwork(env, noGit, fixture(
+    Array.from({ length: 300 }, (_, i) => ({ filename: 'docs/guide' + i + '.md', status: 'added' }))
+  )).skip, false, 'truncated (300-file) comparisons cannot skip');
+});
+
+test('GitHub unavailable or malformed comparison always builds; production never calls network', async () => {
+  const env = { VERCEL_ENV: 'preview', VERCEL_GIT_PREVIOUS_SHA: sha1, VERCEL_GIT_COMMIT_SHA: sha2 };
+  const noGit = () => ({ status: 128, stdout: '', error: null });
+  const denied = await decisionWithNetwork(env, noGit, async () => ({ ok: false, status: 403 }));
+  assert.equal(denied.skip, false);
+  const malformed = await decisionWithNetwork(env, noGit, async () => ({ ok: true, json: async () => ({ files: null }) }));
+  assert.equal(malformed.skip, false);
+  const failed = await decisionWithNetwork(env, noGit, async () => { throw Error('offline'); });
+  assert.equal(failed.skip, false);
+  let called = false;
+  const production = await decisionWithNetwork({ ...env, VERCEL_ENV: 'production' }, noGit, async () => {
+    called = true; throw Error('never called');
+  });
+  assert.equal(production.skip, false);
+  assert.equal(called, false, 'never request an API comparison for production');
 });
