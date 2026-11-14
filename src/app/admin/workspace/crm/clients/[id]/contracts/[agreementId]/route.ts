@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { createHash } from "node:crypto";
 import { getOwnerSession } from "@/lib/auth/session";
 import { renderAgreementPdf } from "@/lib/contracts/pdf";
-import { AGREEMENT_VERSION, canonicalAgreement, type AgreementData } from "@/lib/contracts/agreement";
+import { canonicalSnapshot, isAgreementSnapshot } from "@/lib/contracts/agreement";
 
 export const dynamic = "force-dynamic";
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -18,14 +18,13 @@ export async function GET(_request: Request, { params }: { params: Promise<{id:s
     .eq("id",agreementId).eq("client_id",id).maybeSingle();
   if(error || !data || data.status!=="draft")
     return NextResponse.json({error:"Agreement not available"},{status:404});
-  if (data.template_version !== AGREEMENT_VERSION)
-    return NextResponse.json({error:"Archived template unavailable; original version must be restored"},{status:409});
-  const digest = createHash("sha256")
-    .update(data.template_version + "\n" + canonicalAgreement(data.snapshot as AgreementData))
-    .digest("hex");
+  // Verify the exact saved text; newer templates cannot rewrite old agreements.
+  if (!isAgreementSnapshot(data.snapshot) || data.template_version !== data.snapshot.templateVersion)
+    return NextResponse.json({error:"Agreement snapshot invalid"},{status:409});
+  const digest = createHash("sha256").update(canonicalSnapshot(data.snapshot)).digest("hex");
   if (digest !== data.snapshot_sha256)
     return NextResponse.json({error:"Agreement integrity check failed"},{status:409});
-  const bytes = renderAgreementPdf(data.snapshot as AgreementData, data.id);
+  const bytes = renderAgreementPdf(data.snapshot, data.id);
   return new NextResponse(new Uint8Array(bytes), {
     headers:{
       "Content-Type":"application/pdf",
