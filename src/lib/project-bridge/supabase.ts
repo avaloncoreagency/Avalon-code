@@ -28,6 +28,11 @@ export function supabaseRepo(db: SupabaseClient): BridgeRepo {
       check(r);
       return (r.data as { id: string; number: number; content_digest: string } | null) ?? null;
     },
+    async sealedVersion(projectId,versionId) {
+      const r=await db.from('os_project_versions').select('id,number').eq('project_id',projectId).eq('id',versionId).eq('sealed',true).maybeSingle();
+      check(r);
+      return r.data as {id:string;number:number}|null;
+    },
     async insertVersion(v) {
       const r = await db.from("os_project_versions").insert({ ...v, number: 1, kind: "import" }).select("id,number").single();
       check(r);

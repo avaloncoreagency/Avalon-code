@@ -115,7 +115,12 @@ export function CrmOverview() {
                     <p className={s.muted}>Estado: {stale ? "Fuente desactualizada (periodo cerrado)" : "Actualización manual"} · Automático: no conectado</p>
                     <p>Consumido: <strong>{amount.toLocaleString("es")} {unit}</strong></p>
                     <p>Límite: {limit !== null ? `${limit.toLocaleString("es")} ${unit}` : "desconocido"} · Restante: {limit !== null ? `${Math.max(0, limit - amount).toLocaleString("es")} ${unit}` : "desconocido"}</p>
-                    {pct !== null && <p role={alert ? "alert" : undefined}>{alert ? "⚠ " : ""}{pct}% usado (umbral {latest.threshold ?? 80}%)</p>}
+                    {pct !== null && <>
+                      <div className={s.meter} role="progressbar" aria-label={`${LABELS[provider]}: ${unit} usados`} aria-valuenow={Math.min(100, Math.max(0, pct))} aria-valuemin={0} aria-valuemax={100} aria-valuetext={`${pct}% consumido de la cuota registrada manualmente`}>
+                        <div className={s.fill} style={{ width: `${Math.min(100, Math.max(0, pct))}%` }} />
+                      </div>
+                      <p role={alert ? "alert" : undefined}>{alert ? "⚠ " : ""}{pct}% usado (umbral {latest.threshold ?? 80}%)</p>
+                    </>}
                     <p className={s.muted}>Periodo: {latest.period_start ? new Date(latest.period_start).toLocaleDateString("es") : "—"} – {latest.period_end ? new Date(latest.period_end).toLocaleDateString("es") : "—"} · Fuente: {latest.source || "—"}</p>
                   </div>;
                 })}

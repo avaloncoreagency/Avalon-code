@@ -8,6 +8,7 @@ import { requireOwner } from "@/lib/auth/session";
 import { getLang } from "@/lib/i18n-server";
 import { pick } from "@/lib/i18n";
 import { CATEGORY_LABEL, type Category } from "@/lib/project-bridge/policy";
+import { SERVICES, isService } from "@/lib/os/client-hud";
 import { bridgeMessages, STATE_LABEL } from "@/lib/project-bridge/messages";
 import { vercelConfig } from "@/lib/project-bridge/vercel";
 import { approvePublication, assignClient, deployVersion, refreshDeployment, restoreVersion } from "../actions";
@@ -46,9 +47,9 @@ export default async function LibraryProject({ params, searchParams }: { params:
   const pages = (files?.data ?? []).filter(f => /\.html?$/i.test(f.path)).map(f => f.path);
 
   return (
-    <Suite active="library">
+    <Suite active={isService(p.module) ? SERVICES[p.module].slug : "dashboard"}>
       <PageHeader eyebrow={`${CATEGORY_LABEL[p.module]?.[l] ?? p.module} · Project Bridge`} title={p.name}
-        crumbs={[{ href: "/admin/workspace/library", label: pick(lang, "Biblioteca", "Library") }]}
+        crumbs={[{ href: isService(p.module) ? `/admin/workspace/${SERVICES[p.module].slug}` : "/admin/dashboard", label: isService(p.module) ? SERVICES[p.module].name : pick(lang,"Mis productos","My products") }]}
         description={selected ? `v${selected.number} · ${selected.framework} · ${selected.file_count} ${pick(lang, "archivos", "files")}` : pick(lang, "Sin versiones importadas todavía.", "No imported versions yet.")} />
       <Flash lang={lang} ok={param(sp, "ok")} error={param(sp, "error")} />
       <div className={s.wrap}>

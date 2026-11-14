@@ -86,14 +86,14 @@ test('OAuth PKCE, SSR cookies, owner gate, refresh and logout over HTTP', { time
   const port = reservation.address().port;
   await new Promise(resolve => reservation.close(resolve));
   origin = `http://localhost:${port}`;
-  const next = spawn(process.execPath, [require.resolve('next/dist/bin/next'), 'start', '-p', String(port)], {
+  const next = spawn(process.execPath, [require.resolve('next/dist/bin/next'), 'start', '--hostname', '127.0.0.1', '-p', String(port)], {
     env: { ...process.env, BRIDGE_PUBLIC_READ_DISABLED: 'true', GH_TOKEN: '', GITHUB_TOKEN: '', BRIDGE_GITHUB_TOKEN: '', BRIDGE_VERCEL_TOKEN: '', BRIDGE_SUPABASE_TOKEN: '', APP_ORIGIN: origin, NEXT_PUBLIC_SUPABASE_URL: remoteOrigin, NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: 'synthetic-publishable-key', AUTH_PASSWORD_LOGIN_ENABLED: 'false' },
     stdio: ['ignore', 'pipe', 'pipe'],
   });
   let output = '';
   next.stdout.on('data', chunk => { output += chunk; });
   next.stderr.on('data', chunk => { output += chunk; });
-  t.after(async () => { next.kill(); await new Promise(resolve => next.once('exit', resolve)); });
+  t.after(()=>require('./support/stop-child.cjs')(next));
   for (let attempt = 0; attempt < 100; attempt++) {
     try { if ((await fetch(origin)).ok) break; } catch { /* Wait for server startup only. */ }
     if (attempt === 99) assert.fail('Next server failed to start: ' + output);

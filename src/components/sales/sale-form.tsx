@@ -28,7 +28,7 @@ export function SaleForm({ lang, idempotencyKey, services, clients, leads, owner
   const lastState = useRef(state), attempts = useRef(0);
   if (lastState.current !== state) { lastState.current = state; attempts.current += 1; }
   const attempt = attempts.current;
-  const [mode, setMode] = useState<"existing" | "new">(defaults.client_id ? "existing" : (state.values.client_mode as "existing" | "new") || (clients.length ? "existing" : "new"));
+  const [mode, setMode] = useState<"existing" | "new">(defaults.client_id ? "existing" : (state.values.client_mode as "existing" | "new") || (defaults.lead_id ? "new" : (clients.length ? "existing" : "new")));
   const [totals, setTotals] = useState(() => previewTotals([]));
   const [currency, setCurrency] = useState("USD");
   const [filled, setFilled] = useState<boolean[]>(() => Array.from({ length: MAX_LINES }, (_, i) => i === 0));

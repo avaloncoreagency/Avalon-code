@@ -8,6 +8,12 @@ on:
       - 'src/**'
       - '.github/workflows/os-modules.yml'
   workflow_dispatch:
+# Cancel outdated checks when the same branch/PR receives a newer commit.
+# Different PRs and the protected main branch remain isolated.
+concurrency:
+  group: os-modules-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
 permissions:
   contents: read
 jobs:

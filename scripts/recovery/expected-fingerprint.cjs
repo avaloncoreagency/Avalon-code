@@ -15,7 +15,8 @@ const { PGlite } = require('@electric-sql/pglite');
     try { await db.exec(fs.readFileSync('supabase/migrations/' + f, 'utf8')); }
     catch (e) { console.error(`migration ${f} failed: ${e.message}`); process.exit(1); }
   }
-  const { rows } = await db.query(fs.readFileSync('scripts/recovery/schema-fingerprint.sql', 'utf8'));
-  process.stdout.write(JSON.stringify({ migrations: files, fingerprint: rows[0].fingerprint }, null, 1) + '\n');
+  const v2=process.argv.includes('--v2');
+  const { rows } = await db.query(fs.readFileSync(v2?'scripts/recovery/schema-fingerprint-v2.sql':'scripts/recovery/schema-fingerprint.sql', 'utf8'));
+  process.stdout.write(JSON.stringify({ migrations: files, ...(v2?{catalog_v2:rows}:{fingerprint: rows[0].fingerprint}) }, null, 1) + '\n');
   await db.close();
 })();

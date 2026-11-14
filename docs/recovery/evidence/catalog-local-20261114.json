@@ -1,0 +1,95 @@
+{
+ "migrations": [
+  "20261102053022_avalon_owner_memberships_rls.sql",
+  "20261102053452_harden_membership_table_grants.sql",
+  "20261102070500_avalon_os_modules.sql",
+  "20261102085430_crm_core.sql",
+  "20261102170000_avalon_sales_core.sql",
+  "20261102180000_crm_pipeline_13.sql",
+  "20261102190000_radar_core.sql",
+  "20261102200000_public_inquiry.sql",
+  "20261102210000_pipeline_board.sql",
+  "20261102220000_shared_calendar.sql",
+  "20261103100000_office.sql",
+  "20261103113000_crm_client_workspace.sql",
+  "20261103192500_radar_source_research.sql",
+  "20261103195650_radar_auto_technical_opportunity_tier.sql",
+  "20261103205000_radar_scheduler_core.sql",
+  "20261103223000_staff_profiles_notifications.sql",
+  "20261103224500_radar_profile_prequalification.sql",
+  "20261104120000_manager_execution.sql",
+  "20261104130000_project_client_canonical.sql",
+  "20261104140000_radar_rules_decisions.sql",
+  "20261105090000_manager_missions.sql",
+  "20261106090000_ai_engine.sql",
+  "20261106100000_radar_owner_approval.sql",
+  "20261107090000_ai_chatbots_module.sql",
+  "20261108100000_project_bridge.sql",
+  "20261109160000_code_exchange.sql",
+  "20261110140000_radar_search_runs.sql",
+  "20261111090000_code_exchange_disabled.sql",
+  "20261111100000_crm_intelligence.sql",
+  "20261112090000_crm_titan_backend.sql",
+  "20261112100000_crm_titan_documents.sql",
+  "20261112110000_growth_funnel_public.sql",
+  "20261112130000_commercial_b2c_owner_only.sql",
+  "20261112190000_bridge_scope_hardening.sql",
+  "20261112191000_future_public_default_acl.sql",
+  "20261112204212_crm_growth_consent_version_required.sql",
+  "20261112204554_crm_public_inquiry_restore_caller_identity.sql",
+  "20261113160000_os_projects_module_chatbots_restore.sql",
+  "20261113173000_product_control_extended_import_categories.sql"
+ ],
+ "catalog_v2": [
+  {
+   "section": "columns",
+   "objects": 1086,
+   "digest": "e550213f84fd47baa369ba32ace9f456"
+  },
+  {
+   "section": "constraints",
+   "objects": 884,
+   "digest": "d2d691f8fad958df77dd8c7133f5adf8"
+  },
+  {
+   "section": "default_grants",
+   "objects": 1,
+   "digest": "b12b4bd9e1c7af85ef1717bc753d4bd6"
+  },
+  {
+   "section": "function_grants",
+   "objects": 224,
+   "digest": "a9bb89b2281d5e9b46943b7e3fd5ca47"
+  },
+  {
+   "section": "functions",
+   "objects": 135,
+   "digest": "253678efd5992262bccf97c9476369c4"
+  },
+  {
+   "section": "indexes",
+   "objects": 228,
+   "digest": "335bf63510573edcb3b99e175f34e0df"
+  },
+  {
+   "section": "policies",
+   "objects": 181,
+   "digest": "43f10c2ca3f1f56d5ce0568622acc379"
+  },
+  {
+   "section": "table_grants",
+   "objects": 882,
+   "digest": "d87aa4e2a64e73cfde3d5ede33e39ed9"
+  },
+  {
+   "section": "tables",
+   "objects": 89,
+   "digest": "287200fc8a852bf26b1f13ef3d822be5"
+  },
+  {
+   "section": "triggers",
+   "objects": 112,
+   "digest": "e0941414160a456b72f63e3f74fda190"
+  }
+ ]
+}

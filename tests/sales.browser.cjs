@@ -45,13 +45,13 @@ test('Nova Restaurant through the real app: one form, three departments, no dupl
   const port = reservation.address().port;
   await new Promise(r => reservation.close(r));
   const origin = `http://localhost:${port}`;
-  const child = spawn(process.execPath, [require.resolve('next/dist/bin/next'), 'start', '-p', String(port)], {
+  const child = spawn(process.execPath, [require.resolve('next/dist/bin/next'), 'start', '--hostname', '127.0.0.1', '-p', String(port)], {
     env: { ...process.env, APP_ORIGIN: origin, NEXT_PUBLIC_SUPABASE_URL: bridge.url, NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: 'synthetic-key' },
     stdio: ['ignore', 'pipe', 'pipe'],
   });
   let output = '';
   child.stdout.on('data', c => (output += c)); child.stderr.on('data', c => (output += c));
-  t.after(async () => { child.kill(); await new Promise(r => child.once('exit', r)); });
+  t.after(()=>require('./support/stop-child.cjs')(child));
   for (let i = 0; i < 150; i++) {
     try { if ((await fetch(origin + '/login')).status < 500) break; } catch {}
     if (i === 149) assert.fail(output);
@@ -143,6 +143,93 @@ test('Nova Restaurant through the real app: one form, three departments, no dupl
   const hub = await page.locator('#main').innerText();
   for (const name of ['Nova Restaurant — Desarrollo web', 'Nova Restaurant — Recepcionista de IA', 'Nova Restaurant — Marketing mensual', 'AV-2026-']) assert.ok(hub.includes(name), `client hub shows ${name}`);
   await page.screenshot({ path: `${EVIDENCE}/client-360.png`, fullPage: true });
+  // Avalon Contracts: actual Next.js Client 360 + Server Action + isolated PostgreSQL + private PDF.
+  // These are synthetic accounts. Physical iPhone Safari and actual owner login remain manual gates.
+  const contractsPath = '/admin/workspace/crm/clients/' + clientId + '/contracts';
+  assert.equal((await get(contractsPath)).status, 307, 'contracts require authentication');
+  assert.equal((await get(contractsPath, outsider)).status, 307, 'contracts reject non-owners');
+  const contractsLink = page.locator('a[href="' + contractsPath + '"]');
+  await contractsLink.waitFor();
+  await contractsLink.click();
+  await page.getByRole('heading', { name: 'Contratos del cliente' }).waitFor();
+  const fillAgreement = async p => {
+    const field = (name, value) => p.locator('[name="' + name + '"]').fill(value);
+    await p.locator('select[name="agencyLegalForm"]').selectOption('individual');
+    await field('agencyName', 'Lucía Álvarez');
+    await field('agencyBrand', 'Avalon Core Agency');
+    await field('agencyAddress', '100 Synthetic St, Florida');
+    await field('agencyEmail', 'agency@example.test');
+    await field('clientAddress', '200 Synthetic St, Florida');
+    await field('clientEmail', 'client@example.test');
+    await field('county', 'Broward');
+    await field('effectiveDate', '2026-11-14');
+    await p.locator('input[name="services"][value="Website"]').check();
+    await p.locator('input[name="services"][value="AI Chatbot"]').check();
+    await field('scope', 'Synthetic five-page website and chat assistant for QA.');
+    await field('exclusions', 'Paid advertising and real client data.');
+    await field('deliverables', 'Source files and demo AI configuration.');
+    await field('milestones', 'Synthetic brief, review and acceptance.');
+    await field('acceptance', 'Agreed form and navigation checks.');
+    await field('revisions', 'Two rounds, maximum.');
+    await field('term', 'Three months; no automatic renewal.');
+    await field('paymentSchedule', 'Deposit 50%, balance Net 15.');
+    await field('adSpend', 'No paid spend without prior written approval.');
+    await field('commission', 'None.');
+    await field('specialTerms', 'Synthetic fixture only. Not a real client agreement.');
+    await field('setupFee', '1200.00');
+    await field('monthlyFee', '150.00');
+  };
+  await fillAgreement(page);
+  await page.screenshot({ path: EVIDENCE + '/contracts-editor-desktop.png', fullPage: true });
+  await Promise.all([
+    page.waitForURL(/\/contracts\?ok=created/, { timeout: 30000 }),
+    page.getByRole('button', { name: /Guardar borrador/ }).click()
+  ]);
+  const row = (await db.query("select id, client_id, created_by, status, template_version, snapshot from public.crm_client_agreement_drafts")).rows[0];
+  assert.ok(row, 'server action persisted a draft');
+  assert.equal(row.client_id, clientId, 'draft belongs only to its CRM client');
+  assert.equal(row.created_by, MIGUEL, 'draft recorded synthetic owner');
+  assert.equal(row.status, 'draft', 'PDF is not a signed or verified CRM contract');
+  assert.equal(row.snapshot.data.agencyName, 'Lucía Álvarez', 'legal identity preserved with accents');
+  assert.equal(Number((await db.query("select count(*) n from public.crm_client_agreement_drafts")).rows[0].n), 1);
+  const pdfPath = contractsPath + '/' + row.id;
+  const contractPdf = await get(pdfPath, miguel);
+  assert.equal(contractPdf.status, 200, 'owner can download private PDF');
+  assert.match(contractPdf.headers.get('content-type') || '', /application\/pdf/);
+  assert.match(contractPdf.headers.get('cache-control') || '', /no-store/);
+  const pdfBuffer = Buffer.from(await contractPdf.arrayBuffer());
+  assert.match(pdfBuffer.toString('latin1', 0, 12), /^%PDF-1\.4/);
+  assert.match(pdfBuffer.toString('latin1'), /Lucía Álvarez/);
+  assert.match(pdfBuffer.toString('latin1'), /NOT SIGNED/, 'no false e-signature');
+  assert.notEqual((await get(pdfPath)).status, 200, 'unauthenticated download is blocked');
+  assert.notEqual((await get(pdfPath, outsider)).status, 200, 'outsider download is blocked');
+  assert.equal((await get('/admin/workspace/crm/clients/00000000-0000-4000-8000-000000000999/contracts/' + row.id, miguel)).status, 404,
+    'agreement is never accessible using another client ID');
+
+  // Retry with exactly the same snapshot: the immutable unique constraint returns the existing draft.
+  await page.goto(origin + contractsPath);
+  await fillAgreement(page);
+  await Promise.all([
+    page.waitForURL(/\/contracts\?ok=existing/, { timeout: 30000 }),
+    page.getByRole('button', { name: /Guardar borrador/ }).click()
+  ]);
+  assert.equal(Number((await db.query("select count(*) n from public.crm_client_agreement_drafts")).rows[0].n), 1,
+    'double submission created no duplicate contracts');
+
+  // Second synthetic owner sees the identical document in a phone-sized viewport.
+  const contractsMobile = await context(samuel, { width: 390, height: 844 });
+  await contractsMobile.goto(origin + contractsPath);
+  await contractsMobile.getByRole('heading', { name: 'Contratos del cliente' }).waitFor();
+  await contractsMobile.getByRole('link', { name: 'Descargar PDF' }).waitFor();
+  await contractsMobile.screenshot({ path: EVIDENCE + '/contracts-mobile-chromium.png', fullPage: true });
+  const mobileOverflow = await contractsMobile.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
+  assert.ok(mobileOverflow <= 1, 'contract editor has no horizontal overflow at 390px (' + mobileOverflow + 'px)');
+  assert.equal((await get(pdfPath, samuel)).status, 200, 'second owner downloads same immutable contract');
+  await contractsMobile.close();
+  await page.goto(origin + '/admin/workspace/crm/clients/' + clientId);
+
+
+
 
   // Module → shared spine: the project of each service reaches the same client, sale, work order and tasks.
   const novaProjects = (await db.query("select p.id, p.module, p.client_id from os_projects p order by p.module")).rows;
@@ -541,6 +628,9 @@ test('Nova Restaurant through the real app: one form, three departments, no dupl
   await page.getByRole('heading', { name: 'Avalon HQ', level: 1 }).waitFor();
   assert.match(page.url(), /\/admin\/workspace\/crm\/office\/hq$/);
   const scene = page.getByRole('region', { name: 'Directorio' });
+  // The owners are the primary office experience. Historical virtual-manager
+  // controls remain available on demand, but no longer crowd the directory.
+  await scene.getByText(/Herramientas futuras · managers de IA/).click();
   for (const name of ['REN', 'SHIN', 'HARU', 'SORA', 'KENJI']) await scene.getByRole('button', { name: new RegExp('^Abrir perfil de ' + name + ' \\(manager virtual de IA\\)') }).waitFor();
   assert.equal(await scene.getByRole('button', { name: /^Abrir perfil de (miguel|samuel)$/ }).count(), 2, 'both owners come from agency_memberships');
   // Own profile: edit (self-only).

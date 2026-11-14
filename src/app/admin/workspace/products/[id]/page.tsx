@@ -28,5 +28,5 @@ export default async function ProductPage({params,searchParams}:{params:Promise<
     loadProjectContext(supabase,id),
     run<{user_id:string;email:string}[]>(supabase.rpc('crm_owner_directory')),
   ]);
-  return <Suite active={SERVICES[project.module].slug}><ProductHud lang={lang} project={project} company={company?.data??(context?.client?{id:context.client.id,company:context.client.legal_name}:null)} metrics={metrics} audit={audit} context={<ProjectContextPanel lang={lang} context={context} owners={owners.data??[]}/>} error={typeof p.error==='string'?p.error:undefined} ok={typeof p.ok==='string'?p.ok:undefined}/></Suite>;
+  return <Suite active={SERVICES[project.module].slug}><ProductHud requestFilters={p} lang={lang} project={project} company={context?.client?{id:context.client.id,company:context.client.legal_name}:company?.data??null} metrics={metrics} audit={audit} owners={owners.data??[]} context={<ProjectContextPanel lang={lang} context={context} owners={owners.data??[]}/>} error={typeof p.error==='string'?p.error:undefined} ok={typeof p.ok==='string'?p.ok:undefined}/></Suite>;
 }

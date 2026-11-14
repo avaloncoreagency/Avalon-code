@@ -1,0 +1,56 @@
+{
+  "read_only": true,
+  "project_id": "ltbwzcrxeuczdhhtbqgm",
+  "catalog_v2": [
+    {
+      "section": "columns",
+      "objects": 1086,
+      "digest": "e550213f84fd47baa369ba32ace9f456"
+    },
+    {
+      "section": "constraints",
+      "objects": 884,
+      "digest": "9ad9128cb793391a6ba6439253210cfa"
+    },
+    {
+      "section": "default_grants",
+      "objects": 73,
+      "digest": "f95bf5167eb84141f926be591f9fc61e"
+    },
+    {
+      "section": "function_grants",
+      "objects": 270,
+      "digest": "2b17b05220853a5e590dcc137b5e9312"
+    },
+    {
+      "section": "functions",
+      "objects": 135,
+      "digest": "aabc7bc92b8d3df171026e2fb573bc09"
+    },
+    {
+      "section": "indexes",
+      "objects": 228,
+      "digest": "335bf63510573edcb3b99e175f34e0df"
+    },
+    {
+      "section": "policies",
+      "objects": 181,
+      "digest": "43f10c2ca3f1f56d5ce0568622acc379"
+    },
+    {
+      "section": "table_grants",
+      "objects": 1545,
+      "digest": "881c844dacdad59c901cdae47085ab19"
+    },
+    {
+      "section": "tables",
+      "objects": 89,
+      "digest": "287200fc8a852bf26b1f13ef3d822be5"
+    },
+    {
+      "section": "triggers",
+      "objects": 112,
+      "digest": "e0941414160a456b72f63e3f74fda190"
+    }
+  ]
+}

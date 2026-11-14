@@ -1,0 +1,587 @@
+[
+  {
+    "number": 189,
+    "title": "perf(ci): cancelar verificaciones obsoletas en PRs activos",
+    "url": "https://github.com/avaloncoreagency/Avalon-code/pull/189",
+    "draft": true,
+    "head": "c66bfcd392ab4c070a8ed7430205e1e75f9be3b2",
+    "branch": "chatgpt/ci-concurrency-credit-guard-20261114",
+    "base": "main"
+  },
+  {
+    "number": 188,
+    "title": "perf(vercel): omitir builds Preview sin cambios de runtime",
+    "url": "https://github.com/avaloncoreagency/Avalon-code/pull/188",
+    "draft": true,
+    "head": "183b4b5486b1f0d39fe76a2d242011e3926aaa68",
+    "branch": "chatgpt/vercel-build-credit-guard-20261114",
+    "base": "main"
+  },
+  {
+    "number": 187,
+    "title": "feat(crm): Client 360 agreement generator with private PDF drafts",
+    "url": "https://github.com/avaloncoreagency/Avalon-code/pull/187",
+    "draft": true,
+    "head": "6206ece879ff206b213fd25c4b2bfccf013b9e33",
+    "branch": "feature/client-contract-pdf-20261114",
+    "base": "main"
+  },
+  {
+    "number": 186,
+    "title": "perf(ai): limitar reintentos y descubrimiento; retirar OpenRouter del routing",
+    "url": "https://github.com/avaloncoreagency/Avalon-code/pull/186",
+    "draft": true,
+    "head": "ce00a32ae2b08a3aae1dee178b71324cb7c80a58",
+    "branch": "chatgpt/ai-credit-efficiency-20261114",
+    "base": "main"
+  },
+  {
+    "number": 185,
+    "title": "feat(crm-intel): completar cuestionarios Roofing y Fencing",
+    "url": "https://github.com/avaloncoreagency/Avalon-code/pull/185",
+    "draft": true,
+    "head": "095d678d5ede3184046e2b6529060b0c652f79d6",
+    "branch": "claude/crm-roofing-fencing",
+    "base": "main"
+  },
+  {
+    "number": 184,
+    "title": "feat(crm): recuperar ruta Radar → Lead → Venta → Cliente 360 del PR #128",
+    "url": "https://github.com/avaloncoreagency/Avalon-code/pull/184",
+    "draft": true,
+    "head": "3de4b020a868b1de6012ae4ec924598d4fee2855",
+    "branch": "integration/radar-to-sale-provenance-20261113",
+    "base": "main"
+  },
+  {
+    "number": 183,
+    "title": "feat(tasks): completar y editar tareas en la ruta existente, sin duplicar CRM",
+    "url": "https://github.com/avaloncoreagency/Avalon-code/pull/183",
+    "draft": true,
+    "head": "61cdaf4aa09eec31ef5a1aae081abdc5c5d867e4",
+    "branch": "integration/owner-tasks-single-route-20261113",
+    "base": "main"
+  },
+  {
+    "number": 182,
+    "title": "fix(client360): recuperar confirmaciones de guardado y errores claros del PR #103",
+    "url": "https://github.com/avaloncoreagency/Avalon-code/pull/182",
+    "draft": true,
+    "head": "3b2a54eceb6115d1945ffe556f6471da777c9753",
+    "branch": "integration/client360-feedback-recovery-20261113",
+    "base": "main"
+  },
+  {
+    "number": 181,
+    "title": "chore: saneamiento inicial de 67 PRs, DEV Bridge, HQ único y medidores IA",
+    "url": "https://github.com/avaloncoreagency/Avalon-code/pull/181",
+    "draft": true,
+    "head": "f3496b22582e9467c6ab284689c9c0c0ffa01c22",
+    "branch": "maintenance/office-devbridge-usage-triage-20261113",
+    "base": "main"
+  },
+  {
+    "number": 176,
+    "title": "build(deps): bump the minor-and-patch group across 1 directory with 12 updates",
+    "url": "https://github.com/avaloncoreagency/Avalon-code/pull/176",
+    "draft": false,
+    "head": "09548a1973e2c9c50a432f2eebad50de21faf026",
+    "branch": "dependabot/npm_and_yarn/minor-and-patch-d5ba051080",
+    "base": "main"
+  },
+  {
+    "number": 175,
+    "title": "DRAFT: Avalon Product Control — portafolios por módulo, recepción externa y mantenimiento",
+    "url": "https://github.com/avaloncoreagency/Avalon-code/pull/175",
+    "draft": true,
+    "head": "b165057672f90a68f9f7137db5d07842f2096aad",
+    "branch": "chatgpt/product-control-module-portfolios-20261113",
+    "base": "main"
+  },
+  {
+    "number": 158,
+    "title": "feat(engines): registro honesto de los diez motores + contrato de integración para Codex",
+    "url": "https://github.com/avaloncoreagency/Avalon-code/pull/158",
+    "draft": true,
+    "head": "f1071db0b8a3de77d62868aa55645455d6086839",
+    "branch": "claude/engine-registry",
+    "base": "claude/gitless-direct-bridge"
+  },
+  {
+    "number": 151,
+    "title": "feat(sora): biblioteca Creative Bridge por cliente, estados verificables y visor GLB (0352-D)",
+    "url": "https://github.com/avaloncoreagency/Avalon-code/pull/151",
+    "draft": true,
+    "head": "fbc95e3bc1f6d628709e428340e8b2f460a6f512",
+    "branch": "sora/creative-bridge-gallery-0352-d-20261105",
+    "base": "main"
+  },
+  {
+    "number": 150,
+    "title": "feat(hq): REN 0352-A · HQ 3D único, cámaras iPhone y estados verificables",
+    "url": "https://github.com/avaloncoreagency/Avalon-code/pull/150",
+    "draft": true,
+    "head": "3df020e69fc0ae704c33ece8bf2d5246309fd459",
+    "branch": "feature/ren-hq-0352a-visual-20261105",
+    "base": "claude/upbeat-galileo-grbelq"
+  },
+  {
+    "number": 149,
+    "title": "feat(haru): panel operativo real de managers, historial y órdenes #134",
+    "url": "https://github.com/avaloncoreagency/Avalon-code/pull/149",
+    "draft": true,
+    "head": "74822d4d0582af2a4f61e03164b8880d975f4d4c",
+    "branch": "haru/0352c-manager-operations-20261105",
+    "base": "main"
+  },
+  {
+    "number": 148,
+    "title": "feat(shin): Dev Bridge evidence states and iPhone-friendly PR handoffs (0352-B)",
+    "url": "https://github.com/avaloncoreagency/Avalon-code/pull/148",
+    "draft": true,
+    "head": "a21d2bd28b6c58fc654d7beac8fd6318b53dd61f",
+    "branch": "shin/0352-b-dev-bridge-ux",
+    "base": "main"
+  },
+  {
+    "number": 145,
+    "title": "chore(ren): corregir avisos ESLint en tests/creative-bridge.database.cjs",
+    "url": "https://github.com/avaloncoreagency/Avalon-code/pull/145",
+    "draft": true,
+    "head": "5d8780c13c5c724b483987ddd6c76a043effdd8e",
+    "branch": "ren/auto-20261105-tests-creative-bridge-database-cjs",
+    "base": "main"
+  },
+  {
+    "number": 141,
+    "title": "feat: six product workspaces with Library / Builder and AI Chatbots foundation",
+    "url": "https://github.com/avaloncoreagency/Avalon-code/pull/141",
+    "draft": true,
+    "head": "2b95e4c93233227c3cb39a067b6e775fa401c1cb",
+    "branch": "feature/six-builders-chatbots-20261105",
+    "base": "main"
+  },
+  {
+    "number": 138,
+    "title": "chore(ren): corregir avisos ESLint en tests/agents-managers.database.cjs",
+    "url": "https://github.com/avaloncoreagency/Avalon-code/pull/138",
+    "draft": true,
+    "head": "982acc35f8102f709aa0286b043a793db64a51eb",
+    "branch": "ren/auto-20261105-tests-agents-managers-database-cjs",
+    "base": "main"
+  },
+  {
+    "number": 137,
+    "title": "docs(ren): contrato único de Avalon HQ, órdenes y gates P0 (#23)",
+    "url": "https://github.com/avaloncoreagency/Avalon-code/pull/137",
+    "draft": true,
+    "head": "23f3c5747e4c279d50bc3cb2ccdfed86c6020c12",
+    "branch": "docs/ren-mision-001-oficina-unica-20261104",
+    "base": "main"
+  },
+  {
+    "number": 133,
+    "title": "docs+test(haru): contrato CRM 13 etapas y aceptación comercial #23",
+    "url": "https://github.com/avaloncoreagency/Avalon-code/pull/133",
+    "draft": true,
+    "head": "2754a5838ffcc2695ee57457c4c5b2cfb5e98aa4",
+    "branch": "haru/crm-001-contract-20261104",
+    "base": "main"
+  },
+  {
+    "number": 128,
+    "title": "feat(crm): conectar Radar → Leads → Ventas sin perder el lead de origen",
+    "url": "https://github.com/avaloncoreagency/Avalon-code/pull/128",
+    "draft": true,
+    "head": "c7fedd22dff6f7da620a0dafa5ab69a5f3da69e2",
+    "branch": "feat/avalon-radar-leads-sales-journey-20261104",
+    "base": "main"
+  },
+  {
+    "number": 115,
+    "title": "feat(copilot): private read-only owner view for opportunity evidence (SORA #98)",
+    "url": "https://github.com/avaloncoreagency/Avalon-code/pull/115",
+    "draft": true,
+    "head": "517962e53a55e2132d473739e70ebe84778e6927",
+    "branch": "feat/sora-sales-copilot-owner-readonly-20261103",
+    "base": "feat/sales-copilot-readonly-mock-20261103"
+  },
+  {
+    "number": 109,
+    "title": "feat(office): HQ isometrica ampliada, animaciones y zoom multitactil",
+    "url": "https://github.com/avaloncoreagency/Avalon-code/pull/109",
+    "draft": true,
+    "head": "33a7a8fcafeb3e9ab2ca6ceb059a4bc4eac834bd",
+    "branch": "feat/ren-office-isometric-pinch-20261103",
+    "base": "main"
+  },
+  {
+    "number": 105,
+    "title": "QA: execute client workspace SQL acceptance and migration dependency",
+    "url": "https://github.com/avaloncoreagency/Avalon-code/pull/105",
+    "draft": true,
+    "head": "ad51bb81df2cc4672200465b71668ddef1bd3e3c",
+    "branch": "agent/codex-workspace-migration-regression-20261103",
+    "base": "main"
+  },
+  {
+    "number": 104,
+    "title": "feat(tasks): gestión interna, completadas y avisos entre propietarios",
+    "url": "https://github.com/avaloncoreagency/Avalon-code/pull/104",
+    "draft": true,
+    "head": "5435dd3510f63721c77ddfba240136a39fa420f7",
+    "branch": "feat/owner-task-center-20261103",
+    "base": "main"
+  },
+  {
+    "number": 103,
+    "title": "fix(client360): mensajes claros al guardar expediente interno",
+    "url": "https://github.com/avaloncoreagency/Avalon-code/pull/103",
+    "draft": true,
+    "head": "2a544a85a794f6ee2884471df33d88fdb022f41e",
+    "branch": "fix/ren-client-workspace-feedback-20261103",
+    "base": "main"
+  },
+  {
+    "number": 102,
+    "title": "feat(office): cinco managers con actividad GitHub verificable y cero infraestructura nueva",
+    "url": "https://github.com/avaloncoreagency/Avalon-code/pull/102",
+    "draft": true,
+    "head": "bd45459701f3f8c7bd8920c2849741463fa6956a",
+    "branch": "feat/office-manager-workstation-20261103",
+    "base": "main"
+  },
+  {
+    "number": 100,
+    "title": "test(kenji): reproduce 101 ventas / 201 gastos truncados en Cliente 360",
+    "url": "https://github.com/avaloncoreagency/Avalon-code/pull/100",
+    "draft": true,
+    "head": "a4b2976cea16faf781b57aac6ed2cd3f42f86990",
+    "branch": "test/kenji-client-financial-101-sales-201-costs-20261103",
+    "base": "feature/staff-proyectos-finder-20261103"
+  },
+  {
+    "number": 97,
+    "title": "feat(delivery): cola de atención para órdenes bloqueadas o vencidas",
+    "url": "https://github.com/avaloncoreagency/Avalon-code/pull/97",
+    "draft": true,
+    "head": "468aabc091a50692d70bb745117360b608afffc9",
+    "branch": "feat/ren-delivery-attention-20261103",
+    "base": "feat/ren-delivery-overview-20261103"
+  },
+  {
+    "number": 93,
+    "title": "test(security): synthetic authorization regression for Radar research",
+    "url": "https://github.com/avaloncoreagency/Avalon-code/pull/93",
+    "draft": true,
+    "head": "9876ca16bd142e758416778564bdfd189653d08e",
+    "branch": "test/shin-radar-research-authorization-20261103",
+    "base": "main"
+  },
+  {
+    "number": 92,
+    "title": "test(crm): contrato Radar calificado → lead → payload de venta",
+    "url": "https://github.com/avaloncoreagency/Avalon-code/pull/92",
+    "draft": true,
+    "head": "df6cf2e7473ef27463db6b8808a371fcfe394369",
+    "branch": "test/ren-radar-to-sale-handoff-20261103",
+    "base": "main"
+  },
+  {
+    "number": 90,
+    "title": "feat(proposals): vista imprimible privada sobre Solution Planner #59",
+    "url": "https://github.com/avaloncoreagency/Avalon-code/pull/90",
+    "draft": true,
+    "head": "3eb41ce09aeccf899e3135362063714ffd7e6e16",
+    "branch": "feat/ren-proposal-preview-20261103",
+    "base": "feature/avalon-solution-planner-internal-20261102"
+  },
+  {
+    "number": 88,
+    "title": "feat(delivery): centro de entregas read-only con progreso por orden",
+    "url": "https://github.com/avaloncoreagency/Avalon-code/pull/88",
+    "draft": true,
+    "head": "4f62f5a4b1a1fabbd83b68d473b2690523842db5",
+    "branch": "feat/ren-delivery-overview-20261103",
+    "base": "main"
+  },
+  {
+    "number": 85,
+    "title": "test(security): guard Geoapify geocoding owner access and key isolation",
+    "url": "https://github.com/avaloncoreagency/Avalon-code/pull/85",
+    "draft": true,
+    "head": "64cdab8df9422c15bf16a605f3aef4396b3705e1",
+    "branch": "test/shin-geocode-auth-guardrails-20261103b",
+    "base": "main"
+  },
+  {
+    "number": 83,
+    "title": "draft(calendar): integrar etiquetas Pipeline/Ventas con Oficina actual sin sobrescribir CRM",
+    "url": "https://github.com/avaloncoreagency/Avalon-code/pull/83",
+    "draft": true,
+    "head": "0609e35e81efda6bb16c619bb0c2426108dea234",
+    "branch": "integration/haru-calendar-current-20261103",
+    "base": "integration/ren-managers-codex-claude-20261103"
+  },
+  {
+    "number": 81,
+    "title": "test(qa): Geoapify fail-closed regressions without network or CRM writes",
+    "url": "https://github.com/avaloncoreagency/Avalon-code/pull/81",
+    "draft": true,
+    "head": "5f4ed3eefcabe2d4345b827d2889e37239f5703f",
+    "branch": "qa/kenji-radar-geoapify-fail-closed-20261103",
+    "base": "main"
+  },
+  {
+    "number": 80,
+    "title": "docs: reconcile pipeline-board migration status with recorded ledger",
+    "url": "https://github.com/avaloncoreagency/Avalon-code/pull/80",
+    "draft": true,
+    "head": "27a1111ab9a8087355a2d4e616ebb19448fd0855",
+    "branch": "docs/ren-pipeline-board-ledger-20261103",
+    "base": "main"
+  },
+  {
+    "number": 79,
+    "title": "draft(integration): Codex #75 + Claude #77 combined CI candidate",
+    "url": "https://github.com/avaloncoreagency/Avalon-code/pull/79",
+    "draft": true,
+    "head": "fffca08b33f8896d292188f59b3f15040fdd4856",
+    "branch": "integration/codex-claude-validation-20261103",
+    "base": "main"
+  },
+  {
+    "number": 78,
+    "title": "feat(staff): pestaña Proyectos por perfil y clientes en Finder",
+    "url": "https://github.com/avaloncoreagency/Avalon-code/pull/78",
+    "draft": true,
+    "head": "d47febd0e57dcef4a7be62d25f44ff9f624e89b9",
+    "branch": "feature/staff-proyectos-finder-20261103",
+    "base": "main"
+  },
+  {
+    "number": 75,
+    "title": "Auth: handle provider outages in private password setup",
+    "url": "https://github.com/avaloncoreagency/Avalon-code/pull/75",
+    "draft": true,
+    "head": "7e88326a0a26bc67be1c969d00c970d44e59c818",
+    "branch": "agent/codex-backend-stabilization-20261103",
+    "base": "main"
+  },
+  {
+    "number": 73,
+    "title": "feat(ai): Sales Copilot seguro y sin proveedor — hechos verificables y pruebas simuladas",
+    "url": "https://github.com/avaloncoreagency/Avalon-code/pull/73",
+    "draft": true,
+    "head": "f976dc3adfdbfda639d1de6373c02fe1224563ba",
+    "branch": "feat/sales-copilot-readonly-mock-20261103",
+    "base": "main"
+  },
+  {
+    "number": 72,
+    "title": "feat(calendar): etiquetar leads y clientes compradores con acceso directo a CRM y Ventas",
+    "url": "https://github.com/avaloncoreagency/Avalon-code/pull/72",
+    "draft": true,
+    "head": "8812cd087b2aac9f03b680e67fa4fd280da90893",
+    "branch": "feat/haru-calendar-lead-pipeline-links-20261103",
+    "base": "main"
+  },
+  {
+    "number": 71,
+    "title": "test(security): MFA guardrails and recovery OTP lifecycle (#98)",
+    "url": "https://github.com/avaloncoreagency/Avalon-code/pull/71",
+    "draft": true,
+    "head": "2c2fd4bd6bc1b393c18bf2624cb581c6de93616f",
+    "branch": "test/shin-mfa-guardrails-20261103",
+    "base": "main"
+  },
+  {
+    "number": 70,
+    "title": "test(auth): paridad de propietarios con login password-only y rechazo de terceros",
+    "url": "https://github.com/avaloncoreagency/Avalon-code/pull/70",
+    "draft": true,
+    "head": "735976af70e9520039d504d9f2623dd18d9b3641",
+    "branch": "test/owner-password-parity-20261103",
+    "base": "main"
+  },
+  {
+    "number": 65,
+    "title": "fix(radar): 403 resuelto y proveedor comercial Geoapify Free para mapa + negocios",
+    "url": "https://github.com/avaloncoreagency/Avalon-code/pull/65",
+    "draft": true,
+    "head": "38832b48ae0ee6291acfb99b1e65518ff6f17e30",
+    "branch": "fix/titan-radar-geoapify-free-20261102",
+    "base": "main"
+  },
+  {
+    "number": 62,
+    "title": "fix(security): validar services en la RPC pública de cotizaciones",
+    "url": "https://github.com/avaloncoreagency/Avalon-code/pull/62",
+    "draft": true,
+    "head": "61ac6e9502800f5d9f32cf2a72fda0fe2a5e35cd",
+    "branch": "fix/kenji-public-inquiry-services-guard-20261102",
+    "base": "main"
+  },
+  {
+    "number": 59,
+    "title": "feat(service-factory): Solution Planner privado con paquetes, presupuestos y margen estimado",
+    "url": "https://github.com/avaloncoreagency/Avalon-code/pull/59",
+    "draft": true,
+    "head": "48100958009badb09090252a3a628c50510397ae",
+    "branch": "feature/avalon-solution-planner-internal-20261102",
+    "base": "feature/avalon-service-factory-v2-main-20261102"
+  },
+  {
+    "number": 58,
+    "title": "feat(crm): filtros rápidos de seguimientos por atender en Kanban",
+    "url": "https://github.com/avaloncoreagency/Avalon-code/pull/58",
+    "draft": true,
+    "head": "fb6aaf98ef834f9f66c3dc4db0504fa1e9311ceb",
+    "branch": "feat/avalon-crm-followup-focus-20261102",
+    "base": "main"
+  },
+  {
+    "number": 57,
+    "title": "fix(crm): vincular tareas manuales a la orden y venta correctas",
+    "url": "https://github.com/avaloncoreagency/Avalon-code/pull/57",
+    "draft": true,
+    "head": "546f546e9968f4ce6eb1216375f05c814517a661",
+    "branch": "fix/haru-tasks-work-order-link-20261102",
+    "base": "main"
+  },
+  {
+    "number": 54,
+    "title": "feat(service-factory): catálogo de servicios v2 y aprobación interna antes de vender",
+    "url": "https://github.com/avaloncoreagency/Avalon-code/pull/54",
+    "draft": true,
+    "head": "f7973e7e1cad9fd981335dcb0933d8b9d683747a",
+    "branch": "feature/avalon-service-factory-v2-main-20261102",
+    "base": "main"
+  },
+  {
+    "number": 44,
+    "title": "feat(crm): Stripe Sandbox invoices, signed webhooks and payment reconciliation (draft)",
+    "url": "https://github.com/avaloncoreagency/Avalon-code/pull/44",
+    "draft": true,
+    "head": "88404f099cb902087364dc9cc9a0a554bc50f19f",
+    "branch": "feature/stripe-crm-invoices-sandbox-20261102",
+    "base": "main"
+  },
+  {
+    "number": 37,
+    "title": "build(deps): bump actions/checkout from 4.2.2 to 7.0.1",
+    "url": "https://github.com/avaloncoreagency/Avalon-code/pull/37",
+    "draft": false,
+    "head": "c7b6cce131bb3e772f1cd38439e9bac96e258885",
+    "branch": "dependabot/github_actions/actions/checkout-7",
+    "base": "main"
+  },
+  {
+    "number": 36,
+    "title": "build(deps): bump actions/setup-node from 4.4.0 to 7.1.0",
+    "url": "https://github.com/avaloncoreagency/Avalon-code/pull/36",
+    "draft": false,
+    "head": "57d312d4ed3f3913c2fb4f594905ff945ccec968",
+    "branch": "dependabot/github_actions/actions/setup-node-7",
+    "base": "main"
+  },
+  {
+    "number": 35,
+    "title": "build(deps): bump actions/upload-artifact from 4.6.2 to 7.0.2",
+    "url": "https://github.com/avaloncoreagency/Avalon-code/pull/35",
+    "draft": false,
+    "head": "3cbc76b14c01aa0c369dd68413a2b7be9776f3fd",
+    "branch": "dependabot/github_actions/actions/upload-artifact-7",
+    "base": "main"
+  },
+  {
+    "number": 31,
+    "title": "draft: Avalon OS integrado — login seguro, CRM HUD, clientes y proyectos (staging only)",
+    "url": "https://github.com/avaloncoreagency/Avalon-code/pull/31",
+    "draft": true,
+    "head": "4856ae57857f0c1c6a93ae1a454bc33d5982c8e4",
+    "branch": "integration/avalon-preview-ready-20261102",
+    "base": "integration/avalon-os-reconciliation-20261102"
+  },
+  {
+    "number": 26,
+    "title": "fix: login owner normalization + CI auth regressions + offline fonts",
+    "url": "https://github.com/avaloncoreagency/Avalon-code/pull/26",
+    "draft": true,
+    "head": "9a23e3c715921dbd114cdf1f9893b6bf90e53f60",
+    "branch": "fix/avalon-auth-ci-20261102",
+    "base": "integration/avalon-os-reconciliation-20261102"
+  },
+  {
+    "number": 24,
+    "title": "feat(crm): HUD de inicio y pestañas en el orden aprobado",
+    "url": "https://github.com/avaloncoreagency/Avalon-code/pull/24",
+    "draft": true,
+    "head": "ccd754dff8ff036febfebc643f183fd0a4014c77",
+    "branch": "feature/avalon-crm-hud-home-order-20261102",
+    "base": "integration/avalon-os-reconciliation-20261102"
+  },
+  {
+    "number": 22,
+    "title": "docs: runbook completo para publicar Avalon OS y conectar módulos al CRM",
+    "url": "https://github.com/avaloncoreagency/Avalon-code/pull/22",
+    "draft": false,
+    "head": "a008435cceda461a2c9b231f911ea816a162b985",
+    "branch": "docs/avalon-os-go-live-runbook",
+    "base": "release/avalon-os-production-candidate"
+  },
+  {
+    "number": 21,
+    "title": "Avalon OS: integración y reconciliación de módulos",
+    "url": "https://github.com/avaloncoreagency/Avalon-code/pull/21",
+    "draft": true,
+    "head": "500f7f1acffdd5ead012c95614b708d530a7181a",
+    "branch": "integration/avalon-os-reconciliation-20261102",
+    "base": "main"
+  },
+  {
+    "number": 20,
+    "title": "CRM: pipeline de 13 etapas, ficha de cliente y conversión registrada (Fase 1–2)",
+    "url": "https://github.com/avaloncoreagency/Avalon-code/pull/20",
+    "draft": true,
+    "head": "9b1d97960d75dc996dbde1c0910b7d0285ff4494",
+    "branch": "feature/avalon-crm-pipeline-13",
+    "base": "release/avalon-os-production-candidate"
+  },
+  {
+    "number": 19,
+    "title": "Release candidate: Avalon OS dashboard + CRM + login + security headers",
+    "url": "https://github.com/avaloncoreagency/Avalon-code/pull/19",
+    "draft": true,
+    "head": "2c56dd8fd6c820509fd9bbd5473d0ec37c496768",
+    "branch": "release/avalon-os-production-candidate",
+    "base": "main"
+  },
+  {
+    "number": 15,
+    "title": "Integrar hardening de Claude en Avalon OS unificado (revisión de conflictos)",
+    "url": "https://github.com/avaloncoreagency/Avalon-code/pull/15",
+    "draft": true,
+    "head": "795a7039517a2a0d4fca5294023c8761345a1054",
+    "branch": "security/avalon-hardening",
+    "base": "integration/avalon-os-unified"
+  },
+  {
+    "number": 11,
+    "title": "Restore email/password login; temporarily hide Google",
+    "url": "https://github.com/avaloncoreagency/Avalon-code/pull/11",
+    "draft": false,
+    "head": "b9a6af4581ab45031fa3d6721b448966501edd80",
+    "branch": "fix/avalon-password-login",
+    "base": "feature/avalon-auth-rls"
+  },
+  {
+    "number": 6,
+    "title": "Draft: integrated CRM with persistence, owner RLS and verified local workflows",
+    "url": "https://github.com/avaloncoreagency/Avalon-code/pull/6",
+    "draft": true,
+    "head": "8ce4ce128010f9f162ed6657aa6c0cb4d1d5597b",
+    "branch": "feature/avalon-crm-foundation",
+    "base": "feature/sprint-01-miguel-google-auth"
+  }
+]

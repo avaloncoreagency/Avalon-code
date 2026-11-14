@@ -20,6 +20,7 @@ export type BridgeRepo = {
   updateImport(id: string, patch: Partial<Pick<ImportRow, "status" | "project_id" | "version_id" | "category">> & { error_code?: string | null; problems?: unknown[]; archive_sha256?: string; archive_bytes?: number }): Promise<void>;
   createProject(module: Category, name: string, settings: Record<string, unknown>): Promise<string>;
   latestSealedVersion(projectId: string): Promise<{ id: string; number: number; content_digest: string } | null>;
+  sealedVersion(projectId:string,versionId:string):Promise<{id:string;number:number}|null>;
   insertVersion(v: { project_id: string; import_id: string; source_tool: string; framework: string; entry_path: string | null; deployable: string; file_count: number; total_bytes: number; content_digest: string; summary: Record<string, unknown> }): Promise<{ id: string; number: number }>;
   insertFiles(versionId: string, files: Inspection["files"]): Promise<void>;
   sealVersion(versionId: string): Promise<void>;
@@ -42,8 +43,13 @@ export async function processImport(repo: BridgeRepo, store: BlobStore, importId
   let row = await repo.getImport(importId);
   if (!row) return { status: "failed", reason: "import_not_found", retryable: false };
   if (row.status === "registered" || row.status === "duplicate") {
-    const v = row.project_id ? await repo.latestSealedVersion(row.project_id) : null;
-    return { status: row.status, projectId: row.project_id!, versionId: row.version_id ?? v?.id ?? "", number: v?.number ?? 0 } as ProcessResult;
+    // A receipt belongs to THIS import, even after another delivery or a restoration becomes latest.
+    if(!row.project_id||!row.version_id)return {status:'failed',reason:'receipt_version_missing',retryable:false};
+    try {
+      const v=await repo.sealedVersion(row.project_id,row.version_id);
+      if(!v)return {status:'failed',reason:'receipt_version_missing',retryable:false};
+      return {status:row.status,projectId:row.project_id,versionId:v.id,number:v.number} as ProcessResult;
+    } catch {return {status:'failed',reason:'receipt_unavailable',retryable:true};}
   }
   if (row.status === "rejected") return { status: "rejected", reason: "already_rejected", problems: [] };
   if (row.status === "awaiting_upload") return { status: "failed", reason: "archive_not_uploaded", retryable: true };
@@ -134,6 +140,8 @@ export function reasonText(reason: string, lang: "es" | "en" = "es"): string {
     archive_missing: ["No se encontró el archivo subido. Vuelve a subirlo.", "The uploaded archive was not found. Upload it again."],
     retry_limit_reached: ["Se alcanzó el máximo de reintentos.", "Retry limit reached."],
     interrupted: ["El procesamiento se interrumpió; puedes reintentarlo.", "Processing was interrupted; you can retry."],
+    receipt_version_missing: ["La versión original del recibo no está disponible. Revisa el historial; no se creó otra versión.", "The receipt's original version is unavailable. Review history; no extra version was created."],
+    receipt_unavailable: ["No se pudo comprobar el recibo. Puedes consultarlo de nuevo sin volver a importar.", "The receipt could not be verified. Retry the lookup without importing again."],
   };
   const hit = map[base];
   return hit ? (es ? hit[0] : hit[1]) : (es ? "No se pudo procesar el proyecto (" + base + ")." : "The project could not be processed (" + base + ").");
