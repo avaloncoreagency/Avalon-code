@@ -246,7 +246,13 @@ a.kpi:hover { border-color:var(--accent, #6fe3ff); }
 .mobileDock { display: none; }
 @media (max-width: 900px) {
   .shell, .main { min-width: 0; width: 100%; }
-  .sidebar { height: 100dvh; padding-bottom: max(16px, env(safe-area-inset-bottom)); }
+  .sidebar {
+    height: 100dvh; padding-top: max(16px, env(safe-area-inset-top)); padding-bottom: max(16px, env(safe-area-inset-bottom));
+    overscroll-behavior: contain; -webkit-overflow-scrolling: touch;
+    /* Closed drawer is off-screen: also remove it from tab order / screen readers until it opens. */
+    visibility: hidden; transition: transform 0.22s ease, visibility 0s linear 0.22s;
+  }
+  .shell[data-drawer="open"] .sidebar { visibility: visible; transition: transform 0.22s ease, visibility 0s; }
   .content { min-width: 0; }
   .navItem, .drawerClose, .menuButton { min-height: 44px; }
 }
@@ -484,6 +490,11 @@ a.kpi:hover { border-color:var(--accent, #6fe3ff); }
 @keyframes avalon-signal {
   0% { background-position: 120% 0; }
   100% { background-position: -120% 0; }
+}
+.navItem[aria-current="page"] { padding-right: 28px; } /* label never runs under the active dot */
+@media (min-width: 901px) {
+  .shell[data-collapsed="true"] .navItem[aria-current="page"] { padding-right: 9px; }
+  .shell[data-collapsed="true"] .navItem[aria-current="page"]::before { left: -10px; } /* align with the collapsed rail padding */
 }
 .navItem[aria-current="page"]::after {
   content: ""; position: absolute; right: 12px; top: calc(50% - 3px);

@@ -4,6 +4,7 @@ import { headers } from "next/headers";
 import { AUTH_RULES, authLimiter, clientIp, hashKey } from "@/lib/security/rate-limit";
 import { createClient } from "@/lib/supabase/server";
 import { getOwnerState } from "@/lib/auth/access";
+import { verifyLoginHuman } from "@/lib/security/turnstile";
 
 // Avalon sign-in uses the owner's email and password, never a social redirect.
 export async function signIn(formData: FormData) {
@@ -20,6 +21,11 @@ export async function signIn(formData: FormData) {
   const accountKey = hashKey("login-account", email);
   if (!authLimiter.hit(hashKey("login-ip", ip), AUTH_RULES.loginPerIp).allowed ||
       !authLimiter.hit(accountKey, AUTH_RULES.loginPerAccount).allowed) redirect("/admin/login?error=throttled");
+  // Verify the one-time human challenge on the server before Supabase Auth.
+  // Missing/invalid tokens and Cloudflare outages never fall through to signIn.
+  const human = await verifyLoginHuman(formData.get("cf-turnstile-response"));
+  if (human === "invalid") redirect("/admin/login?error=human");
+  if (human === "unavailable") redirect("/admin/login?error=human-unavailable");
   // A network outage, bad configuration or API failure must NEVER be
   // misreported as Samuel/Miguel typing an incorrect password.
   let supabase: Awaited<ReturnType<typeof createClient>>;

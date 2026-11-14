@@ -20,6 +20,7 @@ function loadActions(client, authorize) {
     '@/lib/auth/access': { getOwnerState: async c => { const m = await authorize(c); return m ? { state: 'ok', ...m } : { state: 'none' }; } },
     'next/headers': { headers: async () => new Headers() },
     '@/lib/security/rate-limit': loadRateLimit(),
+    '@/lib/security/turnstile': { verifyLoginHuman: async () => 'ok' },
     'next/navigation': { redirect: url => { throw Error(url); } },
   };
   new Function('require', 'module', 'exports', source)(id => {

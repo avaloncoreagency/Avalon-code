@@ -1,0 +1,100 @@
+{
+  "name": "Avalon Core Agency — Master Services Agreement",
+  "version": "ACA-MSA-1.1-2026-11",
+  "jurisdiction": "Florida, United States",
+  "reviewStatus": "ATTORNEY_REVIEW_REQUIRED",
+  "clauses": [
+    [
+      "01 / Services and signed scope",
+      "This Master Services Agreement is between the actual legal person(s) or legally formed entity identified as Agency and the Client identified on the first page. The parties will execute a separate Statement of Work (SOW) describing services, deliverables, exclusions, milestones, assumptions, fees, approvals, acceptance criteria and any agreed service levels. Agency has no duty to perform unspecified work. In a conflict, a signed SOW controls its explicit commercial scope, but this Agreement controls general legal terms unless the SOW names the clause that it overrides."
+    ],
+    [
+      "02 / Client cooperation and authority",
+      "Client appoints an authorized contact and will timely furnish accurate business information, approved advertising claims, consent records, trademarks, product descriptions, platform access and necessary decisions. Client confirms it owns or has permission to provide supplied materials. Agency will flag reasonably apparent inconsistencies. Delays caused by missing input or approval extend deadlines reasonably after written notice."
+    ],
+    [
+      "03 / Delivery, review and acceptance",
+      "Agency will perform services with commercially reasonable professional skill and care. Client must review submitted deliverables within five business days and report material differences from the signed SOW in writing with reasonable reproduction details. Agency will promptly address verified covered deviations. No provision silently waives defects that could not reasonably have been discovered in the review period."
+    ],
+    [
+      "04 / Revisions and change orders",
+      "The SOW must state the included revision rounds and their limits. Additional pages, material redesigns, new channels, substantial integrations, new regulatory obligations, rework following Client changes or any other out-of-scope items require a written change order signed or expressly approved by both authorized contacts before additional work begins."
+    ],
+    [
+      "05 / Fees, invoices, ad spend and taxes",
+      "Client pays the setup, milestone, recurring and optional performance fees in the SOW. Unless expressly varied in the SOW, invoices are due fifteen calendar days after issue. Deposits are credited toward earned services; an unearned remainder is handled in the termination accounting. Approved third-party expenses and applicable taxes are separate. Advertising budget, hosting, domains, telephony, SaaS licenses and payment processor costs require Client approval; whenever possible, Client pays these vendors directly. Agency may not exceed an expressly approved spending cap without written consent."
+    ],
+    [
+      "06 / Late payment and lawful collection remedies",
+      "Undisputed overdue balances may bear simple, noncompounding interest of 1.0 percent per month from their due date, or the lower rate permitted by applicable law; no additional punitive late fee is charged. Client may raise a good-faith documented invoice dispute, and the undisputed portion remains due. If undisputed sums remain unpaid ten calendar days past due, Agency may give written notice and, after five further business days without cure, suspend noncritical future work and new campaign spend. If nonpayment continues for thirty calendar days past due, Agency may terminate the affected SOW after a further ten business days written notice. Client owes earned fees, approved noncancelable commitments and lawful recovery costs. Agency will not seize Client-owned accounts, delete Client data, misrepresent ownership, or withhold legally mandated access or exports as collection leverage."
+    ],
+    [
+      "07 / Termination, cancellation and transition",
+      "Each SOW states its start, initial term and any expressly approved renewal; this Agreement alone authorizes no automatic renewal or recurring debit. A month-to-month SOW may be ended on thirty days written notice unless that SOW states a different legally valid period. A material breach may support termination after fifteen business days written notice and opportunity to cure. Unlawful instructions, serious security risk or material threatened harm may justify earlier suspension or termination where lawful. On exit the parties reconcile earned fees, prepaid unearned amounts, approved commitments and the handover described in the SOW. Agency provides reasonable transition assistance at agreed rates and access to Client-owned materials in standard formats."
+    ],
+    [
+      "08 / Outcomes, forecasts and no guaranteed ROI",
+      "Agency does not promise a particular number of leads, sales, appointments, conversions, search ranking, media approvals, profit, revenue, return on ad spend or uninterrupted platform availability. Estimates and forecasts are not warranties. Results depend on industry, market demand, budgets, sales response, pricing, Client operations, vendor algorithms and factors outside Agency control. Any express measurable guarantee must be identified in the SOW together with the measurement method, assumptions, measurement period and exclusive agreed remedy."
+    ],
+    [
+      "09 / Limited workmanship warranty",
+      "For thirty calendar days following acceptance of a fixed deliverable, Agency will use commercially reasonable efforts, without additional service fees, to correct reproducible material defects in Agency-created work that depart from the signed SOW when Client reports the defect with reasonable details. If correction is not commercially practicable, the parties will agree on a reasonable refund of fees attributable to the defective portion, consistent with applicable law. This remedy excludes Client changes, misuse, vendor outages, third-party API changes, previously existing defects and newly requested scope, and does not waive nonexcludable legal rights."
+    ],
+    [
+      "10 / Advertising claims, policies and consent",
+      "Client is responsible for supplying accurate and supportable representations about its prices, licenses, credentials, products, warranties, testimonials, testimonials permissions and promotional offers. Agency will not knowingly publish claims it determines are prohibited or unsubstantiated and may pause questionable materials for review. Client will secure required privacy notices, consents and permissions for email, SMS, calling, tracking, recording and remarketing. Both parties will comply with applicable law and platform rules within their respective roles. Agency may decline campaigns involving restricted products or conduct, including tobacco and nicotine advertising."
+    ],
+    [
+      "11 / AI receptionists, chatbots and automated tools",
+      "AI-generated responses, synthetic voice, transcriptions and automatic routing can be inaccurate or incomplete. Client must review and approve scripts, knowledge content, escalation pathways, channel permissions, recording disclosures and consent practices before activation, and provide appropriate human oversight for safety-sensitive or legally consequential matters. Agency does not warrant that an AI agent is flawless, licensed to provide regulated advice or legally permitted to initiate unsolicited calls. Third-party model terms, retention, costs and service availability are governed by the approved SOW and any applicable data processing addendum."
+    ],
+    [
+      "12 / Lead routing, exclusivity and commissions",
+      "Performance-based charges apply only where the SOW specifies the qualifying event, eligible lead definition, exclusive recipient if any, attribution window, revenue base, commission rate, documentary proof, refunds and cancellations, payment trigger and audit process. Unless those elements are agreed in writing, no implied performance commission is payable. A campaign explicitly sold as exclusive will not intentionally route the same lead to competing recipient contractors. Lead quality, close rate and ability to contact prospects are not guaranteed. Both parties will keep reasonable records and review disputed attribution in good faith."
+    ],
+    [
+      "13 / Ownership of accounts and vendor risks",
+      "Client owns its business profiles, social media, ad accounts, domains, analytics properties and customer data. Where commercially possible, accounts should be in Client's name with Client retaining ultimate administrator access. Agency receives minimum access necessary to perform the SOW and returns or removes access as part of offboarding. Vendors may independently modify prices, policies, availability, advertising approvals, payment requirements and data processing. Agency is not the insurer of a third-party platform."
+    ],
+    [
+      "14 / Intellectual property and license after payment",
+      "Client retains its preexisting materials. Once Client has paid in full for a separately identified custom final deliverable, Agency assigns only the transferable copyrights Agency owns in that deliverable, to the extent specified in the SOW. Agency retains its preexisting generic code, templates, methods, tools, know-how and reusable components (Background Materials), and grants Client a perpetual, nonexclusive license to Agency-owned Background Materials embedded in a fully paid deliverable for its intended business use and maintenance. Open source, stock assets, AI tools and third-party licensed components remain subject to their own licenses; Agency cannot transfer rights it does not own. Source code, credentials and files due at handover must be expressly identified in the SOW."
+    ],
+    [
+      "15 / Client materials, branding and public references",
+      "Client grants Agency a limited permission to use Client-provided content, marks and accounts only as reasonably needed for the contracted services. Neither party may publish the other's confidential financial performance. Agency will not use Client name, logo, case study or project screenshots in its portfolio or advertising without separate written permission. Each party will respect third-party intellectual property and platform terms."
+    ],
+    [
+      "16 / Confidentiality",
+      "Each party must protect nonpublic business, financial, technical, customer and credential information using reasonable care. Disclosure is limited to personnel and approved service providers with a legitimate need and appropriate confidentiality duties. Exceptions include information already lawfully possessed, independently developed, publicly available without breach or received lawfully without confidentiality restrictions. Legally compelled disclosure is permitted with advance notice where lawful. Confidentiality continues three years after termination; trade secrets remain protected for so long as applicable law recognizes them."
+    ],
+    [
+      "17 / Data privacy, cybersecurity and records",
+      "Client determines its lawful purposes and instructions for personal data it controls and supplies required privacy notices and permissions. Agency will apply reasonable access restrictions, credential safeguards and operational controls to information handled for the SOW and will notify Client without undue delay after confirming unauthorized access involving Client data, with reasonably available facts and mitigation steps. Neither party guarantees perfect security. For sensitive information, subprocessors, AI training restrictions, special retention, cross-border transfers or statutory data processing requirements, the parties will execute a separate data processing addendum before the relevant processing starts."
+    ],
+    [
+      "18 / Independent contractor and subcontracting",
+      "Agency provides services as an independent contractor and has no authority to bind Client to unapproved charges or representations. Agency may use vetted technical and creative subcontractors subject to appropriate confidentiality, data and intellectual property terms. Agency remains responsible for its own contractual work, while independently controlled third-party services remain governed by vendor terms."
+    ],
+    [
+      "19 / Third-party claims and fair indemnification",
+      "To the extent permitted by law, Client will defend and indemnify Agency from third-party claims arising from Client-supplied false claims, unlawful materials, missing permissions or unauthorized instructions, except to the extent caused by Agency wrongdoing. Agency will defend and indemnify Client from third-party copyright claims arising from Agency-created original work used as delivered and from Agency willful misconduct, except where caused by Client materials, alterations or third-party platforms. Each protected party will give reasonably prompt notice and cooperation. Neither party may settle on the other's behalf in a way that creates obligations or admissions without consent. This allocation requires counsel review."
+    ],
+    [
+      "20 / Limitation of liability",
+      "TO THE MAXIMUM EXTENT ALLOWED BY LAW, NEITHER PARTY IS LIABLE TO THE OTHER FOR INDIRECT, CONSEQUENTIAL, SPECIAL, EXEMPLARY OR PUNITIVE DAMAGES, INCLUDING LOST PROFITS OR BUSINESS OPPORTUNITIES. EACH PARTY'S AGGREGATE LIABILITY ARISING FROM AN INDIVIDUAL SOW IS LIMITED TO THE FEES PAID OR PAYABLE UNDER THAT SOW DURING THE TWELVE MONTHS BEFORE THE EVENT GIVING RISE TO THE CLAIM. THIS LIMIT DOES NOT RESTRICT CLIENT PAYMENT OBLIGATIONS, FRAUD, WILLFUL MISCONDUCT OR OTHER LIABILITY THAT CANNOT LAWFULLY BE LIMITED. COUNSEL MUST REVIEW ANY ADDITIONAL NEGOTIATED EXCEPTIONS."
+    ],
+    [
+      "21 / Force majeure and interruptions",
+      "A party is not liable for delay caused by extraordinary events beyond reasonable control, other than the obligation to pay money already due, if it provides prompt notice and reasonable mitigation. Examples include natural disasters, major connectivity failures, government orders and significant third-party outages. If a material disruption lasts over thirty continuous days, either party may terminate the affected SOW by written notice, settling fees properly earned and approved noncancelable charges."
+    ],
+    [
+      "22 / Dispute resolution, Florida law and fees",
+      "The parties will first attempt good-faith executive resolution for twenty business days after written notice of a dispute. Subject to mandatory law and any signed alternative dispute resolution terms, the competent state or federal courts in the Florida county identified in the SOW have jurisdiction and Florida law governs. A prevailing party may recover reasonable court-awarded attorneys' fees and taxable costs only to the extent lawful, including reciprocal rights under applicable Florida law. Both parties retain any nonwaivable rights and access to urgent protective relief."
+    ],
+    [
+      "23 / Notices and general terms",
+      "Formal notices go to the verified notice emails in the SOW and any additional method required for reliable proof. This Agreement, the executed SOW and signed addenda comprise the complete understanding and may be amended only by authorized written agreement. An invalid provision does not invalidate the remainder to the extent lawful. Assignment requires consent, except a lawful sale of substantially all relevant business assets with assumption of obligations. The parties agree electronic records and signatures may be used if both consent, and each may retain an accurate downloadable copy. Each signer represents authority to bind the named legal entity."
+    ]
+  ]
+}

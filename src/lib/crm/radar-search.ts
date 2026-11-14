@@ -11,9 +11,15 @@ export type SearchOutcome = { ok: true; run: { run_id: string; found: number; in
 
 /** Searches already recorded today (UTC). Null when the radar tables are unavailable, so callers never invent a figure. */
 export async function radarQuota(db: SupabaseClient): Promise<QuotaState | null> {
-  const { count, error } = await db.from("crm_radar_runs").select("id", { count: "exact", head: true }).gte("started_at", utcDayStartIso());
-  if (error || count === null) return null;
-  return quotaState(count, dailySearchLimit(process.env.AVALON_RADAR_DAILY_SEARCH_LIMIT));
+  try {
+    // GET one row rather than HEAD: a missing PostgREST table can look like a successful HEAD 404.
+    const { count, error } = await db.from("crm_radar_runs").select("id", { count: "exact" }).gte("started_at", utcDayStartIso()).range(0, 0);
+    if (error || typeof count !== "number" || !Number.isSafeInteger(count) || count < 0) return null;
+    return quotaState(count, dailySearchLimit(process.env.AVALON_RADAR_DAILY_SEARCH_LIMIT));
+  } catch {
+    // The quota source is unavailable; callers must NOT spend vendor credits.
+    return null;
+  }
 }
 
 /** Commercial-compatible free plan takes priority when explicitly configured.
@@ -72,7 +78,11 @@ export async function searchAndIngest(db: SupabaseClient, area: RadarArea, runKe
   try {
     if (endpoint.provider === "geoapify") {
       const quota = await radarQuota(db);
-      if (quota?.blocked) return { ok: false, status: 429, error: quotaMessage(quota), blocked: "quota" };
+      // Fail closed: no external provider call if the CRM cannot prove the quota remaining.
+      if (!quota) return { ok: false, status: 503,
+        error: "No se pudo verificar la cuota diaria de Geoapify en Avalon. No se consultó al proveedor ni se gastaron créditos; revisa la conexión o migración del Radar.",
+        blocked: "quota" };
+      if (quota.blocked) return { ok: false, status: 429, error: quotaMessage(quota), blocked: "quota" };
     }
     const geoapify = endpoint.provider === "geoapify";
     if (geoapify && area.radiusM > GEOAPIFY_FREE_MAX_RADIUS_M) return {
