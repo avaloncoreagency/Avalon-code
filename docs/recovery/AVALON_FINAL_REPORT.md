@@ -1,5 +1,7 @@
 # Avalon — informe de candidato recuperable
 
+> Snapshot histórico de la validación local. La publicación #195/#196, CI y Preview posteriores sustituyen los bloqueos de publicación descritos abajo. Estado vigente: `AVALON_RELEASE_GATES.md`, `DEPENDENCY_CLOSURE.md` y el checkpoint por SHA del PR #195. La aceptación con sesiones remotas reales sigue pendiente.
+
 14 de noviembre de 2026 · America/New_York. **Desarrollo local probado; release pendiente.** Base `28aadc9d2bb1da71de8512ebd4238754d5af337e` antes del commit documental. El SHA final y los hashes están en HANDOFF.json del paquete.
 
 ## Entrega
