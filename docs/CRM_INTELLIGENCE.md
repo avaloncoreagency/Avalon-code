@@ -101,7 +101,9 @@
 | **HVAC / Florida** | Especializado: legalidad (licencia DBPR, seguros), servicios, ingresos (calcula el beneficio bruto si se conocen todos los costos y lo marca como «calculado»), capacidad, conversión y acuerdo con Avalon |
 | **Barbería** | Especializado: negocio, ventas, capacidad y marketing |
 | **Smoke Shop** | Especializado, con advertencias: operación (categorías, verificación de edad), finanzas, tecnología, marketing y restricciones |
-| Roofing, Fencing, Tattoo, Landscaping, Plumbing, Cleaning, Restaurants, Electrical, General Contractors y Other | Plantilla general. La UI indica que la especialización está pendiente |
+| **Roofing** | Especializado: servicios y clientes, licencias y seguros por revisar manualmente (registrar no es verificar), reclamaciones de seguros (condicional), zonas, cuadrillas, ticket promedio, costos directos, capacidad semanal, quién responde los leads y tiempo de respuesta (condicional), proceso de cotización a contrato y presupuesto de publicidad |
+| **Fencing** | Especializado: materiales y tipos de trabajo, medición, permisos/HOA (condicional), cobertura, cuadrillas y equipo, ticket promedio, costo directo, tiempo de cotización, presupuesto de marketing y comisión propuesta para Avalon (condicional, no acordada) |
+| Tattoo, Landscaping, Plumbing, Cleaning, Restaurants, Electrical, General Contractors y Other | Especializados (secciones propias en `industry-specializations.ts`) |
 
 ## 5. Reglas de calificación (`score-1`)
 
