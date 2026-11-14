@@ -11,10 +11,15 @@ export type SearchOutcome = { ok: true; run: { run_id: string; found: number; in
 
 /** Searches already recorded today (UTC). Null when the radar tables are unavailable, so callers never invent a figure. */
 export async function radarQuota(db: SupabaseClient): Promise<QuotaState | null> {
-  // GET one row rather than HEAD: a missing PostgREST table can look like a successful HEAD 404.
-  const { count, error } = await db.from("crm_radar_runs").select("id", { count: "exact" }).gte("started_at", utcDayStartIso()).range(0, 0);
-  if (error || count === null) return null;
-  return quotaState(count, dailySearchLimit(process.env.AVALON_RADAR_DAILY_SEARCH_LIMIT));
+  try {
+    // GET one row rather than HEAD: a missing PostgREST table can look like a successful HEAD 404.
+    const { count, error } = await db.from("crm_radar_runs").select("id", { count: "exact" }).gte("started_at", utcDayStartIso()).range(0, 0);
+    if (error || typeof count !== "number" || !Number.isSafeInteger(count) || count < 0) return null;
+    return quotaState(count, dailySearchLimit(process.env.AVALON_RADAR_DAILY_SEARCH_LIMIT));
+  } catch {
+    // The quota source is unavailable; callers must NOT spend vendor credits.
+    return null;
+  }
 }
 
 /** Commercial-compatible free plan takes priority when explicitly configured.
