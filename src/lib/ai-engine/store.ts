@@ -1,7 +1,7 @@
 // Avalon AI Engine — persistent state: tasks (with every provider attempt), daily usage ledger, cooldowns, blocked
 // providers and manager memory. Two implementations share one contract: an atomic JSON file (GitHub Actions worker /
 // local) and an in-memory one (tests). The Supabase tables in 20261106090000_ai_engine.sql mirror the same shapes.
-import type { ProviderId } from "./catalog";
+import type { ModelSpec, ProviderId } from "./catalog";
 import type { ChatResult, ErrorKind } from "./adapters";
 import type { DataClass } from "./guard";
 
@@ -28,13 +28,15 @@ export type State = {
   /** Consecutive non-rate-limit failures per provider (circuit breaker). */
   failures?: Partial<Record<ProviderId, number>>;
   tasks: Record<string, TaskRecord>;
+  /** Reusable provider model listings; bounded to 30 minutes by the router, never holds credentials. */
+  modelInventory?: Partial<Record<ProviderId, { at: string; models: ModelSpec[] }>>;
   usage: Record<string, Usage>; // key = `${day}:${provider}`
   cooldownUntil: Partial<Record<ProviderId, string>>;
   blocked: Partial<Record<ProviderId, string>>; // permanent until a human clears it
   memory: MemoryEntry[];
 };
 
-export const emptyState = (): State => ({ version: 1, tasks: {}, usage: {}, cooldownUntil: {}, blocked: {}, memory: [], inferences: [], lease: null, failures: {} });
+export const emptyState = (): State => ({ version: 1, tasks: {}, modelInventory: {}, usage: {}, cooldownUntil: {}, blocked: {}, memory: [], inferences: [], lease: null, failures: {} });
 
 export interface Store {
   load(): State;
