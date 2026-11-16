@@ -48,3 +48,25 @@ test("quote form keeps its honeypot hidden from assistive tech and has labelled,
   assert.match(form, /role="status"/);
   assert.match(form, /autoComplete="email"/);
 });
+
+test("public homepage speaks to contractors and includes an accessible bilingual FAQ", () => {
+  const copy = fs.readFileSync("src/components/public/landing/copy.ts", "utf8");
+  const page = fs.readFileSync("src/app/page.tsx", "utf8");
+  assert.match(copy, /Para contratistas, profesionales y empresas/);
+  assert.match(copy, /For contractors, professionals and businesses/);
+  assert.match(copy, /faq: \{ eyebrow: "Preguntas frecuentes"/);
+  assert.match(copy, /faq: \{ eyebrow: "Frequently asked questions"/);
+  assert.match(page, /id="preguntas"/);
+  assert.match(page, /<details key=\{question\}/);
+});
+
+test("public inquiry supports all advertised service interests without expanding the reviewed SQL allowlist", () => {
+  const services = fs.readFileSync("src/components/public/services.ts", "utf8");
+  const action = fs.readFileSync("src/app/quote-actions.ts", "utf8");
+  for (const name of ["chatbots", "funnels"]) {
+    assert.match(services, new RegExp(name + ":"));
+    assert.match(action, new RegExp(name + ":"));
+  }
+  assert.match(action, /Services of interest:/);
+  assert.match(action, /services: \[\.\.\.new Set\(requested\.filter\(s => SERVICES\.includes\(s\)\)\)\]/);
+});
