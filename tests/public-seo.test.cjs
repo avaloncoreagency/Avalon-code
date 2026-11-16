@@ -19,9 +19,12 @@ test("robots.txt: public landing allowed, private OS and APIs excluded, sitemap 
   assert.equal(robots.sitemap, "https://avaloncoreagency.com/sitemap.xml");
 });
 
-test("sitemap lists only the two public language versions, never a private route", () => {
+test("sitemap lists the public landing and solution pages in both languages, never a private route", () => {
   const entries = load("src/app/sitemap.ts")();
-  assert.deepEqual(entries.map(e => e.url), ["https://avaloncoreagency.com/", "https://avaloncoreagency.com/?lang=en"]);
+  const urls = entries.map(e => e.url);
+  assert.deepEqual(urls.slice(0, 2), ["https://avaloncoreagency.com/", "https://avaloncoreagency.com/?lang=en"]);
+  assert.ok(urls.every(u => u === "https://avaloncoreagency.com/" || u === "https://avaloncoreagency.com/?lang=en" || /^https:\/\/avaloncoreagency\.com\/soluciones\/[a-z]+(\?lang=en)?$/.test(u)), "only public pages");
+  assert.equal(urls.length, 18, "landing + 8 solution pages, ES and EN");
   for (const e of entries) assert.doesNotMatch(e.url, /admin|api|login/);
 });
 
