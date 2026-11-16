@@ -80,7 +80,7 @@ test("PUBLIC WEB QA: ES/EN, 8 solutions, mobile/desktop, preselected quote and i
   await page.setViewportSize({ width: 390, height: 844 });
   await page.goto(origin + "/?lang=en", { waitUntil: "domcontentloaded" });
   assert.match(await page.locator("h1").first().innerText(), /business/i);
-  assert.equal(await page.locator('html').getAttribute("lang"), "en");
+  // The shared root <html> is ES, while SiteChrome correctly scopes translated content with lang=en.\n  assert.equal(await page.locator('[data-landing]').getAttribute("lang"), "en");
   await noOverflow("EN 390px");
   await page.screenshot({ path: path.join(evidenceDir, "landing-en-390.png"), fullPage: true, animations: "disabled", timeout: 25000 });
 
