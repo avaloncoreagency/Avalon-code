@@ -128,8 +128,8 @@ export default async function Client360({ params, searchParams }: { params: Prom
     {client.error ? <Unavailable lang={lang} code={client.error} /> : c && <>
       {caps.source === "unavailable" && <p className={s.flash} data-tone="warn" role="status">{pick(lang, "No se pudo verificar el acceso financiero. Los importes privados permanecen ocultos.", "Finance access could not be verified. Private amounts remain hidden.")}</p>}
       <ClientOverview lang={lang} client={c} owner={ownerName(ownerList, c.owner_id)}
-        contacts={contacts.error ? null : (contacts.data ?? [])} nextSteps={nextSteps}
-        latest={timeline.data?.[0] ?? null} counts={counts}
+        contacts={contacts.error ? null : (contacts.data ?? [])} nextSteps={nextSteps} nextStepsUnavailable={Boolean(tasks.error)}
+        latest={timeline.data?.[0] ?? null} latestUnavailable={Boolean(timeline.error)} counts={counts}
         candidates={candidates} candidateError={Boolean(unassigned.error)} />
       {finance && !salesLoaded.failed && finance.currencies.some(f => f.sales > 0) && <section className={s.stats} aria-label={pick(lang, "Situación financiera del cliente", "Client financial summary")}>
         {finance.currencies.filter(f => f.sales > 0).map(f => <div key={f.currency} className={s.stat}>
@@ -152,6 +152,7 @@ export default async function Client360({ params, searchParams }: { params: Prom
             <p className={s.muted}>{pt.length ? `${pt.filter(t => t.status === "done").length}/${pt.filter(t => t.status !== "cancelled").length} ${pick(lang, "tareas hechas", "tasks done")}` : pick(lang, "Sin tareas vinculadas", "No linked tasks")}{wo?.due_on ? ` · ${pick(lang, "entrega", "due")} ${formatDate(lang, wo.due_on)}` : ""}{wo ? ` · ${ownerName(ownerList, wo.assignee_id)}` : ""}</p>
             <p className={s.actions}><Link href={`/admin/workspace/products/${pr.id}`}>{pick(lang, "HUD del producto (entregables, cambios, QA)", "Product HUD (deliverables, changes, QA)")}</Link>{svc && <Link href={`/admin/workspace/${svc.slug}/${pr.id}`}>{pick(lang, "Abrir en", "Open in")} {svc.name}</Link>}</p>
           </div>; })}</div>}
+        {!projects.error && projects.count !== null && projects.count > (projects.data?.length ?? 0) && <p className={s.muted}>{pick(lang, `Se muestran los ${projects.data?.length ?? 0} proyectos más recientes de ${projects.count}. Puedes ver todos por departamento desde el ecosistema de herramientas.`, `Showing the ${projects.data?.length ?? 0} most recent of ${projects.count} projects. Open the filtered module portfolio to browse the rest.`)}</p>}
       </section>
 
       <LeadAttachments clientId={c.id} lang={lang} files={documents.data ?? []}
