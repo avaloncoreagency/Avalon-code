@@ -6,6 +6,7 @@ import { requireOwner } from "@/lib/auth/session";
 import { getLang } from "@/lib/i18n-server";
 import { pick, formatDate } from "@/lib/i18n";
 import { run } from "@/lib/os/data";
+import { crmBusinessDayBounds } from "@/lib/crm/business-day";
 import { INDUSTRIES, industryLabel, isIndustry } from "@/lib/crm/intel/industries";
 import { intelErrorText } from "@/lib/crm/intel/errors";
 import s from "@/components/sales/sales.module.css";
@@ -36,13 +37,12 @@ export default async function DeskPage({ searchParams }: { searchParams: Promise
   const perPage = 50;
   const listHref = (f: Filter, currentPage = 1) => `?${new URLSearchParams({ f, ...(search ? { search } : {}), ...(industry ? { industry } : {}), ...(currentPage > 1 ? { page: String(currentPage) } : {}) })}`;
   const now = new Date();
-  const startOfDay = new Date(now); startOfDay.setHours(0, 0, 0, 0);
-  const endOfDay = new Date(now); endOfDay.setHours(23, 59, 59, 999);
+  const { start, end } = crmBusinessDayBounds(now);
   const weekAgo = new Date(now.getTime() - 7 * 864e5).toISOString();
   const base = () => supabase.from("crm_leads").select(COLS, { count: "exact" }).eq("archived", false).eq("audience", "agency_b2b");
   const open = <T extends ReturnType<typeof base>>(b: T) => b.not("stage_id", "in", "(won,lost)");
   const views: Record<Filter, () => ReturnType<typeof base>> = {
-    today: () => open(base()).gte("follow_up_at", startOfDay.toISOString()).lte("follow_up_at", endOfDay.toISOString()),
+    today: () => open(base()).gte("follow_up_at", start).lt("follow_up_at", end),
     overdue: () => open(base()).lt("follow_up_at", now.toISOString()),
     new: () => base().gte("created_at", weekAgo).eq("stage_id", "new"),
     diagnosis: () => open(base()).neq("diagnosis_status", "complete"),

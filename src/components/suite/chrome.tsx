@@ -49,6 +49,7 @@ export function SuiteChrome({ lang, collapsed: initialCollapsed, section, user, 
   // Drawer navigation remains the complete, accessible route list.
   const pipelineActive = pathname.startsWith("/admin/workspace/crm/leads") || pathname.startsWith("/admin/workspace/crm/lead/") || pathname === "/admin/workspace/crm" || pathname.startsWith("/admin/workspace/crm/desk") || pathname.startsWith("/admin/workspace/crm/hunter");
   const clientsActive = pathname.startsWith("/admin/workspace/crm/clients") || pathname.startsWith("/admin/workspace/crm/sales");
+  const tasksActive = pathname.startsWith("/admin/workspace/crm/tasks");
   const dashboardActive = pathname.startsWith("/admin/dashboard");
   const closeMenu = () => setMenu(null);
   const profileRef = useDismiss(menu === "profile", closeMenu);
@@ -272,7 +273,7 @@ export function SuiteChrome({ lang, collapsed: initialCollapsed, section, user, 
           <Link href="/admin/workspace/crm/leads" aria-current={pipelineActive ? "page" : undefined}>
             <Icon name="crm" size={21} /><span>Pipeline</span>
           </Link>
-          <Link href="/admin/workspace/crm/tasks">
+          <Link href="/admin/workspace/crm/tasks" aria-current={tasksActive ? "page" : undefined}>
             <Icon name="clock" size={21} /><span>{es ? "Tareas" : "Tasks"}</span>
           </Link>
           <button type="button" onClick={() => setDrawer(true)} aria-controls="os-sidebar" aria-expanded={drawer}
