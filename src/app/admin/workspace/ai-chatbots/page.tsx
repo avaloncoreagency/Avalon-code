@@ -25,6 +25,6 @@ export default async function ChatbotsLibrary({ searchParams }: { searchParams: 
       crumbs={[{href:"/admin/workspace/ai-communications",label:"AI Communications Hub"}]} />
     <Flash lang={lang} ok={param(query,"ok")} error={param(query,"error")} />
     <ProjectsIndex lang={lang} module="chatbots" base="/admin/workspace/ai-chatbots"
-      projects={projects} noun={{es:"chatbots registrados",en:"registered chatbots"}} showArchived={archived} />
+      projects={projects} noun={{es:"chatbots registrados",en:"registered chatbots"}} showArchived={archived} prefillClientId={param(query, "client")} />
   </Suite>;
 }

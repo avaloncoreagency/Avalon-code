@@ -33,7 +33,7 @@ export default async function MarketingHubPage({ searchParams }: { searchParams:
         </Link>
       </section>
       <Flash lang={lang} ok={param(params, "ok")} error={param(params, "error")} />
-      <ProjectsIndex lang={lang} module="marketing" base="/admin/workspace/marketing-hub" projects={projects} noun={{ es: "campañas", en: "campaigns" }} showArchived={showArchived} page={page}
+      <ProjectsIndex lang={lang} module="marketing" base="/admin/workspace/marketing-hub" projects={projects} noun={{ es: "campañas", en: "campaigns" }} showArchived={showArchived} page={page} prefillClientId={param(params, "client")}
         createFields={<label className={s.field}><span>{pick(lang, "Objetivo", "Goal")}</span><input className={s.input} name="goal" maxLength={500} /></label>} />
     </Suite>
   );

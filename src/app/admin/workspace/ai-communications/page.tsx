@@ -25,6 +25,7 @@ export default async function CommunicationHub({searchParams}:Params) {
   const {supabase} = await requireOwner();
   const lang = await getLang();
   const params = await searchParams;
+  const prefillClientId = typeof params.client === "string" ? params.client : "";
   const raw = typeof params.page === "string" ? Number(params.page) : 1;
   const page = Number.isSafeInteger(raw) && raw >= 1 && raw <= 1000 ? raw : 1;
   const offset = (page - 1) * PAGE_SIZE;
@@ -148,7 +149,7 @@ export default async function CommunicationHub({searchParams}:Params) {
               </select>
             </label>
             <label>{label("Cliente confirmado de Client 360° (opcional)","Confirmed Client 360 company (optional)")}
-              <select name="client_id" defaultValue="">
+              <select name="client_id" defaultValue={(crmClients.data ?? []).some(c => c.id === prefillClientId) ? prefillClientId : ""}>
                 <option value="">{label("Sin seleccionar","Not selected")}</option>
                 {(crmClients.data ?? []).map(client=><option key={client.id} value={client.id}>
                   {client.trade_name||client.legal_name} · {client.client_code}

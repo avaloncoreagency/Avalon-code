@@ -21,7 +21,7 @@ export default async function CrmCreatorPage({ searchParams }: { searchParams: S
       <PageHeader eyebrow="CRM Creator" title={pick(lang, "Mis CRMs", "My Client CRMs")}
         description={pick(lang, "Registra CRMs externos creados con Claude o Codex. Abre su acceso autorizado, conserva entregas y lleva sus incidencias; no los construimos aquí.", "Register client CRMs built with Claude or Codex. Open authorized access, retain deliveries and track issues; they are not built here.")} />
       <Flash lang={lang} ok={param(params, "ok")} error={param(params, "error")} />
-      <ProjectsIndex lang={lang} module="crm_creator" base="/admin/workspace/crm-creator" projects={projects} noun={{ es: "diseños de CRM", en: "CRM designs" }} showArchived={showArchived} page={page}
+      <ProjectsIndex lang={lang} module="crm_creator" base="/admin/workspace/crm-creator" projects={projects} noun={{ es: "diseños de CRM", en: "CRM designs" }} showArchived={showArchived} page={page} prefillClientId={param(params, "client")}
  />
     </Suite>
   );

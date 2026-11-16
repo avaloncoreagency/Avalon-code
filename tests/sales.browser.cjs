@@ -165,15 +165,26 @@ test('Nova Restaurant through the real app: one form, three departments, no dupl
   const clientId = (await db.query('select id from crm_clients')).rows[0].id;
   await page.goto(`${origin}/admin/workspace/crm/clients/${clientId}`);
   await page.getByRole('heading', { name: 'Proyectos por departamento' }).waitFor();
+  await page.getByRole('heading', { name: 'Ecosistema de herramientas' }).waitFor();
+  await page.getByRole('navigation', { name: 'Ir a una sección' }).getByRole('link', { name: 'Documentos' }).waitFor();
+  assert.ok(await page.locator('#client-files').isVisible(), 'individual Client 360 includes its own file gallery');
+  assert.ok(await page.getByRole('link', { name: 'Ver ventas del cliente' }).isVisible());
+  assert.match(await page.getByRole('region', { name: 'Indicadores por cliente' }).innerText(), /Ventas registradas/);
   const hub = await page.locator('#main').innerText();
   for (const name of ['Nova Restaurant — Desarrollo web', 'Nova Restaurant — Recepcionista de IA', 'Nova Restaurant — Marketing mensual', 'AV-2026-']) assert.ok(hub.includes(name), `client hub shows ${name}`);
   await page.screenshot({ path: `${EVIDENCE}/client-360.png`, fullPage: true });
+  await page.getByRole('link', { name: 'Ver ventas del cliente' }).click();
+  await page.waitForURL(origin + '/admin/workspace/crm/sales?client=' + clientId);
+  await page.getByRole('heading', { name: 'Ventas registradas' }).waitFor();
+  assert.match(await page.locator('#main').innerText(), /Mostrando únicamente ventas vinculadas a/);
+  await page.goto(`${origin}/admin/workspace/crm/clients/${clientId}`);
+  await page.getByRole('heading', { name: 'Proyectos por departamento' }).waitFor();
   // Avalon Contracts: actual Next.js Client 360 + Server Action + isolated PostgreSQL + private PDF.
   // These are synthetic accounts. Physical iPhone Safari and actual owner login remain manual gates.
   const contractsPath = '/admin/workspace/crm/clients/' + clientId + '/contracts';
   assert.equal((await get(contractsPath)).status, 307, 'contracts require authentication');
   assert.equal((await get(contractsPath, outsider)).status, 307, 'contracts reject non-owners');
-  const contractsLink = page.locator('a[href="' + contractsPath + '"]');
+  const contractsLink = page.getByRole('link', { name: 'Generar contrato', exact: true });
   await contractsLink.waitFor();
   await contractsLink.click();
   await page.getByRole('heading', { name: 'Contratos del cliente' }).waitFor();
@@ -451,10 +462,10 @@ test('Nova Restaurant through the real app: one form, three departments, no dupl
   await sam.waitForURL(origin + '/admin/workspace/crm/clients');
   await mobileDock.getByRole('link', { name: 'Pipeline' }).click();
   await sam.waitForURL(origin + '/admin/workspace/crm/leads');
-  await mobileDock.getByRole('link', { name: 'Tareas' }).click();
-  await sam.waitForURL(origin + '/admin/workspace/crm/tasks');
-  assert.equal(await mobileDock.getByRole('link', { name: 'Tareas' }).getAttribute('aria-current'),
-    'page', 'the active mobile task tab is identified accessibly');
+  await mobileDock.getByRole('link', { name: 'Ventas' }).click();
+  await sam.waitForURL(origin + '/admin/workspace/crm/sales');
+  assert.equal(await mobileDock.getByRole('link', { name: 'Ventas' }).getAttribute('aria-current'),
+    'page', 'the active Sales tab is identified accessibly');
   await mobileDock.getByRole('button', { name: 'Abrir todos los módulos' }).click();
   assert.ok(await sam.getByRole('button', { name: 'Cerrar menú' }).isVisible(), 'full module drawer opens from dock');
   await sam.getByRole('button', { name: 'Cerrar menú' }).click();
@@ -476,11 +487,12 @@ test('Nova Restaurant through the real app: one form, three departments, no dupl
   await page.waitForURL(origin + '/admin/workspace/crm/leads');
   await page.getByRole('heading', { name: 'Tu jornada comercial' }).waitFor();
   await page.getByRole('heading', { name: 'Leads Pipeline' }).waitFor();
+  assert.ok(await page.getByRole('navigation', { name: 'Secciones principales del CRM' }).getByRole('link', { name: 'Ventas', exact: true }).isVisible());
   const crmHome = await page.locator('#main').innerText();
   assert.doesNotMatch(crmHome, /desarrollo por Samuel|en desarrollo/i);
   await page.screenshot({ path: `${EVIDENCE}/crm-home.png`, fullPage: true });
   // Every primary tab and secondary page is reachable from the CRM and renders its own screen.
-  const tabs = [['Leads Pipeline', /\/crm\/leads$/], ['Clientes 360°', /\/crm\/clients$/]];
+  const tabs = [['Leads Pipeline', /\/crm\/leads$/], ['Ventas', /\/crm\/sales$/], ['Clientes 360°', /\/crm\/clients$/]];
   for (const [name, url] of tabs) {
     await page.goto(origin + '/admin/workspace/crm/leads');
     await page.getByRole('navigation', { name: 'Secciones principales del CRM' }).first().getByRole('link', { name, exact: true }).click();

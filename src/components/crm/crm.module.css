@@ -486,3 +486,9 @@
 .toolLinks a { padding: 10px 13px; border: 1px solid rgba(140,160,240,.28); border-radius: 10px; text-decoration: none; color: inherit; min-height: 44px; display: inline-flex; align-items: center; box-sizing: border-box; font-size: 13px; }
 .toolLinks a[aria-current="page"] { border-color: var(--cyan, #5edbff); background: rgba(53,125,190,.17); }
 @media (max-width: 650px) { .tools { width: 100%; } .tools > summary { width: 100%; } .toolLinks a { flex: 1 1 145px; justify-content: center; text-align: center; } }
+
+/* CRM workflow: three unmistakable primary destinations. */
+.tabs { width: 100%; }
+.tab { min-height: 44px; box-sizing: border-box; align-items: center; justify-content: center; flex: 1 1 125px; text-align: center; }
+.tab:focus-visible { outline: 2px solid var(--cyan, #64d7f5); outline-offset: 3px; }
+@media (max-width: 400px) { .tabs { gap: 5px; } .tab { flex-basis: 105px; padding: 10px 8px; font-size: 12px; } }

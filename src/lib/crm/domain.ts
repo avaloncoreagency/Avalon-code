@@ -7,9 +7,10 @@ export const sections = [
   { slug: "kpis", label: "Estadísticas" },
   { slug: "ai-usage", label: "Uso de IA" },
 ] as const;
-/** Owners' two daily CRM destinations; legacy routes remain available via More tools. */
+/** Owners' three main CRM destinations; specialized tools remain available via More tools. */
 export const crmNavigation = [
   { slug: "leads", label: "Leads Pipeline", href: "/admin/workspace/crm/leads" },
+  { slug: "sales", label: "Ventas", href: "/admin/workspace/crm/sales" },
   { slug: "clients", label: "Clientes 360°", href: "/admin/workspace/crm/clients" },
 ] as const;
 

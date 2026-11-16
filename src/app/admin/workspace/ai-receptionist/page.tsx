@@ -21,7 +21,7 @@ export default async function AiReceptionistPage({ searchParams }: { searchParam
         description={pick(lang, "Configura nombre, personalidad, horarios, preguntas frecuentes, base de conocimiento y reglas de transferencia a una persona. Ningún proveedor de IA, voz o mensajería está conectado: no se generan ni simulan conversaciones.", "Configure name, personality, hours, FAQ, knowledge base and human handoff rules. No AI, voice or messaging provider is connected: no conversations are generated or simulated.")} />
       <p><Link href="/admin/workspace/ai-communications">AI Communications Hub</Link> · <Link href="/admin/workspace/ai-receptionist/builder">{pick(lang,"Constructor","Builder")}</Link></p>
       <Flash lang={lang} ok={param(params, "ok")} error={param(params, "error")} />
-      <ProjectsIndex lang={lang} module="receptionist" base="/admin/workspace/ai-receptionist" projects={projects} noun={{ es: "asistentes", en: "assistants" }} showArchived={showArchived} />
+      <ProjectsIndex lang={lang} module="receptionist" base="/admin/workspace/ai-receptionist" projects={projects} noun={{ es: "asistentes", en: "assistants" }} showArchived={showArchived} prefillClientId={param(params, "client")} />
     </Suite>
   );
 }

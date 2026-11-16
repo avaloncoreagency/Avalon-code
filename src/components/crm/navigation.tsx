@@ -3,16 +3,16 @@ import { crmNavigation } from "@/lib/crm/domain";
 import { pick, type Lang } from "@/lib/i18n";
 import s from "./crm.module.css";
 
-/** Only the two daily destinations are primary; legacy pages are never deleted. */
+/** Leads, Sales and Clients 360 are always visible; secondary tools remain available. */
 export function CrmNavigation({ active, lang = "es" }: { active?: string; lang?: Lang }) {
-  const selected = active === "clients" || active === "sales" ? "clients" : "leads";
+  const selected = active === "sales" || active === "new" ? "sales" : active === "clients" ? "clients" : "leads";
   return (
     <nav aria-label={pick(lang, "Secciones principales del CRM", "CRM primary sections")} className={s.tabs}>
       {crmNavigation.map((tab) => (
         <Link key={tab.slug} href={tab.href}
           className={`${s.tab} ${selected === tab.slug ? s.active : ""}`}
           aria-current={selected === tab.slug ? "page" : undefined}>
-          {tab.slug === "clients" ? pick(lang, "Clientes 360°", "Clients 360°") : tab.label}
+          {tab.slug === "clients" ? pick(lang, "Clientes 360°", "Clients 360°") : tab.slug === "sales" ? pick(lang, "Ventas", "Sales") : tab.label}
         </Link>
       ))}
     </nav>
@@ -24,7 +24,6 @@ const tools = [
   ["hunter", "/admin/workspace/crm/hunter", "Radar / Lead Hunter", "Radar / Lead Hunter"],
   ["desk", "/admin/workspace/crm/desk", "Bandeja comercial avanzada", "Advanced sales desk"],
   ["overview", "/admin/workspace/crm/overview", "Resumen y consumo", "Overview and usage"],
-  ["sales", "/admin/workspace/crm/sales", "Ventas", "Sales"],
   ["new", "/admin/workspace/crm/sales/new", "Registrar venta", "Record sale"],
   ["calendar", "/admin/workspace/crm/calendar", "Calendario", "Calendar"],
   ["tasks", "/admin/workspace/crm/tasks", "Tareas", "Tasks"],
