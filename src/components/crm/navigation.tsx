@@ -23,7 +23,7 @@ export function CrmNavigation({ active, lang = "es" }: { active?: string; lang?:
 const tools = [
   ["hunter", "/admin/workspace/crm/hunter", "Radar / Lead Hunter", "Radar / Lead Hunter"],
   ["desk", "/admin/workspace/crm/desk", "Bandeja comercial avanzada", "Advanced sales desk"],
-  ["overview", "/admin/workspace/crm", "Resumen y consumo", "Overview and usage"],
+  ["overview", "/admin/workspace/crm/overview", "Resumen y consumo", "Overview and usage"],
   ["sales", "/admin/workspace/crm/sales", "Ventas", "Sales"],
   ["new", "/admin/workspace/crm/sales/new", "Registrar venta", "Record sale"],
   ["calendar", "/admin/workspace/crm/calendar", "Calendario", "Calendar"],
