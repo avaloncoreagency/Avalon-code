@@ -445,3 +445,11 @@
 /* Skip layout/paint of off-screen sections until they approach the viewport (big win on mid-range phones). */
 .section { content-visibility: auto; contain-intrinsic-size: auto 1100px; }
 .mini { margin: 0 0 10px; font-size: 14px; color: #c9cffb; font-weight: 600; letter-spacing: .02em; }
+
+/* Native, keyboard-accessible questions for visitors evaluating Avalon. */
+.faqGrid { max-width: 880px; margin: 0 auto; display: grid; gap: 12px; }
+.faqItem { border: 1px solid rgba(53,84,255,.14); border-radius: 18px; background: rgba(255,255,255,.78); padding: 0 22px; box-shadow: 0 12px 35px -28px rgba(20,35,95,.35); }
+.faqItem summary { cursor: pointer; list-style-position: inside; font-weight: 650; line-height: 1.4; padding: 21px 0; }
+.faqItem summary:focus-visible { outline: 3px solid #3554ff; outline-offset: 5px; border-radius: 6px; }
+.faqItem p { margin: 0; padding: 0 0 23px; color: var(--ink-2); line-height: 1.65; }
+@media (max-width: 600px) { .faqItem { padding: 0 16px; } .faqItem summary { padding: 18px 0; } }
