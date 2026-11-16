@@ -46,6 +46,8 @@ export function ClientOverview({ lang, client, owner, contacts, nextSteps, lates
     { es: "Tareas vencidas", en: "Overdue tasks", value: counts.overdueTasks, href: `/admin/workspace/crm/tasks?client=${client.id}&view=overdue` },
     { es: "Documentos", en: "Documents", value: counts.documents, href: "#client-files" },
     { es: "Ventas registradas", en: "Recorded sales", value: counts.sales, href: `/admin/workspace/crm/sales?client=${client.id}` },
+    { es: "Órdenes de trabajo", en: "Work orders", value: counts.workOrders, href: "#projects" },
+    { es: "Borradores de acuerdo", en: "Agreement drafts", value: counts.agreements, href: `${base}/contracts` },
   ];
   const place = [client.location, client.country].filter(Boolean).join(", ");
   return (
@@ -77,7 +79,7 @@ export function ClientOverview({ lang, client, owner, contacts, nextSteps, lates
         <a href="#history">{pick(lang, "Historial", "History")}</a>
       </nav>
 
-      <div className={styles.stats} aria-label={pick(lang, "Indicadores por cliente", "Client-specific indicators")}>
+      <div className={styles.stats} role="region" aria-label={pick(lang, "Indicadores por cliente", "Client-specific indicators")}>
         {badges.map(item => <a className={styles.metric} key={item.en} href={item.href}>
           <span>{pick(lang, item.es, item.en)}</span>
           <strong>{digits(item.value)}</strong>
