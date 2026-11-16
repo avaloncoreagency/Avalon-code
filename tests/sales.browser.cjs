@@ -14,7 +14,28 @@ const MIGUEL = '00000000-0000-4000-8000-0000000000a1';
 const SAMUEL = '00000000-0000-4000-8000-0000000000b2';
 const OUTSIDER = '00000000-0000-4000-8000-0000000000c3';
 const EVIDENCE = process.env.EVIDENCE_DIR || '../evidence';
-const ROUTES = ['/admin/dashboard', '/admin/workspace/crm', '/admin/workspace/crm/calendar', '/admin/workspace/crm/settings', '/admin/workspace/crm/sales', '/admin/workspace/crm/sales/new', '/admin/workspace/crm/clients', '/admin/workspace/crm/tasks', '/admin/workspace/crm/notifications', '/admin/workspace/crm/activity', '/admin/workspace/crm/office/hq']; // /crm/office redirects to the single Avalon HQ
+// Every primary module, and both communication product areas, must remain owner-only and load.
+const PRODUCT_MODULE_ROUTES = [
+  '/admin/workspace/website-designer',
+  '/admin/workspace/ecommerce-designer',
+  '/admin/workspace/crm-creator',
+  '/admin/workspace/ai-communications',
+  '/admin/workspace/marketing-hub',
+];
+const COMMUNICATION_PRODUCT_ROUTES = [
+  '/admin/workspace/ai-chatbots',
+  '/admin/workspace/ai-receptionist',
+];
+const ROUTES = [
+  '/admin/dashboard', '/admin/workspace/crm',
+  '/admin/workspace/crm/calendar', '/admin/workspace/crm/settings',
+  '/admin/workspace/crm/sales', '/admin/workspace/crm/sales/new',
+  '/admin/workspace/crm/clients', '/admin/workspace/crm/tasks',
+  '/admin/workspace/crm/notifications', '/admin/workspace/crm/activity',
+  '/admin/workspace/crm/office/hq',
+  ...PRODUCT_MODULE_ROUTES,
+  ...COMMUNICATION_PRODUCT_ROUTES,
+]; // /crm/office redirects to the single Avalon HQ
 
 test('Nova Restaurant through the real app: one form, three departments, no duplicates', { timeout: 240000 }, async t => {
   const db = new PGlite();
@@ -66,7 +87,10 @@ test('Nova Restaurant through the real app: one form, three departments, no dupl
     assert.equal((await get(route)).status, 307, `${route} signed out`);
     assert.equal((await get(route, outsider)).status, 307, `${route} non-member`);
     const ok = await get(route, miguel);
-    assert.equal(ok.status, route === '/admin/workspace/crm' ? 307 : 200, `${route} owner: ${output.slice(-2000)}`);
+    assert.equal(ok.status, route === '/admin/workspace/crm' ? 307 : 200, `${route} Miguel: ${output.slice(-2000)}`);
+    const secondOwner = await get(route, samuel);
+    assert.equal(secondOwner.status, route === '/admin/workspace/crm' ? 307 : 200,
+      `${route} Samuel must have the same access as Miguel`);
   }
   assert.equal((await get('/admin/workspace/crm/leads', miguel)).status, 200, 'owner reaches Pipeline after CRM root redirect');
   assert.equal((await get('/admin/workspace/crm/sales/00000000-0000-4000-8000-000000000999', miguel)).status, 404);
@@ -397,6 +421,12 @@ test('Nova Restaurant through the real app: one form, three departments, no dupl
     ['/admin/workspace/crm/clients', 'clients-mobile'],
     ['/admin/workspace/crm/tasks?view=mine', 'tasks-mobile-reviewed'],
     ['/admin/workspace/website-designer', 'website-mobile'],
+    ['/admin/workspace/ecommerce-designer', 'ecommerce-mobile'],
+    ['/admin/workspace/crm-creator', 'crm-creator-mobile'],
+    ['/admin/workspace/ai-communications', 'communications-mobile'],
+    ['/admin/workspace/marketing-hub', 'marketing-mobile'],
+    ['/admin/workspace/ai-chatbots', 'chatbots-mobile'],
+    ['/admin/workspace/ai-receptionist', 'receptionist-mobile'],
   ];
   for (const width of [390, 320]) {
     await sam.setViewportSize({ width, height: 844 });
@@ -423,6 +453,8 @@ test('Nova Restaurant through the real app: one form, three departments, no dupl
   await sam.waitForURL(origin + '/admin/workspace/crm/leads');
   await mobileDock.getByRole('link', { name: 'Tareas' }).click();
   await sam.waitForURL(origin + '/admin/workspace/crm/tasks');
+  assert.equal(await mobileDock.getByRole('link', { name: 'Tareas' }).getAttribute('aria-current'),
+    'page', 'the active mobile task tab is identified accessibly');
   await mobileDock.getByRole('button', { name: 'Abrir todos los módulos' }).click();
   assert.ok(await sam.getByRole('button', { name: 'Cerrar menú' }).isVisible(), 'full module drawer opens from dock');
   await sam.getByRole('button', { name: 'Cerrar menú' }).click();
@@ -694,7 +726,7 @@ test('Nova Restaurant through the real app: one form, three departments, no dupl
   const pub = await visitor.newPage();
   pub.on('pageerror', e => errors.push(`pageerror [${pub.url()}]: ${e.message}`));
   await pub.goto(origin + '/');
-  await pub.getByRole('heading', { name: 'Tecnología que hace crecer tu negocio.' }).waitFor();
+  await pub.getByRole('heading', { level: 1, name: 'El sistema digital que impulsa tu negocio.' }).waitFor();
   await pub.getByLabel('Empresa').fill('Visitante Sintético LLC');
   await pub.getByLabel('Tu nombre').fill('Luis Prueba');
   await pub.getByLabel('Correo').fill('luis@visitante.example.invalid');
@@ -709,7 +741,7 @@ test('Nova Restaurant through the real app: one form, three departments, no dupl
   assert.deepEqual({ ...web }, { status: 'pending', source_kind: 'web_form' }, 'web request waits for human review');
   assert.equal(Number((await one("select count(*) n from crm_leads where company='Visitante Sintético LLC'")).n), 0);
   await pub.goto(origin + '/?lang=en');
-  await pub.getByRole('heading', { name: 'Technology that grows your business.' }).waitFor();
+  await pub.getByRole('heading', { level: 1, name: 'The digital system that powers your business.' }).waitFor();
   assert.match(await pub.title(), /AI, websites, CRM and automation/, 'English page has an English title');
   assert.equal(await pub.locator('link[rel="canonical"]').count(), 0, 'no canonical that would mark the English page as a duplicate of the Spanish one');
   // Search-engine surface: robots.txt keeps the private OS out, sitemap lists only public pages.
