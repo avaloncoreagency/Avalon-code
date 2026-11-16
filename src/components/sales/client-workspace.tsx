@@ -24,8 +24,8 @@ const kinds: [string, string, string][] = [
  * shown only when it is complete; otherwise a labelled partial subtotal (never when a source failed) and the reason.
  * `sales` are only the most recent rows, used for the service list.
  */
-export async function ClientWorkspace({ supabase, clientId, lang, sales, financeAllowed, finance, demo }: {
-  supabase: SupabaseClient; clientId: string; lang: Lang; sales: Sale[]; financeAllowed: boolean; finance: FinanceSummary | null; demo: boolean;
+export async function ClientWorkspace({ supabase, clientId, lang, sales, financeAllowed, finance }: {
+  supabase: SupabaseClient; clientId: string; lang: Lang; sales: Sale[]; financeAllowed: boolean; finance: FinanceSummary | null;
 }) {
   const [workspace, journal, costs, revisions, detailRevisions] = await Promise.all([
     run<Workspace | null>(supabase.from("crm_client_workspace").select("client_id,package_name,development_stage,next_step,version").eq("client_id",clientId).maybeSingle()),
@@ -53,15 +53,6 @@ export async function ClientWorkspace({ supabase, clientId, lang, sales, finance
         "Collections come from confirmed sales; expenses are cumulative internal entries. Costs and payments are never estimated.")}</p></div>
       <Link href="/admin/search">{pick(lang,"Finder global","Global finder")}</Link>
     </header>
-    {demo && <section className={s.notice} aria-label={pick(lang,"Escenario comercial ilustrativo","Illustrative commercial scenario")}>
-      <strong>{pick(lang,"DEMO · Propuesta comercial simulada — no contratada ni cobrada","DEMO · Simulated proposal — not contracted or collected")}</strong>
-      <p>{pick(lang,"Chino Barber · Crecimiento Local: sitio web, reservas, SEO local y WhatsApp. Etapa sugerida: diagnóstico inicial.","Chino Barber · Local Growth: website, bookings, local SEO and WhatsApp. Suggested stage: discovery.")}</p>
-      {financeAllowed && <div className={s.stats}>
-        <div className={s.stat}><span>{pick(lang,"Implementación estimada","Estimated setup")}</span><strong>US$1,800</strong><small>{pick(lang,"Gasto ilustrativo US$550 · margen ilustrativo US$1,250","Illustrative cost US$550 · margin US$1,250")}</small></div>
-        <div className={s.stat}><span>{pick(lang,"Mantenimiento estimado / mes","Estimated monthly maintenance")}</span><strong>US$250</strong><small>{pick(lang,"Gasto ilustrativo US$80 · margen ilustrativo US$170/mes","Illustrative cost US$80 · margin US$170/month")}</small></div>
-      </div>}
-      <p>{pick(lang,"Estos importes son exclusivamente ejemplos visuales: no se guardan como ventas, gastos, pagos o contratos.","These amounts are display-only examples: they are not posted as sales, expenses, payments or contracts.")}</p>
-    </section>}
     {pending && <p role="status" className={s.notice}>{pick(lang,"La migración del expediente interno aún no está aplicada. No se muestran cifras incompletas.","The internal dossier migration has not been applied. Incomplete amounts are hidden.")}</p>}
     {failed && <p role="alert" className={s.notice}>{pick(lang,"No fue posible leer parte del expediente. Verifica los permisos y la base de datos.","Part of the dossier could not be loaded. Verify permissions and database.")}</p>}
     {!(pending||failed) && <>
