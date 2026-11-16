@@ -36,10 +36,11 @@ test("a tool measured in several units shows the latest record of EACH unit", ()
   assert.deepEqual(latestPerUnit([]), []);
 });
 
-test("the overview and the validator both use the canonical unit and keep 'Sin datos' for empty tools", () => {
-  const overview = fs.readFileSync("src/components/crm/overview.tsx", "utf8");
-  assert.match(overview, /latestPerUnit\(rows\)/);
-  assert.match(overview, /Estado: Sin datos/);
-  assert.match(overview, /Unidades habituales/);
-  assert.match(fs.readFileSync("src/lib/crm/domain.ts", "utf8"), /unit: canonicalUnit\(text\(input\.unit, "Unidad", 50, true\)\)/);
+test("CRM overview embeds credits while historical usage keeps canonical units", () => {
+  const overview = fs.readFileSync("src/components/crm/overview.tsx","utf8");
+  assert.match(overview, /<CreditCenter \/>/);
+  assert.match(overview, /registros históricos de uso/);
+  const panel = fs.readFileSync("src/components/ai-credits/credit-center.tsx","utf8");
+  assert.match(panel, /No equivale a saldo cero/);
+  assert.match(fs.readFileSync("src/lib/crm/domain.ts","utf8"), /unit: canonicalUnit\(text\(input\.unit, "Unidad", 50, true\)\)/);
 });

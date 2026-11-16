@@ -19,11 +19,15 @@ test("owners are the default office focus and manager controls stay deferred, no
   assert.doesNotMatch(office, /<option value="ai">/);
 });
 
-test("CRM AI usage bars show only manually reported percentages and are accessible", () => {
-  const overview = fs.readFileSync("src/components/crm/overview.tsx", "utf8");
-  assert.match(overview, /role="progressbar"/);
-  assert.match(overview, /aria-valuenow=\{Math\.min\(100, Math\.max\(0, pct\)\)\}/);
-  assert.match(overview, /pct !== null && <>/);
-  assert.match(overview, /item\.mode === "manual"/);
-  assert.match(overview, /Automático: no conectado/);
+test("CRM homepage embeds accessible quota meters; manual readings never masquerade as live balances", () => {
+  const overview=fs.readFileSync("src/components/crm/overview.tsx","utf8");
+  const panel=fs.readFileSync("src/components/ai-credits/credit-center.tsx","utf8");
+  const schema=fs.readFileSync("supabase/migrations/20261116130000_ai_credit_center_owners.sql","utf8");
+  assert.match(overview, /CreditCenter/);
+  assert.match(panel, /role="progressbar"/);
+  assert.match(panel, /aria-valuenow=/);
+  assert.match(panel, /quota &&/);
+  assert.match(panel, /Última lectura manual/);
+  assert.match(panel, /No equivale a saldo cero/);
+  assert.match(schema, /mode text not null default 'manual'/);
 });

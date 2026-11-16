@@ -159,10 +159,11 @@ test("CRM home uses the overview instead of disguising Leads as the landing page
   const homepage = fs.readFileSync("src/app/admin/workspace/crm/page.tsx", "utf8");
   const overview = fs.readFileSync("src/components/crm/overview.tsx", "utf8");
   assert.match(homepage, /<CrmOverview\s*\/>/);
-  assert.match(overview, /Uso de tokens y costos/);
+  assert.match(overview, /Créditos y consumo de IA/);
+  assert.match(overview, /<CreditCenter/);
   assert.match(overview, /Urgentes/);
   assert.match(overview, /Normales/);
-  assert.match(overview, /no están conectadas/);
+  assert.match(fs.readFileSync("src/components/ai-credits/credit-center.tsx","utf8"), /No equivale a saldo cero/);
 });
 
 test("usage records are saved with a canonical unit (no parallel 'credits'/'créditos' series)", () => {
