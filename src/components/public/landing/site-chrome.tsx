@@ -18,6 +18,7 @@ export function SiteChrome({ lang, path = "/", children }: { lang: Lang; path?: 
   const other = lang === "es" ? `${path}?lang=en` : path;
   const links: [string, string][] = [[`${home}#soluciones`, t.nav.solutions], [`${home}#showroom`, t.nav.showroom], [`${home}#industrias`, t.nav.industries], [`${home}#proyectos`, t.nav.work]];
   return <div className={s.root} data-landing lang={lang}>
+    <div className={s.progress} aria-hidden="true" />
     <a className="skip-link" href="#contenido">{lang === "es" ? "Saltar al contenido" : "Skip to content"}</a>
     <HeaderShell>
       <div className={`${s.wrap} ${s.headerIn}`}>

@@ -46,16 +46,9 @@ export const COPY = {
       ],
     },
     ind: {
-      eyebrow: "Soluciones por industria", title: "Diseñado para cómo trabaja tu sector.",
+      eyebrow: "Cualquier industria", title: "Si tienes clientes, podemos construir tu sistema.",
+      lead: "No trabajamos con plantillas por sector: partimos de cómo vendes y atiendes. Escribe tu negocio —el que sea— y mira cómo lo armaríamos.",
       tools: "Herramientas que podemos desarrollar", pilot: "Proyecto piloto en preparación. Lo mostraremos aquí cuando exista y tengamos autorización.",
-      list: [
-        ["barber", "Barberías y belleza", "Reservas en línea, recordatorios, recepción de IA para mensajes y campañas locales para llenar la agenda.", ["website", "receptionist", "crm", "marketing"]],
-        ["hvac", "HVAC y contratistas", "Captación de solicitudes por zona, cotizaciones organizadas y seguimiento de trabajos y garantías.", ["website", "funnels", "crm", "automation"]],
-        ["roofing", "Roofing y fencing", "Landing pages por servicio, registro de inspecciones y cotizaciones, y recordatorios de seguimiento.", ["funnels", "crm", "marketing", "automation"]],
-        ["restaurant", "Restaurantes", "Menú y reservas en la web, respuestas a preguntas frecuentes y campañas para días de menor demanda.", ["website", "chatbots", "receptionist", "marketing"]],
-        ["clinic", "Clínicas y servicios profesionales", "Agenda, recordatorios, seguimiento de pacientes o clientes potenciales y formularios de admisión.", ["website", "crm", "receptionist", "automation"]],
-        ["retail", "E-commerce y comercios", "Tienda en línea, catálogo, atención por chat y campañas de recompra.", ["ecommerce", "chatbots", "marketing", "automation"]],
-      ] as [string, string, string, ServiceKey[]][],
     },
     work: {
       eyebrow: "Proyectos", title: "Ejemplos de lo que construimos.",
@@ -116,16 +109,9 @@ export const COPY = {
       ],
     },
     ind: {
-      eyebrow: "Solutions by industry", title: "Designed for how your industry works.",
+      eyebrow: "Any industry", title: "If you have customers, we can build your system.",
+      lead: "We don't use one-size-fits-all industry templates: we start from how you sell and serve. Type your business —any business— and see how we would build it.",
       tools: "Tools we can build", pilot: "Pilot project in preparation. We will show it here once it exists and we have permission.",
-      list: [
-        ["barber", "Barbershops & beauty", "Online booking, reminders, AI reception for messages and local campaigns to fill the schedule.", ["website", "receptionist", "crm", "marketing"]],
-        ["hvac", "HVAC & contractors", "Requests by service area, organized quotes and follow-up for jobs and warranties.", ["website", "funnels", "crm", "automation"]],
-        ["roofing", "Roofing & fencing", "Landing pages per service, inspection and quote tracking, and follow-up reminders.", ["funnels", "crm", "marketing", "automation"]],
-        ["restaurant", "Restaurants", "Menu and reservations on the web, answers to common questions and campaigns for slower days.", ["website", "chatbots", "receptionist", "marketing"]],
-        ["clinic", "Clinics & professional services", "Scheduling, reminders, follow-up of prospective patients or clients and intake forms.", ["website", "crm", "receptionist", "automation"]],
-        ["retail", "E-commerce & retail", "Online store, catalog, chat support and repeat-purchase campaigns.", ["ecommerce", "chatbots", "marketing", "automation"]],
-      ] as [string, string, string, ServiceKey[]][],
     },
     work: {
       eyebrow: "Work", title: "Examples of what we build.",

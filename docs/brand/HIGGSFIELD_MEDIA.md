@@ -31,6 +31,19 @@ El manifiesto `src/components/public/landing/media.ts` es el único punto de cam
 
 Las cinemáticas se cargan solo cuando su bloque se acerca a la pantalla (`ProductVideo`), se pausan fuera de ella y nunca se descargan con *reduced motion* o *data saver*.
 
+### Lote 3 · Experiencia inmersiva (ronda 3)
+
+| Archivo | Uso | Modelo | Job |
+|---|---|---|---|
+| `seq/fly-000…079.webp` (1.9 MB) y `seq/fly-s-*.webp` (0.9 MB, *data saver*) | Secuencia controlada por el scroll (`#experiencia`): 80 fotogramas a 8 fps del vuelo de cámara | kling3_0 · pro · 10 s · fotogramas inicial/final = hero + dispositivos | `b5890bf3-4a7d-4871-beb7-044d7c2f0f3c` |
+| `network-loop.mp4` (628 KB) y `network.webp` | Fondo vivo del recorrido «Cómo funciona», en bucle ida y vuelta de 5 s | kling3_0 · pro · 10 s · image-to-video sobre `automation` | `11186590-28e4-4f83-9f6c-cf4f3053214a` |
+| `logo-sculpture.webp`, `-960` | Escultura de vidrio del símbolo Avalon (bloque «Avalon Core») | gpt_image_2_6 · 4k · referencia `public/brand/src/avalon-mark-ref.png` | `e6f9db6a-35f9-43e6-b049-e588a9d47c57` |
+| `logo-sculpture-loop.mp4` (1.45 MB) | Revelado 3D del logo, en bucle ida y vuelta | kling3_0 · pro · 10 s · image-to-video sobre la escultura | `6d78ee9b-4b66-43b5-9fc0-b3cef8a3175c` |
+
+Los fotogramas solo se descargan cuando la sección se acerca a la pantalla. Con *reduced motion* se muestran tres imágenes fijas con sus textos.
+
+Gasto acumulado: 1903.75 → 1751.75 créditos (152 en total; 56.75 en esta ronda).
+
 ## Reglas que aplican estos recursos
 
 - **Sin texto en las imágenes.** Los textos van en HTML, que es nítido, traducible y accesible.
@@ -39,4 +52,4 @@ Las cinemáticas se cargan solo cuando su bloque se acerca a la pantalla (`Produ
 
 ## Pendiente
 
-- La intro «Avalon Reveal» está implementada en CSS: el símbolo del logo aparece una vez con un breve desenfoque y escala. Una versión en vídeo de Higgsfield requiere el logo vectorial definitivo como referencia.
+- El revelado en vídeo del logo ya existe (lote 3). El símbolo SVG del encabezado sigue animándose con CSS.
