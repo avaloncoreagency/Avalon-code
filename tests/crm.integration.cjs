@@ -329,7 +329,9 @@ test(
           .status,
         307,
       );
-      assert.equal((await req("/admin/workspace/crm" + suffix)).status, 200);
+      const response = await req("/admin/workspace/crm" + suffix);
+      assert.equal(response.status, suffix === "" ? 307 : 200);
+      if (suffix === "") assert.equal(new URL(response.headers.get("location"), origin).pathname, "/admin/workspace/crm/leads");
     }
     assert.equal((await req("/admin/workspace/crm/unknown")).status, 404);
     assert.equal((await req(api, {}, outsiderSession)).status, 307);
