@@ -146,12 +146,12 @@ test("metrics exclude archived and closed pipeline and handle zero denominator",
   assert.equal(metrics([], [], stages, Date.now()).conversion, 0);
 });
 
-test("CRM primary navigation has only Pipeline and Clients 360; legacy pages remain secondary", () => {
+test("CRM primary navigation exposes Pipeline, Sales and Clients 360 with tools secondary", () => {
   assert.deepEqual(
     Array.from(crmNavigation, (tab) => tab.label),
-    ["Leads Pipeline", "Clientes 360°"],
+    ["Leads Pipeline", "Ventas", "Clientes 360°"],
   );
-  assert.equal(new Set(crmNavigation.map((tab) => tab.href)).size, 2);
+  assert.equal(new Set(crmNavigation.map((tab) => tab.href)).size, 3);
   assert.ok(crmNavigation.every((tab) => tab.href.startsWith("/admin/workspace/crm/")));
 });
 
