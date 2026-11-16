@@ -13,6 +13,10 @@ on:
       - 'src/app/admin/workspace/ai-chatbots/**'
       - 'tests/communications-hub.test.cjs'
       - 'src/app/page.tsx'
+      - 'src/app/quote-actions.ts'
+      - 'src/app/soluciones/**'
+      - 'src/components/public/**'
+      - 'tests/public-landing.http.cjs'
       - 'tests/growth-funnel*'
       - '.github/workflows/growth-funnel.yml'
   workflow_dispatch:
@@ -55,3 +59,16 @@ jobs:
         env:
           NODE_PATH: ./tests/qa/node_modules
           NEXT_TELEMETRY_DISABLED: '1'
+      - name: Public homepage and quote QA (isolated synthetic data)
+        run: node --test tests/public-landing.http.cjs
+        env:
+          NODE_PATH: ./tests/qa/node_modules
+          NEXT_TELEMETRY_DISABLED: '1'
+      - name: Save public desktop and mobile QA screenshots
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: avalon-public-qa
+          path: evidence/public-qa/
+          if-no-files-found: warn
+          retention-days: 7
