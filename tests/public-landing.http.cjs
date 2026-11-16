@@ -109,7 +109,7 @@ test("PUBLIC WEB QA: ES/EN, 8 solutions, mobile/desktop, preselected quote and i
   await page.locator('input[name="company"]').fill("Synthetic QA Contractor");
   await page.locator('input[name="name"]').fill("QA Example");
   await page.locator('input[name="email"]').fill("qa-public@avalon.example.invalid");
-  await page.locator('input[name="message"]').fill("Necesito un chatbot, un embudo de ventas y un CRM para seguir clientes potenciales.");
+  await page.locator('textarea[name="message"]').fill("Necesito un chatbot, un embudo de ventas y un CRM para seguir clientes potenciales.");
   await page.getByRole("button", { name: "Solicitar cotización" }).click();
   await page.getByRole("status").getByText(/recibimos tu solicitud/i).waitFor({ timeout: 20000 });
   assert.deepEqual(errors, [], "No unhandled browser exceptions should occur");
