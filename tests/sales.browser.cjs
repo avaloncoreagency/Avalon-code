@@ -451,10 +451,10 @@ test('Nova Restaurant through the real app: one form, three departments, no dupl
   await sam.waitForURL(origin + '/admin/workspace/crm/clients');
   await mobileDock.getByRole('link', { name: 'Pipeline' }).click();
   await sam.waitForURL(origin + '/admin/workspace/crm/leads');
-  await mobileDock.getByRole('link', { name: 'Tareas' }).click();
-  await sam.waitForURL(origin + '/admin/workspace/crm/tasks');
-  assert.equal(await mobileDock.getByRole('link', { name: 'Tareas' }).getAttribute('aria-current'),
-    'page', 'the active mobile task tab is identified accessibly');
+  await mobileDock.getByRole('link', { name: 'Ventas' }).click();
+  await sam.waitForURL(origin + '/admin/workspace/crm/sales');
+  assert.equal(await mobileDock.getByRole('link', { name: 'Ventas' }).getAttribute('aria-current'),
+    'page', 'the active Sales tab is identified accessibly');
   await mobileDock.getByRole('button', { name: 'Abrir todos los módulos' }).click();
   assert.ok(await sam.getByRole('button', { name: 'Cerrar menú' }).isVisible(), 'full module drawer opens from dock');
   await sam.getByRole('button', { name: 'Cerrar menú' }).click();
@@ -476,6 +476,7 @@ test('Nova Restaurant through the real app: one form, three departments, no dupl
   await page.waitForURL(origin + '/admin/workspace/crm/leads');
   await page.getByRole('heading', { name: 'Tu jornada comercial' }).waitFor();
   await page.getByRole('heading', { name: 'Leads Pipeline' }).waitFor();
+  assert.ok(await page.getByRole('navigation', { name: 'Secciones principales del CRM' }).getByRole('link', { name: 'Ventas', exact: true }).isVisible());
   const crmHome = await page.locator('#main').innerText();
   assert.doesNotMatch(crmHome, /desarrollo por Samuel|en desarrollo/i);
   await page.screenshot({ path: `${EVIDENCE}/crm-home.png`, fullPage: true });
