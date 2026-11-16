@@ -123,4 +123,25 @@ test("PUBLIC WEB QA: ES/EN, 8 solutions, mobile/desktop, preselected quote and i
   assert.match(prospects[0].opportunity, /Embudo de ventas/);
   assert.match(prospects[0].opportunity, /servicios: crm/);
   assert.equal(Number((await db.query("select count(*)::int n from public.crm_sales")).rows[0].n), 0, "no synthetic sales");
+
+  // content-visibility:auto defers offscreen painting. Full-page screenshots alone can appear blank.
+  // Scroll each section INTO the viewport to assert actual visibility and capture what visitors see.
+  const sections = ["objetivos", "soluciones", "showroom", "como-funciona", "industrias", "proyectos", "preguntas", "cotizacion"];
+  for (const [language, width] of [["es", 390], ["es", 1440], ["en", 390]]) {
+    await page.setViewportSize({ width, height: width < 600 ? 844 : 900 });
+    await page.goto(origin + (language === "en" ? "/?lang=en" : "/"), { waitUntil: "domcontentloaded" });
+    for (const id of sections) {
+      const section = page.locator(`#${id}`);
+      await section.evaluate(node => node.scrollIntoView({ block: "start", behavior: "instant" }));
+      await page.waitForTimeout(120);
+      assert.ok(await section.locator("h2").first().isVisible(), `${language} ${width}px: missing visible heading in #${id}`);
+      await noOverflow(`${language} ${width}px scrolled to #${id}`);
+      await page.screenshot({
+        path: path.join(evidenceDir, `scroll-${language}-${width}-${id}.png`),
+        animations: "disabled",
+        timeout: 25000,
+      });
+    }
+  }
+  assert.deepEqual(errors, [], "No browser exceptions after scrolling through landing sections");
 });
