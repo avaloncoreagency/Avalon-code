@@ -30,9 +30,9 @@ const AREAS: { name: string; es: string; en: string; modules: ModuleKey[]; href:
 
 const digits = (v: number | null) => v === null ? "—" : String(v);
 
-export function ClientOverview({ lang, client, owner, contacts, nextSteps, latest, counts, candidates, candidateError }: {
+export function ClientOverview({ lang, client, owner, contacts, nextSteps, nextStepsUnavailable = false, latest, latestUnavailable = false, counts, candidates, candidateError }: {
   lang: Lang; client: Client; owner: string; contacts: Contact[] | null;
-  nextSteps: Task[]; latest: Latest | null; counts: ClientCounts;
+  nextSteps: Task[]; nextStepsUnavailable?: boolean; latest: Latest | null; latestUnavailable?: boolean; counts: ClientCounts;
   candidates: LinkableProduct[]; candidateError: boolean;
 }) {
   const name = client.trade_name || client.legal_name;
@@ -148,12 +148,12 @@ export function ClientOverview({ lang, client, owner, contacts, nextSteps, lates
           </section>
           <section className={styles.panel}>
             <h3>{pick(lang, "Siguiente paso", "Next action")}</h3>
-            {nextSteps.length ? <ul className={styles.shortList}>{nextSteps.slice(0, 3).map(t => <li key={t.id}><Link href={`/admin/workspace/crm/tasks?client=${client.id}&task=${t.id}`}>{t.title}</Link><small>{t.due_at ? formatDate(lang, t.due_at, true) : pick(lang, "Sin vencimiento", "No deadline")}</small></li>)}</ul> :
+            {nextStepsUnavailable ? <p role="alert">{pick(lang, "No se pudieron cargar las tareas de este cliente.", "Client tasks could not be loaded.")}</p> : nextSteps.length ? <ul className={styles.shortList}>{nextSteps.slice(0, 3).map(t => <li key={t.id}><Link href={`/admin/workspace/crm/tasks?client=${client.id}&task=${t.id}`}>{t.title}</Link><small>{t.due_at ? formatDate(lang, t.due_at, true) : pick(lang, "Sin vencimiento", "No deadline")}</small></li>)}</ul> :
               <p>{pick(lang, "No hay tareas abiertas próximas en los registros consultados.", "No upcoming open tasks in the loaded records.")}</p>}
           </section>
           <section className={styles.panel}>
             <h3>{pick(lang, "Última actividad", "Latest activity")}</h3>
-            {latest ? <><strong>{latest.event_type}</strong><p>{formatDate(lang, latest.created_at, true)}</p>{latest.detail && <p className={styles.small}>{latest.detail}</p>}</> :
+            {latestUnavailable ? <p role="alert">{pick(lang, "No se pudo consultar el historial del cliente.", "Client history could not be loaded.")}</p> : latest ? <><strong>{latest.event_type}</strong><p>{formatDate(lang, latest.created_at, true)}</p>{latest.detail && <p className={styles.small}>{latest.detail}</p>}</> :
               <p>{pick(lang, "Sin movimientos auditados en la línea de tiempo.", "No audited timeline events.")}</p>}
             <Link href={`/admin/workspace/crm/activity?client=${client.id}`}>{pick(lang, "Historial completo", "Full history")}</Link>
           </section>
