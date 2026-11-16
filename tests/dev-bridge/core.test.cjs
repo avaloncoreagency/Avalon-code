@@ -285,3 +285,16 @@ test('isolated integration can disable public GitHub network without giving fals
  const runtime=fs.readFileSync('src/lib/dev-bridge/runtime.ts','utf8');
  assert.match(runtime,/if \(!c\.githubToken\) throw Error/);
 });
+
+test('Retry-After supports HTTP dates and invalid values without tight loops',async()=>{
+ const pauses=[];
+ const date=new Date(Date.now()+2500).toUTCString();
+ const dateApi=new b.Api('https://fixture.test','',async()=>new Response('',{status:429,headers:{'retry-after':date}}),async ms=>pauses.push(ms));
+ await assert.rejects(()=>dateApi.get('/items'),/Provider HTTP 429/);
+ assert.equal(pauses.length,2);
+ assert.ok(pauses.every(ms=>Number.isFinite(ms)&&ms>=200&&ms<=10000));
+ const malformed=[];
+ const badApi=new b.Api('https://fixture.test','',async()=>new Response('',{status:429,headers:{'retry-after':'nonsense'}}),async ms=>malformed.push(ms));
+ await assert.rejects(()=>badApi.get('/items'),/Provider HTTP 429/);
+ assert.deepEqual(malformed,[200,400]);
+});
