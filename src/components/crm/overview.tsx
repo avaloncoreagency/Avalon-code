@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useState } from "react";
-import { CrmNavigation } from "./navigation";
+import { CrmNavigation, CrmTools } from "./navigation";
 import { COMMON_UNITS, canonicalUnit, latestPerUnit } from "@/lib/crm/usage-units";
 import s from "./crm.module.css";
 
@@ -91,6 +91,7 @@ export function CrmOverview() {
         <Link className={s.link} href="/admin/dashboard">← Dashboard principal</Link>
       </header>
       <CrmNavigation />
+      <CrmTools active="overview" />
 
       <section className={s.panel} aria-labelledby="usage-heading">
         <h2 id="usage-heading">Centro de consumo de IA · Uso de tokens y costos</h2>
