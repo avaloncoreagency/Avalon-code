@@ -145,6 +145,7 @@ export function HumanVerification({
         id="avalon-human-challenge"
         ref={container}
         className={styles.turnstileChallenge}
+        hidden={attempt === 0}
         data-testid="turnstile-explicit-container"
       />
       <p id="avalon-human-status" className={styles.turnstileStatus} role="status" aria-live="polite">
