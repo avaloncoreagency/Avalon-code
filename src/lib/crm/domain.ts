@@ -7,14 +7,10 @@ export const sections = [
   { slug: "kpis", label: "Estadísticas" },
   { slug: "ai-usage", label: "Uso de IA" },
 ] as const;
-/** Primary CRM workflow. Keep legacy analytics and usage routes accessible from the overview. */
+/** Owners' two daily CRM destinations; legacy routes remain available via More tools. */
 export const crmNavigation = [
-  { slug: "desk", label: "Mesa comercial", href: "/admin/workspace/crm/desk" },
-  { slug: "hunter", label: "Lead Hunter", href: "/admin/workspace/crm/hunter" },
   { slug: "leads", label: "Leads Pipeline", href: "/admin/workspace/crm/leads" },
-  { slug: "sales", label: "Ventas", href: "/admin/workspace/crm/sales" },
-  { slug: "calendar", label: "Calendario", href: "/admin/workspace/crm/calendar" },
-  { slug: "tasks", label: "Tareas", href: "/admin/workspace/crm/tasks" },
+  { slug: "clients", label: "Clientes 360°", href: "/admin/workspace/crm/clients" },
 ] as const;
 
 export type Section = (typeof sections)[number]["slug"];

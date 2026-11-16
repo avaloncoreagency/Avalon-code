@@ -188,7 +188,10 @@ test('OAuth PKCE, SSR cookies, owner gate, refresh and logout over HTTP', { time
     assert.match(await bridgePage.text(),/Dev Bridge/);
     assert.equal((await request('/api/dev-bridge/resume?issue=invalid&as=samuel')).status,400);
     const crm = await request('/admin/workspace/crm');
-    assert.equal(crm.status, 200);
+    assert.equal(crm.status, 307, "CRM landing redirects to the Pipeline");
+    assert.equal(new URL(crm.headers.get("location"), origin).pathname, "/admin/workspace/crm/leads");
+    const pipeline = await request("/admin/workspace/crm/leads");
+    assert.equal(pipeline.status, 200, "signed-in owner can open the Pipeline");
     for (const slug of ['website-designer', 'ecommerce-designer', 'crm-creator', 'ai-receptionist', 'marketing-hub']) {
       const moduleResponse = await request('/admin/workspace/' + slug);
       assert.equal(moduleResponse.status, 200, slug);

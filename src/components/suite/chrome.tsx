@@ -47,9 +47,8 @@ export function SuiteChrome({ lang, collapsed: initialCollapsed, section, user, 
   const presenceLastAttemptAt = useRef(0);
   // A dedicated thumb-friendly dock keeps the highest-frequency workflows visible.
   // Drawer navigation remains the complete, accessible route list.
-  const salesActive = pathname.startsWith("/admin/workspace/crm/sales");
-  const radarActive = pathname.startsWith("/admin/workspace/crm/hunter");
-  const pipelineActive = pathname.startsWith("/admin/workspace/crm/leads") || pathname === "/admin/workspace/crm";
+  const pipelineActive = pathname.startsWith("/admin/workspace/crm/leads") || pathname.startsWith("/admin/workspace/crm/lead/") || pathname === "/admin/workspace/crm" || pathname.startsWith("/admin/workspace/crm/desk") || pathname.startsWith("/admin/workspace/crm/hunter");
+  const clientsActive = pathname.startsWith("/admin/workspace/crm/clients") || pathname.startsWith("/admin/workspace/crm/sales");
   const dashboardActive = pathname.startsWith("/admin/dashboard");
   const closeMenu = () => setMenu(null);
   const profileRef = useDismiss(menu === "profile", closeMenu);
@@ -267,14 +266,14 @@ export function SuiteChrome({ lang, collapsed: initialCollapsed, section, user, 
           <Link href="/admin/dashboard" aria-current={dashboardActive ? "page" : undefined}>
             <Icon name="dashboard" size={21} /><span>{es ? "Inicio" : "Home"}</span>
           </Link>
-          <Link href="/admin/workspace/crm/hunter" aria-current={radarActive ? "page" : undefined}>
-            <Icon name="search" size={21} /><span>Radar</span>
+          <Link href="/admin/workspace/crm/clients" aria-current={clientsActive ? "page" : undefined}>
+            <Icon name="profile" size={21} /><span>{es ? "Clientes" : "Clients"}</span>
           </Link>
           <Link href="/admin/workspace/crm/leads" aria-current={pipelineActive ? "page" : undefined}>
             <Icon name="crm" size={21} /><span>Pipeline</span>
           </Link>
-          <Link href="/admin/workspace/crm/sales" aria-current={salesActive ? "page" : undefined}>
-            <Icon name="store" size={21} /><span>{es ? "Ventas" : "Sales"}</span>
+          <Link href="/admin/workspace/crm/tasks">
+            <Icon name="clock" size={21} /><span>{es ? "Tareas" : "Tasks"}</span>
           </Link>
           <button type="button" onClick={() => setDrawer(true)} aria-controls="os-sidebar" aria-expanded={drawer}
             aria-label={es ? "Abrir todos los módulos" : "Open all modules"}>

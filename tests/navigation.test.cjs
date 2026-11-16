@@ -18,8 +18,9 @@ test('no screen presents the CRM as "in development by Samuel" or points at PR #
 test('the CRM has a real static route and the dynamic module segment never renders a placeholder', () => {
   assert.ok(fs.existsSync('src/app/admin/workspace/crm/page.tsx'), 'static CRM route');
   const crm = read('src/app/admin/workspace/crm/page.tsx');
-  assert.match(crm, /<CrmOverview\s*\/>/);
-  assert.match(crm, /requireOwner\(\)/);
+  assert.match(crm, /redirect\("\/admin\/workspace\/crm\/leads"\)/);
+  assert.match(read("src/app/admin/workspace/crm/[section]/page.tsx"), /LeadWorkbench/);
+  assert.match(read("src/components/crm/lead-workbench.tsx"), /requireOwner\(\)/);
   const dynamic = read('src/app/admin/workspace/[module]/page.tsx');
   assert.doesNotMatch(dynamic, /<Empty|<Panel|en desarrollo/i, 'fallback only redirects or 404s');
   assert.match(dynamic, /requireOwner\(\)/);
@@ -40,15 +41,18 @@ test('every HUD module card points at an existing static route', () => {
 test('CRM primary order and secondary access exist as real pages', () => {
   const domain = read('src/lib/crm/domain.ts');
   const nav = domain.slice(domain.indexOf('export const crmNavigation'));
-  const order = ['hunter', 'leads', 'sales', 'calendar', 'tasks'].map(slug => nav.indexOf(`slug: "${slug}"`));
-  assert.ok(order.every((x, i) => x >= 0 && (i === 0 || x > order[i - 1])), 'Lead Hunter → Leads Pipeline → Ventas → Calendario → Tareas');
+  const order = ['leads', 'clients'].map(slug => nav.indexOf(`slug: "${slug}"`));
+  assert.ok(order.every((x, i) => x >= 0 && (i === 0 || x > order[i - 1])), 'Leads Pipeline → Clientes 360');
+  assert.equal((nav.match(/slug: "/g) || []).length, 2, 'only two daily CRM sections');
+  const tools = read('src/components/crm/navigation.tsx');
+  for (const p of ['hunter', 'desk', 'sales', 'calendar', 'tasks', 'kpis']) assert.ok(tools.includes(`/admin/workspace/crm/${p}`), `${p} remains available via tools`);
   for (const p of ['sales', 'sales/new', 'clients', 'notifications', 'activity', 'settings', 'calendar', 'tasks']) {
     const file = `src/app/admin/workspace/crm/${p}/page.tsx`;
     assert.ok(fs.existsSync(file), file);
     assert.match(read(file), /requireOwner\(\)/, `${file} verifies the owner server-side`);
   }
   const ui = read('src/components/sales/ui.tsx');
-  for (const href of ['/crm/clients', '/crm/notifications', '/crm/activity', '/crm/settings']) assert.ok(ui.includes(`/admin/workspace${href}`), href);
+  assert.match(ui, /<CrmTools lang={lang} active={active} \/>/);
 });
 
 test('dashboard and settings report CRM state from real tables, not owner names', () => {

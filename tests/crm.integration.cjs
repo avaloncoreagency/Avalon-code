@@ -329,7 +329,9 @@ test(
           .status,
         307,
       );
-      assert.equal((await req("/admin/workspace/crm" + suffix)).status, 200);
+      const response = await req("/admin/workspace/crm" + suffix);
+      assert.equal(response.status, suffix === "" ? 307 : 200);
+      if (suffix === "") assert.equal(new URL(response.headers.get("location"), origin).pathname, "/admin/workspace/crm/leads");
     }
     assert.equal((await req("/admin/workspace/crm/unknown")).status, 404);
     assert.equal((await req(api, {}, outsiderSession)).status, 307);
@@ -485,7 +487,8 @@ test(
       const errors = [];
       page.on("pageerror", (e) => errors.push(e.message));
       await page.goto(origin + "/admin/workspace/crm");
-      await page.getByRole("heading", { name: "Centro comercial de Avalon" }).waitFor();
+      await page.waitForURL(origin + "/admin/workspace/crm/leads");
+      await page.getByRole("heading", { name: "Tu jornada comercial" }).waitFor();
       await page.goto(origin + "/admin/workspace/crm/leads");
       await page
         .getByRole("button", { name: "Crear lead", exact: true })

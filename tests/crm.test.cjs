@@ -146,19 +146,21 @@ test("metrics exclude archived and closed pipeline and handle zero denominator",
   assert.equal(metrics([], [], stages, Date.now()).conversion, 0);
 });
 
-test("CRM primary navigation: Mesa comercial + approved five-tab workflow (owners only, 2026-11-11: managers/Oficina out of the main nav)", () => {
+test("CRM primary navigation has only Pipeline and Clients 360; legacy pages remain secondary", () => {
   assert.deepEqual(
     Array.from(crmNavigation, (tab) => tab.label),
-    ["Mesa comercial", "Lead Hunter", "Leads Pipeline", "Ventas", "Calendario", "Tareas"],
+    ["Leads Pipeline", "Clientes 360°"],
   );
-  assert.equal(new Set(crmNavigation.map((tab) => tab.href)).size, 6);
+  assert.equal(new Set(crmNavigation.map((tab) => tab.href)).size, 2);
   assert.ok(crmNavigation.every((tab) => tab.href.startsWith("/admin/workspace/crm/")));
 });
 
-test("CRM home uses the overview instead of disguising Leads as the landing page", () => {
+test("CRM root redirects to Leads while historical overview remains a secondary page", () => {
   const homepage = fs.readFileSync("src/app/admin/workspace/crm/page.tsx", "utf8");
   const overview = fs.readFileSync("src/components/crm/overview.tsx", "utf8");
-  assert.match(homepage, /<CrmOverview\s*\/>/);
+  assert.match(homepage, /redirect\("\/admin\/workspace\/crm\/leads"\)/);
+  const overviewPage = fs.readFileSync("src/app/admin/workspace/crm/overview/page.tsx", "utf8");
+  assert.match(overviewPage, /<CrmOverview\s*\/>/);
   assert.match(overview, /Uso de tokens y costos/);
   assert.match(overview, /Urgentes/);
   assert.match(overview, /Normales/);

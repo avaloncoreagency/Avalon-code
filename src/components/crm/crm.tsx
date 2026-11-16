@@ -10,7 +10,7 @@ import {
   type Stage,
 } from "@/lib/crm/domain";
 import { RecordForm } from "./record-form";
-import { CrmNavigation } from "./navigation";
+import { CrmNavigation, CrmTools } from "./navigation";
 import { TitanRadar } from "./titan-radar";
 import { LeadBoard } from "./lead-board";
 import { LeadTimeline } from "./lead-timeline";
@@ -340,7 +340,7 @@ export function Crm({ section = "leads", focusLeadId }: { section?: CrmSection; 
       <header className={s.head}>
         <div>
           <div className={s.eyebrow}>Avalon OS / CRM</div>
-          <h1 className={s.title}>{current.label}</h1>
+          <h1 className={s.title}>{current.label === "Leads Pipeline" ? "Leads Pipeline" : current.label}</h1>
           <p className={s.subtitle}>
             Operaciones comerciales de Avalon Core Agency.
           </p>
@@ -355,6 +355,7 @@ export function Crm({ section = "leads", focusLeadId }: { section?: CrmSection; 
         </div>
       </header>
       <CrmNavigation active={section} />
+      <CrmTools active={section} />
       {focusedLead && <p className={s.notice} role="status">Oportunidad enlazada por ID exacto. <Link href="/admin/workspace/crm/leads">Ver todo el pipeline</Link></p>}
       {section === "hunter" && <TitanRadar onChanged={reload} />}
       <p className={s.muted}>

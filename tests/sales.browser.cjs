@@ -66,8 +66,9 @@ test('Nova Restaurant through the real app: one form, three departments, no dupl
     assert.equal((await get(route)).status, 307, `${route} signed out`);
     assert.equal((await get(route, outsider)).status, 307, `${route} non-member`);
     const ok = await get(route, miguel);
-    assert.equal(ok.status, 200, `${route} owner: ${output.slice(-2000)}`);
+    assert.equal(ok.status, route === '/admin/workspace/crm' ? 307 : 200, `${route} owner: ${output.slice(-2000)}`);
   }
+  assert.equal((await get('/admin/workspace/crm/leads', miguel)).status, 200, 'owner reaches Pipeline after CRM root redirect');
   assert.equal((await get('/admin/workspace/crm/sales/00000000-0000-4000-8000-000000000999', miguel)).status, 404);
   assert.equal((await get('/admin/workspace/crm/clients/not-a-uuid', miguel)).status, 404);
 
@@ -416,12 +417,12 @@ test('Nova Restaurant through the real app: one form, three departments, no dupl
   await sam.setViewportSize({ width: 390, height: 844 });
   await sam.goto(origin + '/admin/dashboard');
   const mobileDock = sam.getByRole('navigation', { name: 'Accesos rápidos de Avalon' });
-  await mobileDock.getByRole('link', { name: 'Radar' }).click();
-  await sam.waitForURL(origin + '/admin/workspace/crm/hunter');
+  await mobileDock.getByRole('link', { name: 'Clientes' }).click();
+  await sam.waitForURL(origin + '/admin/workspace/crm/clients');
   await mobileDock.getByRole('link', { name: 'Pipeline' }).click();
   await sam.waitForURL(origin + '/admin/workspace/crm/leads');
-  await mobileDock.getByRole('link', { name: 'Ventas' }).click();
-  await sam.waitForURL(origin + '/admin/workspace/crm/sales');
+  await mobileDock.getByRole('link', { name: 'Tareas' }).click();
+  await sam.waitForURL(origin + '/admin/workspace/crm/tasks');
   await mobileDock.getByRole('button', { name: 'Abrir todos los módulos' }).click();
   assert.ok(await sam.getByRole('button', { name: 'Cerrar menú' }).isVisible(), 'full module drawer opens from dock');
   await sam.getByRole('button', { name: 'Cerrar menú' }).click();
@@ -439,24 +440,25 @@ test('Nova Restaurant through the real app: one form, three departments, no dupl
   await page.getByRole('heading', { name: 'Pulso comercial' }).waitFor();
   assert.match(await page.locator('#main').innerText(), /Ingresos contratados[\s\S]*4[.,]200/, 'dashboard KPIs come from recorded sales');
   await page.screenshot({ path: `${EVIDENCE}/dashboard.png`, fullPage: true });
-  await page.locator('a[href="/admin/workspace/crm"]', { hasText: 'Lead Hunter, pipeline' }).click();
-  await page.waitForURL(origin + '/admin/workspace/crm');
-  await page.getByRole('heading', { name: 'Centro comercial de Avalon' }).waitFor();
-  await page.getByRole('heading', { name: 'Ventas, clientes, proyectos y tareas' }).waitFor();
+  await page.locator('a[href="/admin/workspace/crm"]').first().click();
+  await page.waitForURL(origin + '/admin/workspace/crm/leads');
+  await page.getByRole('heading', { name: 'Tu jornada comercial' }).waitFor();
+  await page.getByRole('heading', { name: 'Leads Pipeline' }).waitFor();
   const crmHome = await page.locator('#main').innerText();
   assert.doesNotMatch(crmHome, /desarrollo por Samuel|en desarrollo/i);
   await page.screenshot({ path: `${EVIDENCE}/crm-home.png`, fullPage: true });
   // Every primary tab and secondary page is reachable from the CRM and renders its own screen.
-  const tabs = [['Lead Hunter', /\/crm\/hunter$/], ['Leads Pipeline', /\/crm\/leads$/], ['Ventas', /\/crm\/sales$/], ['Calendario', /\/crm\/calendar$/], ['Tareas', /\/crm\/tasks$/]];
+  const tabs = [['Leads Pipeline', /\/crm\/leads$/], ['Clientes 360°', /\/crm\/clients$/]];
   for (const [name, url] of tabs) {
-    await page.goto(origin + '/admin/workspace/crm');
-    await page.getByRole('navigation', { name: 'Flujo principal del CRM' }).first().getByRole('link', { name, exact: true }).click();
+    await page.goto(origin + '/admin/workspace/crm/leads');
+    await page.getByRole('navigation', { name: 'Secciones principales del CRM' }).first().getByRole('link', { name, exact: true }).click();
     await page.waitForURL(url);
     assert.doesNotMatch(await page.locator('#main').innerText(), /desarrollo por Samuel/i, name);
   }
-  for (const [name, heading] of [['Clientes 360°', 'Clientes 360°'], ['Centro de actividad', 'Centro de actividad'], ['Avisos', 'Avisos comerciales y operativos'], ['Configuración', 'Configuración del CRM']]) {
-    await page.goto(origin + '/admin/workspace/crm');
-    await page.getByRole('navigation', { name: 'Operaciones comerciales' }).first().getByRole('link', { name, exact: true }).click();
+  for (const [name, heading] of [['Radar / Lead Hunter', 'Lead Hunter'], ['Centro de actividad', 'Centro de actividad'], ['Avisos', 'Avisos comerciales y operativos'], ['Configuración', 'Configuración del CRM']]) {
+    await page.goto(origin + '/admin/workspace/crm/leads');
+    await page.getByText('Más herramientas del CRM', { exact: true }).first().click();
+    await page.getByRole('navigation', { name: 'Herramientas secundarias del CRM' }).first().getByRole('link', { name, exact: true }).click();
     await page.getByRole('heading', { name: heading, exact: true }).waitFor();
   }
   assert.equal((await get('/admin/workspace/unknown-module', miguel)).status, 404, 'unknown module is 404, not a placeholder');

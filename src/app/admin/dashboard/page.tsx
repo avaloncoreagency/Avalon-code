@@ -150,7 +150,7 @@ export default async function DashboardPage() {
           <h2 style={{ marginTop: 22 }}><Icon name="spark" size={18} />{pick(lang, "Accesos rápidos", "Quick access")}</h2>
           <div className={s.quick}>
             {projects.data?.slice(0, 6).map(p => <Link key={p.id} className={s.pill} href={`${MODULE_HREF[p.module] ?? "/admin/dashboard"}/${p.id}`}>{p.name}</Link>)}
-            <Link className={s.pill} href="/admin/workspace/crm/hunter">Lead Hunter</Link>
+            <Link className={s.pill} href="/admin/workspace/crm/clients">{pick(lang, "Clientes 360°", "Clients 360°")}</Link>
             <Link className={s.pill} href="/admin/workspace/crm/leads">{pick(lang, "Leads Pipeline", "Leads Pipeline")}</Link>
             <Link className={s.pill} href="/admin/dev-bridge">Dev Bridge 2.0</Link>
             <Link className={s.pill} href="/admin/security">{pick(lang, "Seguridad", "Security")}</Link>
