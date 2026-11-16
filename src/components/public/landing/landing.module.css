@@ -453,3 +453,10 @@
 .faqItem summary:focus-visible { outline: 3px solid #3554ff; outline-offset: 5px; border-radius: 6px; }
 .faqItem p { margin: 0; padding: 0 0 23px; color: var(--ink-2); line-height: 1.65; }
 @media (max-width: 600px) { .faqItem { padding: 0 16px; } .faqItem summary { padding: 18px 0; } }
+
+/* Client-first goals: accessible layout across devices. */
+.goalGrid { display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:14px; }
+.goalGrid .card { align-content:start;min-width:0; }
+.goalGrid .cardLinks { align-self:end;margin-top:14px; }
+@media(max-width:1050px) { .goalGrid { grid-template-columns:repeat(2,minmax(0,1fr)); } }
+@media(max-width:640px) { .goalGrid { grid-template-columns:minmax(0,1fr); } }
