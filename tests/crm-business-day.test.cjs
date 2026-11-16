@@ -50,6 +50,6 @@ test("both Pipeline and the advanced sales desk share the business-day helper", 
 
 test("the mobile dock exposes Sales as a primary destination, alongside Pipeline and Clients", () => {
   const chrome = fs.readFileSync("src/components/suite/chrome.tsx", "utf8");
-  assert.match(chrome, /const tasksActive = pathname\.startsWith\("\/admin\/workspace\/crm\/tasks"\)/);
-  assert.match(chrome, /href="\/admin\/workspace\/crm\/tasks" aria-current={tasksActive \? "page" : undefined}/);
+  assert.match(chrome, /const salesActive = pathname\.startsWith\("\/admin\/workspace\/crm\/sales"\)/);
+  assert.match(chrome, /href="\/admin\/workspace\/crm\/sales" aria-current={salesActive \? "page" : undefined}/);
 });
