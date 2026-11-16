@@ -63,6 +63,10 @@ Se preserva Product Control de main: registrar referencias externas, cliente can
 
 Los fixtures tienen Auth/REST sintéticos + PGlite con migraciones/RLS; no prueban cuentas reales, Supabase remoto, Safari ni iPhone físico. Las anchas de pantalla son emulación Chromium, no dispositivos reales. El frontend público permanece sin cambios.
 
+## Revisión visual posterior al primer CI verde
+
+El primer SHA ff584ab pasó sus cinco workflows. La inspección de sus capturas encontró dos defectos que `isVisible`/overflow de página no detectaban: Tareas quedaba parcialmente recortada dentro del nav horizontal, y el calendario mensual escondía las últimas columnas en móvil. Se añaden un grid de navegación de cinco áreas (3+2 en teléfono) y un mes de siete columnas que cabe completo. Semana/día conservan su desplazamiento horario. Las pruebas ahora comprueban límites completos de cada enlace y el ancho del contenedor mensual. Las tarjetas nuevas son compactas y reuniones se despliega a petición, conservando datos y enlaces. Esta corrección requiere un nuevo CI por SHA; el primer verde no se le atribuye.
+
 ## C8 · Handoff y límites
 
 El cambio se entrega en rama/PR independiente para integración de Claude. No se modifica main/producción, cuentas, permisos, secretos ni servicios. Rollback: revertir el commit de frontend, sin SQL y sin pérdida de registros/versiones.

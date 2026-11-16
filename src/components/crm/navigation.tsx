@@ -16,7 +16,7 @@ const names: Record<string, [string, string]> = {
 export function CrmNavigation({ active, lang = "es" }: { active?: string; lang?: Lang }) {
   const selected = active === "new" ? "sales" : active;
   return (
-    <nav aria-label={pick(lang, "Secciones principales del CRM", "CRM primary sections")} className={s.tabs}>
+    <nav aria-label={pick(lang, "Secciones principales del CRM", "CRM primary sections")} className={`${s.tabs} ${s.primaryTabs}`}>
       {daily.map((tab) => (
         <Link key={tab.slug} href={tab.href}
           className={`${s.tab} ${selected === tab.slug ? s.active : ""}`}

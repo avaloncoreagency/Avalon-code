@@ -709,7 +709,15 @@ test('Nova Restaurant through the real app: one form, three departments, no dupl
     for (const route of ['/admin/workspace/crm/sales', '/admin/workspace/crm/clients/' + clientId, '/admin/workspace/crm/calendar?date=2026-11-22']) {
       await matrix.goto(origin + route);
       const primary = matrix.getByRole('navigation', { name: 'CRM primary sections' }).first();
-      for (const name of ['Leads Pipeline', 'Sales', 'Clients 360°', 'Calendar', 'Tasks']) assert.ok(await primary.getByRole('link', { name, exact: true }).isVisible(), name + ' visible at ' + width);
+      for (const name of ['Leads Pipeline', 'Sales', 'Clients 360°', 'Calendar', 'Tasks']) {
+        const link = primary.getByRole('link', { name, exact: true });
+        assert.ok(await link.isVisible(), name + ' visible at ' + width);
+        assert.ok(await link.evaluate(el => { const r=el.getBoundingClientRect(), n=el.closest('nav').getBoundingClientRect(); return r.left >= n.left - 1 && r.right <= n.right + 1; }), name + ' fully inside its navigation at ' + width);
+      }
+      if (route.includes('/calendar')) {
+        const month = matrix.getByRole('grid', { name: 'Monthly calendar' });
+        assert.ok(await month.evaluate(el => el.parentElement.scrollWidth <= el.parentElement.clientWidth + 1), 'all seven month columns fit at ' + width);
+      }
       const extra = await matrix.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
       assert.ok(extra <= 1, route + ' has no page overflow at ' + width + ': ' + extra);
     }
