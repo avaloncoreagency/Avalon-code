@@ -6,12 +6,12 @@ import { SERVICE_NAMES } from "./services";
 import s from "@/app/public.module.css";
 
 const T = {
-  es: { company: "Empresa", name: "Tu nombre", email: "Correo", phone: "Teléfono (opcional)", services: "¿Qué necesitas?", message: "Cuéntanos tu proyecto", send: "Solicitar cotización", sending: "Enviando…",
+  es: { company: "Nombre de tu negocio, marca u oficio", name: "Tu nombre", email: "Correo", phone: "Teléfono (opcional)", services: "¿Qué necesitas?", message: "¿Qué problema quieres resolver o qué te gustaría mejorar?", send: "Solicitar cotización", sending: "Enviando…",
     ok: "¡Gracias! Recibimos tu solicitud. Un especialista de Avalon la revisará y te contactará.", invalid: "Revisa los campos: correo válido y una descripción de al menos 10 caracteres.", throttled: "Ya recibimos varias solicitudes. Inténtalo más tarde o escríbenos directamente.", unavailable: "No pudimos enviar la solicitud ahora. Inténtalo de nuevo en unos minutos.",
-    privacy: "Usamos tus datos solo para responder a esta solicitud." },
-  en: { company: "Company", name: "Your name", email: "Email", phone: "Phone (optional)", services: "What do you need?", message: "Tell us about your project", send: "Request a quote", sending: "Sending…",
+    privacy: "Si trabajas por tu cuenta, escribe tu profesión en el campo del negocio. Usamos tus datos solo para responder a esta solicitud." },
+  en: { company: "Business, brand or profession", name: "Your name", email: "Email", phone: "Phone (optional)", services: "What do you need?", message: "What problem do you want to solve or improve?", send: "Request a quote", sending: "Sending…",
     ok: "Thank you! We received your request. An Avalon specialist will review it and contact you.", invalid: "Please check the fields: a valid email and a description of at least 10 characters.", throttled: "We already received several requests. Please try later or email us directly.", unavailable: "We couldn't send your request right now. Please try again in a few minutes.",
-    privacy: "We only use your data to answer this request." },
+    privacy: "If you work independently, enter your profession in the business field. We only use your data to respond to this request." },
 };
 
 function Submit({ lang }: { lang: "es" | "en" }) {
