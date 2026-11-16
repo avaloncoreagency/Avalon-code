@@ -40,6 +40,17 @@ const DETAIL: Record<Lang, Record<ServiceKey, { intro: string; features: [string
   },
 };
 
+const RELATED_SERVICES: Record<ServiceKey, ServiceKey[]> = {
+  website: ["funnels", "chatbots", "crm"],
+  ecommerce: ["marketing", "automation", "chatbots"],
+  crm: ["funnels", "automation", "receptionist"],
+  receptionist: ["crm", "chatbots", "automation"],
+  chatbots: ["website", "crm", "receptionist"],
+  marketing: ["funnels", "website", "crm"],
+  funnels: ["marketing", "crm", "website"],
+  automation: ["crm", "ecommerce", "receptionist"],
+};
+
 type Props = { params: Promise<{ service: string }>; searchParams: Promise<Record<string, string | string[] | undefined>> };
 const isService = (v: string): v is ServiceKey => (SERVICE_ORDER as string[]).includes(v);
 
@@ -58,7 +69,7 @@ export default async function ServicePage({ params, searchParams }: Props) {
   const lang: Lang = (await searchParams).lang === "en" ? "en" : "es";
   const t = COPY[lang], v = t.services[service], d = DETAIL[lang][service], q = qs(lang);
   const visual = VISUAL_FOR[service];
-  const related = SERVICE_ORDER.filter(k => k !== service).slice(0, 3);
+  const related = RELATED_SERVICES[service];
   return (
     <SiteChrome lang={lang} path={`/soluciones/${service}`}>
       <section className={s.svcHero} aria-labelledby="h-svc">
@@ -94,7 +105,7 @@ export default async function ServicePage({ params, searchParams }: Props) {
           <img className={s.contactBg} src={MEDIA.closing.src} alt="" width={1920} height={1080} loading="lazy" decoding="async" />
           <div className={s.contactGrid}>
             <div><p className={s.eyebrow}>{t.contact.eyebrow}</p><h2 id="h-quote" className={s.h2}>{t.contact.title}</h2><p className={s.lead}>{t.contact.lead}</p></div>
-            <div className={s.formCard}><QuoteForm lang={lang} /></div>
+            <div className={s.formCard}><QuoteForm lang={lang} initialServices={[service]} /></div>
           </div>
         </div></div>
       </section>
