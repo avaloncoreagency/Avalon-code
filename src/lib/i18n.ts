@@ -18,7 +18,7 @@ export function formatDate(lang: Lang, value: string | Date | null | undefined, 
   if (!value) return "—";
   // A SQL DATE is a calendar day, not an instant: UTC noon keeps that same day in Eastern year-round.
   // For timestamps, the database must provide an offset (Z or +/-hh:mm) to describe the real instant.
-  const isDateOnly = typeof value === "string" && /^\\d{4}-\\d{2}-\\d{2}$/.test(value);
+  const isDateOnly = typeof value === "string" && /^\d{4}-\d{2}-\d{2}$/.test(value);
   const date = typeof value === "string" ? new Date(isDateOnly ? `${value}T12:00:00Z` : value) : value;
   if (Number.isNaN(date.getTime())) return "—";
   return new Intl.DateTimeFormat(lang === "es" ? "es-ES" : "en-US", {
