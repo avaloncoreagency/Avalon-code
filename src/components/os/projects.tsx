@@ -12,8 +12,8 @@ import { createProject, updateProject } from '@/app/admin/workspace/project-acti
 import { DbNotice, Empty, Panel, statusLabel } from './ui';
 import s from './os.module.css';
 
-export async function ProjectsIndex({lang,module,base,projects,noun,createFields,showArchived,page=1}:{
-  lang:Lang;module:ModuleKey;base:string;projects:Loaded<ProjectRow[]>;noun:{es:string;en:string};createFields?:ReactNode;showArchived:boolean;page?:number;
+export async function ProjectsIndex({lang,module,base,projects,noun,createFields,showArchived,page=1,prefillClientId}:{
+  lang:Lang;module:ModuleKey;base:string;projects:Loaded<ProjectRow[]>;noun:{es:string;en:string};createFields?:ReactNode;showArchived:boolean;page?:number;prefillClientId?:string;
 }) {
   const {supabase}=await requireOwner();
   const leadIds=[...new Set((projects.data??[]).filter(p=>!p.client_id).map(p=>clientId(p.settings)).filter((id):id is string=>Boolean(id)))];
@@ -59,7 +59,7 @@ export async function ProjectsIndex({lang,module,base,projects,noun,createFields
         </select>
       </label>
       <label className={s.field}><span>{pick(lang,"Cliente confirmado en Client 360° (opcional)","Confirmed CRM client (optional)")}</span>
-        <select name="client_id" className={s.select} defaultValue="">
+        <select name="client_id" className={s.select} defaultValue={(clientOptions.data ?? []).some(c => c.id === prefillClientId) ? prefillClientId : ""}>
           <option value="">{pick(lang,"Sin vincular / usar lead del CRM","Not linked / use CRM lead")}</option>
           {(clientOptions.data??[]).map(c=><option key={c.id} value={c.id}>{c.trade_name||c.legal_name} · {c.client_code}</option>)}
         </select>
