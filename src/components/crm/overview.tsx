@@ -94,6 +94,7 @@ export function CrmOverview() {
 
       <section className={s.panel} aria-labelledby="usage-heading">
         <h2 id="usage-heading">Centro de consumo de IA · Uso de tokens y costos</h2>
+        <p><Link href="/admin/workspace/crm/ai-credits" className={s.link}>Abrir AI Credit Center · Miguel / Samuel / fondos compartidos</Link></p>
         <p className={s.muted}>Las API de consumo no están conectadas. Los valores registrados manualmente son históricos, no balances en tiempo real ni costos calculados. Nunca se muestra 0 cuando el valor es desconocido; suscripciones y facturación API se registran por separado indicando la fuente.</p>
         <div className={s.cards}>
           {providers.map((provider) => {
