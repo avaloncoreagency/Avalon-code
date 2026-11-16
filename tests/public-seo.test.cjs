@@ -31,7 +31,7 @@ test("sitemap lists the public landing and solution pages in both languages, nev
 test("landing metadata follows the page language and never emits query-stripped canonical/hreflang", () => {
   const src = fs.readFileSync("src/app/page.tsx", "utf8");
   assert.match(src, /export async function generateMetadata/);
-  assert.match(src, /AI, websites, CRM and automation for businesses/, "English title for ?lang=en");
+  assert.match(src, /Websites, CRM & AI for Business/, "English title for ?lang=en");
   assert.match(src, /robots: \{ index: true, follow: true \}/);
   // Next.js drops "?lang=en" from alternates/canonical (verified on the production build): do not use them here.
   assert.doesNotMatch(src.slice(src.indexOf("export async function generateMetadata")), /alternates|canonical/);
@@ -47,4 +47,42 @@ test("quote form keeps its honeypot hidden from assistive tech and has labelled,
   assert.match(form, /role="alert"/);
   assert.match(form, /role="status"/);
   assert.match(form, /autoComplete="email"/);
+});
+
+test("public homepage speaks to contractors and includes an accessible bilingual FAQ", () => {
+  const copy = fs.readFileSync("src/components/public/landing/copy.ts", "utf8");
+  const page = fs.readFileSync("src/app/page.tsx", "utf8");
+  assert.match(copy, /Para contratistas, profesionales y empresas/);
+  assert.match(copy, /For contractors, professionals and businesses/);
+  assert.match(copy, /faq: \{ eyebrow: "Preguntas frecuentes"/);
+  assert.match(copy, /faq: \{ eyebrow: "Frequently asked questions"/);
+  assert.match(page, /id="preguntas"/);
+  assert.match(page, /<details key=\{question\}/);
+});
+
+test("public inquiry supports all advertised service interests without expanding the reviewed SQL allowlist", () => {
+  const services = fs.readFileSync("src/components/public/services.ts", "utf8");
+  const action = fs.readFileSync("src/app/quote-actions.ts", "utf8");
+  for (const name of ["chatbots", "funnels"]) {
+    assert.match(services, new RegExp(name + ":"));
+    assert.match(action, new RegExp(name + ":"));
+  }
+  assert.match(action, /Interés adicional/);
+  assert.match(action, /Additional interest/);
+  assert.match(action, /services: \[\.\.\.new Set\(requested\.filter\(s => SERVICES\.includes\(s\)\)\)\]/);
+});
+
+test("business goals, showroom and industry blueprints carry service intent into the quote form", () => {
+  const page = fs.readFileSync("src/app/page.tsx", "utf8");
+  const showroom = fs.readFileSync("src/components/public/landing/showroom.tsx", "utf8");
+  const industries = fs.readFileSync("src/components/public/landing/industries.tsx", "utf8");
+  const detail = fs.readFileSync("src/app/soluciones/[service]/page.tsx", "utf8");
+  const form = fs.readFileSync("src/components/public/quote-form.tsx", "utf8");
+  assert.ok(page.includes('id="objetivos"'));
+  assert.ok(page.includes('initialServices={initialServices}'));
+  assert.ok(page.includes('services=${k}#cotizacion'));
+  assert.ok(showroom.includes('services=${k}#cotizacion'));
+  assert.ok(industries.includes('services=${m.tools.join(",")}#cotizacion'));
+  assert.ok(detail.includes('initialServices={[service]}'));
+  assert.ok(form.includes('defaultChecked={initialServices.includes(k as ServiceKey)}'));
 });

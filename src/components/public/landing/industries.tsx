@@ -148,7 +148,7 @@ export function AnyIndustry({ lang }: { lang: Lang }) {
           <ul className={s.bpKpis}>{L.kpis.map(k => <li key={k}><Icon name="check" size={16} />{k}</li>)}</ul></div>
       </div>
       <div className={s.bpFoot}>
-        <a className={`${s.btn} ${s.primary}`} href="#cotizacion">{es ? "Quiero este sistema" : "I want this system"}<Icon name="arrow" size={18} /></a>
+        <a className={`${s.btn} ${s.primary}`} href={`/?${es ? "" : "lang=en&"}services=${m.tools.join(",")}#cotizacion`}>{es ? "Quiero este sistema" : "I want this system"}<Icon name="arrow" size={18} /></a>
         <small>{es ? "Generado en tu navegador con reglas, sin IA y sin guardar datos. En la llamada lo adaptamos a tu operación real." : "Generated in your browser with rules — no AI, nothing stored. On the call we adapt it to your real operation."}</small>
       </div>
     </div>

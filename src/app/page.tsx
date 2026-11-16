@@ -1,7 +1,7 @@
 /* eslint-disable @next/next/no-img-element -- pre-optimized static WebP with srcset/sizes; avoids the Vercel image-optimization quota. */
 import type { Metadata, Viewport } from "next";
 import { QuoteForm } from "@/components/public/quote-form";
-import { COPY, GROUPS, type Lang } from "@/components/public/landing/copy";
+import { COPY, GROUPS, SERVICE_ORDER, type Lang } from "@/components/public/landing/copy";
 import { HeroScene } from "@/components/public/landing/hero-scene";
 import { Icon } from "@/components/public/landing/icons";
 import { AmbientVideo, CountUp, Effects } from "@/components/public/landing/effects";
@@ -18,14 +18,14 @@ import s from "@/components/public/landing/landing.module.css";
 const SITE_ORIGIN = "https://avaloncoreagency.com";
 const META = {
   es: {
-    title: "Avalon Core Agency · IA, webs, CRM y automatización para empresas",
-    description: "Desarrollo web, e-commerce, CRM personalizados, recepcionistas de IA, marketing y automatización empresarial. Solicita tu cotización.",
-    og: "IA. Personas. Sistemas. Un mañana más brillante.", locale: "es_ES",
+    title: "Avalon Core Agency | Soluciones digitales para negocios",
+    description: "Páginas web, CRM, marketing y recepcionistas con IA para contratistas, profesionales y empresas. Cuéntanos qué quieres mejorar.",
+    og: "Más oportunidades. Menos tareas. Tu negocio, mejor conectado.", locale: "es_ES",
   },
   en: {
-    title: "Avalon Core Agency · AI, websites, CRM and automation for businesses",
-    description: "Web development, e-commerce, custom CRMs, AI receptionists, marketing and business automation. Request a quote.",
-    og: "AI. People. Systems. A brighter tomorrow.", locale: "en_US",
+    title: "Avalon Core Agency | Websites, CRM & AI for Business",
+    description: "Websites, CRM, marketing and AI receptionists for contractors, independent professionals and businesses. Tell us what you want to improve.",
+    og: "More opportunities. Less busywork. A better-connected business.", locale: "en_US",
   },
 } as const;
 
@@ -51,14 +51,18 @@ export const viewport: Viewport = { themeColor: "#f7f8fd", colorScheme: "light",
 
 /** Hero facts: only claims we can stand behind (count of solutions, example industries in the composer, AI availability). */
 const STATS: Record<Lang, [number, string, string][]> = {
-  es: [[8, "", "soluciones conectadas"], [60, "+", "industrias de ejemplo"], [24, "/7", "atención con IA"]],
-  en: [[8, "", "connected solutions"], [60, "+", "example industries"], [24, "/7", "AI-assisted response"]],
+  es: [[8, "", "servicios para elegir"], [60, "+", "negocios de ejemplo"], [1, "", "plan a tu medida"]],
+  en: [[8, "", "services to explore"], [60, "+", "business examples"], [1, "", "tailored plan"]],
 };
 
 const WORK_ART = ["/brand/devices-960.webp", "/brand/automation-720.webp", "/brand/ecommerce-720.webp"];
 
 export default async function Home({ searchParams }: { searchParams: Promise<Record<string, string | string[] | undefined>> }) {
-  const lang: Lang = (await searchParams).lang === "en" ? "en" : "es";
+  const params = await searchParams;
+  const lang: Lang = params.lang === "en" ? "en" : "es";
+  const rawServices = (Array.isArray(params.services) ? params.services.join(",") : params.services ?? "").slice(0, 160);
+  const selected = new Set(rawServices.split(","));
+  const initialServices = SERVICE_ORDER.filter(key => selected.has(key));
   const t = COPY[lang], q = qs(lang);
   return (
     <SiteChrome lang={lang}>
@@ -71,7 +75,7 @@ export default async function Home({ searchParams }: { searchParams: Promise<Rec
             <h1 id="h-hero" className={s.h1}>{lang === "es" ? <>El sistema digital que <em>impulsa</em> tu negocio.</> : <>The digital system that <em>powers</em> your business.</>}</h1>
             <p className={s.lead}>{t.hero.lead}</p>
             <div className={s.ctas}>
-              <a className={`${s.btn} ${s.primary}`} data-magnet href="#soluciones">{t.hero.primary}<Icon name="arrow" size={18} /></a>
+              <a className={`${s.btn} ${s.primary}`} data-magnet href="#objetivos">{t.hero.primary}<Icon name="arrow" size={18} /></a>
               <a className={`${s.btn} ${s.ghost}`} href="#experiencia"><Icon name="play" size={16} />{t.hero.secondary}</a>
             </div>
             <dl className={s.stats}>{STATS[lang].map(([n, suf, l]) => <div key={l}><dt className={s.srOnly}>{l}</dt><dd><CountUp to={n} suffix={suf} /><span>{l}</span></dd></div>)}</dl>
@@ -86,6 +90,16 @@ export default async function Home({ searchParams }: { searchParams: Promise<Rec
         <ScrollSequence lang={lang} />
       </section>
 
+      {/* Help a visitor choose by goal rather than industry jargon. */}
+      <section id="objetivos" className={s.section} aria-labelledby="h-goals">
+        <div className={s.wrap}>
+          <Reveal className={s.head}><p className={s.eyebrow}>{t.goals.eyebrow}</p><h2 id="h-goals" className={s.h2}>{t.goals.title}</h2><p className={s.sub}>{t.goals.lead}</p></Reveal>
+          <div className={s.goalGrid}>{t.goals.items.map(([heading, description, service], i) => <Reveal key={service} className={s.card} delay={i * 70}>
+            <span className={s.cardIcon}><Icon name={service as (typeof SERVICE_ORDER)[number]} /></span><h3>{heading}</h3><p>{description}</p>
+            <div className={s.cardLinks}><a href={`/?${lang === "en" ? "lang=en&" : ""}services=${service}#cotizacion`}>{t.goals.action}<Icon name="arrow" size={16} /></a></div>
+          </Reveal>)}</div>
+        </div>
+      </section>
       {/* 03 · Ecosystem */}
       <section id="soluciones" className={s.section} aria-labelledby="h-eco">
         <div className={s.wrap}>
@@ -97,7 +111,7 @@ export default async function Home({ searchParams }: { searchParams: Promise<Rec
                 <span className={s.cardIcon}><Icon name={k} /></span>
                 <h3>{v.name}</h3><p>{v.short}</p>
                 <ul className={s.benefits}>{v.benefits.map(b => <li key={b}><Icon name="check" size={16} />{b}</li>)}</ul>
-                <div className={s.cardLinks}><a href={`/soluciones/${k}${q}`}>{t.eco.explore}<Icon name="arrow" size={16} /></a><a href="#cotizacion">{t.eco.propose}</a></div>
+                <div className={s.cardLinks}><a href={`/soluciones/${k}${q}`}>{t.eco.explore}<Icon name="arrow" size={16} /></a><a href={`/?${lang === "en" ? "lang=en&" : ""}services=${k}#cotizacion`}>{t.eco.propose}</a></div>
               </Reveal>); })}</div>
           </div>)}</div>
         </div>
@@ -152,7 +166,17 @@ export default async function Home({ searchParams }: { searchParams: Promise<Rec
         </div>
       </section>
 
-      {/* 07 · Contact */}
+      {/* 07 · FAQ — native details keep the answers accessible without JavaScript. */}
+      <section id="preguntas" className={s.section} aria-labelledby="h-faq">
+        <div className={s.wrap}>
+          <Reveal className={s.head}><p className={s.eyebrow}>{t.faq.eyebrow}</p><h2 id="h-faq" className={s.h2}>{t.faq.title}</h2></Reveal>
+          <div className={s.faqGrid}>{t.faq.items.map(([question, answer]) => <details key={question} className={s.faqItem}>
+            <summary>{question}</summary><p>{answer}</p>
+          </details>)}</div>
+        </div>
+      </section>
+
+      {/* 08 · Contact */}
       <section id="cotizacion" className={s.section} aria-labelledby="h-quote">
         <div className={s.wrap}>
           <div className={s.contact}>
@@ -161,7 +185,7 @@ export default async function Home({ searchParams }: { searchParams: Promise<Rec
               <div><p className={s.eyebrow}>{t.contact.eyebrow}</p><h2 id="h-quote" className={s.h2}>{t.contact.title}</h2><p className={s.lead}>{t.contact.lead}</p>
                 <ul className={s.points}>{t.contact.points.map(x => <li key={x}><Icon name="check" size={18} />{x}</li>)}</ul>
                 <p className={s.needs}>{t.contact.other}</p></div>
-              <div className={s.formCard}><QuoteForm lang={lang} /></div>
+              <div className={s.formCard}><QuoteForm lang={lang} initialServices={initialServices} /></div>
             </div>
           </div>
         </div>
