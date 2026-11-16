@@ -40,15 +40,18 @@ test('every HUD module card points at an existing static route', () => {
 test('CRM primary order and secondary access exist as real pages', () => {
   const domain = read('src/lib/crm/domain.ts');
   const nav = domain.slice(domain.indexOf('export const crmNavigation'));
-  const order = ['hunter', 'leads', 'sales', 'calendar', 'tasks'].map(slug => nav.indexOf(`slug: "${slug}"`));
-  assert.ok(order.every((x, i) => x >= 0 && (i === 0 || x > order[i - 1])), 'Lead Hunter → Leads Pipeline → Ventas → Calendario → Tareas');
+  const order = ['leads', 'clients'].map(slug => nav.indexOf(`slug: "${slug}"`));
+  assert.ok(order.every((x, i) => x >= 0 && (i === 0 || x > order[i - 1])), 'Leads Pipeline → Clientes 360');
+  assert.equal((nav.match(/slug: "/g) || []).length, 2, 'only two daily CRM sections');
+  const tools = read('src/components/crm/navigation.tsx');
+  for (const p of ['hunter', 'desk', 'sales', 'calendar', 'tasks', 'kpis']) assert.ok(tools.includes(`/admin/workspace/crm/${p}`), `${p} remains available via tools`);
   for (const p of ['sales', 'sales/new', 'clients', 'notifications', 'activity', 'settings', 'calendar', 'tasks']) {
     const file = `src/app/admin/workspace/crm/${p}/page.tsx`;
     assert.ok(fs.existsSync(file), file);
     assert.match(read(file), /requireOwner\(\)/, `${file} verifies the owner server-side`);
   }
   const ui = read('src/components/sales/ui.tsx');
-  for (const href of ['/crm/clients', '/crm/notifications', '/crm/activity', '/crm/settings']) assert.ok(ui.includes(`/admin/workspace${href}`), href);
+  assert.match(ui, /<CrmTools lang={lang} active={active} \/>/);
 });
 
 test('dashboard and settings report CRM state from real tables, not owner names', () => {
