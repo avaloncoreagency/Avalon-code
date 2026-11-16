@@ -10,6 +10,7 @@ create table public.avalon_ai_credit_snapshots (
   account_key text not null check (account_key in
     ('chatgpt_business', 'claude_miguel', 'claude_samuel', 'higgsfield_team')),
   seat_key text check (seat_key in ('miguel', 'samuel')),
+  quota_window text check (quota_window in ('session', 'weekly', 'monthly', 'other')),
   metric_key text not null check (metric_key in
     ('quota_used_pct', 'credits_available', 'tokens_used', 'api_spend_usd',
      'extra_spend_usd', 'generations_available')),
@@ -23,6 +24,9 @@ create table public.avalon_ai_credit_snapshots (
   observed_at timestamptz not null default now(),
   recorded_by uuid not null default auth.uid() references auth.users(id),
   check (period_end is null or period_start is null or period_end > period_start),
+  check ((period_start is null) = (period_end is null)),
+  check ((metric_key = 'quota_used_pct' and quota_window is not null) or
+         (metric_key <> 'quota_used_pct' and quota_window is null)),
   check ((metric_key = 'quota_used_pct' and unit = '%' and amount <= 100 and
           (limit_value is null or limit_value = 100)) or
          (metric_key = 'credits_available' and unit = 'creditos') or
@@ -40,7 +44,7 @@ create table public.avalon_ai_credit_snapshots (
   )
 );
 create index avalon_ai_credit_snapshots_lookup
-  on public.avalon_ai_credit_snapshots (account_key, seat_key, metric_key, observed_at desc, id desc);
+  on public.avalon_ai_credit_snapshots (account_key, seat_key, metric_key, quota_window, observed_at desc, id desc);
 
 -- Always stamp observations with the actual authenticated owner and server time.
 -- An untrusted client cannot submit a false observation timestamp or actor ID.
