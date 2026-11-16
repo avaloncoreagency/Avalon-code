@@ -64,7 +64,8 @@
 @keyframes breathe { 50% { opacity: .55; } }
 .heroIntro > * { animation: rise 1s cubic-bezier(.2, .8, .2, 1) both; } .heroIntro > :nth-child(2) { animation-delay: .08s; } .heroIntro > :nth-child(3) { animation-delay: .16s; } .heroIntro > :nth-child(4) { animation-delay: .24s; }
 .heroArtIn { animation: artIn 1.4s cubic-bezier(.2, .8, .2, 1) both; }
-@keyframes rise { from { opacity: 0; transform: translateY(18px); } } @keyframes artIn { from { opacity: 0; transform: scale(.96); filter: blur(8px); } }
+/* No opacity:0 start on above-the-fold content: it would delay LCP. Motion only. */
+@keyframes rise { from { transform: translateY(14px); } } @keyframes artIn { from { transform: scale(.965); filter: blur(6px); } }
 .marquee { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 28px; }
 .pill { display: inline-flex; align-items: center; gap: 8px; padding: 8px 12px; border-radius: 999px; font-size: 13px; font-weight: 600; color: var(--ink-2); background: var(--glass-strong); border: 1px solid var(--line); text-decoration: none; }
 .pill svg { color: var(--blue); }
@@ -194,7 +195,7 @@
 .footer { padding: 48px 0 calc(32px + env(safe-area-inset-bottom)); border-top: 1px solid var(--line); margin-top: 40px; }
 .footerGrid { display: grid; grid-template-columns: 1.4fr repeat(2, 1fr); gap: 28px; }
 .footer p { color: var(--ink-3); font-size: 14px; line-height: 1.6; margin: 10px 0 0; max-width: 40ch; }
-.footer h4 { font-size: 12px; letter-spacing: .18em; text-transform: uppercase; color: var(--ink-3); margin: 0 0 12px; }
+.footer .footHead { font-size: 12px; letter-spacing: .18em; text-transform: uppercase; color: var(--ink-3); margin: 0 0 12px; }
 .footer ul { list-style: none; padding: 0; margin: 0; display: grid; gap: 8px; font-size: 14px; } .footer ul a { text-decoration: none; color: var(--ink-2); }
 .legal { display: flex; justify-content: space-between; flex-wrap: wrap; gap: 12px; margin-top: 32px; font-size: 13px; color: var(--ink-3); }
 
@@ -216,7 +217,8 @@
   .headerQuote { display: none; }
   .heroArt { aspect-ratio: 1 / 1.02; }
   .heroGrid { gap: 0; }
-  .heroArtIn { order: -1; margin: -8px -20px -36px; }
+  .heroGrid .heroArtIn { order: -1; margin: -8px -20px -36px; }
+  .svcGrid .heroArtIn { order: -1; margin-bottom: 8px; }
   .heroLayer { inset: 0; }
   .heroImg, .heroVideo { object-position: 50% 78%; -webkit-mask-image: linear-gradient(transparent, #000 10%, #000 70%, transparent); mask-image: linear-gradient(transparent, #000 10%, #000 70%, transparent); }
   .eyebrow { letter-spacing: .14em; font-size: 11px; }
@@ -234,3 +236,14 @@
   .panel, .deal, .msg, .indPanel { animation: none; }
   .heroLayer { transition: none; }
 }
+
+/* Product cinematics (Higgsfield): still first, loop fades in when it actually plays. */
+.media { position: relative; border-radius: 20px; overflow: hidden; box-shadow: 0 30px 70px -40px rgba(38, 48, 140, .55); background: #eef0fb; }
+.media img, .media video { display: block; width: 100%; height: auto; aspect-ratio: 16 / 9; object-fit: cover; }
+.media video { position: absolute; inset: 0; height: 100%; opacity: 0; transition: opacity 1s ease; }
+.media video[data-on="true"] { opacity: 1; }
+
+/* Avalon reveal: the logo mark draws in once per page load; never blocks content. */
+.logo svg path { animation: markIn 1.4s cubic-bezier(.2, .8, .2, 1) both; transform-origin: 50% 80%; }
+@keyframes markIn { from { opacity: 0; transform: translateY(6px) scale(.86); filter: blur(4px); } }
+@media (prefers-reduced-motion: reduce) { .logo svg path { animation: none; } .media video { transition: none; } }

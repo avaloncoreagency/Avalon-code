@@ -5,7 +5,8 @@ import { QuoteForm } from "@/components/public/quote-form";
 import { COPY, SERVICE_ORDER, type Lang, type ServiceKey } from "@/components/public/landing/copy";
 import { Icon } from "@/components/public/landing/icons";
 import { Reveal } from "@/components/public/landing/interactive";
-import { MEDIA } from "@/components/public/landing/media";
+import { MEDIA, VISUAL_FOR } from "@/components/public/landing/media";
+import { ProductVideo } from "@/components/public/landing/product-video";
 import { ServiceDemo } from "@/components/public/landing/showroom";
 import { SiteChrome, qs } from "@/components/public/landing/site-chrome";
 import s from "@/components/public/landing/landing.module.css";
@@ -56,7 +57,7 @@ export default async function ServicePage({ params, searchParams }: Props) {
   const { service } = await params; if (!isService(service)) notFound();
   const lang: Lang = (await searchParams).lang === "en" ? "en" : "es";
   const t = COPY[lang], v = t.services[service], d = DETAIL[lang][service], q = qs(lang);
-  const visual = (["ecommerce", "receptionist", "automation", "marketing"] as const).find(x => x === service);
+  const visual = VISUAL_FOR[service];
   const related = SERVICE_ORDER.filter(k => k !== service).slice(0, 3);
   return (
     <SiteChrome lang={lang} path={`/soluciones/${service}`}>
@@ -69,12 +70,11 @@ export default async function ServicePage({ params, searchParams }: Props) {
             <p className={s.lead}>{d.intro}</p>
             <div className={s.ctas}><a className={`${s.btn} ${s.primary}`} href="#cotizacion">{t.eco.propose}<Icon name="arrow" size={18} /></a><a className={`${s.btn} ${s.ghost}`} href="#demo">{t.nav.showroom}</a></div>
           </div>
-          <div className={s.heroArtIn}>{visual
-            ? <img className={s.demoImg} src={MEDIA.products[visual].src} srcSet={`/brand/${visual}-720.webp 720w, ${MEDIA.products[visual].src} 1440w`} sizes="(max-width: 980px) 100vw, 50vw" width={1440} height={1078} alt={MEDIA.products[visual].alt[lang]} fetchPriority="high" />
-            : <img className={s.demoImg} src={MEDIA.devices.src} srcSet={`/brand/devices-960.webp 960w, ${MEDIA.devices.src} 1920w`} sizes="(max-width: 980px) 100vw, 50vw" width={1920} height={1080} alt={MEDIA.devices.alt[lang]} fetchPriority="high" />}</div>
+          <div className={s.heroArtIn}><ProductVideo poster={visual.src} srcSet={`${visual.small} ${visual.small.includes("-960") ? 960 : 720}w, ${visual.src} ${visual.w}w`} video={visual.video} alt={visual.alt[lang]} w={visual.w} h={visual.h} priority /></div>
         </div>
       </section>
-      <section className={s.section} aria-label={lang === "es" ? "Funciones" : "Features"}>
+      <section className={s.section} aria-labelledby="h-feat">
+        <h2 id="h-feat" className={s.srOnly}>{lang === "es" ? "Funciones" : "Features"}</h2>
         <div className={`${s.wrap} ${s.svcFeatures}`}>{d.features.map(([h, p], i) => <Reveal key={h} className={s.card} delay={i * 80}>
           <span className={s.cardIcon}><Icon name="check" /></span><h3>{h}</h3><p>{p}</p></Reveal>)}</div>
       </section>
@@ -84,7 +84,8 @@ export default async function ServicePage({ params, searchParams }: Props) {
           <div className={s.showroom}><span className={s.badge}>{t.show.badge}</span><ServiceDemo lang={lang} service={service} /><p className={s.needs}>{t.show.needs}</p></div>
         </div>
       </section>
-      <section className={s.section} aria-label={lang === "es" ? "Soluciones relacionadas" : "Related solutions"}>
+      <section className={s.section} aria-labelledby="h-rel">
+        <h2 id="h-rel" className={s.srOnly}>{lang === "es" ? "Soluciones relacionadas" : "Related solutions"}</h2>
         <div className={`${s.wrap} ${s.cards}`}>{related.map(k => <a key={k} className={s.card} href={`/soluciones/${k}${q}`}>
           <span className={s.cardIcon}><Icon name={k} /></span><h3>{t.services[k].name}</h3><p>{t.services[k].short}</p></a>)}</div>
       </section>

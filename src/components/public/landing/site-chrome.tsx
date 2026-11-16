@@ -37,8 +37,8 @@ export function SiteChrome({ lang, path = "/", children }: { lang: Lang; path?: 
       <div className={`${s.wrap}`}>
         <div className={s.footerGrid}>
           <div><Link href={`/${q}`} className={s.logo} aria-label="Avalon Core Agency"><Logo /><span><strong>AVALON</strong><small>CORE AGENCY</small></span></Link><p>{t.footer.tagline}</p></div>
-          <div><h4>{t.nav.solutions}</h4><ul>{SERVICE_ORDER.slice(0, 4).map(k => <li key={k}><Link href={`/soluciones/${k}${q}`}>{t.services[k].name}</Link></li>)}</ul></div>
-          <div><h4>&nbsp;</h4><ul>{SERVICE_ORDER.slice(4).map(k => <li key={k}><Link href={`/soluciones/${k}${q}`}>{t.services[k].name}</Link></li>)}</ul></div>
+          <div><p className={s.footHead}>{t.nav.solutions}</p><ul>{SERVICE_ORDER.slice(0, 4).map(k => <li key={k}><Link href={`/soluciones/${k}${q}`}>{t.services[k].name}</Link></li>)}</ul></div>
+          <div><p className={s.footHead} aria-hidden="true">&nbsp;</p><ul>{SERVICE_ORDER.slice(4).map(k => <li key={k}><Link href={`/soluciones/${k}${q}`}>{t.services[k].name}</Link></li>)}</ul></div>
         </div>
         <div className={s.legal}><span>© {new Date().getFullYear()} Avalon Core Agency. {t.footer.rights}</span><Link href="/admin/login">{t.footer.admin}</Link></div>
       </div>

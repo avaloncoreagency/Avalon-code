@@ -1,9 +1,9 @@
 "use client";
-/* eslint-disable @next/next/no-img-element -- pre-optimized static WebP with srcset/sizes; avoids the Vercel image-optimization quota. */
 import { useId, useState } from "react";
 import { COPY, SERVICE_ORDER, type Lang, type ServiceKey } from "./copy";
 import { Icon } from "./icons";
-import { MEDIA } from "./media";
+import { VISUAL_FOR } from "./media";
+import { ProductVideo } from "./product-video";
 import s from "./landing.module.css";
 
 /** Local, self-contained demos with sample data. Nothing here calls a backend, phone line or ad account. */
@@ -90,11 +90,10 @@ function Automation({ lang }: { lang: Lang }) {
 const DEMOS: Record<ServiceKey, (p: { lang: Lang }) => React.ReactNode> = {
   website: Website, ecommerce: Ecommerce, crm: Crm, receptionist: Receptionist, chatbots: Chatbots, marketing: Marketing, funnels: Funnels, automation: Automation,
 };
-const VISUAL: Partial<Record<ServiceKey, keyof typeof MEDIA.products>> = { ecommerce: "ecommerce", receptionist: "receptionist", automation: "automation", marketing: "marketing" };
 
 export function Showroom({ lang }: { lang: Lang }) {
   const t = COPY[lang]; const [k, setK] = useState<ServiceKey>("crm"); const id = useId();
-  const Demo = DEMOS[k]; const svc = t.services[k]; const v = VISUAL[k];
+  const Demo = DEMOS[k]; const svc = t.services[k]; const v = VISUAL_FOR[k];
   const onKey = (e: React.KeyboardEvent) => {
     if (e.key !== "ArrowRight" && e.key !== "ArrowLeft") return;
     const i = SERVICE_ORDER.indexOf(k) + (e.key === "ArrowRight" ? 1 : -1);
@@ -111,7 +110,7 @@ export function Showroom({ lang }: { lang: Lang }) {
         <span className={s.badge}>{t.show.badge}</span>
         <h3>{svc.name}</h3><p>{svc.short}</p>
         <ul className={s.benefits}>{svc.benefits.map(b => <li key={b}><Icon name="check" size={16} />{b}</li>)}</ul>
-        {v && <img className={s.demoImg} style={{ marginTop: 16 }} src={`/brand/${v}-720.webp`} width={720} height={539} loading="lazy" decoding="async" alt={MEDIA.products[v].alt[lang]} />}
+        <div style={{ marginTop: 16 }}><ProductVideo poster={v.small} video={v.video} alt={v.alt[lang]} w={v.w} h={v.h} /></div>
         <div className={s.cardLinks} style={{ marginTop: 16 }}>
           <a href={`/soluciones/${k}${lang === "en" ? "?lang=en" : ""}`}>{t.eco.explore} <Icon name="arrow" size={16} /></a>
           <a href="#cotizacion">{t.eco.propose}</a>
