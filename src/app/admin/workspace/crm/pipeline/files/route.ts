@@ -16,8 +16,16 @@ export async function POST(request: NextRequest) {
   if (Number(request.headers.get("content-length") ?? 0) > ATTACHMENT_MAX_BYTES + 64 * 1024) return reply({ error: "Archivo mayor de 5 MB." }, 413);
   let form: FormData;
   try { form = await request.formData(); } catch { return reply({ error: "Formulario inválido" }, 400); }
-  const lead = String(form.get("lead") ?? ""), note = String(form.get("note") ?? "").trim().slice(0, 500), file = form.get("file");
-  if (!UUID.test(lead)) return reply({ error: "Lead inválido" }, 400);
+  const lead = String(form.get("lead") ?? "");
+  const client = String(form.get("client") ?? "");
+  const note = String(form.get("note") ?? "").trim().slice(0, 500), file = form.get("file");
+  // Exactly one relationship: never let an upload silently cross two client records.
+  if (Boolean(lead) === Boolean(client) || (lead && !UUID.test(lead)) || (client && !UUID.test(client)))
+    return reply({ error: "Selecciona un lead o cliente válido." }, 400);
+  const entity = lead ? "crm_leads" : "crm_clients";
+  const entityId = lead || client;
+  const target = await session.supabase.from(entity).select("id").eq("id", entityId).maybeSingle();
+  if (target.error || !target.data) return reply({ error: "Registro no disponible." }, 404);
   if (!(file instanceof File) || file.size < 1) return reply({ error: "Elige un archivo." }, 400);
   if (file.size > ATTACHMENT_MAX_BYTES) return reply({ error: "Archivo mayor de 5 MB." }, 413);
   const bytes = Buffer.from(await file.arrayBuffer());
@@ -25,7 +33,7 @@ export async function POST(request: NextRequest) {
   const mime = attachmentMime(filename, bytes);
   if (!mime) return reply({ error: "Tipo no permitido. Usa PDF, PNG, JPG, WEBP, TXT, CSV, DOCX o XLSX." }, 415);
   const { data, error } = await session.supabase.from("crm_attachments").insert({
-    lead_id: lead, filename, mime, size_bytes: bytes.length, note,
+    lead_id: lead || null, client_id: client || null, filename, mime, size_bytes: bytes.length, note,
     sha256: createHash("sha256").update(bytes).digest("hex"), content: "\\x" + bytes.toString("hex"),
   }).select("id").single();
   if (error) return reply({ error: error.message?.includes("attachment_quota") ? "Este lead ya usa 25 MB de archivos." :
