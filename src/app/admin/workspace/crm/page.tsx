@@ -1,8 +1,10 @@
 import { redirect } from "next/navigation";
+import { requireOwner } from "@/lib/auth/session";
+
 export const dynamic = "force-dynamic";
 
-
-/** The CRM entry points to the daily Pipeline workspace; no duplicate dashboard. */
-export default function CrmPage() {
+/** Keep the owner gate before routing into the daily CRM workflow. */
+export default async function CrmPage() {
+  await requireOwner();
   redirect("/admin/workspace/crm/leads");
 }
