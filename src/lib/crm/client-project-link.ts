@@ -2,7 +2,7 @@ import { clientId } from "@/lib/os/client-hud";
 
 /** Stable-FK-only project association. Never guess a client from business names. */
 export type ClientForProject = { id: string; status: string; origin_lead_id: string | null };
-export type ProjectForClient = { client_id: string | null; status: string; settings: Record<string, unknown> };
+export type ProjectForClient = { client_id?: string | null; status: string; settings: Record<string, unknown> };
 
 export type ProjectLinkDecision = "ok" | "already_linked" | "another_client" | "archived" | "lead_mismatch";
 
