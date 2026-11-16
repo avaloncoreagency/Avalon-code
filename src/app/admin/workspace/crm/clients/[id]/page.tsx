@@ -7,6 +7,10 @@ import { getLang } from "@/lib/i18n-server";
 import { pick, formatDate } from "@/lib/i18n";
 import { run, type ProjectRow, PROJECT_COLUMNS } from "@/lib/os/data";
 import { SERVICES, isService } from "@/lib/os/client-hud";
+import { MODULE_KEYS, type ModuleKey } from "@/lib/os/domain";
+import { checkClientProjectLink } from "@/lib/crm/client-project-link";
+import { ClientOverview, type ClientCounts, type LinkableProduct } from "@/components/sales/client-overview";
+import { LeadAttachments, type LeadAttachment } from "@/components/crm/lead-attachments";
 import { label, money } from "@/lib/sales/domain";
 import { ClientWorkspace } from "@/components/sales/client-workspace";
 import { loadAllRows, emptyLoaded, type FinanceCost, type FinanceSummary } from "@/lib/sales/client-finance";
@@ -39,9 +43,20 @@ export default async function Client360({ params, searchParams }: { params: Prom
   // Finance access is a database capability (agency_memberships + crm_private.finance_access), never an e-mail match.
   const caps = await getCrmCapabilities(supabase);
   const financePermitted = caps.source === "database" && caps.owner && caps.financeView;
+  const now = new Date().toISOString();
+  // Query exact counts at the source; 100-row client lists are not full ledgers.
+  const metricsPromise = c ? Promise.all([
+    ...MODULE_KEYS.map(module => run<null>(supabase.from("os_projects").select("id", { count: "exact" })
+      .eq("client_id", id).eq("module", module).range(0, 0))),
+    run<null>(supabase.from("os_projects").select("id", { count: "exact" }).eq("client_id", id).eq("status", "active").range(0, 0)),
+    run<null>(supabase.from("crm_tasks").select("id", { count: "exact" }).eq("client_id", id).in("status", OPEN).range(0, 0)),
+    run<null>(supabase.from("crm_tasks").select("id", { count: "exact" }).eq("client_id", id).in("status", OPEN).lt("due_at", now).range(0, 0)),
+    run<null>(supabase.from("crm_work_orders").select("id", { count: "exact" }).eq("client_id", id).range(0, 0)),
+    run<null>(supabase.from("crm_client_agreement_drafts").select("id", { count: "exact" }).eq("client_id", id).range(0, 0)),
+  ]) : Promise.resolve(null);
   // Client 360° finance (KENJI #98): every sale and every expense is read page by page until the exact server
   // count is reached. A subtotal is never shown as the client's profitability (see src/lib/sales/client-finance.ts).
-  const [contacts, salesLoaded, , orders, projects, legacy, tasks, timeline, owners, lead, activities, meetings, financeResult] = await Promise.all([
+  const [contacts, salesLoaded, , orders, projects, legacy, tasks, timeline, owners, lead, activities, meetings, financeResult, documents, unassigned] = await Promise.all([
     run<Contact[]>(supabase.from("crm_contacts").select("id,full_name,email,phone,role,is_primary").eq("client_id", id).order("is_primary", { ascending: false }).order("full_name")),
     financePermitted
       ? loadAllRows<Sale>((from, to) => supabase.from("crm_sales").select(SALE_COLUMNS, { count: "exact" }).eq("client_id", id).order("sold_on", { ascending: false }).order("id").range(from, to))
@@ -61,6 +76,11 @@ export default async function Client360({ params, searchParams }: { params: Prom
     run<{ id: string; body: string; status: string; kind?: string; due_at: string | null; created_by: string; created_at: string }[]>(supabase.from("crm_activities").select("id,body,status,kind,due_at,created_by,created_at").or(leadId ? `client_id.eq.${id},lead_id.eq.${leadId}` : `client_id.eq.${id}`).order("created_at", { ascending: false }).limit(25)),
     leadId ? run<{ id: string; title: string; starts_at: string; kind: string; status: string }[]>(supabase.from("crm_events").select("id,title,starts_at,kind,status").eq("lead_id", leadId).order("starts_at", { ascending: false }).limit(10)) : Promise.resolve(null),
     financePermitted ? loadClientFinance(supabase, id, caps) : Promise.resolve(null),
+    run<LeadAttachment[]>(supabase.from("crm_attachments").select("id,filename,mime,size_bytes,note,created_by,created_at", { count: "exact" })
+      .or(leadId ? `client_id.eq.${id},lead_id.eq.${leadId}` : `client_id.eq.${id}`)
+      .order("created_at", { ascending: false }).limit(40)),
+    run<ProjectRow[]>(supabase.from("os_projects").select(PROJECT_COLUMNS)
+      .is("client_id", null).neq("status", "archived").order("updated_at", { ascending: false }).limit(80)),
   ]);
   // Totals: exact SQL aggregate when available; otherwise the fully paged rows (partial data is labelled partial).
   // A denied finance RPC is authoritative even if the user previously passed a capability check.
@@ -68,7 +88,29 @@ export default async function Client360({ params, searchParams }: { params: Prom
   const finance: FinanceSummary | null = financeAllowed && financeResult?.allowed === true ? financeResult.summary : null;
   const sales = salesLoaded.rows;
   const ownerList = owners.data ?? [];
-  const now = new Date().toISOString();
+  const metricRows = await metricsPromise;
+  const moduleCounts = Object.fromEntries(MODULE_KEYS.map((module, index) => {
+    const row = metricRows?.[index];
+    return [module, row && !row.error ? row.count : null];
+  })) as Record<ModuleKey, number | null>;
+  const n = (index: number) => {
+    const row = metricRows?.[index + MODULE_KEYS.length];
+    return row && !row.error ? row.count : null;
+  };
+  const counts: ClientCounts = {
+    products: projects.error ? null : projects.count,
+    activeProducts: n(0),
+    openTasks: n(1),
+    overdueTasks: n(2),
+    workOrders: n(3),
+    agreements: n(4),
+    sales: financeAllowed && salesLoaded.complete && !salesLoaded.failed ? salesLoaded.rows.length : null,
+    documents: documents.error ? null : documents.count,
+    modules: moduleCounts,
+  };
+  const candidates: LinkableProduct[] = c && !unassigned.error ? (unassigned.data ?? [])
+    .filter(pr => isService(pr.module) && checkClientProjectLink(c, pr) === "ok")
+    .map(pr => ({ id: pr.id, name: pr.name, module: pr.module })) : [];
   const allProjects = [...new Map([...(projects.data ?? []), ...(legacy.data ?? [])].map(project => [project.id, project])).values()];
   const openTasks = (tasks.data ?? []).filter(t => OPEN.includes(t.status));
   const alerts = [
@@ -85,28 +127,35 @@ export default async function Client360({ params, searchParams }: { params: Prom
     <OkFlash lang={lang} code={q(p, "ok")} /><ErrorFlash lang={lang} code={q(p, "error")} />
     {client.error ? <Unavailable lang={lang} code={client.error} /> : c && <>
       {caps.source === "unavailable" && <p className={s.flash} data-tone="warn" role="status">{pick(lang, "No se pudo verificar el acceso financiero. Los importes privados permanecen ocultos.", "Finance access could not be verified. Private amounts remain hidden.")}</p>}
-      <section className={s.stats} aria-label={pick(lang, "Resumen del cliente", "Client summary")}>
-        {finance && !salesLoaded.failed && finance.currencies.filter(f => f.sales > 0).map(f => <div key={f.currency} className={s.stat}><span>{pick(lang, "Contratado", "Contracted")} · {f.currency}{salesLoaded.complete ? "" : ` · ${pick(lang, "parcial", "partial")}`}</span><strong>{money(lang, f.contractedCents / 100, f.currency)}</strong><small>{pick(lang, "Cobrado", "Collected")} {money(lang, f.collectedCents / 100, f.currency)} · {pick(lang, "Recurrente/mes", "Recurring/mo")} {money(lang, f.recurringCents / 100, f.currency)}</small></div>)}
-        <div className={s.stat}><span>{pick(lang, "Proyectos activos", "Active projects")}</span><strong>{allProjects.filter(x => x.status === "active").length}</strong><small>{allProjects.length} {pick(lang, "en total", "total")}</small></div>
-        <div className={s.stat}><span>{pick(lang, "Tareas abiertas", "Open tasks")}</span><strong>{openTasks.length}</strong><small>{(tasks.data ?? []).filter(t => t.status === "done").length} {pick(lang, "hechas", "done")}</small></div>
-        <div className={s.stat}><span>{pick(lang, "Alertas", "Alerts")}</span><strong>{alerts.length}</strong><small>{pick(lang, "Responsable", "Owner")}: {ownerName(ownerList, c.owner_id)}</small></div>
-      </section>
+      <ClientOverview lang={lang} client={c} owner={ownerName(ownerList, c.owner_id)}
+        contacts={contacts.error ? null : (contacts.data ?? [])} nextSteps={nextSteps}
+        latest={timeline.data?.[0] ?? null} counts={counts}
+        candidates={candidates} candidateError={Boolean(unassigned.error)} />
+      {finance && !salesLoaded.failed && finance.currencies.some(f => f.sales > 0) && <section className={s.stats} aria-label={pick(lang, "Situación financiera del cliente", "Client financial summary")}>
+        {finance.currencies.filter(f => f.sales > 0).map(f => <div key={f.currency} className={s.stat}>
+          <span>{pick(lang, "Contratado", "Contracted")} · {f.currency}{salesLoaded.complete ? "" : ` · ${pick(lang, "parcial", "partial")}`}</span>
+          <strong>{money(lang, f.contractedCents / 100, f.currency)}</strong>
+          <small>{pick(lang, "Cobrado", "Collected")} {money(lang, f.collectedCents / 100, f.currency)} · {pick(lang, "Recurrente/mes", "Recurring/mo")} {money(lang, f.recurringCents / 100, f.currency)}</small>
+        </div>)}
+      </section>}
 
       <ClientWorkspace supabase={supabase} clientId={c.id} lang={lang} sales={sales.slice(0, SALES_SHOWN)}
         financeAllowed={financeAllowed} finance={finance}
-        demo={c.id === "eb442ca9-8991-4dd0-b7e9-648513613d5a"} />
+        />
       {alerts.length > 0 && <section className={s.panel} aria-labelledby="alerts"><h2 id="alerts">{pick(lang, "Alertas", "Alerts")}</h2><ul className={s.list}>{alerts.map(a => <li key={a.key} className={s.notice} data-severity="urgent"><Link href={a.href}>{a.text}</Link></li>)}</ul></section>}
 
       <section className={s.panel} aria-labelledby="projects"><header><h2 id="projects">{pick(lang, "Proyectos por departamento", "Projects by department")}</h2></header>
         {projects.error ? <Unavailable lang={lang} code={projects.error} /> : allProjects.length === 0 ? <p className={s.empty}>{pick(lang, "Sin proyectos. Se crean al confirmar una venta.", "No projects. They are created when a sale is confirmed.")}</p> :
         <div className={s.grid}>{allProjects.map(pr => { const svc = isService(pr.module) ? SERVICES[pr.module] : null; const wo = (orders.data ?? []).find(o => o.project_id === pr.id); const pt = (tasks.data ?? []).filter(t => t.project_id === pr.id);
           return <div key={pr.id} className={s.card}><span className={s.eyebrow}>{svc?.name ?? pr.module}</span><h3><Link href={`/admin/workspace/products/${pr.id}`}>{pr.name}</Link></h3>
-            <p className={s.inline}><Tag lang={lang} value={pr.status} />{wo && <Tag lang={lang} value={wo.status} />}{wo && wo.recurrence !== "none" && <Tag lang={lang} value={wo.recurrence} />}</p>
+            <p className={s.inline}><Tag lang={lang} value={pr.status} />{!pr.client_id && <span className={s.muted}>{pick(lang, "Referencia heredada del lead (por vincular)", "Inherited lead reference (not yet linked)")}</span>}{wo && <Tag lang={lang} value={wo.status} />}{wo && wo.recurrence !== "none" && <Tag lang={lang} value={wo.recurrence} />}</p>
             <p className={s.muted}>{pt.length ? `${pt.filter(t => t.status === "done").length}/${pt.filter(t => t.status !== "cancelled").length} ${pick(lang, "tareas hechas", "tasks done")}` : pick(lang, "Sin tareas vinculadas", "No linked tasks")}{wo?.due_on ? ` · ${pick(lang, "entrega", "due")} ${formatDate(lang, wo.due_on)}` : ""}{wo ? ` · ${ownerName(ownerList, wo.assignee_id)}` : ""}</p>
             <p className={s.actions}><Link href={`/admin/workspace/products/${pr.id}`}>{pick(lang, "HUD del producto (entregables, cambios, QA)", "Product HUD (deliverables, changes, QA)")}</Link>{svc && <Link href={`/admin/workspace/${svc.slug}/${pr.id}`}>{pick(lang, "Abrir en", "Open in")} {svc.name}</Link>}</p>
           </div>; })}</div>}
       </section>
 
+      <LeadAttachments clientId={c.id} lang={lang} files={documents.data ?? []}
+        total={documents.count} unavailable={Boolean(documents.error)} />
       <div className={s.columns}>
         <section className={s.panel} aria-labelledby="sales"><header><h2 id="sales">{pick(lang, "Ventas y servicios", "Sales and services")}</h2></header>
           {!financeAllowed ? <p className={s.muted}>{pick(lang, "Los importes de ventas se muestran solo al responsable financiero.", "Sales amounts are available only to the finance administrator.")}</p> : salesLoaded.failed ? <p className={s.flash} data-tone="error" role="alert">{pick(lang, "No se pudieron leer las ventas.", "Sales could not be read.")}</p> : sales.length === 0 ? <p className={s.muted}>{pick(lang, "Sin ventas registradas.", "No sales recorded.")}</p> :
