@@ -26,3 +26,16 @@
 .form button:disabled {opacity:.55}
 .wrap :focus-visible {outline:3px solid var(--cyan,#69cde3);outline-offset:2px}
 @media(max-width:600px){.wrap{padding:12px 0 26px}.card{padding:15px}}
+
+/* Compact CRM-home embedding (no standalone module). */
+.wrap {max-width:none;margin:16px 0 0;padding:0;gap:16px}
+.toolbar {display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap}
+.toolbar p {margin:0}
+.toolbar button {cursor:pointer;color:inherit;border:1px solid rgba(140,160,240,.35);background:rgba(140,160,240,.08);border-radius:8px;padding:9px 12px;font:inherit}
+.toolbar button:disabled {opacity:.55}
+.card h3 {font-size:15px;margin:0 0 8px}
+.bucket h3 {font-size:13px;margin:0 0 9px}
+.details {border:1px solid rgba(140,160,240,.28);border-radius:12px;padding:14px 16px}
+.details summary {cursor:pointer;font-weight:600;font-size:14px}
+.details[open] summary {margin-bottom:10px}
+@media(max-width:600px){.cards{grid-template-columns:1fr}.toolbar{align-items:flex-start}}
