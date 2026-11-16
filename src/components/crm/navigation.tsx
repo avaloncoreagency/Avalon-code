@@ -30,7 +30,7 @@ const tools = [
   ["tasks", "/admin/workspace/crm/tasks", "Tareas", "Tasks"],
   ["kpis", "/admin/workspace/crm/kpis", "Estadísticas", "Analytics"],
   ["notifications", "/admin/workspace/crm/notifications", "Avisos", "Notifications"],
-  ["activity", "/admin/workspace/crm/activity", "Actividad", "Activity"],
+  ["activity", "/admin/workspace/crm/activity", "Centro de actividad", "Activity center"],
   ["settings", "/admin/workspace/crm/settings", "Configuración", "Settings"],
   ["ai-usage", "/admin/workspace/crm/ai-usage", "Uso de IA", "AI usage"],
 ] as const;
