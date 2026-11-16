@@ -13,3 +13,8 @@
 @media(max-width:600px){.stats{grid-template-columns:repeat(2,minmax(0,1fr))}.products{grid-template-columns:minmax(0,1fr)}.hero{gap:11px;padding:13px}.avatar{width:45px;height:45px;font-size:17px;border-radius:13px}.meta span{font-size:10px}.panel{padding:13px}.linkForm{grid-template-columns:minmax(0,1fr)}.linkForm button{width:100%}.metric{padding:11px}.metric strong{font-size:23px}}
 @media(max-width:350px){.hero{grid-template-columns:minmax(0,1fr)}.stats{grid-template-columns:minmax(0,1fr)}}
 @media(prefers-reduced-motion:reduce){.overview *{scroll-behavior:auto!important}}
+
+.manualLink { margin-top:12px; border-top:1px solid rgba(130,175,218,.28); padding-top:12px }
+.manualLink summary { cursor:pointer; min-height:44px; color:#d7ecff; font-size:13px; display:list-item; padding:10px 2px }
+.manualLink .linkForm { margin-top:8px }
+.manualLink input { min-height:44px; min-width:0; padding:10px; color:#f4fbff; background:#111f3d; border:1px solid #47718e; border-radius:10px; font:inherit }
