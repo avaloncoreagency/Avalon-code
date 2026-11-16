@@ -67,7 +67,8 @@ test("public inquiry supports all advertised service interests without expanding
     assert.match(services, new RegExp(name + ":"));
     assert.match(action, new RegExp(name + ":"));
   }
-  assert.match(action, /Services of interest:/);
+  assert.match(action, /Interés adicional/);
+  assert.match(action, /Additional interest/);
   assert.match(action, /services: \[\.\.\.new Set\(requested\.filter\(s => SERVICES\.includes\(s\)\)\)\]/);
 });
 
