@@ -184,7 +184,7 @@ test('Nova Restaurant through the real app: one form, three departments, no dupl
   const contractsPath = '/admin/workspace/crm/clients/' + clientId + '/contracts';
   assert.equal((await get(contractsPath)).status, 307, 'contracts require authentication');
   assert.equal((await get(contractsPath, outsider)).status, 307, 'contracts reject non-owners');
-  const contractsLink = page.locator('a[href="' + contractsPath + '"]');
+  const contractsLink = page.getByRole('link', { name: 'Generar contrato', exact: true });
   await contractsLink.waitFor();
   await contractsLink.click();
   await page.getByRole('heading', { name: 'Contratos del cliente' }).waitFor();
