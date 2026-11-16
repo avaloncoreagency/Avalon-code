@@ -65,7 +65,7 @@ export default async function Client360({ params, searchParams }: { params: Prom
       ? loadAllRows<FinanceCost>((from, to) => supabase.from("crm_client_costs").select("id,amount,currency", { count: "exact" }).eq("client_id", id).order("incurred_on", { ascending: false }).order("id").range(from, to))
       : Promise.resolve(emptyLoaded<FinanceCost>()),
     run<Order[]>(supabase.from("crm_work_orders").select("id,sale_id,department_id,project_id,status,due_on,assignee_id,recurrence,crm_departments(label)").eq("client_id", id).order("created_at").limit(200)),
-    run<ProjectRow[]>(supabase.from("os_projects").select(PROJECT_COLUMNS).eq("client_id", id).order("updated_at", { ascending: false }).limit(100)),
+    run<ProjectRow[]>(supabase.from("os_projects").select(PROJECT_COLUMNS, { count: "exact" }).eq("client_id", id).order("updated_at", { ascending: false }).limit(100)),
     // Compatibility: projects linked earlier through the origin lead id (stable key, never by name).
     leadId ? run<ProjectRow[]>(supabase.from("os_projects").select(PROJECT_COLUMNS).is("client_id", null).eq("settings->operations->>client_lead_id", leadId).limit(100)) : Promise.resolve({ data: [] as ProjectRow[], error: null, count: null }),
     run<Task[]>(supabase.from("crm_tasks").select("id,title,status,priority,due_at,assignee_id,project_id").eq("client_id", id).order("due_at", { ascending: true, nullsFirst: false }).limit(300)),
