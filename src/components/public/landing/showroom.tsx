@@ -247,7 +247,7 @@ export function Showroom({ lang }: { lang: Lang }) {
         <div className={s.panelMedia}><ProductVideo poster={v.small} video={v.video} alt={v.alt[lang]} w={v.w} h={v.h} /></div>
         <div className={s.cardLinks} style={{ marginTop: 16 }}>
           <a href={`/soluciones/${k}${lang === "en" ? "?lang=en" : ""}`}>{t.eco.explore} <Icon name="arrow" size={16} /></a>
-          <a href="#cotizacion">{t.eco.propose}</a>
+          <a href={`/?${lang === "en" ? "lang=en&" : ""}services=${k}#cotizacion`}>{t.eco.propose}</a>
         </div>
         <p className={s.needs}>{t.show.needs}</p>
       </div>
