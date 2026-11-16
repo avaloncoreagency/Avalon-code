@@ -80,7 +80,7 @@ test('CRM Intelligence in the real app: quick add, discovery, conflicts, score, 
     const ctx = await browser.newContext({ ...opts, locale: lang === 'es' ? 'es-ES' : 'en-US' });
     await ctx.addCookies([{ name: cookieName, value: cookieValue(s), url: origin }, { name: 'avalon-lang', value: lang, url: origin }]);
     const page = await ctx.newPage();
-    page.on('pageerror', e => errors.push(`pageerror: ${e.message}`));
+    page.on('pageerror', e => errors.push(`pageerror [${page.url()}]: ${e.message}`));
     return page;
   };
 
