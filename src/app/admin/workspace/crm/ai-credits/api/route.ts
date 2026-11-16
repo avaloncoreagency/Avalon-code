@@ -11,7 +11,7 @@ export async function GET() {
   if (!owner) return send({ error: "No autorizado" }, 403);
   const { data, error } = await owner.supabase
     .from("avalon_ai_credit_snapshots")
-    .select("id,account_key,seat_key,metric_key,unit,amount,limit_value,period_start,period_end,source_label,observed_at,mode")
+    .select("id,account_key,seat_key,metric_key,quota_window,unit,amount,limit_value,period_start,period_end,source_label,observed_at,mode")
     .eq("agency_key", "avalon")
     .order("observed_at", { ascending: false })
     .limit(250);
