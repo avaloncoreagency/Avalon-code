@@ -465,3 +465,24 @@
   .wrap { padding: 12px 10px 18px; border-radius: 14px; }
   .tabs { width: 100%; }
 }
+
+/* Minimal CRM navigation: two main destinations and one on-demand tools menu. */
+.tools { width: fit-content; max-width: 100%; }
+.tools > summary {
+  cursor: pointer;
+  color: var(--crm-ink, #eaf4ff);
+  border: 1px solid rgba(140, 160, 240, .35);
+  border-radius: 11px;
+  background: rgba(18, 34, 61, .7);
+  padding: 12px 16px;
+  min-height: 44px;
+  box-sizing: border-box;
+  font-size: 13px;
+  font-weight: 600;
+}
+.tools > summary:focus-visible,
+.toolLinks a:focus-visible { outline: 2px solid var(--cyan, #5edbff); outline-offset: 3px; }
+.toolLinks { display: flex; flex-wrap: wrap; gap: 8px; padding: 12px 0; max-width: 100%; }
+.toolLinks a { padding: 10px 13px; border: 1px solid rgba(140,160,240,.28); border-radius: 10px; text-decoration: none; color: inherit; min-height: 44px; display: inline-flex; align-items: center; box-sizing: border-box; font-size: 13px; }
+.toolLinks a[aria-current="page"] { border-color: var(--cyan, #5edbff); background: rgba(53,125,190,.17); }
+@media (max-width: 650px) { .tools { width: 100%; } .tools > summary { width: 100%; } .toolLinks a { flex: 1 1 145px; justify-content: center; text-align: center; } }
