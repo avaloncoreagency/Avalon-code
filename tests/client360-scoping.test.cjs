@@ -35,12 +35,12 @@ function dbStub() {
 
 test("all six portfolios filter by the canonical client FK, not matching business names", async () => {
   const { listProjects } = loadData();
-  for (const module of ["website", "ecommerce", "crm_creator", "receptionist", "chatbots", "marketing"]) {
+  for (const serviceModule of ["website", "ecommerce", "crm_creator", "receptionist", "chatbots", "marketing"]) {
     const db = dbStub();
-    const result = await listProjects(db, module, { includeArchived: true, page: 2, clientId: client });
+    const result = await listProjects(db, serviceModule, { includeArchived: true, page: 2, clientId: client });
     assert.equal(result.error, null);
-    assert.deepEqual(db.calls.filter(x => x[0] === "eq"), [["eq", "module", module], ["eq", "client_id", client]]);
-    assert.ok(db.calls.some(x => x[0] === "range" && x[1] === 50 && x[2] === 99), module);
+    assert.deepEqual(db.calls.filter(x => x[0] === "eq"), [["eq", "module", serviceModule], ["eq", "client_id", client]]);
+    assert.ok(db.calls.some(x => x[0] === "range" && x[1] === 50 && x[2] === 99), serviceModule);
     assert.ok(!db.calls.some(x => x[0] === "neq" && x[1] === "status"), "archived included only when explicitly requested");
   }
 });
