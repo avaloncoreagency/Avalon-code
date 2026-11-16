@@ -2,7 +2,7 @@
 
 import { useRouter } from "next/navigation";
 import { useState, type FormEvent } from "react";
-import type { Lang } from "@/lib/i18n";
+import { formatDate, type Lang } from "@/lib/i18n";
 import s from "@/components/sales/sales.module.css";
 import styles from "./lead-attachments.module.css";
 
@@ -65,10 +65,17 @@ const sizeText = (size: number) => size >= 1048576
   ? (size / 1048576).toFixed(1) + " MB"
   : Math.max(1, Math.round(size / 1024)) + " KB";
 
-export function LeadAttachments({ leadId, lang, files, unavailable = false }: {
-  leadId: string; lang: Lang; files: LeadAttachment[]; unavailable?: boolean;
+export function LeadAttachments({ leadId, clientId, lang, files, total, unavailable = false }: {
+  leadId?: string; clientId?: string; lang: Lang; files: LeadAttachment[]; total?: number | null; unavailable?: boolean;
 }) {
-  const copy = LABELS[lang === "en" ? "en" : "es"];
+  const baseCopy = LABELS[lang === "en" ? "en" : "es"];
+  const clientMode = Boolean(clientId);
+  const copy = clientMode ? {
+    ...baseCopy,
+    helper: lang === "es" ? "Documentos y fotos guardados en este cliente, incluyendo archivos de su lead original." : "Files stored for this client, including its originating lead's documents.",
+    saved: lang === "es" ? "Documento guardado en la ficha de este cliente." : "Document saved to this client's record.",
+    limits: lang === "es" ? "PDF, JPG, PNG, WEBP, TXT, CSV, DOCX o XLSX · máximo 5 MB por archivo." : "PDF, JPG, PNG, WEBP, TXT, CSV, DOCX or XLSX · 5 MB per file.",
+  } : baseCopy;
   const router = useRouter();
   const [busy, setBusy] = useState(false);
   const [success, setSuccess] = useState("");
@@ -84,7 +91,9 @@ export function LeadAttachments({ leadId, lang, files, unavailable = false }: {
       setError(copy.invalid);
       return;
     }
-    data.set("lead", leadId);
+    if (clientMode && clientId) data.set("client", clientId);
+    else if (leadId) data.set("lead", leadId);
+    else { setError(copy.invalid); return; }
     setBusy(true);
     setError("");
     setSuccess("");
@@ -106,14 +115,15 @@ export function LeadAttachments({ leadId, lang, files, unavailable = false }: {
   }
 
   return (
-    <section id="lead-attachments" className={s.panel} aria-labelledby="lead-attachments-title">
+    <section id={clientMode ? "client-files" : "lead-attachments"} className={s.panel} aria-labelledby={clientMode ? "client-files-title" : "lead-attachments-title"}>
       <header className={styles.heading}>
         <div>
-          <h2 id="lead-attachments-title">{copy.title} <span className={styles.count}>({files.length})</span></h2>
+          <h2 id={clientMode ? "client-files-title" : "lead-attachments-title"}>{copy.title} <span className={styles.count}>({unavailable ? "—" : (total ?? files.length)})</span></h2>
           <p className={s.muted}>{copy.helper}</p>
         </div>
       </header>
       {unavailable && <p role="alert" className={styles.error}>{copy.unavailable}</p>}
+      {!unavailable && total !== null && total !== undefined && total > files.length && <p className={s.muted}>{lang === "es" ? `Mostrando los ${files.length} archivos más recientes de ${total}.` : `Showing the ${files.length} most recent files of ${total}.`}</p>}
       {!unavailable && (
         <ul className={styles.list} aria-label={copy.title}>
           {files.map(file => {
@@ -130,7 +140,7 @@ export function LeadAttachments({ leadId, lang, files, unavailable = false }: {
                   : <span className={styles.icon} aria-hidden="true">{file.mime === "application/pdf" ? "📄" : "📎"}</span>}
                 <div className={styles.info}>
                   <strong className={styles.filename}>{file.filename}</strong>
-                  <small>{kind} · {sizeText(Number(file.size_bytes))} · {new Date(file.created_at).toLocaleDateString(lang === "es" ? "es-US" : "en-US")}</small>
+                  <small>{kind} · {sizeText(Number(file.size_bytes))} · {formatDate(lang, file.created_at)}</small>
                   {file.note && <span className={styles.note}>{file.note}</span>}
                 </div>
                 <div className={styles.actions}>
