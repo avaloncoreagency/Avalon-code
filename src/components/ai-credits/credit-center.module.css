@@ -1,0 +1,28 @@
+.wrap {display:grid;gap:24px;padding:24px 0 40px;max-width:1250px;margin:auto;color:inherit}
+.header {display:flex;flex-wrap:wrap;justify-content:space-between;gap:16px;align-items:flex-start}
+.header h1 {font-size:clamp(27px,4vw,40px);margin:6px 0}
+.eyebrow {font-size:11px;letter-spacing:.2em;opacity:.75}
+.small {font-size:13px;opacity:.75;line-height:1.6;overflow-wrap:anywhere}
+.back {color:inherit;text-decoration:underline;text-underline-offset:4px;font-size:13px}
+.cards {display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,280px),1fr));gap:14px}
+.card {background:rgba(140,160,240,.045);border:1px solid rgba(140,160,240,.28);border-radius:16px;padding:18px;min-width:0}
+.card h2 {font-size:18px;margin:0 0 10px}
+.cardTop {display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap}
+.tag {font-size:11px;border:1px solid rgba(140,160,240,.35);padding:5px 8px;border-radius:999px;white-space:nowrap}
+.bucket {margin-top:14px;border-top:1px solid rgba(140,160,240,.18);padding-top:12px}
+.bucket h3 {font-size:14px;margin:0 0 9px}
+.missing {font-size:13px;opacity:.7}
+.reading {padding:10px;border-radius:10px;border:1px solid rgba(140,160,240,.14);margin-top:8px}
+.readingHeading {display:flex;gap:8px;justify-content:space-between;align-items:center;font-size:13px;flex-wrap:wrap}
+.readingHeading strong {font-variant-numeric:tabular-nums}
+.meter {background:rgba(140,160,240,.2);height:7px;border-radius:50px;overflow:hidden}
+.fill {height:100%;background:var(--cyan,#69cde3)}
+.notice {background:rgba(140,160,240,.07);border:1px solid rgba(140,160,240,.25);border-radius:12px;padding:13px 17px;font-size:13px;line-height:1.6}
+.warning {font-size:12px;color:#f9c77a}
+.form {display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,220px),1fr));gap:12px;margin-top:18px}
+.form label {display:flex;flex-direction:column;gap:7px;font-size:12px;min-width:0}
+.form input,.form select,.form button {color:inherit;background:var(--crm-control-bg,#191b20);border:1px solid var(--crm-control-border,rgba(140,160,240,.4));border-radius:9px;padding:11px;font:inherit;max-width:100%;min-width:0}
+.form button {cursor:pointer;align-self:end;border-color:var(--cyan,#69cde3)}
+.form button:disabled {opacity:.55}
+.wrap :focus-visible {outline:3px solid var(--cyan,#69cde3);outline-offset:2px}
+@media(max-width:600px){.wrap{padding:12px 0 26px}.card{padding:15px}}
