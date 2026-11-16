@@ -18,8 +18,9 @@ test('no screen presents the CRM as "in development by Samuel" or points at PR #
 test('the CRM has a real static route and the dynamic module segment never renders a placeholder', () => {
   assert.ok(fs.existsSync('src/app/admin/workspace/crm/page.tsx'), 'static CRM route');
   const crm = read('src/app/admin/workspace/crm/page.tsx');
-  assert.match(crm, /<CrmOverview\s*\/>/);
-  assert.match(crm, /requireOwner\(\)/);
+  assert.match(crm, /redirect\("\/admin\/workspace\/crm\/leads"\)/);
+  assert.match(read("src/app/admin/workspace/crm/[section]/page.tsx"), /LeadWorkbench/);
+  assert.match(read("src/components/crm/lead-workbench.tsx"), /requireOwner\(\)/);
   const dynamic = read('src/app/admin/workspace/[module]/page.tsx');
   assert.doesNotMatch(dynamic, /<Empty|<Panel|en desarrollo/i, 'fallback only redirects or 404s');
   assert.match(dynamic, /requireOwner\(\)/);
