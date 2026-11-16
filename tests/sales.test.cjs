@@ -84,9 +84,9 @@ test('database errors become known codes and never echo raw text', () => {
 test('sales UI keeps the approved CRM order and server-side guarantees', () => {
   const domain = fs.readFileSync('src/lib/crm/domain.ts', 'utf8');
   const nav = domain.slice(domain.indexOf('export const crmNavigation'), domain.indexOf('] as const;', domain.indexOf('export const crmNavigation')));
-  const order = ['Leads Pipeline', 'Clientes 360°'].map(x => nav.indexOf(`label: "${x}"`));
-  assert.ok(order.every((x, i) => x >= 0 && (i === 0 || x > order[i - 1])), 'Leads Pipeline → Clientes 360°');
-  assert.equal((nav.match(/label: "/g) || []).length, 2, 'main CRM has only two sections');
+  const order = ['Leads Pipeline', 'Ventas', 'Clientes 360°'].map(x => nav.indexOf(`label: "${x}"`));
+  assert.ok(order.every((x, i) => x >= 0 && (i === 0 || x > order[i - 1])), 'Leads Pipeline → Ventas → Clientes 360°');
+  assert.equal((nav.match(/label: "/g) || []).length, 3, 'Sales is visible in the main CRM');
   const newSale = fs.readFileSync('src/app/admin/workspace/crm/sales/new/page.tsx', 'utf8');
   assert.match(newSale, /randomUUID\(\)/, 'idempotency key issued server-side per form render');
   assert.match(newSale, /requireOwner\(\)/);
