@@ -66,6 +66,12 @@ export const COPY = {
       points: ["Propuesta a la medida de tu negocio", "Puedes elegir uno o varios servicios", "Tus datos solo se usan para responderte"],
       other: "Trabajamos con empresas establecidas, negocios pequeños y profesionales independientes. Puedes empezar con una sola herramienta.",
     },
+    faq: { eyebrow: "Preguntas frecuentes", title: "Empezar es más sencillo de lo que parece.", items: [
+      ["¿Tengo que contratar todas las herramientas?", "No. Puedes empezar con un solo servicio y añadir otros cuando tu negocio los necesite."],
+      ["¿Trabajan con negocios pequeños o personas independientes?", "Sí. Atendemos contratistas, profesionales independientes, comercios y empresas de diferentes tamaños."],
+      ["¿Cuánto cuesta desarrollar una solución?", "Depende del alcance, las funciones y las integraciones necesarias. Primero entendemos tu proyecto y luego preparamos una propuesta."],
+      ["¿Las demos son sistemas reales?", "Son demostraciones ilustrativas con datos de ejemplo. Tu solución se diseñará según tu negocio y las integraciones contratadas."],
+    ] },
     footer: { tagline: "Soluciones digitales, automatización e IA para negocios que quieren crecer.", admin: "Acceso del equipo", rights: "Todos los derechos reservados." },
   },
   en: {
@@ -129,6 +135,12 @@ export const COPY = {
       points: ["A proposal tailored to your business", "Pick one or several services", "Your data is only used to reply to you"],
       other: "We work with established companies, small businesses and independent professionals. You can start with just one tool.",
     },
+    faq: { eyebrow: "Frequently asked questions", title: "Getting started can be simple.", items: [
+      ["Do I need to buy every tool?", "No. Start with one service and add more as your business needs them."],
+      ["Do you work with small businesses and solo professionals?", "Yes. We work with contractors, independent professionals, shops and companies of different sizes."],
+      ["How much does a solution cost?", "Pricing depends on features, scope and required integrations. We learn about your project before preparing a proposal."],
+      ["Are the demos connected to live systems?", "No. They are illustrative demonstrations with sample data. Your solution will be tailored to your business and contracted integrations."],
+    ] },
     footer: { tagline: "Digital solutions, automation and AI for businesses that want to grow.", admin: "Team access", rights: "All rights reserved." },
   },
 } as const;
