@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getOwnerSession } from "@/lib/auth/session";
 import { normalizeObservation } from "@/lib/ai-credits/model";
+import { readHiggsfieldOrganizationUsage } from "@/lib/ai-credits/higgsfield-usage";
 
 export const dynamic = "force-dynamic";
 const send = (body: unknown, status = 200) =>
@@ -16,7 +17,9 @@ export async function GET() {
     .order("observed_at", { ascending: false })
     .limit(250);
   if (error) return send({ error: "Centro de créditos no disponible. La migración debe aprobarse y aplicarse en el entorno." }, 503);
-  return send({ rows: data, connectedProviders: [], note: "Observaciones manuales, no balances en vivo" });
+  const higgsfieldUsage = await readHiggsfieldOrganizationUsage();
+  return send({ rows: data, higgsfieldUsage,
+    note: "Los saldos disponibles son observaciones manuales. El reporte Higgsfield, si está conectado, indica consumo de siete días, no saldo restante." });
 }
 export async function POST(request: NextRequest) {
   const owner = await getOwnerSession();
