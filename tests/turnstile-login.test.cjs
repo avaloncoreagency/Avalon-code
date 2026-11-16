@@ -133,6 +133,7 @@ test('login requires explicit click before Cloudflare renders or executes a chal
   assert.match(human, /if \(attempt === 0 \|\| !scriptReady\) return;/);
   assert.match(human, /onClick=\{verify\}/);
   assert.match(human, /setAttempt\(\(n\) => n \+ 1\)/);
+  assert.match(human, /hidden=\{attempt === 0\}/);
   assert.match(human, /execution: "execute"/);
   assert.match(human, /"response-field": false/);
   assert.match(human, /action: "avalon_login"/);
