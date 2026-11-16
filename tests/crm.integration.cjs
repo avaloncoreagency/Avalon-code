@@ -487,7 +487,8 @@ test(
       const errors = [];
       page.on("pageerror", (e) => errors.push(e.message));
       await page.goto(origin + "/admin/workspace/crm");
-      await page.getByRole("heading", { name: "Centro comercial de Avalon" }).waitFor();
+      await page.waitForURL(origin + "/admin/workspace/crm/leads");
+      await page.getByRole("heading", { name: "Tu jornada comercial" }).waitFor();
       await page.goto(origin + "/admin/workspace/crm/leads");
       await page
         .getByRole("button", { name: "Crear lead", exact: true })
