@@ -3,34 +3,16 @@
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { CrmNavigation } from "./navigation";
-import { COMMON_UNITS, canonicalUnit, latestPerUnit } from "@/lib/crm/usage-units";
+import { CreditCenter } from "@/components/ai-credits/credit-center";
 import s from "./crm.module.css";
 
-type UsageRow = {
-  id?: string;
-  provider?: string;
-  amount?: number;
-  unit?: string;
-  source?: string;
-  mode?: string;
-  period_start?: string;
-  period_end?: string;
-  created_at?: string;
-  limit_value?: number | null;
-  threshold?: number;
-};
 type KpiPayload = {
   metrics?: { overdue?: number; pending?: number };
 };
-type UsagePayload = { rows?: UsageRow[] };
 type OverviewData = {
-  usage: UsageRow[];
   overdue: number;
   pending: number;
 };
-const providers = ["Codex", "Claude", "Higgsfield"] as const;
-// Subscriptions/plans and API billing are different sources; manual records state which one they are.
-const LABELS: Record<(typeof providers)[number], string> = { Codex: "ChatGPT / Codex", Claude: "Claude Code", Higgsfield: "Higgsfield" };
 const api = "/admin/workspace/crm/api";
 
 function isNumber(value: unknown): value is number {
@@ -44,27 +26,18 @@ export function CrmOverview() {
 
   useEffect(() => {
     const controller = new AbortController();
-    Promise.all([
-      fetch(`${api}?entity=usage&page=0`, { signal: controller.signal }),
-      fetch(`${api}?entity=kpis&page=0`, { signal: controller.signal }),
-    ])
-      .then(async ([usageResponse, kpiResponse]) => {
-        if (!usageResponse.ok || !kpiResponse.ok) {
-          throw new Error("No se pudo consultar el estado del CRM.");
-        }
-        const usage = (await usageResponse.json()) as UsagePayload;
+    fetch(`${api}?entity=kpis&page=0`, { signal: controller.signal })
+      .then(async (kpiResponse) => {
+        if (!kpiResponse.ok) throw new Error("No se pudo consultar el estado del CRM.");
         const kpi = (await kpiResponse.json()) as KpiPayload;
         const overdue = kpi.metrics?.overdue;
         const pending = kpi.metrics?.pending;
         if (!isNumber(overdue) || !isNumber(pending)) {
           throw new Error("Las métricas del CRM no están disponibles.");
         }
-        if (!Array.isArray(usage.rows)) {
-          throw new Error("No se pudieron consultar los registros de consumo.");
-        }
-        if (!controller.signal.aborted) {
+
+if (!controller.signal.aborted) {
           setData({
-            usage: usage.rows,
             overdue,
             pending,
           });
@@ -93,43 +66,10 @@ export function CrmOverview() {
       <CrmNavigation />
 
       <section className={s.panel} aria-labelledby="usage-heading">
-        <h2 id="usage-heading">Centro de consumo de IA · Uso de tokens y costos</h2>
-        <p><Link href="/admin/workspace/crm/ai-credits" className={s.link}>Abrir AI Credit Center · Miguel / Samuel / fondos compartidos</Link></p>
-        <p className={s.muted}>Las API de consumo no están conectadas. Los valores registrados manualmente son históricos, no balances en tiempo real ni costos calculados. Nunca se muestra 0 cuando el valor es desconocido; suscripciones y facturación API se registran por separado indicando la fuente.</p>
-        <div className={s.cards}>
-          {providers.map((provider) => {
-            const rows = (data?.usage ?? []).filter((item) => item.provider === provider && item.mode === "manual" && isNumber(item.amount));
-            const perUnit = latestPerUnit(rows);
-            return (
-              <div className={s.card} key={provider}>
-                <strong>{LABELS[provider]}</strong>
-                {!data && !error ? <p>Consultando registros…</p> : perUnit.length === 0 ? (
-                  <><p className={s.muted}>Estado: Sin datos</p><p>No disponible · registra un consumo manual desde el panel oficial del proveedor. Unidades habituales: {COMMON_UNITS.join(", ")}.</p></>
-                ) : perUnit.map((latest) => {
-                  const unit = canonicalUnit(latest.unit) || "unidades";
-                  const amount = latest.amount as number;
-                  const limit = isNumber(latest.limit_value) ? latest.limit_value : null;
-                  const pct = limit ? Math.round((amount / limit) * 100) : null;
-                  const stale = latest.period_end ? new Date(latest.period_end).getTime() < Date.now() : false;
-                  const alert = pct !== null && pct >= (latest.threshold ?? 80);
-                  return <div key={unit} data-unit={unit}>
-                    <p className={s.muted}>Estado: {stale ? "Fuente desactualizada (periodo cerrado)" : "Actualización manual"} · Automático: no conectado</p>
-                    <p>Consumido: <strong>{amount.toLocaleString("es")} {unit}</strong></p>
-                    <p>Límite: {limit !== null ? `${limit.toLocaleString("es")} ${unit}` : "desconocido"} · Restante: {limit !== null ? `${Math.max(0, limit - amount).toLocaleString("es")} ${unit}` : "desconocido"}</p>
-                    {pct !== null && <>
-                      <div className={s.meter} role="progressbar" aria-label={`${LABELS[provider]}: ${unit} usados`} aria-valuenow={Math.min(100, Math.max(0, pct))} aria-valuemin={0} aria-valuemax={100} aria-valuetext={`${pct}% consumido de la cuota registrada manualmente`}>
-                        <div className={s.fill} style={{ width: `${Math.min(100, Math.max(0, pct))}%` }} />
-                      </div>
-                      <p role={alert ? "alert" : undefined}>{alert ? "⚠ " : ""}{pct}% usado (umbral {latest.threshold ?? 80}%)</p>
-                    </>}
-                    <p className={s.muted}>Periodo: {latest.period_start ? new Date(latest.period_start).toLocaleDateString("es") : "—"} – {latest.period_end ? new Date(latest.period_end).toLocaleDateString("es") : "—"} · Fuente: {latest.source || "—"}</p>
-                  </div>;
-                })}
-              </div>
-            );
-          })}
-        </div>
-        <Link href="/admin/workspace/crm/ai-usage" className={s.link}>Ver registros manuales de consumo</Link>
+        <h2 id="usage-heading">Créditos y consumo de IA</h2>
+        <p className={s.muted}>Un vistazo a lo que tenemos disponible para trabajar. Cuotas personales de Miguel y Samuel, recursos compartidos y últimas actualizaciones comprobables.</p>
+        <CreditCenter />
+        <p><Link href="/admin/workspace/crm/ai-usage" className={s.link}>Consultar los registros históricos de uso del CRM</Link></p>
       </section>
 
       <section className={s.panel} aria-labelledby="notifications-heading">
