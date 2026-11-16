@@ -66,8 +66,9 @@ test('Nova Restaurant through the real app: one form, three departments, no dupl
     assert.equal((await get(route)).status, 307, `${route} signed out`);
     assert.equal((await get(route, outsider)).status, 307, `${route} non-member`);
     const ok = await get(route, miguel);
-    assert.equal(ok.status, 200, `${route} owner: ${output.slice(-2000)}`);
+    assert.equal(ok.status, route === '/admin/workspace/crm' ? 307 : 200, `${route} owner: ${output.slice(-2000)}`);
   }
+  assert.equal((await get('/admin/workspace/crm/leads', miguel)).status, 200, 'owner reaches Pipeline after CRM root redirect');
   assert.equal((await get('/admin/workspace/crm/sales/00000000-0000-4000-8000-000000000999', miguel)).status, 404);
   assert.equal((await get('/admin/workspace/crm/clients/not-a-uuid', miguel)).status, 404);
 
