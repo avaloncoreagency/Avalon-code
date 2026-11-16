@@ -3,6 +3,7 @@ import { requireOwner } from "@/lib/auth/session";
 import { getLang } from "@/lib/i18n-server";
 import { pick } from "@/lib/i18n";
 import { run } from "@/lib/os/data";
+import { crmBusinessDayBounds } from "@/lib/crm/business-day";
 import { QuickAdd } from "@/components/crm/intel/quick-add";
 import s from "@/components/sales/sales.module.css";
 
@@ -21,15 +22,12 @@ export async function LeadWorkbench() {
   const { supabase, userId } = await requireOwner();
   const lang = await getLang();
   const now = new Date();
-  const today = new Date(now);
-  today.setHours(0, 0, 0, 0);
-  const tomorrow = new Date(today);
-  tomorrow.setDate(tomorrow.getDate() + 1);
+  const { start, end } = crmBusinessDayBounds(now);
   const weekAgo = new Date(now.getTime() - 7 * 86_400_000).toISOString();
   const base = () => supabase.from("crm_leads").select("id", { count: "exact" })
     .eq("archived", false).eq("audience", "agency_b2b").not("stage_id", "in", "(won,lost)");
   const counts = [
-    base().gte("follow_up_at", today.toISOString()).lt("follow_up_at", tomorrow.toISOString()).limit(1),
+    base().gte("follow_up_at", start).lt("follow_up_at", end).limit(1),
     base().lt("follow_up_at", now.toISOString()).limit(1),
     base().eq("stage_id", "new").gte("created_at", weekAgo).limit(1),
     base().neq("diagnosis_status", "complete").limit(1),
