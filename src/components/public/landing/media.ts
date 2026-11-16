@@ -19,6 +19,8 @@ export const MEDIA = {
   },
   devices: img("devices", 1920, 1080, "Laptop, teléfono y tablet mostrando paneles de software de ejemplo", "Laptop, phone and tablet showing sample software dashboards", 960, true),
   closing: img("closing", 1920, 1080, "", ""),
+  logo: img("logo-sculpture", 1920, 1080, "Escultura de vidrio del símbolo de Avalon sobre una plataforma de luz", "Glass sculpture of the Avalon mark on a ring of light", 960, true),
+  network: { poster: "/brand/network.webp", video: "/brand/network-loop.mp4" },
   products: {
     ecommerce: img("ecommerce", 1440, 1078, "Tablet con una tienda en línea de ejemplo", "Tablet with a sample online store", 720, true),
     receptionist: img("receptionist", 1440, 1078, "Representación de una recepcionista de IA con ondas de voz", "Illustration of an AI receptionist with voice waves", 720, true),
