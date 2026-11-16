@@ -6,7 +6,7 @@ import { ModuleDeliveryPanel } from './module-delivery-panel';
 import Link from 'next/link';
 import type { ReactNode } from 'react';
 import { pick, formatDate, type Lang } from '@/lib/i18n';
-import type { ModuleKey } from '@/lib/os/domain';
+import { isUuid, type ModuleKey } from '@/lib/os/domain';
 import { run, type ProjectRow, type Loaded } from '@/lib/os/data';
 import { createProject, updateProject } from '@/app/admin/workspace/project-actions';
 import { DbNotice, Empty, Panel, statusLabel } from './ui';
@@ -16,6 +16,14 @@ export async function ProjectsIndex({lang,module,base,projects,noun,createFields
   lang:Lang;module:ModuleKey;base:string;projects:Loaded<ProjectRow[]>;noun:{es:string;en:string};createFields?:ReactNode;showArchived:boolean;page?:number;prefillClientId?:string;
 }) {
   const {supabase}=await requireOwner();
+  const scopedClientId = isUuid(prefillClientId) ? prefillClientId : undefined;
+  const listHref = (archived: boolean, nextPage = 1) => {
+    const params = new URLSearchParams();
+    if (scopedClientId) params.set('client', scopedClientId);
+    if (archived) params.set('archived', '1');
+    if (nextPage > 1) params.set('page', String(nextPage));
+    return `${base}${params.size ? `?${params}` : ''}`;
+  };
   const leadIds=[...new Set((projects.data??[]).filter(p=>!p.client_id).map(p=>clientId(p.settings)).filter((id):id is string=>Boolean(id)))];
   const clientIds=[...new Set((projects.data??[]).map(p=>p.client_id).filter((id):id is string=>Boolean(id)))];
   const [linked,choices,confirmed,clientOptions]=await Promise.all([
@@ -24,19 +32,36 @@ export async function ProjectsIndex({lang,module,base,projects,noun,createFields
     clientIds.length?run<{id:string;legal_name:string;trade_name:string}[]>(supabase.from('crm_clients').select('id,legal_name,trade_name').in('id',clientIds)):null,
     run<{id:string;legal_name:string;trade_name:string;client_code:string}[]>(supabase.from('crm_clients').select('id,legal_name,trade_name,client_code').neq('status','archived').order('legal_name').limit(200)),
   ]);
+  // Keep a deep-linked CRM client selected even when the global dropdown's first 200 are full.
+  const focusedClient = scopedClientId && !(clientOptions.data??[]).some(c=>c.id===scopedClientId)
+    ? await run<{id:string;legal_name:string;trade_name:string;client_code:string}|null>(
+      supabase.from('crm_clients').select('id,legal_name,trade_name,client_code')
+        .eq('id',scopedClientId).neq('status','archived').maybeSingle())
+    : null;
+  const availableClients = [
+    ...(clientOptions.data??[]),
+    ...(focusedClient?.data ? [focusedClient.data] : []),
+  ];
+  const scopedClient = availableClients.find(c=>c.id===scopedClientId);
   const companyNames=[
     ...(linked?.data??[]).map(c=>({...c,kind:'lead' as const})),
     ...(confirmed?.data??[]).map(c=>({id:c.id,company:c.trade_name||c.legal_name,kind:'client' as const})),
   ];
   return <div>
+    {scopedClientId && <p className={s.meta} role="status">
+      {pick(lang,'Filtrando productos vinculados a','Showing products linked to')} {' '}
+      <strong>{scopedClient ? scopedClient.trade_name||scopedClient.legal_name : scopedClientId.slice(0,8)}</strong>
+      {' · '}<Link href={`/admin/workspace/crm/clients/${scopedClientId}`}>{pick(lang,'Volver a Clientes 360°','Back to Client 360°')}</Link>
+      {' · '}<Link href={base}>{pick(lang,'Ver todos los clientes','View all clients')}</Link>
+    </p>}
     {projects.error?<DbNotice lang={lang} error={projects.error}/>:!projects.data.length?<Empty title={pick(lang,`A\u00fan no hay ${noun.es}`,`No ${noun.en} yet`)} body={pick(lang,'Registra un producto creado fuera de Avalon y vincúlalo al cliente del CRM.','Register a product built outside Avalon and link it to its CRM company.')}/>:<CompanyPortfolio lang={lang} module={module} groups={groupCompanies(projects.data,companyNames)}/>}
     {(linked?.error||confirmed?.error)&&<p className={s.meta}>{pick(lang,'No se pudieron leer los nombres del CRM. Las referencias se conservan, sin agrupar empresas por nombre.','CRM names could not be read. References are preserved; companies are not grouped by name.')}</p>}
     <div className={s.actions} style={{marginTop:12}}>
-      <Link href={showArchived?base:`${base}?archived=1`}>{showArchived?pick(lang,'Ocultar archivados','Hide archived'):pick(lang,'Mostrar archivados','Show archived')}</Link>
+      <Link href={listHref(!showArchived)}>{showArchived?pick(lang,'Ocultar archivados','Hide archived'):pick(lang,'Mostrar archivados','Show archived')}</Link>
       {!projects.error&&<span className={s.meta}>{pick(lang,'Página','Page')} {page}
         {projects.count!==null?` · ${projects.count} ${pick(lang,'productos totales','total products')}`:''}</span>}
-      {page>1&&<Link href={`${base}?${new URLSearchParams({...showArchived?{archived:'1'}:{},page:String(page-1)})}`}>{pick(lang,'Anterior','Previous')}</Link>}
-      {!projects.error && (projects.count??0)>page*50&&<Link href={`${base}?${new URLSearchParams({...showArchived?{archived:'1'}:{},page:String(page+1)})}`}>{pick(lang,'Siguiente','Next')}</Link>}
+      {page>1&&<Link href={listHref(showArchived,page-1)}>{pick(lang,'Anterior','Previous')}</Link>}
+      {!projects.error && (projects.count??0)>page*50&&<Link href={listHref(showArchived,page+1)}>{pick(lang,'Siguiente','Next')}</Link>}
     </div>
     <div id="new"><Panel title={pick(lang,'Agregar producto externo','Add external product')} id="create-title"><form action={createProject} className={s.form}>
       <input type="hidden" name="module" value={module}/>
@@ -59,9 +84,9 @@ export async function ProjectsIndex({lang,module,base,projects,noun,createFields
         </select>
       </label>
       <label className={s.field}><span>{pick(lang,"Cliente confirmado en Client 360° (opcional)","Confirmed CRM client (optional)")}</span>
-        <select name="client_id" className={s.select} defaultValue={(clientOptions.data ?? []).some(c => c.id === prefillClientId) ? prefillClientId : ""}>
+        <select name="client_id" className={s.select} defaultValue={scopedClient ? scopedClient.id : ""}>
           <option value="">{pick(lang,"Sin vincular / usar lead del CRM","Not linked / use CRM lead")}</option>
-          {(clientOptions.data??[]).map(c=><option key={c.id} value={c.id}>{c.trade_name||c.legal_name} · {c.client_code}</option>)}
+          {availableClients.map(c=><option key={c.id} value={c.id}>{c.trade_name||c.legal_name} · {c.client_code}</option>)}
         </select>
       </label>
       <p className={s.meta}>{pick(lang,

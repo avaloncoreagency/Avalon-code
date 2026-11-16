@@ -5,6 +5,7 @@ import { requireOwner } from "@/lib/auth/session";
 import { getLang } from "@/lib/i18n-server";
 import { pick } from "@/lib/i18n";
 import { listProjects } from "@/lib/os/data";
+import { isUuid } from "@/lib/os/domain";
 
 export const dynamic = "force-dynamic";
 
@@ -15,13 +16,15 @@ export default async function WebsiteDesignerPage({ searchParams }: { searchPara
   const showArchived = param(params, "archived") === "1";
   const pageRaw=Number(param(params,"page") || "1");
   const page=Number.isSafeInteger(pageRaw) && pageRaw>=1 && pageRaw<=1000?pageRaw:1;
-  const projects = await listProjects(supabase, "website", { includeArchived: showArchived, page });
+  const clientParam = param(params, "client");
+  const scopedClientId = isUuid(clientParam) ? clientParam : undefined;
+  const projects = await listProjects(supabase, "website", { includeArchived: showArchived, page, clientId: scopedClientId });
   return (
     <Suite active="website-designer">
       <PageHeader eyebrow="Website Designer" title={pick(lang, "Mis Websites", "My Websites")}
         description={pick(lang, "Registra websites creados con Claude, Codex u otras herramientas. Abre su URL, conserva versiones y anota errores sin generar websites aquí.", "Register websites built with Claude, Codex or other tools. Open their URL, save versions and track issues without generating websites here.")} />
       <Flash lang={lang} ok={param(params, "ok")} error={param(params, "error")} />
-      <ProjectsIndex lang={lang} module="website" base="/admin/workspace/website-designer" projects={projects} noun={{ es: "proyectos web", en: "web projects" }} showArchived={showArchived} page={page} prefillClientId={param(params, "client")} />
+      <ProjectsIndex lang={lang} module="website" base="/admin/workspace/website-designer" projects={projects} noun={{ es: "proyectos web", en: "web projects" }} showArchived={showArchived} page={page} prefillClientId={scopedClientId} />
     </Suite>
   );
 }

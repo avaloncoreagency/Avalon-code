@@ -170,6 +170,9 @@ test('Nova Restaurant through the real app: one form, three departments, no dupl
   assert.ok(await page.locator('#client-files').isVisible(), 'individual Client 360 includes its own file gallery');
   assert.ok(await page.getByRole('link', { name: 'Ver ventas del cliente' }).isVisible());
   assert.match(await page.getByRole('region', { name: 'Indicadores por cliente' }).innerText(), /Ventas registradas/);
+  const linkedCount = page.getByRole('region', { name: 'Indicadores por cliente' })
+    .getByText('Proyectos vinculados', { exact: true }).locator('..').locator('strong');
+  assert.equal(await linkedCount.innerText(), '3', 'Client 360 project count comes from exact database total');
   const hub = await page.locator('#main').innerText();
   for (const name of ['Nova Restaurant — Desarrollo web', 'Nova Restaurant — Recepcionista de IA', 'Nova Restaurant — Marketing mensual', 'AV-2026-']) assert.ok(hub.includes(name), `client hub shows ${name}`);
   await page.screenshot({ path: `${EVIDENCE}/client-360.png`, fullPage: true });
@@ -297,6 +300,34 @@ test('Nova Restaurant through the real app: one form, three departments, no dupl
   await page.goto(`${origin}/admin/workspace/products/${manual.id}`);
   await page.getByTestId('project-context').getByText(/creó a mano/).waitFor();
   await db.exec('reset role;');
+
+  // A client's tool links show ONLY products tied to that client's canonical FK.
+  await page.goto(`${origin}/admin/workspace/website-designer?client=${clientId}`);
+  await page.getByText('Filtrando productos vinculados a').waitFor();
+  const filteredPortfolio = await page.getByRole('region', { name: 'Productos por empresa' }).innerText();
+  assert.match(filteredPortfolio, /Nova Restaurant — Desarrollo web/, 'filtered website portfolio has this client');
+  assert.doesNotMatch(filteredPortfolio, /Proyecto manual sintético/, 'unassigned product does not leak into client portfolio');
+  await page.getByRole('link', { name: 'Volver a Clientes 360°' }).click();
+  await page.waitForURL(`${origin}/admin/workspace/crm/clients/${clientId}`);
+
+  await page.goto(`${origin}/admin/workspace/ai-communications?client=${clientId}`);
+  await page.getByText('Viendo agentes registrados para').waitFor();
+  const agents = await page.locator('#directory').innerText();
+  assert.match(agents, /Nova Restaurant — Recepcionista de IA/, 'filtered Communication Hub has the client agent');
+  await page.goto(`${origin}/admin/workspace/marketing-hub?client=${clientId}`);
+  await page.getByRole('region', { name: 'Productos por empresa' }).getByText('Nova Restaurant — Marketing mensual').waitFor();
+
+  // Link an unassigned project using its stable UUID, without duplicating a sale or client.
+  await page.goto(`${origin}/admin/workspace/crm/clients/${clientId}`);
+  await page.getByText('Vincular otro proyecto por ID').click();
+  await page.locator('#project-id-to-link').fill(manual.id);
+  await page.getByRole('button', { name: 'Verificar y vincular' }).click();
+  await page.getByText('Cambios guardados.').waitFor();
+  const linkedManual = (await db.query('select client_id from os_projects where id=$1', [manual.id])).rows[0];
+  assert.equal(linkedManual.client_id, clientId, 'linking uses the real client foreign key');
+  assert.equal(await count('select count(*) n from crm_sales'), 1, 'linking a product never creates a sale');
+  await page.goto(`${origin}/admin/workspace/website-designer?client=${clientId}`);
+  await page.getByRole('region', { name: 'Productos por empresa' }).getByText('Proyecto manual sintético').waitFor();
 
   // Record a real payment: collected moves, contracted stays.
   await page.goto(saleUrl.split('?')[0]);

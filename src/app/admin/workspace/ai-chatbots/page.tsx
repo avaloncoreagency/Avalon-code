@@ -5,6 +5,7 @@ import { requireOwner } from "@/lib/auth/session";
 import { getLang } from "@/lib/i18n-server";
 import { pick } from "@/lib/i18n";
 import { listProjects } from "@/lib/os/data";
+import { isUuid } from "@/lib/os/domain";
 import Link from "next/link";
 
 export const dynamic = "force-dynamic";
@@ -14,7 +15,11 @@ export default async function ChatbotsLibrary({ searchParams }: { searchParams: 
   const { supabase } = await requireOwner();
   const lang = await getLang();
   const archived = param(query, "archived") === "1";
-  const projects = await listProjects(supabase, "chatbots", { includeArchived: archived });
+  const clientParam = param(query, "client");
+  const scopedClientId = isUuid(clientParam) ? clientParam : undefined;
+  const rawPage = Number(param(query, "page") || "1");
+  const page = Number.isSafeInteger(rawPage) && rawPage >= 1 && rawPage <= 1000 ? rawPage : 1;
+  const projects = await listProjects(supabase, "chatbots", { includeArchived: archived, page, clientId: scopedClientId });
   return <Suite active="ai-chatbots">
     <PageHeader eyebrow="AI Communications / AI Chatbots"
       title={pick(lang, "Biblioteca de chatbots", "Chatbot library")}
@@ -25,6 +30,6 @@ export default async function ChatbotsLibrary({ searchParams }: { searchParams: 
       crumbs={[{href:"/admin/workspace/ai-communications",label:"AI Communications Hub"}]} />
     <Flash lang={lang} ok={param(query,"ok")} error={param(query,"error")} />
     <ProjectsIndex lang={lang} module="chatbots" base="/admin/workspace/ai-chatbots"
-      projects={projects} noun={{es:"chatbots registrados",en:"registered chatbots"}} showArchived={archived} prefillClientId={param(query, "client")} />
+      projects={projects} noun={{es:"chatbots registrados",en:"registered chatbots"}} showArchived={archived} prefillClientId={scopedClientId} page={page} />
   </Suite>;
 }

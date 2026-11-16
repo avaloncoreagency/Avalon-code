@@ -6,6 +6,7 @@ import { requireOwner } from "@/lib/auth/session";
 import { getLang } from "@/lib/i18n-server";
 import { pick } from "@/lib/i18n";
 import { clientId, groupCompanies, type CompanyRecord } from "@/lib/os/client-hud";
+import { isUuid } from "@/lib/os/domain";
 import { createProject } from "@/app/admin/workspace/project-actions";
 import { PROJECT_COLUMNS, countRows, run, type ProjectRow } from "@/lib/os/data";
 import { DbNotice } from "@/components/os/ui";
@@ -25,20 +26,27 @@ export default async function CommunicationHub({searchParams}:Params) {
   const {supabase} = await requireOwner();
   const lang = await getLang();
   const params = await searchParams;
-  const prefillClientId = typeof params.client === "string" ? params.client : "";
+  const clientParam = typeof params.client === "string" ? params.client : "";
+  const scopedClientId = isUuid(clientParam) ? clientParam : undefined;
   const raw = typeof params.page === "string" ? Number(params.page) : 1;
   const page = Number.isSafeInteger(raw) && raw >= 1 && raw <= 1000 ? raw : 1;
   const offset = (page - 1) * PAGE_SIZE;
 
+  let projectQuery = supabase.from("os_projects")
+    .select(PROJECT_COLUMNS,{count:"exact"})
+    .in("module",["chatbots","receptionist"])
+    .neq("status","archived")
+    .order("updated_at",{ascending:false});
+  if (scopedClientId) projectQuery = projectQuery.eq("client_id",scopedClientId);
+  // In a client's filtered view, summary counters must be client-scoped too.
+  const moduleCount = (module: "chatbots" | "receptionist") => scopedClientId
+    ? run<null>(supabase.from("os_projects").select("id",{count:"exact"})
+        .eq("module",module).eq("client_id",scopedClientId).neq("status","archived").range(0,0))
+    : countRows(supabase,"os_projects",[["eq","module",module],["neq","status","archived"]]);
   const [projects, chatbotCount, receptionistCount, crmChoices, crmClients] = await Promise.all([
-    run<ProjectRow[]>(supabase.from("os_projects")
-      .select(PROJECT_COLUMNS,{count:"exact"})
-      .in("module",["chatbots","receptionist"])
-      .neq("status","archived")
-      .order("updated_at",{ascending:false})
-      .range(offset,offset + PAGE_SIZE - 1)),
-    countRows(supabase,"os_projects",[["eq","module","chatbots"],["neq","status","archived"]]),
-    countRows(supabase,"os_projects",[["eq","module","receptionist"],["neq","status","archived"]]),
+    run<ProjectRow[]>(projectQuery.range(offset,offset + PAGE_SIZE - 1)),
+    moduleCount("chatbots"),
+    moduleCount("receptionist"),
     run<CompanyRecord[]>(supabase.from("crm_leads")
       .select("id,company,contact").eq("archived",false).order("company").limit(200)),
     run<{id:string;legal_name:string;trade_name:string;client_code:string}[]>(
@@ -46,6 +54,13 @@ export default async function CommunicationHub({searchParams}:Params) {
         .neq("status","archived").order("legal_name").limit(200)),
   ]);
 
+  const focusedClient = scopedClientId && !(crmClients.data??[]).some(c=>c.id===scopedClientId)
+    ? await run<{id:string;legal_name:string;trade_name:string;client_code:string}|null>(
+        supabase.from("crm_clients").select("id,legal_name,trade_name,client_code")
+          .eq("id",scopedClientId).neq("status","archived").maybeSingle())
+    : null;
+  const clientOptions = [...(crmClients.data??[]), ...(focusedClient?.data ? [focusedClient.data] : [])];
+  const filteredClient = clientOptions.find(c=>c.id===scopedClientId);
   const ids = [...new Set((projects.data ?? []).filter(p=>!p.client_id).map(p => clientId(p.settings)).filter((id):id is string => Boolean(id)))];
   const clientIds = [...new Set((projects.data??[]).map(p=>p.client_id).filter((id):id is string=>Boolean(id)))];
   const [companies,confirmed]=await Promise.all([
@@ -65,6 +80,12 @@ export default async function CommunicationHub({searchParams}:Params) {
 
   return <Suite active="ai-communications">
     <div className={s.page}>
+      {scopedClientId && <p role="status" className={s.muted}>
+        {label("Viendo agentes registrados para","Viewing agents registered for")} {" "}
+        <strong>{filteredClient?.trade_name||filteredClient?.legal_name||scopedClientId.slice(0,8)}</strong>
+        {" · "}<Link href={`/admin/workspace/crm/clients/${scopedClientId}`}>{label("Volver al perfil del cliente","Back to client profile")}</Link>
+        {" · "}<Link href="/admin/workspace/ai-communications">{label("Ver todos los agentes","View all agents")}</Link>
+      </p>}
       <header className={s.hero}>
         <p className={s.eyebrow}>AVALON OS / AI COMMUNICATIONS</p>
         <h1>COMMUNICATION HUB</h1>
@@ -124,7 +145,7 @@ export default async function CommunicationHub({searchParams}:Params) {
             <p>{label("Cada ficha reúne los recepcionistas y chatbots vinculados al mismo registro del CRM.","Each profile gathers the receptionists and chatbots linked to the same CRM record.")}</p></div>
           <span className={s.muted}>{projects.error?"—":number(unlinked)} {label("sin asignar en esta página","unassigned on this page")}</span>
         </div>
-        {!projects.error && <CommunicationsPortfolio groups={groups} lang={lang} page={page} loaded={projects.data?.length ?? 0} total={total} />}
+        {!projects.error && <CommunicationsPortfolio groups={groups} lang={lang} page={page} loaded={projects.data?.length ?? 0} total={total} clientFilter={scopedClientId} />}
       </section>
 
       <section className={s.section} id="new-agent" aria-labelledby="new-agent-title">
@@ -149,9 +170,9 @@ export default async function CommunicationHub({searchParams}:Params) {
               </select>
             </label>
             <label>{label("Cliente confirmado de Client 360° (opcional)","Confirmed Client 360 company (optional)")}
-              <select name="client_id" defaultValue={(crmClients.data ?? []).some(c => c.id === prefillClientId) ? prefillClientId : ""}>
+              <select name="client_id" defaultValue={filteredClient?.id ?? ""}>
                 <option value="">{label("Sin seleccionar","Not selected")}</option>
-                {(crmClients.data ?? []).map(client=><option key={client.id} value={client.id}>
+                {clientOptions.map(client=><option key={client.id} value={client.id}>
                   {client.trade_name||client.legal_name} · {client.client_code}
                 </option>)}
               </select>

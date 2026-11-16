@@ -6,6 +6,7 @@ import { requireOwner } from "@/lib/auth/session";
 import { getLang } from "@/lib/i18n-server";
 import { pick } from "@/lib/i18n";
 import { listProjects } from "@/lib/os/data";
+import { isUuid } from "@/lib/os/domain";
 
 export const dynamic = "force-dynamic";
 
@@ -14,14 +15,18 @@ export default async function AiReceptionistPage({ searchParams }: { searchParam
   const { supabase } = await requireOwner();
   const lang = await getLang();
   const showArchived = param(params, "archived") === "1";
-  const projects = await listProjects(supabase, "receptionist", { includeArchived: showArchived });
+  const clientParam = param(params, "client");
+  const scopedClientId = isUuid(clientParam) ? clientParam : undefined;
+  const rawPage = Number(param(params, "page") || "1");
+  const page = Number.isSafeInteger(rawPage) && rawPage >= 1 && rawPage <= 1000 ? rawPage : 1;
+  const projects = await listProjects(supabase, "receptionist", { includeArchived: showArchived, page, clientId: scopedClientId });
   return (
     <Suite active="ai-receptionist">
       <PageHeader eyebrow="AI Receptionist" title={pick(lang, "Asistentes de recepción", "Reception assistants")}
         description={pick(lang, "Configura nombre, personalidad, horarios, preguntas frecuentes, base de conocimiento y reglas de transferencia a una persona. Ningún proveedor de IA, voz o mensajería está conectado: no se generan ni simulan conversaciones.", "Configure name, personality, hours, FAQ, knowledge base and human handoff rules. No AI, voice or messaging provider is connected: no conversations are generated or simulated.")} />
       <p><Link href="/admin/workspace/ai-communications">AI Communications Hub</Link> · <Link href="/admin/workspace/ai-receptionist/builder">{pick(lang,"Constructor","Builder")}</Link></p>
       <Flash lang={lang} ok={param(params, "ok")} error={param(params, "error")} />
-      <ProjectsIndex lang={lang} module="receptionist" base="/admin/workspace/ai-receptionist" projects={projects} noun={{ es: "asistentes", en: "assistants" }} showArchived={showArchived} prefillClientId={param(params, "client")} />
+      <ProjectsIndex lang={lang} module="receptionist" base="/admin/workspace/ai-receptionist" projects={projects} noun={{ es: "asistentes", en: "assistants" }} showArchived={showArchived} prefillClientId={scopedClientId} page={page} />
     </Suite>
   );
 }
