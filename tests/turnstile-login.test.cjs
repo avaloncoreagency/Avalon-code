@@ -119,13 +119,28 @@ test('login server action verifies human before requesting Supabase credentials'
   assert.equal(supabaseCalls, 0);
 });
 
-test('Turnstile widget and Content-Security-Policy support Cloudflare without weakening framing', () => {
+test('login requires explicit click before Cloudflare renders or executes a challenge', () => {
   const login = fs.readFileSync('src/components/auth/login-panel.tsx', 'utf8');
+  const human = fs.readFileSync('src/components/auth/human-verification.tsx', 'utf8');
   const page = fs.readFileSync('src/app/login/page.tsx', 'utf8');
   const csp = fs.readFileSync('src/lib/security/headers.ts', 'utf8');
-  assert.match(login, /data-action="avalon_login"/);
-  assert.match(login, /data-sitekey=\{turnstileSiteKey\}/);
-  assert.match(login, /api\.js/);
+  assert.match(login, /<HumanVerification siteKey=\{turnstileSiteKey\}/);
+  assert.match(login, /type="hidden" name="cf-turnstile-response" value=\{humanToken\}/);
+  assert.match(login, /humanVerified=\{!turnstileSiteKey \|\| Boolean\(humanToken\)\}/);
+  assert.match(login, /disabled=\{pending \|\| !humanVerified\}/);
+  assert.doesNotMatch(login, /className="cf-turnstile"/);
+  assert.match(human, /api\.js\?render=explicit/);
+  assert.match(human, /if \(attempt === 0 \|\| !scriptReady\) return;/);
+  assert.match(human, /onClick=\{verify\}/);
+  assert.match(human, /setAttempt\(\(n\) => n \+ 1\)/);
+  assert.match(human, /hidden=\{attempt === 0\}/);
+  assert.match(human, /execution: "execute"/);
+  assert.match(human, /"response-field": false/);
+  assert.match(human, /action: "avalon_login"/);
+  assert.match(human, /api\.execute\(widgetId\)/);
+  assert.match(human, /"expired-callback": invalidate/);
+  assert.match(human, /"error-callback"/);
+  assert.match(human, /api\.remove\(widgetId\)/);
   assert.match(page, /TURNSTILE_SITE_KEY/);
   assert.match(csp, /frame-ancestors 'none'/);
   assert.match(csp, /frame-src https:\/\/challenges\.cloudflare\.com/);

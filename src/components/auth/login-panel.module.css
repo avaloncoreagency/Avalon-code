@@ -37,9 +37,13 @@
   .footer { margin-top: 22px; }
 }
 
-/* Cloudflare Managed Turnstile stays centered and legible in the private login. */
-.turnstile{display:flex;justify-content:center;min-height:65px;margin:10px 0 4px;overflow:hidden}
-@media(max-width:380px){
-  .turnstile{justify-content:flex-start;min-height:56px}
-  .turnstile :global(.cf-turnstile){transform:scale(.82);transform-origin:top left}
-}
+/* Explicit Turnstile: no token until the user taps the real start control. */
+.turnstile{display:grid;justify-items:center;gap:9px;margin:11px 0 4px;min-width:0}
+.verifyButton{display:flex;justify-content:center;align-items:center;gap:12px;width:100%;min-height:48px;padding:11px 14px;border:1px solid #70c9fd99;border-radius:9px;background:#19234ecc;color:#e2f4ff;font:inherit;font-size:13px;cursor:pointer}
+.verifyButton:hover:not(:disabled){border-color:#89ecff;background:#223164}
+.verifyButton:disabled{opacity:.78;cursor:default}
+.verifyButton span:first-child{font-size:19px;font-weight:700;line-height:1}
+.turnstileChallenge{display:flex;justify-content:center;width:100%;min-height:65px;min-width:0;max-width:330px;overflow:hidden}
+.turnstileChallenge[hidden]{display:none}
+.turnstileStatus{margin:0;text-align:center;color:#b7c9e6;font-size:12px;line-height:1.5;max-width:330px}
+@media(max-width:380px){.turnstileChallenge{justify-content:center;max-width:100%}}
