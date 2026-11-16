@@ -1,6 +1,5 @@
-import Link from "next/link";
 import type { ReactNode } from "react";
-import { CrmNavigation } from "@/components/crm/navigation";
+import { CrmNavigation, CrmTools } from "@/components/crm/navigation";
 import { pick, type Lang } from "@/lib/i18n";
 import { label, saleErrorText, tone } from "@/lib/sales/domain";
 import { workspaceFeedback } from "@/lib/crm/workspace-feedback";
@@ -10,28 +9,17 @@ export type Query = Record<string, string | string[] | undefined>;
 export const q = (params: Query, key: string) => (typeof params[key] === "string" ? params[key] as string : undefined);
 export const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
-const LINKS = [
-  ["sales", "/admin/workspace/crm/sales", "Ventas", "Sales"],
-  ["new", "/admin/workspace/crm/sales/new", "Registrar venta", "Record sale"],
-  ["clients", "/admin/workspace/crm/clients", "Clientes 360°", "Clients 360°"],
-  ["activity", "/admin/workspace/crm/activity", "Centro de actividad", "Activity center"],
-  ["notifications", "/admin/workspace/crm/notifications", "Avisos", "Notices"],
-  ["settings", "/admin/workspace/crm/settings", "Configuración", "Settings"],
-] as const;
-
-/** Secondary CRM access row (Clientes | Avisos | Actividad | Configuración, plus sales). */
+/** Legacy operational routes are available under one collapsed, accessible tool menu. */
 export function OpsLinks({ lang, active }: { lang: Lang; active?: string }) {
-  return <nav className={s.subnav} aria-label={pick(lang, "Operaciones comerciales", "Commercial operations")}>
-    {LINKS.map(([key, href, es, en]) => <Link key={key} href={href} aria-current={active === key ? "page" : undefined}>{pick(lang, es, en)}</Link>)}
-  </nav>;
+  return <CrmTools lang={lang} active={active} />;
 }
 
-/** Main five-tab CRM order is preserved; operations views sit in a secondary row. */
+/** Main navigation has only Leads Pipeline and Clients 360°. */
 export function OpsHeader({ lang, active, crm, title, eyebrow, lead, actions }: {
   lang: Lang; active: string; crm?: string; title: string; eyebrow: string; lead?: string; actions?: ReactNode;
 }) {
   return <>
-    <CrmNavigation active={crm} />
+    <CrmNavigation active={crm === "clients" || active === "clients" || active === "sales" || active === "new" ? "clients" : "leads"} lang={lang} />
     <OpsLinks lang={lang} active={active} />
     <header className={s.header}>
       <div><p className={s.eyebrow}>{eyebrow}</p><h1>{title}</h1>{lead && <p className={s.lead}>{lead}</p>}</div>
