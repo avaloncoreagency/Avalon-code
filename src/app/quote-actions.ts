@@ -24,8 +24,7 @@ export async function requestQuote(_prev: QuoteState, form: FormData): Promise<Q
   // Preserve new service interests for the human reviewer without changing the reviewed SQL allowlist.
   const extra = [...new Set(requested.filter(s => Object.hasOwn(EXTRA_SERVICES, s)))].map(s => EXTRA_SERVICES[s][lang]);
   const message = text("message", 2000);
-  const enrichedMessage = extra.length ? `${message.slice(0, 1700)}\
-Services of interest: ${extra.join(", ")}`.slice(0, 2000) : message;
+  const enrichedMessage = extra.length ? `${message.slice(0, 1700)}\nServices of interest: ${extra.join(", ")}`.slice(0, 2000) : message;
   const request = {
     company: text("company", 200), name: text("name", 160), email: text("email", 254), phone: text("phone", 40),
     message: enrichedMessage, language: lang, website_url: text("website_url", 200),
