@@ -1,4 +1,5 @@
 import { notFound } from "next/navigation";
+import { LeadWorkbench } from "@/components/crm/lead-workbench";
 import { Suite } from "@/components/suite/suite";
 import { Crm } from "@/components/crm/crm";
 import {
@@ -22,6 +23,7 @@ export default async function CrmSectionPage({
     ? query.lead : undefined;
   return (
     <Suite active="crm">
+      {section === "leads" && !focusLeadId && <LeadWorkbench />}
       <Crm section={section as CrmSection} focusLeadId={focusLeadId} />
     </Suite>
   );
