@@ -1,6 +1,5 @@
 import Link from "next/link";
 import { Suite } from "@/components/suite/suite";
-import { CrmNavigation, CrmTools } from "@/components/crm/navigation";
 import { OpsHeader, ownerName, q, type Query } from "@/components/sales/ui";
 import { QuickAdd } from "@/components/crm/intel/quick-add";
 import { requireOwner } from "@/lib/auth/session";
