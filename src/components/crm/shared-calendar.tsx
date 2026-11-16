@@ -4,13 +4,16 @@ import { useEffect, useMemo, useState, type CSSProperties, type FormEvent } from
 import { useRouter } from "next/navigation";
 import {
   BANNER_THEMES, CALENDAR_COLORS, EVENT_KINDS, dayInZone, eventOnDay,
-  hourInZone, isCalendarDay, localInput, moveDay, moveMonth, visibleDays,
+  hourInZone, isCalendarDay, moveDay, moveMonth, visibleDays,
   type CalendarEvent, type CalendarView, type DayBanner, type OwnerOption,
 } from "@/lib/crm/shared-calendar";
 import {
   cancelCalendarEvent, deleteCalendarBanner, saveCalendarBanner, saveCalendarEvent,
 } from "@/app/admin/workspace/crm/calendar/actions";
 import s from "./shared-calendar.module.css";
+import { AVALON_TIME_ZONE } from "@/lib/i18n";
+import { calendarInput, calendarInstant } from "./calendar-time";
+import { useDialogFocus } from "./use-dialog-focus";
 
 type Client = { id: string; legal_name: string };
 type Lead = { id: string; company: string };
@@ -26,6 +29,7 @@ type DraftEvent = {
   start_local: string; end_local: string; start_day: string; end_day: string;
   description: string; location: string; meeting_url: string; participants: string;
   lead_id: string; client_id: string; status?: string;
+  start_instant?: string; end_instant?: string;
 };
 const P = "/admin/workspace/crm/calendar";
 const TYPE: Record<string, [string, string]> = {
@@ -33,7 +37,7 @@ const TYPE: Record<string, [string, string]> = {
   call: ["Llamada", "Call"], "follow-up": ["Seguimiento", "Follow-up"],
   task: ["Bloque de trabajo", "Work block"], personal: ["Personal", "Personal"],
 };
-const COLOR_LABELS = ["Morado", "Azul", "Turquesa", "Verde", "Ámbar", "Rojo", "Rosa", "Gris"];
+const COLOR_LABELS = [["Morado", "Purple"], ["Azul", "Blue"], ["Turquesa", "Cyan"], ["Verde", "Green"], ["Ámbar", "Amber"], ["Rojo", "Red"], ["Rosa", "Pink"], ["Gris", "Gray"]];
 const THEME_LABELS: Record<string, [string, string]> = {
   violet: ["Celebración", "Celebration"], blue: ["Azul", "Blue"],
   teal: ["Océano", "Ocean"], green: ["Verde", "Green"],
@@ -41,8 +45,7 @@ const THEME_LABELS: Record<string, [string, string]> = {
 };
 const pad = (v: number) => String(v).padStart(2, "0");
 const localToday = () => {
-  const d = new Date();
-  return d.getFullYear() + "-" + pad(d.getMonth() + 1) + "-" + pad(d.getDate());
+  return dayInZone(new Date().toISOString(), AVALON_TIME_ZONE);
 };
 const colorStyle = (value: string) => ({ "--calendar-accent": CALENDAR_COLORS.includes(value as typeof CALENDAR_COLORS[number]) ? value : CALENDAR_COLORS[0] }) as CSSProperties;
 function downloadIcs(event: CalendarEvent) {
@@ -73,7 +76,7 @@ export function SharedCalendar({ events, banners, owners, clients, leads, userId
   const [view, setView] = useState<CalendarView>(initialView);
   const [selected, setSelected] = useState(isCalendarDay(initialDate) ? initialDate : localToday());
   const [filter, setFilter] = useState("all");
-  const [zone, setZone] = useState("America/New_York");
+  const zone = AVALON_TIME_ZONE;
   const [draft, setDraft] = useState<DraftEvent | null>(null);
   const [bannerDraft, setBannerDraft] = useState<DayBanner | null>(null);
   const [busy, setBusy] = useState(false);
@@ -81,7 +84,11 @@ export function SharedCalendar({ events, banners, owners, clients, leads, userId
   const [modalError, setModalError] = useState("");
   const t = (es: string, en: string) => lang === "es" ? es : en;
 
-  useEffect(() => { setZone(Intl.DateTimeFormat().resolvedOptions().timeZone || "America/New_York"); }, []);
+  const dialogRef = useDialogFocus(Boolean(draft || bannerDraft));
+  useEffect(() => {
+    if (isCalendarDay(initialDate)) { setDate(initialDate); setSelected(initialDate); }
+    setView(initialView);
+  }, [initialDate, initialView]);
   // Two open owner sessions see each other's changes without an external paid service.
   useEffect(() => {
     const timer = window.setInterval(() => { if (!document.hidden && !draft && !bannerDraft) router.refresh(); }, 120000);
@@ -132,7 +139,8 @@ export function SharedCalendar({ events, banners, owners, clients, leads, userId
     const startDay = event.all_day ? event.starts_at.slice(0, 10) : dayInZone(event.starts_at, zone);
     setDraft({
       ...event, owner_id: event.owner_id, attendee_ids: event.attendee_ids || [],
-      start_local: localInput(event.starts_at), end_local: localInput(event.ends_at),
+      start_local: calendarInput(event.starts_at, zone), end_local: calendarInput(event.ends_at, zone),
+      start_instant: event.starts_at, end_instant: event.ends_at,
       start_day: startDay, end_day: event.all_day ? moveDay(event.ends_at.slice(0, 10), -1) : dayInZone(event.ends_at, zone),
       lead_id: event.lead_id || "", client_id: event.client_id || "",
     });
@@ -147,11 +155,16 @@ export function SharedCalendar({ events, banners, owners, clients, leads, userId
     const form = new FormData(e.currentTarget);
     form.set("timezone", zone);
     if (!draft.all_day) {
-      const start = new Date(String(form.get("start_local")));
-      const end = new Date(String(form.get("end_local")));
-      if (!Number.isFinite(start.getTime()) || !Number.isFinite(end.getTime())) { setModalError(t("Indica fechas y horas válidas.", "Enter valid dates and times.")); return; }
-      form.set("starts_at", start.toISOString());
-      form.set("ends_at", end.toISOString());
+      const start = calendarInstant(String(form.get("start_local")), zone, draft.start_instant);
+      const end = calendarInstant(String(form.get("end_local")), zone, draft.end_instant);
+      if (start.error || end.error) {
+        setModalError(start.error === "ambiguous" || end.error === "ambiguous"
+          ? t("Esta hora se repite al cambiar el horario de Florida. Elige una hora inequívoca; no se ha guardado nada.", "This time repeats during Florida's DST change. Choose an unambiguous time; nothing was saved.")
+          : t("La fecha u hora no existe en Florida, posiblemente por el cambio de horario. Revisa los campos; tu borrador se conserva.", "This date or time does not exist in Florida, possibly due to DST. Check the fields; your draft is preserved."));
+        return;
+      }
+      form.set("starts_at", start.iso);
+      form.set("ends_at", end.iso);
     }
     setBusy(true); setModalError("");
     try {
@@ -306,13 +319,13 @@ export function SharedCalendar({ events, banners, owners, clients, leads, userId
     </div>
 
     {draft && <div className={s.modalShade} onKeyDown={e => { if (e.key === "Escape" && !busy) setDraft(null); }}>
-      <section className={s.modal} role="dialog" aria-modal="true" aria-label={draft.id ? t("Editar evento", "Edit event") : t("Crear evento", "Create event")}>
+      <section ref={dialogRef} tabIndex={-1} className={s.modal} role="dialog" aria-modal="true" aria-label={draft.id ? t("Editar evento", "Edit event") : t("Crear evento", "Create event")}>
         <div className={s.modalHead}><h2>{draft.id ? t("Editar evento", "Edit event") : t("Nueva cita o reunión", "New appointment or meeting")}</h2>
           <button type="button" className={s.button} onClick={() => setDraft(null)} disabled={busy} aria-label={t("Cerrar", "Close")}>×</button></div>
         <form className={s.form} onSubmit={postEvent}>
           {draft.id && <><input type="hidden" name="id" value={draft.id} /><input type="hidden" name="version" value={draft.version} /></>}
           <label className={s.label}>{t("Título del evento", "Event title")}
-            <input autoFocus className={s.input} name="title" maxLength={200} required defaultValue={draft.title} placeholder={t("Reunión con cliente", "Client meeting")} /></label>
+            <input data-initial-focus className={s.input} name="title" maxLength={200} required defaultValue={draft.title} placeholder={t("Reunión con cliente", "Client meeting")} /></label>
           <div className={s.formGrid}>
             <label className={s.label}>{t("Tipo", "Type")}
               <select className={s.select} name="kind" defaultValue={draft.kind}>
@@ -323,6 +336,7 @@ export function SharedCalendar({ events, banners, owners, clients, leads, userId
                 {owners.map(o => <option key={o.user_id} value={o.user_id}>{ownerName(o.user_id)}</option>)}
               </select></label>
           </div>
+          <p className={s.subtitle}>{t("Horario de Florida", "Florida time")}: {zone}</p>
           <label className={s.checkbox}><input type="checkbox" checked={draft.all_day} onChange={e => setDraft({ ...draft, all_day: e.target.checked })} />
             {t("Evento de todo el día (informativo)", "All-day event (informational)")}</label>
           <input type="hidden" name="all_day" value={draft.all_day ? "yes" : "no"} />
@@ -340,7 +354,7 @@ export function SharedCalendar({ events, banners, owners, clients, leads, userId
           <div className={s.label}>{t("Color del evento", "Event color")}
             <input type="hidden" name="color" value={draft.color} />
             <div className={s.swatches}>{CALENDAR_COLORS.map((c, i) => <button key={c} type="button" className={s.swatch}
-              style={colorStyle(c)} aria-label={COLOR_LABELS[i]} aria-pressed={draft.color === c}
+              style={colorStyle(c)} aria-label={t(COLOR_LABELS[i][0], COLOR_LABELS[i][1])} aria-pressed={draft.color === c}
               onClick={() => setDraft({ ...draft, color: c })}>{draft.color === c ? "✓" : ""}</button>)}</div></div>
           <div className={s.formGrid}>
             <label className={s.label}>{t("Lugar", "Location")}<input className={s.input} name="location" maxLength={300} defaultValue={draft.location} placeholder={t("Oficina o dirección", "Office or address")} /></label>
@@ -375,9 +389,9 @@ export function SharedCalendar({ events, banners, owners, clients, leads, userId
     </div>}
 
     {bannerDraft && <div className={s.modalShade} onKeyDown={e => { if (e.key === "Escape" && !busy) setBannerDraft(null); }}>
-      <section className={s.modal} role="dialog" aria-modal="true" aria-label={t("Banner de fecha especial", "Special-day banner")}>
+      <section ref={dialogRef} tabIndex={-1} className={s.modal} role="dialog" aria-modal="true" aria-label={t("Banner de fecha especial", "Special-day banner")}>
         <div className={s.modalHead}><h2>{t("🎉 Día importante", "🎉 Special day")}</h2>
-          <button type="button" className={s.button} onClick={() => setBannerDraft(null)} disabled={busy}>×</button></div>
+          <button type="button" className={s.button} onClick={() => setBannerDraft(null)} disabled={busy} aria-label={t("Cerrar", "Close")}>×</button></div>
         <form className={s.form} onSubmit={postBanner}>
           {bannerDraft.id && <><input type="hidden" name="id" value={bannerDraft.id} /><input type="hidden" name="version" value={bannerDraft.version} /></>}
           <label className={s.label}>{t("Fecha", "Date")}<input className={s.input} type="date" name="day" defaultValue={bannerDraft.day} required /></label>

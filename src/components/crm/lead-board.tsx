@@ -4,9 +4,11 @@ import { useState, type DragEvent } from "react";
 import Link from "next/link";
 import type { Row, Stage } from "@/lib/crm/domain";
 import { followUpState, groupPipeline } from "@/lib/crm/kanban";
+import { pick, formatDate, type Lang } from "@/lib/i18n";
 import s from "./lead-board.module.css";
 
 type Props = {
+  lang?: Lang;
   stages: Stage[];
   leads: Row[];
   total: number;
@@ -18,21 +20,15 @@ type Props = {
   onMove: (lead: Row, stageId: string) => void;
 };
 
-const currency = (value: number) =>
-  new Intl.NumberFormat("es-US", { style: "currency", currency: "USD", maximumFractionDigits: 0 }).format(value);
-const dateText = (value: unknown) => {
-  if (!value) return "";
-  const date = new Date(String(value));
-  return Number.isFinite(date.getTime())
-    ? new Intl.DateTimeFormat("es", { day: "numeric", month: "short", year: "numeric" }).format(date)
-    : "";
-};
-const priorityText: Record<string, string> = { high: "Alta", normal: "Normal", low: "Baja" };
+const currency = (value: number, lang: Lang) =>
+  new Intl.NumberFormat(lang === "es" ? "es-US" : "en-US", { style: "currency", currency: "USD", maximumFractionDigits: 0 }).format(value);
+const priorityText: Record<string, [string, string]> = { high: ["Alta", "High"], normal: ["Normal", "Normal"], low: ["Baja", "Low"] };
 
-export function LeadBoard({ stages, leads, total, page, busy, currentOwnerId, onEdit, onDetail, onMove }: Props) {
+export function LeadBoard({ lang = "es", stages, leads, total, page, busy, currentOwnerId, onEdit, onDetail, onMove }: Props) {
   const [draggedId, setDraggedId] = useState<string | null>(null);
   const [targetId, setTargetId] = useState<string | null>(null);
   const columns = groupPipeline(stages, leads);
+  const t = (es: string, en: string) => pick(lang, es, en);
 
   function drop(event: DragEvent<HTMLElement>, stageId: string) {
     event.preventDefault();
@@ -45,15 +41,15 @@ export function LeadBoard({ stages, leads, total, page, busy, currentOwnerId, on
   }
 
   return (
-    <section aria-label="Pipeline de oportunidades" className={s.wrap}>
+    <section aria-label={t("Pipeline de oportunidades", "Opportunity pipeline")} className={s.wrap}>
       <div className={s.intro}>
         <div>
-          <h2>Tu pipeline, etapa por etapa</h2>
-          <p>{total} oportunidades con estos filtros · mostrando {leads.length} en la página {page + 1}.</p>
+          <h2>{t("Tu pipeline, etapa por etapa", "Your pipeline, stage by stage")}</h2>
+          <p>{t(`${total} oportunidades con estos filtros · mostrando ${leads.length} en la página ${page + 1}.`, `${total} opportunities with these filters · showing ${leads.length} on page ${page + 1}.`)}</p>
         </div>
-        <p>Arrastra una tarjeta o usa <strong>Cambiar etapa</strong>. Abre <strong>Ficha</strong> para las notas y el historial.</p>
+        <p>{t("Arrastra una tarjeta o usa Cambiar etapa. Abre Ficha para las notas y el historial.", "Drag a card or use Change stage. Open Details for notes and history.")}</p>
       </div>
-      <div className={s.scroll} role="region" tabIndex={0} aria-label="Columnas del pipeline; desplázate horizontalmente para ver todas las etapas">
+      <div className={s.scroll} role="region" tabIndex={0} aria-label={t("Columnas del pipeline; desplázate horizontalmente para ver todas las etapas", "Pipeline columns; scroll horizontally to see all stages")}>
         <div className={s.board}>
           {columns.map(({ stage, leads: cards, estimatedValue }) => (
             <section
@@ -69,9 +65,9 @@ export function LeadBoard({ stages, leads, total, page, busy, currentOwnerId, on
               <header className={s.columnHead}>
                 <div className={s.stageTitle}>
                   <h3>{stage.label}</h3>
-                  <span aria-label={cards.length + " oportunidades"}>{cards.length}</span>
+                  <span aria-label={cards.length + t(" oportunidades", " opportunities")}>{cards.length}</span>
                 </div>
-                <small>{estimatedValue > 0 ? currency(estimatedValue) + " estimados" : "Sin valor estimado en esta página"}</small>
+                <small>{estimatedValue > 0 ? currency(estimatedValue, lang) + t(" estimados", " estimated") : t("Sin valor estimado en esta página", "No estimated value on this page")}</small>
               </header>
               <div className={s.cards}>
                 {cards.map((lead) => {
@@ -90,26 +86,26 @@ export function LeadBoard({ stages, leads, total, page, busy, currentOwnerId, on
                       onDragEnd={() => { setDraggedId(null); setTargetId(null); }}
                     >
                       <div className={s.cardTitle}>
-                        <strong>{String(lead.company || "Empresa sin nombre")}</strong>
-                        {lead.priority === "high" && <span title="Prioridad definida en CRM">Prioridad alta</span>}
+                        <strong>{String(lead.company || t("Empresa sin nombre", "Unnamed business"))}</strong>
+                        {lead.priority === "high" && <span title={t("Prioridad definida en CRM", "Priority set in CRM")}>{t("Prioridad alta", "High priority")}</span>}
                       </div>
-                      <p className={s.contact}>{lead.contact ? String(lead.contact) : "Contacto por completar"}</p>
-                      <p className={s.value}>{Number(lead.value) > 0 ? currency(Number(lead.value)) : "Valor por estimar"}</p>
+                      <p className={s.contact}>{lead.contact ? String(lead.contact) : t("Contacto por completar", "Contact details missing")}</p>
+                      <p className={s.value}>{Number(lead.value) > 0 ? currency(Number(lead.value), lang) : t("Valor por estimar", "Value not estimated")}</p>
                       <p className={s.next} data-overdue={followUp === "overdue" ? "true" : undefined}>
-                        {followUp === "overdue" ? "Seguimiento vencido" :
-                          followUp === "today" ? "Seguimiento hoy" :
-                          followUp === "scheduled" ? "Próximo seguimiento" : "Sin seguimiento programado"}
-                        {followUp !== "missing" && <small>{dateText(lead.follow_up_at)}</small>}
+                        {followUp === "overdue" ? t("Seguimiento vencido", "Overdue follow-up") :
+                          followUp === "today" ? t("Seguimiento hoy", "Follow-up today") :
+                          followUp === "scheduled" ? t("Próximo seguimiento", "Next follow-up") : t("Sin seguimiento programado", "No follow-up scheduled")}
+                        {followUp !== "missing" && <small>{formatDate(lang, String(lead.follow_up_at))}</small>}
                       </p>
                       <p className={s.meta}>
-                        {lead.owner_id === currentOwnerId ? "Responsable: tú" : "Responsable: otro propietario"}
-                        {" · "}{priorityText[String(lead.priority)] ?? "Prioridad no indicada"}
+                        {lead.owner_id === currentOwnerId ? t("Responsable: tú", "Owner: you") : lead.owner_id ? t("Responsable: otro propietario", "Owner: another owner") : t("Sin responsable", "Unassigned")}
+                        {" · "}{(priorityText[String(lead.priority)] ? pick(lang, ...priorityText[String(lead.priority)]) : t("Prioridad no indicada", "Priority not set"))}
                       </p>
-                      <p className={s.source} title={String(lead.source ?? "")}>Origen: {String(lead.source || "Sin registrar")}</p>
+                      <p className={s.source} title={String(lead.source ?? "")}>{t("Origen", "Source")}: {String(lead.source || t("Sin registrar", "Not recorded"))}</p>
                       <label className={s.change}>
-                        Cambiar etapa
+                        {t("Cambiar etapa", "Change stage")}
                         <select
-                          aria-label={`Etapa de ${String(lead.company)}`}
+                          aria-label={t(`Etapa de ${String(lead.company)}`, `Stage for ${String(lead.company)}`)}
                           disabled={busy}
                           value={String(lead.stage_id)}
                           onChange={(event) => onMove(lead, event.target.value)}
@@ -118,22 +114,22 @@ export function LeadBoard({ stages, leads, total, page, busy, currentOwnerId, on
                         </select>
                       </label>
                       <div className={s.actions}>
-                        <button type="button" disabled={busy} onClick={() => onDetail(lead)}>Ficha</button>
-                        <button type="button" disabled={busy} onClick={() => onEdit(lead)}>Editar</button>
-                        {!lead.archived && <Link href={`/admin/workspace/crm/sales/new?lead=${encodeURIComponent(String(lead.id))}`} draggable={false} aria-label={`Registrar venta para ${String(lead.company)}`}>Registrar venta</Link>}
+                        <button type="button" disabled={busy} onClick={() => onDetail(lead)}>{t("Ficha", "Details")}</button>
+                        <button type="button" disabled={busy} onClick={() => onEdit(lead)}>{t("Editar", "Edit")}</button>
+                        {!lead.archived && <Link href={`/admin/workspace/crm/sales/new?lead=${encodeURIComponent(String(lead.id))}`} draggable={false} aria-label={t(`Registrar venta para ${String(lead.company)}`, `Record sale for ${String(lead.company)}`)}>{t("Registrar venta", "Record sale")}</Link>}
                          <Link href={`/admin/workspace/crm/lead/${String(lead.id)}`} draggable={false}>Deal Review</Link>
-                         <Link href={`/admin/workspace/clients/${String(lead.id)}`} draggable={false}>Proyectos</Link>
+                         <Link href={`/admin/workspace/clients/${String(lead.id)}`} draggable={false}>{t("Proyectos", "Projects")}</Link>
                       </div>
                     </article>
                   );
                 })}
-                {cards.length === 0 && <p className={s.empty}>Sin oportunidades en esta etapa de la página actual.</p>}
+                {cards.length === 0 && <p className={s.empty}>{t("Sin oportunidades en esta etapa de la página actual.", "No opportunities in this stage on the current page.")}</p>}
               </div>
             </section>
           ))}
         </div>
       </div>
-      <p className={s.footnote}>Los importes son estimaciones, no ingresos cobrados. El tablero agrupa hasta 50 registros por página; usa Anterior/Siguiente para consultar el resto. Cerrar un lead no crea un cliente automáticamente.</p>
+      <p className={s.footnote}>{t("Los importes son estimaciones, no ingresos cobrados. El tablero agrupa hasta 50 registros por página; usa Anterior/Siguiente para consultar el resto. Cerrar un lead no crea un cliente automáticamente.", "Amounts are estimates, not collected revenue. The board groups up to 50 records per page; use Previous/Next for the rest. Closing a lead does not automatically create a client.")}</p>
     </section>
   );
 }

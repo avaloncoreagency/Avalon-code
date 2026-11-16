@@ -1,5 +1,6 @@
 "use client";
 import Link from "next/link";
+import type { Lang } from "@/lib/i18n";
 import { useCallback, useEffect, useState } from "react";
 import {
   sections,
@@ -71,7 +72,7 @@ function Metric({ label, value }: { label: string; value: string }) {
     </div>
   );
 }
-export function Crm({ section = "leads", focusLeadId }: { section?: CrmSection; focusLeadId?: string }) {
+export function Crm({ section = "leads", focusLeadId, lang = "es" }: { section?: CrmSection; focusLeadId?: string; lang?: Lang }) {
   const entity: Entity =
     section === "calendar"
       ? "events"
@@ -354,8 +355,8 @@ export function Crm({ section = "leads", focusLeadId }: { section?: CrmSection; 
           </Link>
         </div>
       </header>
-      <CrmNavigation active={section} />
-      <CrmTools active={section} />
+      <CrmNavigation active={section} lang={lang} />
+      <CrmTools active={section} lang={lang} />
       {focusedLead && <p className={s.notice} role="status">Oportunidad enlazada por ID exacto. <Link href="/admin/workspace/crm/leads">Ver todo el pipeline</Link></p>}
       {section === "hunter" && <TitanRadar onChanged={reload} />}
       <p className={s.muted}>
@@ -537,6 +538,7 @@ export function Crm({ section = "leads", focusLeadId }: { section?: CrmSection; 
                 table()
               ) : (
                 <LeadBoard
+                  lang={lang}
                   stages={stages}
                   leads={rows}
                   total={data.count ?? rows.length}

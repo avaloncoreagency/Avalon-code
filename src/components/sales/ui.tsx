@@ -19,7 +19,7 @@ export function OpsHeader({ lang, active, crm, title, eyebrow, lead, actions }: 
   lang: Lang; active: string; crm?: string; title: string; eyebrow: string; lead?: string; actions?: ReactNode;
 }) {
   return <>
-    <CrmNavigation active={crm === "sales" || active === "sales" || active === "new" ? "sales" : crm === "clients" || active === "clients" ? "clients" : "leads"} lang={lang} />
+    <CrmNavigation active={crm === "sales" || active === "sales" || active === "new" ? "sales" : crm === "clients" || active === "clients" ? "clients" : active} lang={lang} />
     <OpsLinks lang={lang} active={active} />
     <header className={s.header}>
       <div><p className={s.eyebrow}>{eyebrow}</p><h1>{title}</h1>{lead && <p className={s.lead}>{lead}</p>}</div>
