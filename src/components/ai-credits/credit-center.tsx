@@ -63,6 +63,7 @@ export function CreditCenter() {
   const [amount,setAmount] = useState("");
   const [limit,setLimit] = useState("");
   const [source,setSource] = useState("");
+  const [periodStart,setPeriodStart] = useState("");
   const [periodEnd,setPeriodEnd] = useState("");
   const load = useCallback(async () => {
     setLoading(true);
@@ -91,13 +92,13 @@ export function CreditCenter() {
           account_key:targetAccount.account,seat_key:targetAccount.seat,metric_key:metric,
           amount:Number(amount),limit_value:limit === "" ? null : Number(limit),
           source_label:source,period_end:periodEnd ? new Date(periodEnd+"T23:59:59Z").toISOString():null,
-          period_start:periodEnd ? new Date("2026-01-01T00:00:00Z").toISOString():null,
+          period_start:periodStart ? new Date(periodStart+"T00:00:00Z").toISOString():null,
         }),
       });
       const result=await response.json();
       if(!response.ok)throw new Error(result.error || "No se pudo guardar");
       setNotice("Observación manual guardada; no es una lectura en vivo.");
-      setAmount(""); setLimit(""); setSource(""); setPeriodEnd("");
+      setAmount(""); setLimit(""); setSource(""); setPeriodStart(""); setPeriodEnd("");
       await load();
     } catch(e) { setNotice(e instanceof Error ? e.message : "Error al guardar"); }
     finally {setSaving(false);}
@@ -150,6 +151,7 @@ export function CreditCenter() {
           onChange={e=>setLimit(e.target.value)} /></label>
         <label>Fuente (panel oficial, factura, etc.) <input required maxLength={180} value={source}
           onChange={e=>setSource(e.target.value)} placeholder="Ej.: Claude Settings / Usage" /></label>
+        <label>Inicio de periodo (opcional) <input type="date" value={periodStart} onChange={e=>setPeriodStart(e.target.value)} /></label>
         <label>Fin de periodo (opcional) <input type="date" value={periodEnd} onChange={e=>setPeriodEnd(e.target.value)} /></label>
         <button type="submit" disabled={saving}>{saving?"Guardando…":"Guardar observación"}</button>
       </form>
