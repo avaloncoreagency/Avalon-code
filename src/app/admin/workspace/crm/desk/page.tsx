@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { Suite } from "@/components/suite/suite";
+import { CrmNavigation, CrmTools } from "@/components/crm/navigation";
 import { OpsHeader, ownerName, q, type Query } from "@/components/sales/ui";
 import { QuickAdd } from "@/components/crm/intel/quick-add";
 import { requireOwner } from "@/lib/auth/session";
@@ -75,7 +76,7 @@ export default async function DeskPage({ searchParams }: { searchParams: Promise
   return (
     <Suite active="crm">
       <section className={s.hud} aria-labelledby="desk-title">
-        <OpsHeader lang={lang} active="" crm="desk" eyebrow={pick(lang, "CRM · Mesa comercial", "CRM · Sales desk")}
+        <OpsHeader lang={lang} active="" crm="leads" eyebrow={pick(lang, "CRM · Mesa comercial", "CRM · Sales desk")}
           title={pick(lang, "Mesa comercial", "Sales desk")}
           lead={pick(lang, "Registrar, diagnosticar, calificar y dar seguimiento a prospectos de Avalon. Miguel y Samuel ven los mismos leads; cada cambio queda con autor.", "Register, diagnose, score and follow up Avalon prospects. Miguel and Samuel see the same leads; every change keeps its author.")} />
         {schemaPending && <p className={s.flash} data-tone="warn" role="alert">{intelErrorText(lang, "schema_pending")}</p>}
