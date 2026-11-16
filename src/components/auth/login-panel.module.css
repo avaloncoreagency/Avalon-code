@@ -43,7 +43,7 @@
 .verifyButton:hover:not(:disabled){border-color:#89ecff;background:#223164}
 .verifyButton:disabled{opacity:.78;cursor:default}
 .verifyButton span:first-child{font-size:19px;font-weight:700;line-height:1}
-.turnstileChallenge{display:flex;justify-content:center;width:100%;min-width:0;max-width:330px;overflow:hidden}
-.turnstileChallenge:empty{display:none}
+.turnstileChallenge{display:flex;justify-content:center;width:100%;min-height:65px;min-width:0;max-width:330px;overflow:hidden}
+.turnstileChallenge[hidden]{display:none}
 .turnstileStatus{margin:0;text-align:center;color:#b7c9e6;font-size:12px;line-height:1.5;max-width:330px}
 @media(max-width:380px){.turnstileChallenge{justify-content:center;max-width:100%}}
