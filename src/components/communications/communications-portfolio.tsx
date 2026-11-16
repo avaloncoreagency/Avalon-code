@@ -13,13 +13,19 @@ const route = (module: string, id: string) => module === "receptionist"
   ? `/admin/workspace/ai-receptionist/${id}`
   : `/admin/workspace/ai-chatbots/${id}`;
 
-export function CommunicationsPortfolio({ groups, lang, page, loaded, total }: {
-  groups: CompanyGroup[]; lang: Lang; page: number; loaded: number; total: number | null;
+export function CommunicationsPortfolio({ groups, lang, page, loaded, total, clientFilter }: {
+  groups: CompanyGroup[]; lang: Lang; page: number; loaded: number; total: number | null; clientFilter?: string;
 }) {
   const [query, setQuery] = useState("");
   const [kind, setKind] = useState<Kind>("all");
   const [scope, setScope] = useState<Scope>("all");
   const t = (es: string, en: string) => pick(lang, es, en);
+  const pagerHref = (nextPage: number) => {
+    const params = new URLSearchParams();
+    if (clientFilter) params.set("client", clientFilter);
+    params.set("page", String(nextPage));
+    return `/admin/workspace/ai-communications?${params}#directory`;
+  };
   const term = query.trim().toLocaleLowerCase();
   const filtered = groups.map(g => {
     const matchesCompany = g.linked && g.name.toLocaleLowerCase().includes(term);
@@ -96,9 +102,9 @@ export function CommunicationsPortfolio({ groups, lang, page, loaded, total }: {
     <div className={s.pager}>
       <span>{t("Página","Page")} {page} · {loaded} {t("agentes cargados","loaded agents")}{total === null ? "" : ` / ${total} ${t("registrados","registered")}`}</span>
       <div className={s.pager}>
-        {page > 1 && <Link href={`/admin/workspace/ai-communications?page=${page-1}#directory`}>{t("Anterior","Previous")}</Link>}
+        {page > 1 && <Link href={pagerHref(page-1)}>{t("Anterior","Previous")}</Link>}
         {(total === null ? loaded >= 60 : page * 60 < total) &&
-          <Link href={`/admin/workspace/ai-communications?page=${page+1}#directory`}>{t("Siguiente","Next")}</Link>}
+          <Link href={pagerHref(page+1)}>{t("Siguiente","Next")}</Link>}
       </div>
     </div>
   </div>;
