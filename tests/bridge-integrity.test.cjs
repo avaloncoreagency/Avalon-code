@@ -46,7 +46,7 @@ test('incomplete and disabled bridges are not reported healthy', () => {
 test('project sender rejects malformed CLI args before network access', () => {
   const path = 'scripts/project-bridge/send-project.mjs';
   const bad = [
-    ['--url', 'https://avaloncoreagency.com', 'sample.zip'],
+    ['--url', 'https://avaloncoreagency.com'],
     ['sample.zip', '--url', 'https://user:password@avaloncoreagency.com'],
     ['sample.zip', '--url', 'https://avaloncoreagency.com/?token=abc'],
     ['sample.zip', '--unknown', 'x'],
