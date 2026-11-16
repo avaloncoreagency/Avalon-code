@@ -23,8 +23,9 @@ export async function requestQuote(_prev: QuoteState, form: FormData): Promise<Q
   const requested = form.getAll("services").map(String);
   // Preserve new service interests for the human reviewer without changing the reviewed SQL allowlist.
   const extra = [...new Set(requested.filter(s => Object.hasOwn(EXTRA_SERVICES, s)))].map(s => EXTRA_SERVICES[s][lang]);
-  const message = text("message", 2000);
-  const enrichedMessage = extra.length ? `${message.slice(0, 1700)}\nServices of interest: ${extra.join(", ")}`.slice(0, 2000) : message;
+  // The public RPC truncates the stored opportunity at 1000 chars; retain extra service interests first.
+  const prefix = extra.length ? `${lang === "es" ? "Interés adicional" : "Additional interest"}: ${extra.join(", ")}\n` : "";
+  const enrichedMessage = `${prefix}${text("message", 2000)}`.slice(0, 2000);
   const request = {
     company: text("company", 200), name: text("name", 160), email: text("email", 254), phone: text("phone", 40),
     message: enrichedMessage, language: lang, website_url: text("website_url", 200),
