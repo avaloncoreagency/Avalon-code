@@ -23,7 +23,7 @@ export default async function EcommerceDesignerPage({ searchParams }: { searchPa
       <PageHeader eyebrow="E-commerce Designer" title={pick(lang, "Mis Tiendas", "My Stores")}
         description={pick(lang, "Administra tiendas creadas fuera de Avalon: URL, hosting, archivos, versiones y mantenimiento. Sin gestionar pagos externos sin conexión autorizada.", "Manage externally built stores: URL, hosting, files, versions and maintenance. No external payments without an authorized integration.")} />
       <Flash lang={lang} ok={param(params, "ok")} error={param(params, "error")} />
-      <ProjectsIndex lang={lang} module="ecommerce" base="/admin/workspace/ecommerce-designer" projects={projects} noun={{ es: "tiendas", en: "stores" }} showArchived={showArchived} page={page}
+      <ProjectsIndex lang={lang} module="ecommerce" base="/admin/workspace/ecommerce-designer" projects={projects} noun={{ es: "tiendas", en: "stores" }} showArchived={showArchived} page={page} prefillClientId={param(params, "client")}
         createFields={
           <label className={s.field}><span>{pick(lang, "Moneda", "Currency")}</span>
             <select className={s.select} name="currency" defaultValue="USD">{CURRENCIES.map(c => <option key={c} value={c}>{c}</option>)}</select>
