@@ -102,7 +102,7 @@ export function ClientOverview({ lang, client, owner, contacts, nextSteps, lates
                 <div><p className={styles.productEyebrow}>{area.name}</p><h4>{pick(lang, area.es, area.en)}</h4><p>{pick(lang, area.noteEs, area.noteEn)}</p></div>
                 <div className={styles.productCount}><strong>{digits(total)}</strong><small>{pick(lang, "registrados", "registered")}</small></div>
                 <div className={styles.productActions}>
-                  <Link href={area.href}>{pick(lang, "Abrir módulo", "Open module")}</Link>
+                  <Link href={`${area.href}${search}`}>{pick(lang, "Ver productos de este cliente", "View this client\u0027s products")}</Link>
                   <Link href={area.href + search + fragment}>{pick(lang, "+ Vincular producto nuevo", "+ Register linked product")}</Link>
                 </div>
               </article>;
@@ -120,7 +120,17 @@ export function ClientOverview({ lang, client, owner, contacts, nextSteps, lates
                   {candidates.map(p => <option key={p.id} value={p.id}>{p.name} · {p.module} · {p.id.slice(0, 8)}</option>)}
                 </select>
                 <button type="submit">{pick(lang, "Vincular al cliente", "Link to client")}</button>
-              </form> : <p>{pick(lang, "No hay productos elegibles sin asignar en la lista reciente. Puedes registrar uno desde cualquiera de los módulos.", "No eligible unassigned products in the recent list. Register one from a product module.")}</p>}
+              </form> : <p>{pick(lang, "No hay productos elegibles en la lista reciente. Si tienes un ID de proyecto, puedes vincularlo abajo.", "No eligible products in the recent list. You can link a project by its ID below.")}</p>}
+            <details className={styles.manualLink}>
+              <summary>{pick(lang, "Vincular otro proyecto por ID", "Link another project by ID")}</summary>
+              <form action={linkExistingProject} className={styles.linkForm}>
+                <input type="hidden" name="client_id" value={client.id} />
+                <label htmlFor="project-id-to-link">{pick(lang, "ID completo del proyecto", "Full project ID")}</label>
+                <input id="project-id-to-link" type="text" name="project_id" required minLength={36} maxLength={36} autoComplete="off" placeholder="00000000-0000-4000-8000-000000000000" pattern="[0-9a-fA-F-]{36}" />
+                <button type="submit">{pick(lang, "Verificar y vincular", "Verify and link")}</button>
+              </form>
+              <p>{pick(lang, "Solo se permiten proyectos sin cliente asignado y sin vínculos comerciales incompatibles; Avalon registra el cambio en el historial.", "Only projects without a client and without conflicting commercial links can be attached; the change is audited.")}</p>
+            </details>
           </div>
         </section>
 
