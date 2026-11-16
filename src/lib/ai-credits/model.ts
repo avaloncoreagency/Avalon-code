@@ -11,6 +11,7 @@ export const ACCOUNTS = [
 
 export type AccountKey = (typeof ACCOUNTS)[number]["key"];
 export type SeatKey = "miguel" | "samuel" | null;
+export type QuotaWindow = "session" | "weekly" | "monthly" | "other" | null;
 export type MetricKey = "quota_used_pct" | "credits_available" | "tokens_used" |
   "api_spend_usd" | "extra_spend_usd" | "generations_available";
 export type Snapshot = {
@@ -18,6 +19,7 @@ export type Snapshot = {
   account_key: AccountKey;
   seat_key: SeatKey;
   metric_key: MetricKey;
+  quota_window: QuotaWindow;
   unit: "%" | "creditos" | "tokens" | "USD" | "generaciones";
   amount: number;
   limit_value: number | null;
@@ -81,6 +83,11 @@ export function normalizeObservation(input: unknown) {
   if (limit !== null && (typeof limit !== "number" || !Number.isFinite(limit) ||
       limit < 0 || limit > 1e14 || (metric === "quota_used_pct" && limit !== 100)))
     throw new Error("Límite inválido");
+  const quotaWindow = metric === "quota_used_pct" ? v.quota_window : null;
+  if (metric === "quota_used_pct" && !["session","weekly","monthly","other"].includes(String(quotaWindow)))
+    throw new Error("Especifica el tipo de cuota");
+  if (metric !== "quota_used_pct" && v.quota_window != null && v.quota_window !== "")
+    throw new Error("Esta métrica no admite un periodo de cuota");
   const source = v.source_label;
   if (typeof source !== "string" || source.trim().length < 1 || source.trim().length > 180)
     throw new Error("Indica la fuente oficial de la lectura");
@@ -98,6 +105,7 @@ export function normalizeObservation(input: unknown) {
     account_key: account as AccountKey,
     seat_key: seat as SeatKey,
     metric_key: metric as MetricKey,
+    quota_window: quotaWindow as QuotaWindow,
     unit: METRICS[metric as MetricKey].unit,
     amount,
     limit_value: limit as number | null,
@@ -107,10 +115,10 @@ export function normalizeObservation(input: unknown) {
   };
 }
 /** No combined credit total across providers; latest snapshot per account/seat/metric only. */
-export function latestSnapshots<T extends Pick<Snapshot, "account_key"|"seat_key"|"metric_key"|"observed_at">>(rows: T[]): T[] {
+export function latestSnapshots<T extends Pick<Snapshot, "account_key"|"seat_key"|"metric_key"|"quota_window"|"observed_at">>(rows: T[]): T[] {
   const latest = new Map<string,T>();
   for (const row of rows) {
-    const key = [row.account_key, row.seat_key ?? "pool", row.metric_key].join(":");
+    const key = [row.account_key, row.seat_key ?? "pool", row.metric_key, row.quota_window ?? "no-window"].join(":");
     const previous = latest.get(key);
     if (!previous || row.observed_at > previous.observed_at ||
         (row.observed_at === previous.observed_at && "id" in row && "id" in previous &&
