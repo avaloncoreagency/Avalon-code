@@ -10,7 +10,7 @@ const mod = {exports:{}};
 new Function("module","exports",js)(mod,mod.exports);
 const {ACCOUNTS, acceptedMetric, normalizeObservation, latestSnapshots}=mod.exports;
 const sample = { account_key:"claude_miguel", seat_key:null, metric_key:"quota_used_pct",
-  amount:82, source_label:"Claude Pro settings / Usage" };
+  amount:82, quota_window:"weekly", source_label:"Claude Pro settings / Usage" };
 
 test("four account buckets and two separated Claude Pro quotas",()=>{
   assert.deepEqual(ACCOUNTS.map(a=>a.key),["chatgpt_business","claude_miguel","claude_samuel","higgsfield_team"]);
@@ -26,7 +26,7 @@ test("four account buckets and two separated Claude Pro quotas",()=>{
 test("strict validation and units prevent mixing credits across providers",()=>{
   assert.deepEqual(normalizeObservation(sample),{
     account_key:"claude_miguel", seat_key:null, metric_key:"quota_used_pct",
-    unit:"%", amount:82,limit_value:null,period_start:null,period_end:null,
+    unit:"%", quota_window:"weekly", amount:82,limit_value:null,period_start:null,period_end:null,
     source_label:"Claude Pro settings / Usage"
   });
   assert.throws(()=>normalizeObservation({...sample,account_key:"higgsfield_team"}),/incompatibles/);
@@ -38,12 +38,14 @@ test("strict validation and units prevent mixing credits across providers",()=>{
 });
 test("shared snapshots are counted once, latest per account/seat/metric",()=>{
   const rows=[
-    {id:"1",account_key:"higgsfield_team",seat_key:null,metric_key:"credits_available",observed_at:"2026-11-10T00:00:00Z"},
-    {id:"2",account_key:"higgsfield_team",seat_key:null,metric_key:"credits_available",observed_at:"2026-11-15T00:00:00Z"},
-    {id:"3",account_key:"claude_miguel",seat_key:null,metric_key:"quota_used_pct",observed_at:"2026-11-15T00:00:00Z"},
-    {id:"4",account_key:"claude_samuel",seat_key:null,metric_key:"quota_used_pct",observed_at:"2026-11-15T00:00:00Z"},
+    {id:"1",account_key:"higgsfield_team",seat_key:null,metric_key:"credits_available",quota_window:null,observed_at:"2026-11-10T00:00:00Z"},
+    {id:"2",account_key:"higgsfield_team",seat_key:null,metric_key:"credits_available",quota_window:null,observed_at:"2026-11-15T00:00:00Z"},
+    {id:"3",account_key:"claude_miguel",seat_key:null,metric_key:"quota_used_pct",quota_window:"weekly",observed_at:"2026-11-15T00:00:00Z"},
+    {id:"4",account_key:"claude_samuel",seat_key:null,metric_key:"quota_used_pct",quota_window:"weekly",observed_at:"2026-11-15T00:00:00Z"},
   ];
-  assert.deepEqual(latestSnapshots(rows).map(r=>r.id),["2","3","4"]);
+  rows.push({id:"5",account_key:"claude_miguel",seat_key:null,metric_key:"quota_used_pct",quota_window:"session",observed_at:"2026-11-15T00:00:00Z"});
+  assert.deepEqual(latestSnapshots(rows).map(r=>r.id),["2","3","4","5"]);
+  assert.throws(()=>normalizeObservation({...sample,quota_window:null}),/tipo de cuota/);
 });
 test("no provider secret is stored in the observation schema or model",()=>{
   const schema=fs.readFileSync("supabase/migrations/20261116130000_ai_credit_center_owners.sql","utf8");
