@@ -152,7 +152,17 @@ export default async function Home({ searchParams }: { searchParams: Promise<Rec
         </div>
       </section>
 
-      {/* 07 · Contact */}
+      {/* 07 · FAQ — native details keep the answers accessible without JavaScript. */}
+      <section id="preguntas" className={s.section} aria-labelledby="h-faq">
+        <div className={s.wrap}>
+          <Reveal className={s.head}><p className={s.eyebrow}>{t.faq.eyebrow}</p><h2 id="h-faq" className={s.h2}>{t.faq.title}</h2></Reveal>
+          <div className={s.faqGrid}>{t.faq.items.map(([question, answer]) => <details key={question} className={s.faqItem}>
+            <summary>{question}</summary><p>{answer}</p>
+          </details>)}</div>
+        </div>
+      </section>
+
+      {/* 08 · Contact */}
       <section id="cotizacion" className={s.section} aria-labelledby="h-quote">
         <div className={s.wrap}>
           <div className={s.contact}>
