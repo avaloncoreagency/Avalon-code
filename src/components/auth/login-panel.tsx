@@ -1,9 +1,9 @@
 "use client";
-import Script from "next/script";
 import { useState } from "react";
 import { useFormStatus } from "react-dom";
 import { signIn } from "@/app/login/actions";
 import { LanguageSwitch } from "@/components/suite/language-switch";
+import { HumanVerification } from "./human-verification";
 import type { Lang } from "@/lib/i18n";
 import styles from "./login-panel.module.css";
 
@@ -26,9 +26,9 @@ const copy = {
   },
 };
 
-function Submit({ label, pendingLabel }: { label: string; pendingLabel: string }) {
+function Submit({ label, pendingLabel, humanVerified }: { label: string; pendingLabel: string; humanVerified: boolean }) {
   const { pending } = useFormStatus();
-  return <button className={styles.submit} type="submit" disabled={pending} aria-busy={pending}>
+  return <button className={styles.submit} type="submit" disabled={pending || !humanVerified} aria-busy={pending}>
     <span>{pending ? pendingLabel : label}</span><span aria-hidden="true">→</span>
   </button>;
 }
@@ -41,11 +41,11 @@ function SecurityIcon({ kind }: { kind: "shield" | "lock" | "data" }) {
 
 export function LoginPanel({ error, updated, initialLanguage = "es", turnstileSiteKey }: { error?: string; updated?: boolean; initialLanguage?: Lang; turnstileSiteKey?: string }) {
   const [showPassword, setShowPassword] = useState(false);
+  const [humanToken, setHumanToken] = useState("");
   const [language, setLanguage] = useState<Lang>(initialLanguage);
   const t = copy[language];
   const message = error ? ({ callback: t.callback, unauthorized: t.unauthorized, invalid: t.invalid, throttled: t.throttled, unavailable: t.unavailable, human: t.human, "human-unavailable": t.humanUnavailable }[error] ?? t.callback) : null;
   return <main className={styles.scene} lang={language}>
-    {turnstileSiteKey && <Script src="https://challenges.cloudflare.com/turnstile/v0/api.js" strategy="afterInteractive" />}
     <LanguageSwitch lang={language} className={styles.languages} onChange={setLanguage} />
     <div className={styles.sideNote} aria-hidden="true">INTELLIGENCE<br />AUTOMATION<br />SCALING<br />A BRIGHTER TOMORROW</div>
     <header className={styles.brand}><div className={styles.wordmark}>AVALON</div><div className={styles.agency}>CORE AGENCY</div><p>{t.portal}</p></header>
@@ -64,8 +64,11 @@ export function LoginPanel({ error, updated, initialLanguage = "es", turnstileSi
           </button>
         </div>
         <a className={styles.forgot} href="/admin/forgot-password">{language === "es" ? "Olvidé mi contraseña" : "Forgot password"}</a>
-        {turnstileSiteKey && <div className={styles.turnstile}><div className="cf-turnstile" data-sitekey={turnstileSiteKey} data-action="avalon_login" data-theme="dark" /></div>}
-        <Submit label={t.login} pendingLabel={t.pending} />
+        {turnstileSiteKey && <>
+          <HumanVerification siteKey={turnstileSiteKey} language={language} onToken={setHumanToken} />
+          <input type="hidden" name="cf-turnstile-response" value={humanToken} readOnly />
+        </>}
+        <Submit label={t.login} pendingLabel={t.pending} humanVerified={!turnstileSiteKey || Boolean(humanToken)} />
       </form>
       <p className={styles.note}>{t.note}<br /><a href="/admin/signup">{language === "es" ? "Activar cuenta por invitación" : "Activate invited account"}</a></p>
       <div className={styles.security}>{([['shield', t.access], ['lock', t.identity], ['data', t.data]] as const).map(([kind, label]) => <div key={kind}><SecurityIcon kind={kind} /><span>{label}</span></div>)}</div>
