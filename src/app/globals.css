@@ -116,3 +116,6 @@ input, select, textarea { transition: border-color var(--dur) var(--ease), box-s
 .shell h1 { font-family: var(--display); font-size: clamp(36px, 6vw, 64px); line-height: 1.08; margin: 18px 0; }
 .shell p { line-height: 1.7; color: #c4cde0; }
 .notice { border-top: 1px solid var(--line-strong); padding-top: 20px; color: #efc894; }
+
+/* Public site (Concept B) is light: avoid the dark admin background flashing on overscroll. */
+body:has([data-landing]) { background: #f7f8fd; color-scheme: light; }
