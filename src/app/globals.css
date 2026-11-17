@@ -118,4 +118,4 @@ input, select, textarea { transition: border-color var(--dur) var(--ease), box-s
 .notice { border-top: 1px solid var(--line-strong); padding-top: 20px; color: #efc894; }
 
 /* Public site (Concept B) is light: avoid the dark admin background flashing on overscroll. */
-body:has([data-landing]) { background: #f7f8fd; color-scheme: light; }
+body:has([data-landing]) { background: #050610; color-scheme: dark; }
