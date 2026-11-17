@@ -1,3 +1,4 @@
+import { radarExternalEnabled, RADAR_PAUSED_MESSAGE } from "@/lib/crm/radar-control";
 import { NextRequest, NextResponse } from "next/server";
 import { getOwnerSession } from "@/lib/auth/session";
 import { investigateOfficialWebsite, type ResearchReport } from "@/lib/crm/radar-research";
@@ -87,6 +88,7 @@ export async function POST(request: NextRequest) {
   catch { return reply({ error: "JSON inválido." }, 400); }
   const result = await ownerProspect(String(payload.id ?? ""));
   if ("error" in result) return reply({ error: result.error }, result.status);
+  if (!radarExternalEnabled()) return reply({error:RADAR_PAUSED_MESSAGE,paused:true},423);
   const { session, prospect } = result;
   if (prospect.do_not_contact || prospect.status === "rejected")
     return reply({ error: "Negocio descartado o No contactar; no se investigará automáticamente." }, 409);

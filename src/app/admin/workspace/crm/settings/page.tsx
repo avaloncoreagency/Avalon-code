@@ -8,6 +8,7 @@ import { run } from "@/lib/os/data";
 import { label } from "@/lib/sales/domain";
 import { saveService, toggleRule } from "./actions";
 import s from "@/components/sales/sales.module.css";
+import { ClientReadiness } from "@/components/crm/client-readiness";
 export const dynamic = "force-dynamic";
 
 type Service = { id: string; code: string; name: string; billing_type: string; suggested_price: string | null; default_assignee_id: string | null; active: boolean; version: number; task_template: { title: string }[]; crm_departments: { label: string } | null };
@@ -28,6 +29,7 @@ export default async function CrmSettings({ searchParams }: { searchParams: Prom
     <OpsHeader lang={lang} active="settings" eyebrow="CRM / Configuración" title={pick(lang, "Configuración del CRM", "CRM settings")}
       lead={pick(lang, "Catálogo de servicios (precio sugerido, responsable por defecto, plantilla de tareas) y automatizaciones. Cada cambio queda auditado.", "Service catalog (suggested price, default assignee, task template) and automations. Every change is audited.")} />
     <OkFlash lang={lang} code={q(p, "ok")} /><ErrorFlash lang={lang} code={q(p, "error")} />
+    <details><summary>System Readiness</summary><ClientReadiness db={supabase} lang={lang}/></details>
     <section className={s.panel} aria-labelledby="catalog"><header><h2 id="catalog">{pick(lang, "Catálogo de servicios y enrutamiento", "Service catalog and routing")}</h2></header>
       {services.error ? <Unavailable lang={lang} code={services.error} /> : <ul className={s.list}>{services.data.map(x => <li key={x.id}>
         <form action={saveService} className={s.form}><input type="hidden" name="id" value={x.id} /><input type="hidden" name="version" value={x.version} />
