@@ -145,6 +145,29 @@ test("PUBLIC WEB QA: ES/EN, 8 solutions, mobile/desktop, preselected quote and i
   }
 
   // Exercise the real renderer in software only for synthetic CI; never claim physical-device performance.
+  // Projected 3D markers: every marker the layout offers (visible + pointer-events) must accept a REAL click.
+  // No force:true — Playwright's actionability checks (stable, visible, not intercepted) are the assertion.
+  const clickOfferedMarkers = async (page, selector, pressedSelector) => {
+    let clicked = 0; const withdrawn = [], skipped = [];
+    const count = await page.locator(selector).count();
+    // Offered at rest, before any selection re-flows the panel over part of the installation.
+    await page.locator(`${selector.split(" ")[0]} [data-markers="rest"]`).waitFor({ state: "attached", timeout: 30000 });
+    const initial = await page.locator(selector).evaluateAll(els => els.filter(el => { const cs = getComputedStyle(el); return cs.pointerEvents !== "none" && Number(cs.opacity) > 0.5; }).length);
+    for (let i = 0; i < count; i++) {
+      await page.waitForTimeout(400); // the previous selection re-flows the panel; let the layout re-place markers
+      // A selection turns the orbit; software GL in CI is slow, so wait for the layout's own "rest" signal.
+      await page.locator(`${selector.split(" ")[0]} [data-markers="rest"]`).waitFor({ state: "attached", timeout: 30000 });
+      const marker = page.locator(selector).nth(i);
+      const isOffered = () => marker.evaluate(el => { const cs = getComputedStyle(el); return cs.pointerEvents !== "none" && Number(cs.opacity) > 0.5; });
+      if (!(await isOffered())) { skipped.push(i); continue; }
+      const before = await page.locator(pressedSelector).nth(i).getAttribute("aria-pressed");
+      try { await marker.click({ timeout: 5000 }); }
+      catch (error) { if (await isOffered()) throw error; withdrawn.push(i); continue; } // withdrawn (now covered) is correct; offered-but-unclickable is the bug
+      if (before !== "true") assert.equal(await page.locator(pressedSelector).nth(i).getAttribute("aria-pressed"), "true", `${selector} #${i} selects its opportunity`);
+      clicked++;
+    }
+    return { initial, clicked, withdrawn, skipped };
+  };
   const live = await browser.newContext({viewport:{width:390,height:844},reducedMotion:"no-preference"});
   await live.addInitScript(() => { window.__AVALON_FORCE_GL = true; });
   const scenePage = await live.newPage(); scenePage.on("pageerror", e=>errors.push(e.message));
@@ -153,7 +176,9 @@ test("PUBLIC WEB QA: ES/EN, 8 solutions, mobile/desktop, preselected quote and i
     await scenePage.goto(origin+"/?lang=en");
     await scenePage.locator('html[data-universe="live"]').waitFor({timeout:20000});
     await scenePage.evaluate(() => {const e=document.querySelector('#motor'); window.scrollTo(0,e.getBoundingClientRect().top+scrollY+innerHeight*.7);});
-    await scenePage.waitForTimeout(400);
+    await scenePage.waitForTimeout(1200); // the camera eases to the scroll position; markers latch once it rests
+    const projectedChips = await clickOfferedMarkers(scenePage, '#motor [aria-hidden="true"] button', '#motor [role="group"] button');
+    assert.ok(projectedChips.initial >= 1 && projectedChips.clicked >= 1, `projected engine chips offered/clicked at ${width}: ${JSON.stringify(projectedChips)}`);
     const engine = scenePage.locator('#motor');
     const chips = engine.getByRole('button');
     assert.equal(await chips.count(),6);
@@ -161,10 +186,15 @@ test("PUBLIC WEB QA: ES/EN, 8 solutions, mobile/desktop, preselected quote and i
     assert.equal(await chips.nth(2).getAttribute('aria-pressed'),'true');
     await scenePage.evaluate(() => {const e=document.querySelector('#arbol');window.scrollTo(0,e.getBoundingClientRect().top+scrollY+(e.offsetHeight-innerHeight)*.85);});
     await scenePage.waitForTimeout(400);
+    await scenePage.waitForTimeout(900);
+    const projectedApples = await clickOfferedMarkers(scenePage, '#arbol [aria-hidden="true"] button', '#arbol [role="group"] button');
+    assert.ok(projectedApples.initial >= (width >= 768 ? 4 : 2) && projectedApples.clicked >= 1, `projected apples offered/clicked at ${width}: ${JSON.stringify(projectedApples)}`);
+    console.log(`markers ${width}: engine ${JSON.stringify(projectedChips)} tree ${JSON.stringify(projectedApples)}`);
     const apples=scenePage.locator('#arbol [role="group"] button');
     assert.equal(await apples.count(),10);
-    await apples.nth(0).click();
-    assert.equal(await apples.nth(0).getAttribute('aria-pressed'),'true');
+    const pick = (await apples.nth(0).getAttribute('aria-pressed')) === 'true' ? 1 : 0; // the selector toggles
+    await apples.nth(pick).click();
+    assert.equal(await apples.nth(pick).getAttribute('aria-pressed'),'true');
     assert.ok(await scenePage.evaluate(()=>document.documentElement.scrollWidth<=document.documentElement.clientWidth+1),`live scene fits ${width}`);
     await scenePage.screenshot({path:path.join(evidenceDir,`universe-live-${width}.png`)});
   }
