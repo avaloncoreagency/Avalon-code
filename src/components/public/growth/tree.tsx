@@ -128,6 +128,7 @@ export function GrowthTree({ lang }: { lang: Lang }) {
   const [effort, setEffort] = useState(1);                  // 0 steady · 1 committed · 2 ambitious
   const [pouring, setPouring] = useState(false), [notice, setNotice] = useState("");
   const scene = useRef<HTMLDivElement>(null), box = useRef<HTMLDivElement>(null), canvas = useRef<HTMLCanvasElement>(null), apples = useRef<(HTMLButtonElement | null)[]>([]);
+  const fxLast = useRef(0);
   const fx = useRef<P[]>([]), raf = useRef(0), visible = useRef(false), reduced = useRef(false), seq = useRef(0);
   const pourTimer = useRef(0), pourStart = useRef(0), pourStop = useRef(0), held = useRef(false), ripenAcc = useRef(0);
 
@@ -159,7 +160,8 @@ export function GrowthTree({ lang }: { lang: Lang }) {
     const g = cv.getContext("2d"); if (!g) { raf.current = 0; return; }
     g.setTransform(dpr, 0, 0, dpr, 0, 0); g.clearRect(0, 0, w, h);
     const ox = br.left - sr.left, oy = br.top - sr.top, bw = br.width, bh = br.height, floorY = oy + FLOOR * bh;
-    const list = fx.current, dt = 1 / 60;
+    const now = performance.now(), dt = Math.min(.05, Math.max(.001, (now - (fxLast.current || now - 16)) / 1000)); fxLast.current = now;   // real time, not frames
+    const list = fx.current;
     // Keep a quiet population of dust motes drifting through the skylight.
     if (!reduced.current && list.filter(p => p.kind === "dust").length < 46) list.push({ kind: "dust", x: ox + bw * (.2 + Math.random() * .6), y: h * (.05 + Math.random() * .7), vx: (Math.random() - .5) * 6, vy: -3 - Math.random() * 6, life: 0, max: 6 + Math.random() * 6, size: .6 + Math.random() * 1.4 });
     // While watering, keep the stream flowing from the spout.
@@ -189,7 +191,7 @@ export function GrowthTree({ lang }: { lang: Lang }) {
       }
     }
     if (visible.current && (list.length || held.current)) raf.current = requestAnimationFrame(loop);
-    else { g.clearRect(0, 0, w, h); raf.current = 0; }
+    else { g.clearRect(0, 0, w, h); raf.current = 0; fxLast.current = 0; }
   }, []);
   const kick = useCallback(() => { if (!raf.current && visible.current) raf.current = requestAnimationFrame(loop); }, [loop]);
 
@@ -314,13 +316,18 @@ export function GrowthTree({ lang }: { lang: Lang }) {
     const ground = (FLOOR - SPOTS[i].y) * node.clientHeight;
     let y = 0, vy = -110, x = 0, rot = 0, bounces = 0, last = performance.now(), squash = 1;
     const vx = (Math.random() - .5) * 90;
+    // Frame-rate independent: real elapsed time is integrated in small substeps, so a slow device (or a busy main
+    // thread) shows fewer frames of the same fall instead of a slow-motion fall.
     const stepFall = (now: number) => {
-      const dt = Math.min(.033, (now - last) / 1000); last = now;
-      vy += 2700 * dt; y += vy * dt; x += vx * dt; rot += vx * dt * 1.6;
-      squash += (1 - squash) * .25;
-      if (y >= ground) { y = ground; vy = -vy * .33; bounces++; squash = .8; }
+      let left = Math.min(.5, (now - last) / 1000); last = now;
+      while (left > 0) {
+        const dt = Math.min(1 / 120, left); left -= dt;
+        vy += 2700 * dt; y += vy * dt; x += vx * dt; rot += vx * dt * 1.6;
+        squash += (1 - squash) * Math.min(1, dt * 15);
+        if (y >= ground) { y = ground; vy = -vy * .33; bounces++; squash = .8; }
+        if (bounces >= 2 && Math.abs(vy) < 170) { el.style.opacity = "0"; land(x); return; }
+      }
       el.style.transform = `translate(-50%, -50%) translate(${x}px, ${y}px) rotate(${rot}deg) scale(${1 / squash}, ${squash})`;
-      if (bounces >= 2 && Math.abs(vy) < 170) { el.style.opacity = "0"; land(x); return; }
       requestAnimationFrame(stepFall);
     };
     requestAnimationFrame(stepFall);
