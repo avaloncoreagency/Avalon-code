@@ -6,3 +6,13 @@ test('DST gaps and repeated hours are explicit errors instead of silently shifte
 test('invalid dates are rejected before submitting server actions',()=>{const {calendarInstant,calendarInput}=load();for(const x of ['2026-02-30T12:00','2026-11-16T25:00','garbage','2026-11-16'])assert.equal(calendarInstant(x).error,'invalid');assert.equal(calendarInput('garbage'),'');});
 
 test('editing another field preserves the stored occurrence of a repeated DST hour',()=>{const {calendarInstant}=load();for(const previous of ['2026-11-01T05:30:15.000Z','2026-11-01T06:30:45.000Z'])assert.equal(calendarInstant('2026-11-01T01:30','America/New_York',previous).iso,previous);});
+
+
+// Display labels must not depend on runtime-specific ICU date wording.
+test('calendar labels are deterministic even if Intl formatting differs',()=>{
+ const fs=require('node:fs'),ts=require('typescript');const m={exports:{}};
+ const dep={exports:{}};new Function('module','exports',ts.transpileModule(fs.readFileSync('src/lib/crm/shared-calendar.ts','utf8'),{compilerOptions:{module:ts.ModuleKind.CommonJS}}).outputText)(dep,dep.exports);
+ new Function('module','exports','require',ts.transpileModule(fs.readFileSync('src/components/crm/calendar-labels.ts','utf8'),{compilerOptions:{module:ts.ModuleKind.CommonJS}}).outputText)(m,m.exports,()=>dep.exports);
+ const original=Intl.DateTimeFormat;Intl.DateTimeFormat=function(){throw Error('No runtime formatting for hydration labels');};
+ try{assert.equal(m.exports.calendarMonthLabel('2026-11-22','es'),'noviembre 2026');assert.equal(m.exports.calendarDayLabel('2026-11-22','en'),'Sun 22 November');}finally{Intl.DateTimeFormat=original;}
+});
