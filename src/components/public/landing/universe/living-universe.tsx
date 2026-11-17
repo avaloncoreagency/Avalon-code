@@ -24,6 +24,8 @@ export function LivingUniverse({ variant = "universe" }: { variant?: "universe" 
     let marks: number[] = [], raf = 0;
     const measure = () => {
       const secs = Array.from(document.querySelectorAll<HTMLElement>("[data-universe-section]"));
+      // Ultimate 2.0: only the hero is a 3D universe; the rest of the page dims the backdrop under its content.
+      if (secs.length === 1) { const h = secs[0].offsetHeight || window.innerHeight; marks = [-1, h]; return; }
       if (secs.length < 4) { marks = []; return; }
       const top = (el: HTMLElement) => el.getBoundingClientRect().top + window.scrollY;
       const tree = secs[3], end = top(tree) + Math.max(0, tree.offsetHeight - window.innerHeight);
@@ -31,6 +33,11 @@ export function LivingUniverse({ variant = "universe" }: { variant?: "universe" 
     };
     const publish = () => {
       raf = 0; if (!marks.length) { universeBus.publish(0); return; }
+      if (marks[0] === -1) {   // hero-only: a gentle push-in on the core, then a veil over the content below
+        const k = Math.min(1, Math.max(0, window.scrollY / marks[1]));
+        canvas.parentElement?.style.setProperty("--veil", String(Math.min(0.72, Math.max(0, (k - 0.45) / 0.55) * 0.72)));
+        universeBus.publish(k * 0.45); return;
+      }
       const y = window.scrollY; let i = 0; while (i < marks.length - 2 && y >= marks[i + 1]) i++;
       const span = Math.max(1, marks[i + 1] - marks[i]);
       const T = Math.min(5, i + Math.min(1, Math.max(0, (y - marks[i]) / span)));

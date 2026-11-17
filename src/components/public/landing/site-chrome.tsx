@@ -17,7 +17,7 @@ function Logo() {
 export function SiteChrome({ lang, path = "/", scene = "ambient", children }: { lang: Lang; path?: string; scene?: "universe" | "ambient"; children: ReactNode }) {
   const t = COPY[lang], q = qs(lang), home = path === "/" ? "" : `/${q}`;
   const other = lang === "es" ? `${path}?lang=en` : path;
-  const links: [string, string][] = [[`${home}#soluciones`, t.nav.solutions], [`${home}#showroom`, t.nav.showroom], [`${home}#industrias`, t.nav.industries], [`${home}#proyectos`, t.nav.work]];
+  const links: [string, string][] = [[`${home}#arbol`, t.nav.industries], [`${home}#demos`, t.nav.showroom], [`${home}#soluciones`, t.nav.solutions], [`${home}#proyectos`, t.nav.work]];
   return <div className={s.root} data-landing lang={lang}>
     <LivingUniverse variant={scene} />
     <div className={s.progress} aria-hidden="true" />
