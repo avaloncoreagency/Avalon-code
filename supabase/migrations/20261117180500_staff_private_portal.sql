@@ -262,13 +262,13 @@ create trigger staff_client_grant_audit after insert or update on public.staff_c
 -- A disabled account must disappear from recipient lists at the database layer,
 -- even when a UI action fails after updating the principal's access.
 create function crm_private.staff_contact_revoke() returns trigger
-language plpgsql security invoker set search_path='' as $
+language plpgsql security invoker set search_path='' as $$
 begin
  if not new.active then
    update public.staff_contacts set is_listed=false where user_id=new.user_id;
  end if;
  return new;
-end $;
+end $$;
 revoke all on function crm_private.staff_contact_revoke() from public,anon,authenticated;
 create trigger staff_contact_revoke after insert or update of active on public.staff_portal_access
  for each row execute function crm_private.staff_contact_revoke();
