@@ -52,6 +52,15 @@
 .launchStages p { margin: 0; color: var(--ink-2); line-height: 1.55; }
 .hint { margin: 18px 0 0; font-size: 11.5px; letter-spacing: .2em; text-transform: uppercase; color: var(--ink-3); }
 
+/* Stable module selector above the moving 3D labels. Never make service discovery depend on hitting
+   continuously orbiting targets; this remains fully clickable with touch, pointer and keyboard. */
+.engineQuickNav { position: relative; z-index: 8; display: flex; flex-wrap: wrap; align-items: center; gap: 8px; max-width: 100%; }
+.engineOption { display: inline-flex; align-items: center; gap: 8px; min-height: 44px; padding: 9px 15px; border: 1px solid rgba(255,255,255,.18); border-radius: 999px; background: rgba(8,12,30,.83); backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px); color: var(--ink); font: 650 13px var(--sans); cursor: pointer; }
+.engineOption svg { color: var(--cyan); }
+.engineOption:hover, .engineOption:focus-visible { border-color: var(--electric); background: rgba(41,121,255,.19); }
+.engineOption:focus-visible { outline: 3px solid var(--cyan); outline-offset: 2px; }
+.engineOption[aria-pressed="true"] { background: linear-gradient(120deg,var(--electric),var(--violet)); border-color: transparent; color: white; }
+.engineOption[aria-pressed="true"] svg { color: white; }
 .chips { display: flex; flex-wrap: wrap; gap: 10px; }
 .chip { display: inline-flex; align-items: center; gap: 8px; min-height: 44px; padding: 0 16px; border-radius: 999px; border: 1px solid rgba(255, 255, 255, .16); background: rgba(8, 12, 30, .7); color: var(--ink); font: 650 13.5px var(--sans); cursor: pointer; white-space: nowrap; backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px); transition: background .25s, border-color .25s, box-shadow .25s, color .25s; -webkit-tap-highlight-color: transparent; }
 .chip svg { color: var(--cyan); flex: none; }
@@ -181,6 +190,8 @@
 :global(html:not([data-universe="live"])) .checks { display: grid; }
 :global(html:not([data-universe="live"])) .panelLabel { display: block; }
 :global(html:not([data-universe="live"])) .chip { min-height: 44px; }
+/* Static mode exposes the accessible stable controls and hides overlapping visual-only markers. */
+:global(html:not([data-universe="live"])) .chips { display: none; }
 /* The quick selector is the accessible fallback; projected fruit markers exist only with the scene. */
 :global(html:not([data-universe="live"])) .apples { display: none; }
 .chip:focus-visible, .apple:focus-visible, .cta:focus-visible, .ctaGhost:focus-visible, .close:focus-visible { outline: 3px solid #30daf4; outline-offset: 4px; }
