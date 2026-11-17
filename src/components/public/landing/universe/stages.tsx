@@ -100,14 +100,21 @@ export function TreeStage({ lang }: { lang: Lang }) {
       const el = dots.current[i]; if (!el) continue;
       const s = f.tree[i * 3 + 2], show = s > 0.35 && f.t > 2.95 && f.t < 4.6;
       el.style.transform = `translate3d(${(f.tree[i * 3] - box.left).toFixed(1)}px, ${(f.tree[i * 3 + 1] - box.top).toFixed(1)}px, 0) translate(-50%, -50%)`;
-      el.style.opacity = show ? "1" : "0"; el.style.pointerEvents = show ? "auto" : "none"; el.tabIndex = show ? 0 : -1;
+      el.style.opacity = show ? "1" : "0"; el.style.pointerEvents = show ? "auto" : "none"; el.tabIndex = -1;
     }
   }), []);
   const a = active === null ? null : t.apples[active];
   return <section id="arbol" className={`${u.act} ${u.actTree}`} data-universe-section="tree" aria-labelledby="h-tree">
     <div className={u.stage} ref={stage}>
       <header className={u.stageHead}><p className={u.eyebrow}>{t.eyebrow}</p><h2 id="h-tree" className={u.stageTitle}>{t.title}</h2><p className={u.stageLead}>{t.lead}</p></header>
-      <div className={u.apples} role="group" aria-label={t.hint}>
+      {/* A stable, touch-friendly selector must remain usable even when the 3D fruit markers overlap or drift. */}
+      <div className={u.appleQuickNav} role="group" aria-label={t.hint}>
+        {t.apples.map((ap, i) => <button key={ap.title} type="button" className={u.appleOption} aria-pressed={active === i} onClick={() => setActive(v => (v === i ? null : i))} onFocus={() => setHover(i)} onBlur={() => setHover(null)}>
+          <i className={u.appleDot} aria-hidden="true" /><span>{ap.title}</span>
+        </button>)}
+      </div>
+      {/* Visual markers keep the direct 3D hit targets; keyboard/screen readers use the stable selector. */}
+      <div className={u.apples} aria-hidden="true">
         {t.apples.map((ap, i) => <button key={ap.title} type="button" ref={el => { dots.current[i] = el; }} className={u.apple} aria-pressed={active === i} aria-label={ap.title}
           onClick={() => setActive(v => (v === i ? null : i))} onPointerEnter={e => { if (e.pointerType === "mouse") setHover(i); }} onPointerLeave={() => setHover(null)}
           onFocus={() => setHover(i)} onBlur={() => setHover(null)}><i aria-hidden="true" /><span>{ap.title}</span></button>)}
