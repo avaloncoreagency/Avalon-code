@@ -9,6 +9,7 @@
  */
 import * as THREE from "three";
 import { mergeGeometries } from "three/examples/jsm/utils/BufferGeometryUtils.js";
+import { RoundedBoxGeometry } from "three/examples/jsm/geometries/RoundedBoxGeometry.js";
 
 export const ENGINE_COUNT = 6;
 export const APPLE_COUNT = 10;
@@ -42,12 +43,49 @@ function glowTexture() {
   const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace; return t;
 }
 
+/** Stable procedural micro-surface, no external texture loading and no runtime noise. */
+function brushedSurfaceTexture() {
+  const size = 256, c = document.createElement("canvas"); c.width = c.height = size;
+  const ctx = c.getContext("2d")!, image = ctx.createImageData(size, size), random = rng(8572);
+  for (let y = 0; y < size; y++) for (let x = 0; x < size; x++) {
+    const band = 9 * Math.sin(y * .64 + Math.sin(x * .035) * 1.8);
+    const grain = (random() - .5) * 44 + band + 4 * Math.sin(x * .22 + y * .04);
+    const shade = Math.round(clamp(196 + grain, 110, 244)), idx = (y * size + x) * 4;
+    image.data[idx] = shade; image.data[idx + 1] = shade; image.data[idx + 2] = shade; image.data[idx + 3] = 255;
+  }
+  ctx.putImageData(image, 0, 0);
+  const tex = new THREE.CanvasTexture(c);
+  tex.wrapS = tex.wrapT = THREE.RepeatWrapping; tex.repeat.set(3, 5);
+  tex.anisotropy = 4;
+  return tex;
+}
+
+/** Molded apple shape with shoulders, five subtly asymmetric lobes and an indented stem. */
+function appleGeometry() {
+  const radius = .19, geo = new THREE.SphereGeometry(radius, 36, 26);
+  const pos = geo.getAttribute("position");
+  for (let i = 0; i < pos.count; i++) {
+    const x = pos.getX(i), y = pos.getY(i), z = pos.getZ(i);
+    const v = clamp(y / radius, -1, 1), angle = Math.atan2(z, x);
+    const lobe = 1 + .043 * Math.cos(angle * 5) * Math.pow(Math.abs(v), 2.5);
+    const shoulder = 1.06 + .095 * v - .12 * v * v;
+    const dimple = v > .62 ? .069 * Math.pow((v - .62) / .38, 2) : v < -.82 ? -.022 * Math.pow((-v - .82) / .18, 2) : 0;
+    pos.setXYZ(i, x * shoulder * lobe, y - dimple, z * shoulder * lobe);
+  }
+  pos.needsUpdate = true; geo.computeVertexNormals(); return geo;
+}
+
 const SOFT_POINT = `varying float vAlpha; varying vec3 vCol;
 void main(){ float d = length(gl_PointCoord - .5); float a = smoothstep(.5, .0, d); gl_FragColor = vec4(vCol, a * a * vAlpha); }`;
 
 export function createUniverse(canvas: HTMLCanvasElement, opts: { mobile: boolean; ambientOnly: boolean; onTooSlow?: () => void }): UniverseHandle {
   const renderer = new THREE.WebGLRenderer({ canvas, antialias: !opts.mobile, alpha: false, powerPreference: "high-performance" });
-  let dpr = Math.min(window.devicePixelRatio || 1, opts.mobile ? 1.5 : 2);
+  // A 4K output is a pixel budget, not a forced 4K render on every phone.
+  // 3840×2160 max on desktop; preserve sharp Retina rendering within the mobile thermal budget.
+  const maxPixels = opts.mobile ? 3_000_000 : 8_294_400;
+  const baseDpr = Math.min(window.devicePixelRatio || 1, opts.mobile ? 2 : 2.5);
+  const limitDpr = (w: number, h: number) => Math.min(baseDpr, Math.sqrt(maxPixels / Math.max(1, w * h)));
+  let dpr = Math.max(.8, limitDpr(canvas.clientWidth || window.innerWidth, canvas.clientHeight || window.innerHeight));
   renderer.setPixelRatio(dpr);
   renderer.setClearColor(COL.midnight, 1);
   renderer.toneMapping = THREE.ACESFilmicToneMapping; renderer.toneMappingExposure = 1.05;
@@ -62,8 +100,11 @@ export function createUniverse(canvas: HTMLCanvasElement, opts: { mobile: boolea
     const m = new THREE.Mesh(new THREE.PlaneGeometry(w, h), new THREE.MeshBasicMaterial({ color: new THREE.Color(hex).multiplyScalar(k), side: THREE.DoubleSide }));
     m.position.set(x, y, z); m.lookAt(0, 0, 0); studio.add(m);
   };
-  wall(0xffffff, 7, 0, 9, 4, 11, 4); wall(COL.electric, 10, -9, 2, 3, 5, 10); wall(COL.violet, 10, 9, 1, -2, 5, 10);
-  wall(COL.cyan, 8, 0, -1, -10, 13, 2.2); wall(COL.orange, 7, 5, -8, 4, 5, 2.5); wall(COL.magenta, 6, -6, -7, -5, 4, 3); wall(0xffffff, 4, 3, 3, 10, 3, 6);
+  // Large softboxes build broad highlights; thin strip panels reveal curvature and metallic edges.
+  wall(0xffffff, 4.5, 0, 9, 4, 11, 4); wall(COL.electric, 5.5, -9, 2, 3, 5, 10); wall(COL.violet, 5.5, 9, 1, -2, 5, 10);
+  wall(COL.cyan, 4, 0, -1, -10, 13, 2.2); wall(COL.orange, 3.8, 5, -8, 4, 5, 2.5); wall(COL.magenta, 3.5, -6, -7, -5, 4, 3);
+  wall(0xffffff, 6, 3, 3, 10, .35, 7); wall(0xe0efff, 4, -3, 6, 8, .25, 5);
+  wall(COL.cyan, 3.5, 5, 0, 10, .22, 9);
   const env = pmrem.fromScene(studio, 0.035).texture;
   studio.traverse(o => { const m = o as THREE.Mesh; if (m.isMesh) { m.geometry.dispose(); (m.material as THREE.Material).dispose(); } });
   scene.environment = env; scene.environmentIntensity = 1.15;
@@ -74,15 +115,24 @@ export function createUniverse(canvas: HTMLCanvasElement, opts: { mobile: boolea
   const rim = new THREE.PointLight(COL.violet, 90, 60); rim.position.set(-6, 2, -6); camera.add(rim);
   const warm = new THREE.PointLight(COL.orange, 30, 50); warm.position.set(1, -5, -3); camera.add(warm);
 
-  const glowTex = glowTexture();
-  const disposables: { dispose(): void }[] = [glowTex, env, pmrem];
+  const glowTex = glowTexture(), microSurface = brushedSurfaceTexture();
+  const disposables: { dispose(): void }[] = [glowTex, microSurface, env, pmrem];
   const track = <T extends { dispose(): void }>(x: T) => { disposables.push(x); return x; };
   const sprite = (color: number, size: number, opacity = 1) => {
     const s = new THREE.Sprite(track(new THREE.SpriteMaterial({ map: glowTex, color, transparent: true, opacity, blending: THREE.AdditiveBlending, depthWrite: false, fog: false })));
     s.scale.setScalar(size); return s;
   };
-  const chrome = (color = 0xcfd6ee, roughness = 0.14) => track(new THREE.MeshStandardMaterial({ color, metalness: 1, roughness, envMapIntensity: 1.25 }));
-  const liquid = () => track(new THREE.MeshPhysicalMaterial({ color: 0xeef2ff, metalness: 1, roughness: 0.12, envMapIntensity: 2.1, iridescence: 1, iridescenceIOR: 1.7, iridescenceThicknessRange: [180, 620], clearcoat: 1, clearcoatRoughness: 0.08 }));
+  const chrome = (color = 0xcfd6ee, roughness = 0.23) => track(new THREE.MeshPhysicalMaterial({
+    color, metalness: .96, roughness, envMapIntensity: 1.65, roughnessMap: microSurface,
+    bumpMap: opts.mobile ? null : microSurface, bumpScale: .014,
+    clearcoat: .24, clearcoatRoughness: .15,
+  }));
+  const liquid = () => track(new THREE.MeshPhysicalMaterial({
+    color: 0xe9eefb, metalness: .94, roughness: .17, envMapIntensity: 1.9,
+    roughnessMap: microSurface, bumpMap: opts.mobile ? null : microSurface, bumpScale: .009,
+    iridescence: .24, iridescenceIOR: 1.5, iridescenceThicknessRange: [160, 330],
+    clearcoat: .78, clearcoatRoughness: .1,
+  }));
   const t0 = performance.now();
   const time = { value: 0 };
 
