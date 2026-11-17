@@ -402,26 +402,31 @@ export function createUniverse(canvas: HTMLCanvasElement, opts: { mobile: boolea
     const appleGeo = track(appleGeometry());
     const stemGeo = track(new THREE.CylinderGeometry(.009, .014, .11, 8));
     const appleLeafGeo = track(new THREE.SphereGeometry(.066, 12, 8));
-    const stemMat = chrome(0x839aa9, .38), leafMat = chrome(0x4dbea5, .34);
+    const stemMat = track(new THREE.MeshStandardMaterial({color:0x60402a,roughness:.92,metalness:0}));
+    const leafMat = track(new THREE.MeshStandardMaterial({color:0x3c883d,roughness:.8,metalness:0}));
     const apples = chosen.slice(0, APPLE_COUNT).sort((a, b) => a.t - b.t).map((c, i) => {
-      const color = i % 3 === 1 ? 0xb064d8 : 0xe6a15c;
-      // Dim, refractive-looking enamel under physically rendered softboxes; not a flat self-lit ball.
+      const color = i % 3 === 1 ? 0xc88932 : 0xb63827;
+      // Natural apple skin: red and golden fruit with subtle wax sheen, not a crystal ornament.
       const m = new THREE.Mesh(appleGeo, track(new THREE.MeshPhysicalMaterial({
-        color, metalness: .28, roughness: .14, envMapIntensity: 2.2,
-        clearcoat: 1, clearcoatRoughness: .07,
-        iridescence: .13, iridescenceIOR: 1.48, iridescenceThicknessRange: [130, 270],
-        emissive: color, emissiveIntensity: .17,
+        color, metalness: 0, roughness: .29, envMapIntensity: 1.1,
+        clearcoat: .56, clearcoatRoughness: .19,
+        emissive: 0x170a00, emissiveIntensity: .03,
       })));
       m.position.copy(c.p).add(new THREE.Vector3(0, -0.24, 0));
       m.rotation.y = i * 1.3;
       const stem = new THREE.Mesh(stemGeo, stemMat); stem.position.set(0, .148, 0); stem.rotation.z = .15; m.add(stem);
       const leaf = new THREE.Mesh(appleLeafGeo, leafMat);
       leaf.position.set(.062, .18, .007); leaf.scale.set(1.2, .22, .78); leaf.rotation.z = -.55; m.add(leaf);
-      const halo = sprite(i % 3 === 1 ? COL.magenta : COL.orange, 1.25, .3);
+      const halo = sprite(0xffe4a6, .9, .05);
       m.add(halo); tree.add(m);
       return { m, halo, t: tipT(c.t), s: 0 };
     });
-    const ground = sprite(COL.electric, 1, 0.5); ground.scale.set(15, 2.6, 1); ground.position.y = 0.1; tree.add(ground);
+    // Grassy earth at the base instead of a glowing holographic platform.
+    const earth = new THREE.Mesh(track(new THREE.CylinderGeometry(4.1, 4.55, .23, 48)),
+      track(new THREE.MeshStandardMaterial({ color: 0x283922, roughness: 1, metalness: 0 })));
+    earth.position.y = -.21; tree.add(earth);
+    const ground = sprite(0x55793e, 1, .14);
+    ground.scale.set(11, 1.25, 1); ground.position.y = .03; tree.add(ground);
     const treeTop = Math.max(...tips.map(t => t.p.y));
 
     const wp = new THREE.Vector3(), front = new THREE.Vector3();
@@ -489,12 +494,12 @@ export function createUniverse(canvas: HTMLCanvasElement, opts: { mobile: boolea
         apples.forEach((ap, i) => {
           const on = appleActive === i ? 1 : 0; const target = smooth(ap.t, ap.t + 0.07, grow) * (1 + on * 0.6 + Math.sin(t * 2.2 + i * 1.3) * 0.07);
           ap.s += (target - ap.s) * Math.min(1, dt * 6); ap.m.scale.setScalar(Math.max(0.001, ap.s));
-          (ap.m.material as THREE.MeshPhysicalMaterial).emissiveIntensity = .17 + on * .65 + Math.sin(t * 1.7 + i) * .08;
-          (ap.halo.material as THREE.SpriteMaterial).opacity = .24 + on * .43;
+          (ap.m.material as THREE.MeshPhysicalMaterial).emissiveIntensity = .03 + on * .2;
+          (ap.halo.material as THREE.SpriteMaterial).opacity = .05 + on * .27;
           wp.setFromMatrixPosition(ap.m.matrixWorld); front.copy(wp).project(camera);
           frame.tree.set([(front.x * 0.5 + 0.5) * width, (-front.y * 0.5 + 0.5) * height, front.z < 1 ? Math.min(1, ap.s) : 0], i * 3);
         });
-        ground.scale.set(15 * (0.3 + grow * 0.7), 2.6, 1);
+        ground.scale.set(11 * (.3 + grow * .7), 1.25, 1);
       }
     });
   }
