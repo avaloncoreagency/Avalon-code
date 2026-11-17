@@ -78,6 +78,14 @@
 .close { position: absolute; top: 12px; right: 12px; width: 36px; height: 36px; border-radius: 50%; border: 1px solid var(--edge); background: rgba(255, 255, 255, .06); color: var(--ink); font-size: 20px; line-height: 1; cursor: pointer; }
 .appleDot { display: inline-block; width: 12px; height: 12px; border-radius: 50%; background: radial-gradient(circle at 35% 30%, #ffd2a8, var(--orange) 55%, var(--magenta)); box-shadow: 0 0 14px rgba(255, 135, 54, .9); flex: none; }
 
+/* Persistent, deterministic opportunity controls. The cinematic fruit markers can move and
+   overlap in 3D; this rail keeps every opportunity selectable by mouse, touch and keyboard. */
+.appleQuickNav { position: relative; z-index: 8; display: flex; align-items: center; gap: 8px; max-width: 100%; overflow-x: auto; overscroll-behavior-x: contain; padding: 7px 2px 12px; scrollbar-width: thin; }
+.appleOption { display: inline-flex; flex: 0 0 auto; align-items: center; justify-content: center; gap: 8px; min-height: 44px; max-width: min(240px, 72vw); padding: 8px 14px; border-radius: 999px; background: rgba(8, 12, 30, .83); border: 1px solid rgba(255, 255, 255, .18); color: var(--ink); font: 600 13px var(--sans); cursor: pointer; backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px); }
+.appleOption span { overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+.appleOption:hover, .appleOption:focus-visible { border-color: var(--orange); background: rgba(255, 135, 54, .18); }
+.appleOption:focus-visible { outline: 3px solid var(--cyan); outline-offset: 2px; }
+.appleOption[aria-pressed="true"] { border-color: var(--orange); box-shadow: 0 0 20px rgba(255, 135, 54, .24); }
 .apples { display: flex; flex-wrap: wrap; gap: 8px; }
 .apple { display: inline-flex; align-items: center; gap: 8px; min-height: 44px; padding: 0 14px; border-radius: 999px; border: 1px solid rgba(255, 255, 255, .16); background: rgba(8, 12, 30, .7); color: var(--ink); font: 600 13px var(--sans); cursor: pointer; -webkit-tap-highlight-color: transparent; transition: border-color .25s, background .25s; }
 .apple i { width: 12px; height: 12px; border-radius: 50%; background: radial-gradient(circle at 35% 30%, #ffd2a8, var(--orange) 55%, var(--magenta)); box-shadow: 0 0 12px rgba(255, 135, 54, .9); flex: none; }
@@ -173,4 +181,6 @@
 :global(html:not([data-universe="live"])) .checks { display: grid; }
 :global(html:not([data-universe="live"])) .panelLabel { display: block; }
 :global(html:not([data-universe="live"])) .chip { min-height: 44px; }
+/* The quick selector is the accessible fallback; projected fruit markers exist only with the scene. */
+:global(html:not([data-universe="live"])) .apples { display: none; }
 .chip:focus-visible, .apple:focus-visible, .cta:focus-visible, .ctaGhost:focus-visible, .close:focus-visible { outline: 3px solid #30daf4; outline-offset: 4px; }
