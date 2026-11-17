@@ -1,4 +1,5 @@
--- Avalon OS · Operation Core Engine (C1–C4). ADDITIVE ONLY. Not applied to production by this PR.
+-- Avalon OS · Operation Core Engine (C1–C4). ADDITIVE ONLY. Applied to production on 2026-11-17 with explicit owner
+-- approval (ledger version 20261117155716_crm_core_engine); this file was renamed to match the production ledger.
 --
 --  1. Catalog commercial terms: monthly price, direct cost, target margin, exclusions, duration, payment terms,
 --     draft/approved offer with version, and an optional commission rule. Prices and percentages are never seeded:
@@ -15,8 +16,7 @@
 --  6. Explicit deny-all policies on the two RLS tables the Security Advisor reported without policies.
 --
 -- Production ledger note: Branching cannot replay this repository onto production (29 of 41 historical files carry
--- different versions in the production ledger). Apply manually with apply_migration after backup and explicit owner
--- approval, then rename this file to the version the ledger records.
+-- different versions in the production ledger). It was applied manually with apply_migration in one transaction.
 
 begin;
 
