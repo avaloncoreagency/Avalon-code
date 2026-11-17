@@ -9,6 +9,7 @@
  */
 import * as THREE from "three";
 import { mergeGeometries } from "three/examples/jsm/utils/BufferGeometryUtils.js";
+import { RoundedBoxGeometry } from "three/examples/jsm/geometries/RoundedBoxGeometry.js";
 
 export const ENGINE_COUNT = 6;
 export const APPLE_COUNT = 10;
@@ -42,12 +43,71 @@ function glowTexture() {
   const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace; return t;
 }
 
+/** Stable procedural micro-surface, no external texture loading and no runtime noise. */
+function brushedSurfaceTexture() {
+  const size = 256, c = document.createElement("canvas"); c.width = c.height = size;
+  const ctx = c.getContext("2d")!, image = ctx.createImageData(size, size), random = rng(8572);
+  for (let y = 0; y < size; y++) for (let x = 0; x < size; x++) {
+    const band = 9 * Math.sin(y * .64 + Math.sin(x * .035) * 1.8);
+    const grain = (random() - .5) * 44 + band + 4 * Math.sin(x * .22 + y * .04);
+    const shade = Math.round(clamp(196 + grain, 110, 244)), idx = (y * size + x) * 4;
+    image.data[idx] = shade; image.data[idx + 1] = shade; image.data[idx + 2] = shade; image.data[idx + 3] = 255;
+  }
+  ctx.putImageData(image, 0, 0);
+  const tex = new THREE.CanvasTexture(c);
+  tex.wrapS = tex.wrapT = THREE.RepeatWrapping; tex.repeat.set(3, 5);
+  tex.anisotropy = 4;
+  return tex;
+}
+
+/** Molded apple shape with shoulders, five subtly asymmetric lobes and an indented stem. */
+function appleGeometry() {
+  const radius = .19, geo = new THREE.SphereGeometry(radius, 36, 26);
+  const pos = geo.getAttribute("position");
+  for (let i = 0; i < pos.count; i++) {
+    const x = pos.getX(i), y = pos.getY(i), z = pos.getZ(i);
+    const v = clamp(y / radius, -1, 1), angle = Math.atan2(z, x);
+    const lobe = 1 + .043 * Math.cos(angle * 5) * Math.pow(Math.abs(v), 2.5);
+    const shoulder = 1.06 + .095 * v - .12 * v * v;
+    const dimple = v > .62 ? .069 * Math.pow((v - .62) / .38, 2) : v < -.82 ? -.022 * Math.pow((-v - .82) / .18, 2) : 0;
+    pos.setXYZ(i, x * shoulder * lobe, y - dimple, z * shoulder * lobe);
+  }
+  pos.needsUpdate = true; geo.computeVertexNormals(); return geo;
+}
+
+/** Deterministic rough tree bark: real dark umber grain and vertical fissures.
+ *  Visual continuity with the eventual Higgsfield orchard shot, no external network.
+ */
+function barkTexture() {
+  const canvas = document.createElement("canvas"); canvas.width = canvas.height = 256;
+  const ctx = canvas.getContext("2d")!, img = ctx.createImageData(256, 256), rand = rng(4011);
+  for (let y = 0; y < 256; y++) for (let x = 0; x < 256; x++) {
+    const cracks = Math.pow(Math.abs(Math.sin(x * .115 + Math.sin(y * .033) * 1.8)), 19);
+    const grain = Math.sin(x * .25 + Math.sin(y * .07) * 1.6) * 10 + (rand() - .5) * 23;
+    const dark = cracks * 55, idx = (y * 256 + x) * 4;
+    img.data[idx] = clamp(79 + grain - dark, 18, 150);
+    img.data[idx + 1] = clamp(52 + grain * .72 - dark, 12, 120);
+    img.data[idx + 2] = clamp(34 + grain * .48 - dark, 8, 96);
+    img.data[idx + 3] = 255;
+  }
+  ctx.putImageData(img, 0, 0);
+  const tex = new THREE.CanvasTexture(canvas);
+  tex.wrapS = tex.wrapT = THREE.RepeatWrapping; tex.repeat.set(2, 3);
+  tex.colorSpace = THREE.SRGBColorSpace; tex.anisotropy = 4;
+  return tex;
+}
+
 const SOFT_POINT = `varying float vAlpha; varying vec3 vCol;
 void main(){ float d = length(gl_PointCoord - .5); float a = smoothstep(.5, .0, d); gl_FragColor = vec4(vCol, a * a * vAlpha); }`;
 
 export function createUniverse(canvas: HTMLCanvasElement, opts: { mobile: boolean; ambientOnly: boolean; onTooSlow?: () => void }): UniverseHandle {
   const renderer = new THREE.WebGLRenderer({ canvas, antialias: !opts.mobile, alpha: false, powerPreference: "high-performance" });
-  let dpr = Math.min(window.devicePixelRatio || 1, opts.mobile ? 1.5 : 2);
+  // A 4K output is a pixel budget, not a forced 4K render on every phone.
+  // 3840×2160 max on desktop; preserve sharp Retina rendering within the mobile thermal budget.
+  const maxPixels = opts.mobile ? 3_000_000 : 8_294_400;
+  const baseDpr = Math.min(window.devicePixelRatio || 1, opts.mobile ? 2 : 2.5);
+  const limitDpr = (w: number, h: number) => Math.min(baseDpr, Math.sqrt(maxPixels / Math.max(1, w * h)));
+  let dpr = Math.max(.8, limitDpr(canvas.clientWidth || window.innerWidth, canvas.clientHeight || window.innerHeight));
   renderer.setPixelRatio(dpr);
   renderer.setClearColor(COL.midnight, 1);
   renderer.toneMapping = THREE.ACESFilmicToneMapping; renderer.toneMappingExposure = 1.05;
@@ -62,8 +122,11 @@ export function createUniverse(canvas: HTMLCanvasElement, opts: { mobile: boolea
     const m = new THREE.Mesh(new THREE.PlaneGeometry(w, h), new THREE.MeshBasicMaterial({ color: new THREE.Color(hex).multiplyScalar(k), side: THREE.DoubleSide }));
     m.position.set(x, y, z); m.lookAt(0, 0, 0); studio.add(m);
   };
-  wall(0xffffff, 7, 0, 9, 4, 11, 4); wall(COL.electric, 10, -9, 2, 3, 5, 10); wall(COL.violet, 10, 9, 1, -2, 5, 10);
-  wall(COL.cyan, 8, 0, -1, -10, 13, 2.2); wall(COL.orange, 7, 5, -8, 4, 5, 2.5); wall(COL.magenta, 6, -6, -7, -5, 4, 3); wall(0xffffff, 4, 3, 3, 10, 3, 6);
+  // Large softboxes build broad highlights; thin strip panels reveal curvature and metallic edges.
+  wall(0xffffff, 4.5, 0, 9, 4, 11, 4); wall(COL.electric, 5.5, -9, 2, 3, 5, 10); wall(COL.violet, 5.5, 9, 1, -2, 5, 10);
+  wall(COL.cyan, 4, 0, -1, -10, 13, 2.2); wall(COL.orange, 3.8, 5, -8, 4, 5, 2.5); wall(COL.magenta, 3.5, -6, -7, -5, 4, 3);
+  wall(0xffffff, 6, 3, 3, 10, .35, 7); wall(0xe0efff, 4, -3, 6, 8, .25, 5);
+  wall(COL.cyan, 3.5, 5, 0, 10, .22, 9);
   const env = pmrem.fromScene(studio, 0.035).texture;
   studio.traverse(o => { const m = o as THREE.Mesh; if (m.isMesh) { m.geometry.dispose(); (m.material as THREE.Material).dispose(); } });
   scene.environment = env; scene.environmentIntensity = 1.15;
@@ -74,15 +137,24 @@ export function createUniverse(canvas: HTMLCanvasElement, opts: { mobile: boolea
   const rim = new THREE.PointLight(COL.violet, 90, 60); rim.position.set(-6, 2, -6); camera.add(rim);
   const warm = new THREE.PointLight(COL.orange, 30, 50); warm.position.set(1, -5, -3); camera.add(warm);
 
-  const glowTex = glowTexture();
-  const disposables: { dispose(): void }[] = [glowTex, env, pmrem];
+  const glowTex = glowTexture(), microSurface = brushedSurfaceTexture(), bark = barkTexture();
+  const disposables: { dispose(): void }[] = [glowTex, microSurface, bark, env, pmrem];
   const track = <T extends { dispose(): void }>(x: T) => { disposables.push(x); return x; };
   const sprite = (color: number, size: number, opacity = 1) => {
     const s = new THREE.Sprite(track(new THREE.SpriteMaterial({ map: glowTex, color, transparent: true, opacity, blending: THREE.AdditiveBlending, depthWrite: false, fog: false })));
     s.scale.setScalar(size); return s;
   };
-  const chrome = (color = 0xcfd6ee, roughness = 0.14) => track(new THREE.MeshStandardMaterial({ color, metalness: 1, roughness, envMapIntensity: 1.25 }));
-  const liquid = () => track(new THREE.MeshPhysicalMaterial({ color: 0xeef2ff, metalness: 1, roughness: 0.12, envMapIntensity: 2.1, iridescence: 1, iridescenceIOR: 1.7, iridescenceThicknessRange: [180, 620], clearcoat: 1, clearcoatRoughness: 0.08 }));
+  const chrome = (color = 0xcfd6ee, roughness = 0.23) => track(new THREE.MeshPhysicalMaterial({
+    color, metalness: .96, roughness, envMapIntensity: 1.65, roughnessMap: microSurface,
+    bumpMap: opts.mobile ? null : microSurface, bumpScale: .014,
+    clearcoat: .24, clearcoatRoughness: .15,
+  }));
+  const liquid = () => track(new THREE.MeshPhysicalMaterial({
+    color: 0xe9eefb, metalness: .94, roughness: .17, envMapIntensity: 1.9,
+    roughnessMap: microSurface, bumpMap: opts.mobile ? null : microSurface, bumpScale: .009,
+    iridescence: .24, iridescenceIOR: 1.5, iridescenceThicknessRange: [160, 330],
+    clearcoat: .78, clearcoatRoughness: .1,
+  }));
   const t0 = performance.now();
   const time = { value: 0 };
 
@@ -130,14 +202,17 @@ export function createUniverse(canvas: HTMLCanvasElement, opts: { mobile: boolea
 
   if (!opts.ambientOnly) {
     // ── Energy core (shared look for Ignition and the Growth Engine) ────────────────────────────────────────────
+    // The moving aurora is a translucent coat on top of a PBR metal core, not an unlit sphere.
     const energyMat = (a: number, b: number) => track(new THREE.ShaderMaterial({
+      transparent: true, depthWrite: false, blending: THREE.AdditiveBlending,
       uniforms: { uTime: time, uA: { value: new THREE.Color(a) }, uB: { value: new THREE.Color(b) }, uPower: { value: 1 } },
       vertexShader: `varying vec3 vN; varying vec3 vP; varying vec3 vV; void main(){ vN = normalize(normalMatrix*normal); vec4 mv = modelViewMatrix*vec4(position,1.); vV = normalize(-mv.xyz); vP = position; gl_Position = projectionMatrix*mv; }`,
       fragmentShader: `uniform float uTime; uniform vec3 uA; uniform vec3 uB; uniform float uPower; varying vec3 vN; varying vec3 vP; varying vec3 vV;
         void main(){ float f = pow(1. - max(dot(normalize(vN), normalize(vV)), 0.), 2.);
           float n = sin(vP.x*6.+uTime*1.3)*sin(vP.y*7.-uTime*1.1)*sin(vP.z*5.+uTime*.9);
           float bands = .5 + .5*sin(vP.y*13. + n*3.5 + uTime*2.);
-          vec3 col = mix(uA, uB, bands)*(.5+.7*n) + f*vec3(.55,.8,1.)*1.5; gl_FragColor = vec4(col*uPower, 1.); }`,
+          vec3 col = mix(uA, uB, bands)*(.5+.7*n) + f*vec3(.55,.8,1.)*1.5;
+          gl_FragColor = vec4(col*uPower, .12 + f*.16 + bands*.08); }`,
     }));
     const sphereGeo = track(new THREE.SphereGeometry(1, 48, 32));
     const buildRings = (parent: THREE.Group, radii: number[]) => radii.map((r, i) => {
@@ -149,7 +224,8 @@ export function createUniverse(canvas: HTMLCanvasElement, opts: { mobile: boolea
     const core = new THREE.Group(); scene.add(core);
     const coreGlow = sprite(COL.electric, 9, 0.55); core.add(coreGlow);
     const coreGlow2 = sprite(COL.violet, 5, 0.5); core.add(coreGlow2);
-    const coreEnergy = new THREE.Mesh(sphereGeo, energyMat(COL.electric, COL.violet)); coreEnergy.scale.setScalar(0.62); core.add(coreEnergy);
+    const coreMetal = new THREE.Mesh(sphereGeo, liquid()); coreMetal.scale.setScalar(.585); core.add(coreMetal);
+    const coreEnergy = new THREE.Mesh(sphereGeo, energyMat(COL.electric, COL.violet)); coreEnergy.scale.setScalar(.635); core.add(coreEnergy);
     const coreRings = buildRings(core, [1.55, 1.85, 2.2]);
     const P = (x: number, y: number) => new THREE.Vector2((x - 70) / 52, (63 - y) / 52);
     const markGeo = track(new THREE.ExtrudeGeometry([new THREE.Shape([P(70, 12), P(131, 112), P(99, 112), P(70, 62), P(40, 112), P(9, 112)]), new THREE.Shape([P(70, 79), P(91, 115), P(49, 115)])],
@@ -202,11 +278,12 @@ export function createUniverse(canvas: HTMLCanvasElement, opts: { mobile: boolea
     // ── III · THE GROWTH ENGINE ─────────────────────────────────────────────────────────────────────────────────
     const engine = new THREE.Group(); engine.position.copy(ENGINE); scene.add(engine);
     engine.add(sprite(COL.electric, 8, 0.5));
-    const engEnergy = new THREE.Mesh(sphereGeo, energyMat(COL.cyan, COL.electric)); engEnergy.scale.setScalar(0.85); engine.add(engEnergy);
+    const engineMetal = new THREE.Mesh(sphereGeo, chrome(0x90b6cd, .2)); engineMetal.scale.setScalar(.79); engine.add(engineMetal);
+    const engEnergy = new THREE.Mesh(sphereGeo, energyMat(COL.cyan, COL.electric)); engEnergy.scale.setScalar(0.855); engine.add(engEnergy);
     const engRings = buildRings(engine, [1.25, 1.5]);
     const moduleGeos: THREE.BufferGeometry[] = [
-      new THREE.BoxGeometry(1.25, 0.82, 0.09),                       // website: a screen
-      new THREE.BoxGeometry(0.82, 0.82, 0.82),                       // e-commerce: a package
+      new RoundedBoxGeometry(1.25, .82, .12, 4, .065),             // website: beveled display housing
+      new RoundedBoxGeometry(.82, .82, .82, 4, .07),                 // e-commerce: machined package
       new THREE.CylinderGeometry(0.5, 0.5, 0.85, 28, 3),             // CRM: a data store
       new THREE.ConeGeometry(0.55, 1.0, 28, 1, true),                // marketing: a megaphone
       new THREE.TorusGeometry(0.46, 0.16, 16, 40),                   // communication: a headset ring
@@ -216,7 +293,22 @@ export function createUniverse(canvas: HTMLCanvasElement, opts: { mobile: boolea
       const g = new THREE.Group();
       const mesh = new THREE.Mesh(geo, chrome(0xd6dcf2, 0.16)); if (i === 3) { mesh.rotation.z = -Math.PI / 2; (mesh.material as THREE.MeshStandardMaterial).side = THREE.DoubleSide; }
       const edges = new THREE.LineSegments(track(new THREE.EdgesGeometry(geo, 25)), track(new THREE.LineBasicMaterial({ color: MODULE_COLORS[i], transparent: true, opacity: 0.9, blending: THREE.AdditiveBlending, depthWrite: false })));
-      mesh.add(edges); const halo = sprite(MODULE_COLORS[i], 2.6, 0.45); g.add(halo, mesh); engine.add(g);
+      mesh.add(edges);
+      if (i === 0) {
+        // Deep glossy glass in a rounded bezel gives the website object real surface depth.
+        const screen = new THREE.Mesh(track(new RoundedBoxGeometry(1.07, .64, .026, 3, .035)),
+          track(new THREE.MeshPhysicalMaterial({ color: 0x132c4b, metalness: .24, roughness: .11,
+            clearcoat: 1, clearcoatRoughness: .06, envMapIntensity: 1.6, emissive: 0x07162d, emissiveIntensity: .22 })));
+        screen.position.z = .077; mesh.add(screen);
+        const stripe = new THREE.Mesh(track(new THREE.BoxGeometry(.78, .018, .007)),
+          track(new THREE.MeshBasicMaterial({ color: COL.cyan, transparent: true, opacity: .65 })));
+        stripe.position.set(0, .17, .094); screen.add(stripe);
+      }
+      if (i === 1) {
+        const band = new THREE.Mesh(track(new RoundedBoxGeometry(.89, .10, .89, 2, .022)),
+          chrome(0x98b2d5, .31)); band.position.y = .05; mesh.add(band);
+      }
+      const halo = sprite(MODULE_COLORS[i], 2.15, 0.3); g.add(halo, mesh); engine.add(g);
       return { g, mesh, halo, pos: new THREE.Vector3(), s: 1 };
     });
     const linkGeo = track(new THREE.BufferGeometry());
@@ -235,6 +327,11 @@ export function createUniverse(canvas: HTMLCanvasElement, opts: { mobile: boolea
     // ── IV · THE GROWTH TREE ────────────────────────────────────────────────────────────────────────────────────
     type Seg = { a: THREE.Vector3; b: THREE.Vector3; r0: number; r1: number; t0: number; t1: number };
     const tree = new THREE.Group(); tree.position.copy(TREE); scene.add(tree);
+    // The growth world is a real orchard: botanical warm light and a soft green sky fill.
+    const sun = new THREE.DirectionalLight(0xffe4ad, 2.7);
+    sun.position.set(-5, 10, 8); tree.add(sun);
+    const canopyFill = new THREE.HemisphereLight(0xb8dfb1, 0x48351e, 1.35);
+    tree.add(canopyFill);
     const R = rng(4242); const segs: Seg[] = [], roots: Seg[] = []; const tips: { p: THREE.Vector3; t: number }[] = [];
     const up = new THREE.Vector3(0, 1, 0), tmp = new THREE.Vector3();
     const branch = (list: Seg[], a: THREE.Vector3, dir: THREE.Vector3, len: number, rad: number, depth: number, t0: number, isRoot: boolean) => {
@@ -272,9 +369,15 @@ export function createUniverse(canvas: HTMLCanvasElement, opts: { mobile: boolea
       return m;
     };
     const trunkGeo = track(buildSegs(segs, tMax, 0.2, 0.8));
-    tree.add(new THREE.Mesh(trunkGeo, growMat(chrome(0xaab6e6, 0.2), "vec3(.19,.6,1.) * 1.1")));
+    tree.add(new THREE.Mesh(trunkGeo, growMat(track(new THREE.MeshStandardMaterial({
+      color: 0xffffff, map: bark, roughness: .92, metalness: 0,
+      bumpMap: opts.mobile ? null : bark, bumpScale: .045,
+    })), "vec3(.09,.07,.035) * .06")));
     const rootGeo = track(buildSegs(roots, rMax, 0, 0.24));
-    tree.add(new THREE.Mesh(rootGeo, growMat(track(new THREE.MeshStandardMaterial({ color: 0x1b2f66, metalness: 0.7, roughness: 0.35, emissive: COL.electric, emissiveIntensity: 0.7 })), "vec3(.19,.85,.96) * 1.3")));
+    tree.add(new THREE.Mesh(rootGeo, growMat(track(new THREE.MeshStandardMaterial({
+      color: 0x9c846d, map: bark, roughness: .96, metalness: 0,
+      bumpMap: opts.mobile ? null : bark, bumpScale: .055,
+    })), "vec3(.05,.08,.03) * .03")));
     const tipT = (t: number) => 0.2 + (t / tMax) * 0.8;
     // Leaves: glints at every tip and along the last twigs.
     const leafPts: number[] = [], leafT: number[] = [];
@@ -289,6 +392,31 @@ export function createUniverse(canvas: HTMLCanvasElement, opts: { mobile: boolea
           vCol = mix(vec3(.47,.28,1.), vec3(.19,.85,.96), aL.y); vCol = mix(vCol, vec3(.91,.93,.96), step(.8, aL.y)); }`,
       fragmentShader: SOFT_POINT })));
     tree.add(leaves);
+    // Instanced botanical leaf blades cast real directional shading; far more convincing than
+    // the previous glowing particle-only canopy, with only one foliage draw call.
+    const twigSegments = segs.filter(s => s.r0 < .12);
+    const foliageCount = Math.min(opts.mobile ? 320 : 920, twigSegments.length * 8);
+    const leafShape = new THREE.Shape();
+    leafShape.moveTo(0, -.16);
+    leafShape.bezierCurveTo(-.13, -.055, -.13, .075, 0, .19);
+    leafShape.bezierCurveTo(.13, .075, .13, -.055, 0, -.16);
+    const foliageGeometry = track(new THREE.ShapeGeometry(leafShape, 3));
+    const foliageMat = track(new THREE.MeshStandardMaterial({
+      color: 0xffffff, metalness: 0, roughness: .83, side: THREE.DoubleSide,
+    }));
+    const foliage = new THREE.InstancedMesh(foliageGeometry, foliageMat, foliageCount);
+    const pose = new THREE.Object3D();
+    for (let i = 0; i < foliageCount; i++) {
+      const s = twigSegments[i % twigSegments.length], p = s.a.clone().lerp(s.b, .2 + R() * .8);
+      pose.position.copy(p).add(new THREE.Vector3((R()-.5)*.7,(R()-.5)*.65,(R()-.5)*.7));
+      pose.rotation.set(R()*TAU,R()*TAU,R()*TAU); pose.scale.setScalar(.8 + R() * .9);
+      pose.updateMatrix(); foliage.setMatrixAt(i, pose.matrix);
+      const palette = [0x315c2b, 0x456c35, 0x6c8d46, 0x76944c, 0x4a7836];
+      foliage.setColorAt(i, new THREE.Color(palette[i % palette.length]));
+    }
+    foliage.instanceMatrix.needsUpdate = true;
+    if (foliage.instanceColor) foliage.instanceColor.needsUpdate = true;
+    foliage.frustumCulled = false; foliage.visible = false; tree.add(foliage);
     // Apples: ten well-spread tips.
     const chosen: { p: THREE.Vector3; t: number }[] = [];
     for (const c of [...tips].sort((a, b) => Math.atan2(a.p.z, a.p.x) - Math.atan2(b.p.z, b.p.x))) {
@@ -296,14 +424,34 @@ export function createUniverse(canvas: HTMLCanvasElement, opts: { mobile: boolea
       if (chosen.every(o => o.p.distanceTo(c.p) > 1.25) && Math.abs(c.p.z) < 3.2) chosen.push(c);
     }
     for (const c of tips) { if (chosen.length >= APPLE_COUNT) break; if (!chosen.includes(c)) chosen.push(c); }
-    const appleGeo = track(new THREE.SphereGeometry(0.19, 24, 18));
+    const appleGeo = track(appleGeometry());
+    const stemGeo = track(new THREE.CylinderGeometry(.009, .014, .11, 8));
+    const appleLeafGeo = track(new THREE.SphereGeometry(.066, 12, 8));
+    const stemMat = track(new THREE.MeshStandardMaterial({color:0x60402a,roughness:.92,metalness:0}));
+    const leafMat = track(new THREE.MeshStandardMaterial({color:0x3c883d,roughness:.8,metalness:0}));
     const apples = chosen.slice(0, APPLE_COUNT).sort((a, b) => a.t - b.t).map((c, i) => {
-      const color = i % 3 === 1 ? COL.magenta : COL.orange;
-      const m = new THREE.Mesh(appleGeo, track(new THREE.MeshStandardMaterial({ color, emissive: color, emissiveIntensity: 1.3, metalness: 0.3, roughness: 0.12, envMapIntensity: 2 })));
-      m.position.copy(c.p).add(new THREE.Vector3(0, -0.24, 0)); const halo = sprite(color, 1.5, 0.6); m.add(halo); tree.add(m);
+      const color = i % 3 === 1 ? 0xc88932 : 0xb63827;
+      // Natural apple skin: red and golden fruit with subtle wax sheen, not a crystal ornament.
+      const m = new THREE.Mesh(appleGeo, track(new THREE.MeshPhysicalMaterial({
+        color, metalness: 0, roughness: .29, envMapIntensity: 1.1,
+        clearcoat: .56, clearcoatRoughness: .19,
+        emissive: 0x170a00, emissiveIntensity: .03,
+      })));
+      m.position.copy(c.p).add(new THREE.Vector3(0, -0.24, 0));
+      m.rotation.y = i * 1.3;
+      const stem = new THREE.Mesh(stemGeo, stemMat); stem.position.set(0, .148, 0); stem.rotation.z = .15; m.add(stem);
+      const leaf = new THREE.Mesh(appleLeafGeo, leafMat);
+      leaf.position.set(.062, .18, .007); leaf.scale.set(1.2, .22, .78); leaf.rotation.z = -.55; m.add(leaf);
+      const halo = sprite(0xffe4a6, .9, .05);
+      m.add(halo); tree.add(m);
       return { m, halo, t: tipT(c.t), s: 0 };
     });
-    const ground = sprite(COL.electric, 1, 0.5); ground.scale.set(15, 2.6, 1); ground.position.y = 0.1; tree.add(ground);
+    // Grassy earth at the base instead of a glowing holographic platform.
+    const earth = new THREE.Mesh(track(new THREE.CylinderGeometry(4.1, 4.55, .23, 48)),
+      track(new THREE.MeshStandardMaterial({ color: 0x283922, roughness: 1, metalness: 0 })));
+    earth.position.y = -.21; tree.add(earth);
+    const ground = sprite(0x55793e, 1, .14);
+    ground.scale.set(11, 1.25, 1); ground.position.y = .03; tree.add(ground);
     const treeTop = Math.max(...tips.map(t => t.p.y));
 
     const wp = new THREE.Vector3(), front = new THREE.Vector3();
@@ -315,7 +463,9 @@ export function createUniverse(canvas: HTMLCanvasElement, opts: { mobile: boolea
       const dive = smooth(1.0, 1.07, Ts); core.visible = Ts < 1.4;
       if (core.visible) {
         const breathe = 1 + Math.sin(t * 1.4) * 0.04 + kick * 0.25;
-        coreEnergy.scale.setScalar(0.62 * breathe * smooth(0, 1.1, w) * (1 - dive));
+        coreEnergy.scale.setScalar(.635 * breathe * smooth(0, 1.1, w) * (1 - dive));
+        coreMetal.scale.setScalar(.585 * breathe * smooth(0, 1.1, w) * (1 - dive));
+        coreMetal.rotation.y = t * .09; coreMetal.rotation.x = Math.sin(t * .32) * .12;
         (coreEnergy.material as THREE.ShaderMaterial).uniforms.uPower.value = 0.9 + kick * 1.2 + Math.sin(t * 2.1) * 0.08;
         coreGlow.scale.setScalar((7 + Math.sin(t * 1.4) * 0.6 + kick * 5) * (0.3 + 0.7 * birth)); coreGlow2.scale.setScalar(4.2 + kick * 3);
         const ringS = smooth(0.5, 1.9, w) * (1 + smooth(0.9, 1.08, Ts) * 7);
@@ -336,7 +486,10 @@ export function createUniverse(canvas: HTMLCanvasElement, opts: { mobile: boolea
       if (engine.visible) {
         const target = Math.PI / 2 - engineActive * (TAU / ENGINE_COUNT);
         let d = (target - orbitBase) % TAU; if (d > Math.PI) d -= TAU; if (d < -Math.PI) d += TAU; orbitBase += d * Math.min(1, dt * 3.2);
-        engEnergy.scale.setScalar(0.85 * (1 + Math.sin(t * 1.6) * 0.05 + kick * 0.2));
+        const energyPulse = 1 + Math.sin(t * 1.6) * .05 + kick * .2;
+        engEnergy.scale.setScalar(.855 * energyPulse);
+        engineMetal.scale.setScalar(.79 * energyPulse);
+        engineMetal.rotation.y = t * .16;
         engRings.forEach((r, i) => { r.rotation.x += dt * (0.3 + i * 0.2); r.rotation.z += dt * 0.2; });
         const wideE = aspect >= 1.15, rx = wideE ? 3.9 : 2.25, rz = wideE ? 2.4 : 1.7, ms = wideE ? 0.92 : 0.62;
         modules.forEach((mo, i) => {
@@ -361,17 +514,19 @@ export function createUniverse(canvas: HTMLCanvasElement, opts: { mobile: boolea
       // Overshoot to 1.12 so the last twigs, leaves and apples (birth time ≈ 1) finish growing too.
       const grow = smooth(3.04, 3.78, Ts) * 1.12; growUni.uGrow.value = grow; frame.grow = Math.min(1, grow);
       if (tree.visible) {
-        tree.rotation.y = Math.sin(t * 0.18) * 0.1 + pxs * 0.14; tree.rotation.z = Math.sin(t * 0.35) * 0.012;
+        foliage.visible = grow > .68;
+        foliage.rotation.z = Math.sin(t * .65) * .012; foliage.rotation.x = Math.cos(t * .47) * .008;
+        tree.rotation.y = Math.sin(t * 0.18) * 0.07 + pxs * 0.1; tree.rotation.z = Math.sin(t * 0.35) * 0.012;
         tree.updateMatrixWorld();
         apples.forEach((ap, i) => {
           const on = appleActive === i ? 1 : 0; const target = smooth(ap.t, ap.t + 0.07, grow) * (1 + on * 0.6 + Math.sin(t * 2.2 + i * 1.3) * 0.07);
           ap.s += (target - ap.s) * Math.min(1, dt * 6); ap.m.scale.setScalar(Math.max(0.001, ap.s));
-          (ap.m.material as THREE.MeshStandardMaterial).emissiveIntensity = 1.1 + on * 1.6 + Math.sin(t * 2.6 + i) * 0.25;
-          (ap.halo.material as THREE.SpriteMaterial).opacity = 0.45 + on * 0.5;
+          (ap.m.material as THREE.MeshPhysicalMaterial).emissiveIntensity = .03 + on * .2;
+          (ap.halo.material as THREE.SpriteMaterial).opacity = .05 + on * .27;
           wp.setFromMatrixPosition(ap.m.matrixWorld); front.copy(wp).project(camera);
           frame.tree.set([(front.x * 0.5 + 0.5) * width, (-front.y * 0.5 + 0.5) * height, front.z < 1 ? Math.min(1, ap.s) : 0], i * 3);
         });
-        ground.scale.set(15 * (0.3 + grow * 0.7), 2.6, 1);
+        ground.scale.set(11 * (.3 + grow * .7), 1.25, 1);
       }
     });
   }
@@ -410,15 +565,21 @@ export function createUniverse(canvas: HTMLCanvasElement, opts: { mobile: boolea
   const resize = () => {
     const w = canvas.clientWidth || window.innerWidth, h = canvas.clientHeight || window.innerHeight;
     width = w; height = h; aspect = w / h; fit = aspect < 1 ? clamp(aspect * 1.3, 0.5, 1) : 1;
+    // Guard maximum framebuffer size even after rotation, split-screen or external display changes.
+    const maxDpr = Math.max(.75, limitDpr(w, h));
+    if (dpr > maxDpr) { dpr = maxDpr; renderer.setPixelRatio(dpr); }
     renderer.setSize(w, h, false); camera.aspect = aspect; camera.updateProjectionMatrix(); K = keys();
     const ps = h * dpr; pUni.uSize.value = ps * 0.085;
     scene.traverse(o => { const u = (o as THREE.Points).material as THREE.ShaderMaterial | undefined; if (o !== particles && u && u.uniforms && u.uniforms.uSize) u.uniforms.uSize.value = ps * 0.11; });
   };
 
-  let raf = 0, running = false, last = 0, slow = 0, frames = 0;
+  let raf = 0, running = false, last = 0, lastProjection = 0;
+  let qualityTime = 0, qualityFrames = 0, fastestMs = 1000 / 60, poorWindows = 0, strongWindows = 0;
+  let particleFraction = 1;
   const tick = (now: number) => {
     raf = requestAnimationFrame(tick);
-    const dt = Math.min(0.05, (now - last) / 1000 || 0.016); last = now; time.value += dt;
+    const rawMs = Math.max(1, now - last);
+    const dt = Math.min(0.05, rawMs / 1000 || 0.016); last = now; time.value += dt;
     // A jump link (e.g. hero → quote form) cuts to the destination instead of fast-forwarding through every universe.
     if (Math.abs(T - Ts) > 1.3) Ts = T; else Ts += (T - Ts) * Math.min(1, dt * 5.5); pxs += (px - pxs) * Math.min(1, dt * 4); pys += (py - pys) * Math.min(1, dt * 4);
     boost = Math.max(0, boost - dt * 1.4); kick = Math.max(0, kick - dt * 1.8);
@@ -426,12 +587,43 @@ export function createUniverse(canvas: HTMLCanvasElement, opts: { mobile: boolea
     moveCamera(); camera.updateMatrixWorld();
     for (const u of updaters) u(dt, time.value);
     for (const r of ripples) if (r.m.visible) { r.age += dt; const k = r.age / 1.15; if (k >= 1) { r.m.visible = false; continue; } r.m.scale.setScalar(0.2 + r.max * (1 - (1 - k) * (1 - k))); (r.m.material as THREE.MeshBasicMaterial).opacity = (1 - k) * 0.85; }
-    frame.t = Ts; frameCb?.(frame);
+    frame.t = Ts;
+    // Project HTML hit targets at 60 fps desktop/30 mobile while the actual scene is
+    // free to render at native 60/90/120 Hz. DOM layout must not cap GPU animation.
+    if (now - lastProjection >= (opts.mobile ? 1000 / 30 : 1000 / 60)) {
+      frameCb?.(frame); lastProjection = now;
+    }
     renderer.render(scene, camera);
-    // Adaptive quality: if the first seconds are slow, drop resolution once instead of stuttering forever.
-    if (frames < 120) { frames++; if (dt > 0.03) slow++; if (frames === 120 && slow > 45 && dpr > 1) { dpr = 1; renderer.setPixelRatio(1); resize(); pGeo.setDrawRange(0, Math.floor(N / 2)); } if (frames === 120) slow = 0; }
-    // Watchdog: if it is still far from fluid after the downgrade, hand over to the static experience.
-    else if (frames < 300) { frames++; if (dt > 0.045) slow++; if (frames === 300 && slow > 110) opts.onTooSlow?.(); }
+    // Continuous frame-budget governor rather than a one-time "first 120 frames" downgrade.
+    // requestAnimationFrame naturally follows 60/90/120 Hz screens where supported.
+    if (rawMs < 120 && rawMs > 4) {
+      qualityTime += Math.min(rawMs, 70); qualityFrames++;
+      fastestMs = Math.min(fastestMs, rawMs);
+    }
+    if (qualityFrames >= 120) {
+      const average = qualityTime / qualityFrames;
+      const refreshBudget = fastestMs < 12.4 ? 1000 / 120 : 1000 / 60;
+      const cap = Math.max(.75, limitDpr(width, height));
+      canvas.dataset.refreshBudget = refreshBudget < 12 ? "120" : "60";
+      if (average > refreshBudget * 1.19) {
+        poorWindows++; strongWindows = 0;
+        if (dpr > .76) {
+          dpr = Math.max(.75, dpr - .18); renderer.setPixelRatio(dpr); resize();
+          particleFraction = Math.max(.5, particleFraction - .1);
+          pGeo.setDrawRange(0, Math.floor(N * particleFraction));
+        } else if (poorWindows >= 5) opts.onTooSlow?.();
+      } else if (average < refreshBudget * 1.07 && dpr < cap - .05) {
+        strongWindows++; poorWindows = 0;
+        if (strongWindows >= 3) {
+          dpr = Math.min(cap, dpr + .12); renderer.setPixelRatio(dpr); resize();
+          particleFraction = Math.min(1, particleFraction + .1);
+          pGeo.setDrawRange(0, Math.floor(N * particleFraction));
+          strongWindows = 0;
+        }
+      } else { poorWindows = 0; strongWindows = 0; }
+      canvas.dataset.renderScale = dpr.toFixed(2);
+      qualityTime = 0; qualityFrames = 0; fastestMs = 1000 / 60;
+    }
   };
 
   const ndc = new THREE.Vector3();
@@ -446,9 +638,9 @@ export function createUniverse(canvas: HTMLCanvasElement, opts: { mobile: boolea
       if (!opts.ambientOnly && Ts < 0.95) spawnRipple(a.set(0, 0, 0), 7, COL.violet);
       if (Ts > 0.8 && Ts < 2.1) boost = 1;
     },
-    setEngineActive(i) { engineActive = clamp(Math.round(i), 0, ENGINE_COUNT - 1); },
+    setEngineActive(i) { const next = clamp(Math.round(i), 0, ENGINE_COUNT - 1); if (next !== engineActive) kick = Math.max(kick, .45); engineActive = next; },
     setEngineHover(i) { engineHover = i; },
-    setAppleActive(i) { appleActive = i; },
+    setAppleActive(i) { if (i !== appleActive && i !== null) kick = Math.max(kick, .65); appleActive = i; },
     onFrame(cb) { frameCb = cb; },
     resize,
     start() { if (running) return; running = true; last = performance.now(); raf = requestAnimationFrame(tick); },

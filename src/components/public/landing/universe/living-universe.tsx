@@ -79,8 +79,22 @@ export function LivingUniverse({ variant = "universe" }: { variant?: "universe" 
         universeBus.attach(handle); if (!document.hidden) handle.start();
         canvas.dataset.on = "true"; root.dataset.universe = variant === "universe" ? "live" : "ambient";
         listen("resize", () => handle?.resize());
-        listen("pointermove", e => { if (e.pointerType === "mouse") handle?.setPointer((e.clientX / window.innerWidth) * 2 - 1, (e.clientY / window.innerHeight) * 2 - 1); }, { passive: true });
-        listen("pointerdown", e => handle?.pulse((e.clientX / window.innerWidth) * 2 - 1, -((e.clientY / window.innerHeight) * 2 - 1)), { passive: true });
+        // The camera responds to mouse and pen movement, and to active touch drags.
+        // Keep native scrolling: no pointer capture, preventDefault or touch-action override.
+        let activeTouch: number | null = null;
+        const steer = (x: number, y: number) => handle?.setPointer((x / window.innerWidth) * 2 - 1, (y / window.innerHeight) * 2 - 1);
+        listen("pointermove", e => {
+          if (e.pointerType === "mouse" || e.pointerType === "pen" ||
+            (e.pointerType === "touch" && activeTouch === e.pointerId))
+            steer(e.clientX, e.clientY);
+        }, { passive: true });
+        listen("pointerdown", e => {
+          if (e.pointerType === "touch") activeTouch = e.pointerId;
+          steer(e.clientX, e.clientY);
+          handle?.pulse((e.clientX / window.innerWidth) * 2 - 1, -((e.clientY / window.innerHeight) * 2 - 1));
+        }, { passive: true });
+        listen("pointerup", e => { if (e.pointerId === activeTouch) activeTouch = null; }, { passive: true });
+        listen("pointercancel", e => { if (e.pointerId === activeTouch) activeTouch = null; }, { passive: true });
         const vis = () => { if (document.hidden) handle?.stop(); else handle?.start(); };
         document.addEventListener("visibilitychange", vis); off.push(() => document.removeEventListener("visibilitychange", vis));
       };
