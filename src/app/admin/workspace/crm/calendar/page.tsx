@@ -2,11 +2,11 @@ import Link from "next/link";
 import { Suite } from "@/components/suite/suite";
 import { SharedCalendar } from "@/components/crm/shared-calendar";
 import { CrmNavigation } from "@/components/crm/navigation";
-import { isCalendarDay, moveDay, moveMonth, type CalendarEvent, type DayBanner, type CalendarView } from "@/lib/crm/shared-calendar";
+import { dayInZone, isCalendarDay, moveDay, moveMonth, type CalendarEvent, type DayBanner, type CalendarView } from "@/lib/crm/shared-calendar";
 import { OpsLinks, Tag, ownerName, q, UUID_RE, type Query } from "@/components/sales/ui";
 import { requireOwner } from "@/lib/auth/session";
 import { getLang } from "@/lib/i18n-server";
-import { pick, formatDate } from "@/lib/i18n";
+import { AVALON_TIME_ZONE, pick, formatDate } from "@/lib/i18n";
 import { run } from "@/lib/os/data";
 import s from "@/components/sales/sales.module.css";
 export const dynamic = "force-dynamic";
@@ -23,7 +23,7 @@ export default async function CalendarPage({ searchParams }: { searchParams: Pro
   const lang = await getLang();
   const p = await searchParams;
   const requestedDate = q(p, "date") || "";
-  const focusDate = isCalendarDay(requestedDate) ? requestedDate : new Date().toISOString().slice(0, 10);
+  const focusDate = isCalendarDay(requestedDate) ? requestedDate : dayInZone(new Date().toISOString(), AVALON_TIME_ZONE);
   const viewParam = q(p, "view");
   const calendarView: CalendarView = viewParam === "week" || viewParam === "day" ? viewParam : "month";
   // A complete month grid plus next/previous weeks, padded for timezone offsets.
@@ -61,7 +61,7 @@ export default async function CalendarPage({ searchParams }: { searchParams: Pro
   const link = (params: Record<string, string>) => `?${new URLSearchParams({ ...(who === null ? { owner: "all" } : who !== userId ? { owner: who } : {}), ...(days === 60 ? { days: "60" } : {}), ...params })}`;
   return (
     <Suite active="crm">
-      <CrmNavigation active="calendar" />
+      <CrmNavigation active="calendar" lang={lang} />
       <SharedCalendar events={calendarEvents.data ?? []} banners={dayBanners.data ?? []}
         owners={owners.data ?? []} clients={linkedClients.data ?? []} leads={linkedLeads.data ?? []}
         userId={userId} initialDate={focusDate} initialView={calendarView} lang={lang}

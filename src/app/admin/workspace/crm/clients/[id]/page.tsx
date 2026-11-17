@@ -13,7 +13,7 @@ import { ClientOverview, type ClientCounts, type LinkableProduct } from "@/compo
 import { LeadAttachments, type LeadAttachment } from "@/components/crm/lead-attachments";
 import { label, money } from "@/lib/sales/domain";
 import { ClientWorkspace } from "@/components/sales/client-workspace";
-import { loadAllRows, emptyLoaded, type FinanceCost, type FinanceSummary } from "@/lib/sales/client-finance";
+import { loadAllRows, emptyLoaded, type FinanceSummary } from "@/lib/sales/client-finance";
 import { getCrmCapabilities, loadClientFinance } from "@/lib/sales/client-finance-server";
 import { addClientActivity, addContact, updateClient, updateClientNotes } from "../actions";
 import s from "@/components/sales/sales.module.css";
@@ -56,14 +56,11 @@ export default async function Client360({ params, searchParams }: { params: Prom
   ]) : Promise.resolve(null);
   // Client 360° finance (KENJI #98): every sale and every expense is read page by page until the exact server
   // count is reached. A subtotal is never shown as the client's profitability (see src/lib/sales/client-finance.ts).
-  const [contacts, salesLoaded, , orders, projects, legacy, tasks, timeline, owners, lead, activities, meetings, financeResult, documents, unassigned] = await Promise.all([
+  const [contacts, salesLoaded, orders, projects, legacy, tasks, timeline, owners, lead, activities, meetings, financeResult, documents, unassigned] = await Promise.all([
     run<Contact[]>(supabase.from("crm_contacts").select("id,full_name,email,phone,role,is_primary").eq("client_id", id).order("is_primary", { ascending: false }).order("full_name")),
     financePermitted
       ? loadAllRows<Sale>((from, to) => supabase.from("crm_sales").select(SALE_COLUMNS, { count: "exact" }).eq("client_id", id).order("sold_on", { ascending: false }).order("id").range(from, to))
       : Promise.resolve(emptyLoaded<Sale>()),
-    financePermitted
-      ? loadAllRows<FinanceCost>((from, to) => supabase.from("crm_client_costs").select("id,amount,currency", { count: "exact" }).eq("client_id", id).order("incurred_on", { ascending: false }).order("id").range(from, to))
-      : Promise.resolve(emptyLoaded<FinanceCost>()),
     run<Order[]>(supabase.from("crm_work_orders").select("id,sale_id,department_id,project_id,status,due_on,assignee_id,recurrence,crm_departments(label)").eq("client_id", id).order("created_at").limit(200)),
     run<ProjectRow[]>(supabase.from("os_projects").select(PROJECT_COLUMNS, { count: "exact" }).eq("client_id", id).order("updated_at", { ascending: false }).limit(100)),
     // Compatibility: projects linked earlier through the origin lead id (stable key, never by name).
@@ -130,10 +127,10 @@ export default async function Client360({ params, searchParams }: { params: Prom
       <ClientOverview lang={lang} client={c} owner={ownerName(ownerList, c.owner_id)}
         contacts={contacts.error ? null : (contacts.data ?? [])} nextSteps={nextSteps} nextStepsUnavailable={Boolean(tasks.error)}
         latest={timeline.data?.[0] ?? null} latestUnavailable={Boolean(timeline.error)} counts={counts}
-        candidates={candidates} candidateError={Boolean(unassigned.error)} />
-      {finance && !salesLoaded.failed && finance.currencies.some(f => f.sales > 0) && <section className={s.stats} aria-label={pick(lang, "Situación financiera del cliente", "Client financial summary")}>
+        candidates={candidates} candidateError={Boolean(unassigned.error)} financeAvailable={financeAllowed} />
+      {finance && finance.currencies.some(f => f.sales > 0) && <section className={s.stats} aria-label={pick(lang, "Situación financiera del cliente", "Client financial summary")}>
         {finance.currencies.filter(f => f.sales > 0).map(f => <div key={f.currency} className={s.stat}>
-          <span>{pick(lang, "Contratado", "Contracted")} · {f.currency}{salesLoaded.complete ? "" : ` · ${pick(lang, "parcial", "partial")}`}</span>
+          <span>{pick(lang, "Contratado", "Contracted")} · {f.currency}{finance.complete ? "" : ` · ${pick(lang, "parcial", "partial")}`}</span>
           <strong>{money(lang, f.contractedCents / 100, f.currency)}</strong>
           <small>{pick(lang, "Cobrado", "Collected")} {money(lang, f.collectedCents / 100, f.currency)} · {pick(lang, "Recurrente/mes", "Recurring/mo")} {money(lang, f.recurringCents / 100, f.currency)}</small>
         </div>)}

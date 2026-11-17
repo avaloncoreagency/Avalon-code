@@ -37,7 +37,7 @@ const ROUTES = [
   ...COMMUNICATION_PRODUCT_ROUTES,
 ]; // /crm/office redirects to the single Avalon HQ
 
-test('Nova Restaurant through the real app: one form, three departments, no duplicates', { timeout: 240000 }, async t => {
+test('Nova Restaurant through the real app: one form, three departments, no duplicates', { timeout: 360000 }, async t => {
   const db = new PGlite();
   t.after(() => db.close());
   await db.exec(fs.readFileSync('tests/sql/00_supabase_stub.sql', 'utf8'));
@@ -100,11 +100,15 @@ test('Nova Restaurant through the real app: one form, three departments, no dupl
   const { chromium } = require('playwright');
   const browser = await chromium.launch({ executablePath: process.env.CHROME_PATH || undefined, headless: true });
   t.after(() => browser.close());
-  const context = async (s, viewport = { width: 1366, height: 1000 }) => {
-    const ctx = await browser.newContext({ viewport, locale: 'es-ES' });
-    await ctx.addCookies([{ name: cookieName, value: cookieValue(s), url: origin }]);
+  const context = async (s, viewport = { width: 1366, height: 1000 }, timezoneId = "America/New_York", lang = "es") => {
+    const ctx = await browser.newContext({ viewport, timezoneId, locale: lang === "es" ? "es-ES" : "en-US" });
+    await ctx.addCookies([{ name: cookieName, value: cookieValue(s), url: origin }, { name: "avalon-lang", value: lang, url: origin }]);
     const page = await ctx.newPage();
-    page.on('pageerror', e => errors.push(`pageerror [${page.url()}]: ${e.message}`));
+    page.on('pageerror', e => {
+      errors.push(`pageerror [${page.url()}]: ${e.message}`);
+      // Synthetic fixture only: preserve the first hydration stack without muting the failure.
+      if (errors.filter(x => x.startsWith('pageerror')).length === 1) fs.writeFileSync(`${EVIDENCE}/first-pageerror.txt`, `${page.url()}\n${e.stack || e.message}`);
+    });
     return page;
   };
   const page = await context(miguel);
@@ -673,6 +677,93 @@ test('Nova Restaurant through the real app: one form, three departments, no dupl
   await samuelPage.getByRole('button', { name: /Hito de Avalon/ }).first().waitFor();
   assert.equal(await count("select count(*) n from crm_calendar_banners where title='Hito de Avalon'"), 1);
 
+  // Command Center: Florida times must be stable even on an owner's travelling device.
+  const travelling = await context(miguel, { width: 390, height: 844 }, 'America/Los_Angeles');
+  await travelling.goto(origin + '/admin/workspace/crm/calendar?date=2026-11-22&view=day');
+  assert.match(await travelling.getByRole('region', { name: 'Calendario compartido' }).innerText(), /America\/New_York/);
+  const openEvent = travelling.getByRole('button', { name: '+ Crear evento' });
+  await openEvent.click();
+  const travelForm = travelling.getByRole('dialog', { name: 'Crear evento' });
+  await travelForm.locator('input[name="title"]').fill('Horario Florida sintético');
+  await travelForm.locator('input[name="start_local"]').fill('2026-11-22T09:30');
+  await travelForm.locator('input[name="end_local"]').fill('2026-11-22T10:30');
+  const lastButton = travelForm.getByRole('button', { name: 'Guardar para ambos' });
+  await lastButton.focus(); await travelling.keyboard.press('Tab');
+  assert.ok(await travelForm.evaluate(el => el.contains(document.activeElement)), 'Tab stays inside the modal');
+  await lastButton.click();
+  await travelling.getByText('Evento creado en el calendario compartido.').waitFor();
+  const eastern = await one("select starts_at from crm_events where title='Horario Florida sintético'");
+  assert.equal(new Date(eastern.starts_at).toISOString(), '2026-11-22T14:30:00.000Z');
+  await travelling.reload();
+  await travelling.getByRole('button', { name: 'Horario Florida sintético' }).first().click();
+  assert.equal(await travelling.getByRole('dialog').locator('input[name="start_local"]').inputValue(), '2026-11-22T09:30');
+  await travelling.keyboard.press('Escape');
+  assert.equal(await travelling.getByRole('dialog').count(), 0);
+
+  // Browser back must restore the calendar URL's date and view.
+  await travelling.getByRole('button', { name: 'Semana', exact: true }).click();
+  await travelling.waitForURL(/view=week/);
+  await travelling.goBack();
+  await travelling.waitForFunction(() => [...document.querySelectorAll('button')].some(b => b.textContent === 'Día' && b.getAttribute('aria-pressed') === 'true'));
+
+  // Six requested widths, both languages, real app navigation; no external provider calls.
+  const matrix = await context(samuel, { width: 1440, height: 1000 }, 'Pacific/Auckland', 'en');
+  for (const width of [320, 375, 390, 430, 768, 1440]) {
+    await matrix.setViewportSize({ width, height: 900 });
+    for (const route of ['/admin/workspace/crm/sales', '/admin/workspace/crm/clients/' + clientId, '/admin/workspace/crm/calendar?date=2026-11-22']) {
+      await matrix.goto(origin + route);
+      const primary = matrix.getByRole('navigation', { name: 'CRM primary sections' }).first();
+      for (const name of ['Leads Pipeline', 'Sales', 'Clients 360°', 'Calendar', 'Tasks']) {
+        const link = primary.getByRole('link', { name, exact: true });
+        assert.ok(await link.isVisible(), name + ' visible at ' + width);
+        assert.ok(await link.evaluate(el => { const r=el.getBoundingClientRect(), n=el.closest('nav').getBoundingClientRect(); return r.left >= n.left - 1 && r.right <= n.right + 1; }), name + ' fully inside its navigation at ' + width);
+      }
+      if (route.includes('/calendar')) {
+        const month = matrix.getByRole('grid', { name: 'Monthly calendar' });
+        assert.ok(await month.evaluate(el => el.parentElement.scrollWidth <= el.parentElement.clientWidth + 1), 'all seven month columns fit at ' + width);
+      }
+      const extra = await matrix.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
+      assert.ok(extra <= 1, route + ' has no page overflow at ' + width + ': ' + extra);
+    }
+    await matrix.screenshot({ path: EVIDENCE + '/command-calendar-' + width + '.png', fullPage: true });
+  }
+  await matrix.goto(origin + '/admin/workspace/crm/leads');
+  await matrix.getByRole('region', { name: 'Opportunity pipeline' }).waitFor();
+  await matrix.getByText('Your pipeline, stage by stage').waitFor();
+  assert.ok(await matrix.getByRole('region', { name: 'Sales command center' }).isVisible());
+  await matrix.screenshot({ path: EVIDENCE + '/command-pipeline-desktop.png', fullPage: true });
+  // Real browser UI with synthetic API failures: retain drafts and require explicit discard.
+  await matrix.getByRole('button', { name: 'Create lead', exact: true }).click();
+  const editor = matrix.getByRole('region', { name: 'Record editor' });
+  await editor.getByLabel('Company *', { exact: true }).fill('Draft recovery synthetic');
+  await editor.getByLabel('Source *', { exact: true }).fill('synthetic-qa');
+  let writes = 0;
+  const failSave = async route => {
+    if (route.request().method() !== 'POST') return route.continue();
+    writes++;
+    await route.fulfill({status: writes === 1 ? 503 : 409,contentType:'application/json',body:JSON.stringify({error:writes === 1 ? 'Synthetic provider unavailable' : 'Synthetic version conflict'})});
+  };
+  await matrix.getByRole('button',{name:'Refresh',exact:true}).click();
+  await matrix.getByRole('region',{name:'Opportunity pipeline'}).waitFor();
+  assert.equal(await editor.getByLabel('Company *',{exact:true}).inputValue(),'Draft recovery synthetic','refresh preserves editor draft');
+  await matrix.route('**/admin/workspace/crm/api', failSave);
+  for (const message of ['Synthetic provider unavailable','Synthetic version conflict']) {
+    await editor.getByRole('button', {name:'Save',exact:true}).click();
+    await editor.getByRole('alert').filter({hasText:message}).waitFor();
+    assert.equal(await editor.getByLabel('Company *',{exact:true}).inputValue(),'Draft recovery synthetic');
+    assert.equal(await editor.getByLabel('Source *',{exact:true}).inputValue(),'synthetic-qa');
+  }
+  matrix.once('dialog', dialog => dialog.dismiss());
+  await editor.getByRole('button',{name:'Close editor'}).click();
+  assert.ok(await editor.isVisible(), 'cancelled discard keeps draft');
+  await matrix.screenshot({path:EVIDENCE+'/command-form-conflict.png',fullPage:true});
+  matrix.once('dialog', dialog => dialog.accept());
+  await editor.getByRole('button',{name:'Close editor'}).click();
+  await editor.waitFor({state:'hidden'});
+  await matrix.unroute('**/admin/workspace/crm/api',failSave);
+  assert.equal(writes,2,'only deliberate saves reached the synthetic endpoint');
+
+
   // History of the whole journey on the client timeline.
   await page.goto(`${origin}/admin/workspace/crm/activity?client=${orbit.id}`);
   await page.getByText('lead.won', { exact: true }).first().waitFor();
@@ -770,11 +861,11 @@ test('Nova Restaurant through the real app: one form, three departments, no dupl
   pub.on('pageerror', e => errors.push(`pageerror [${pub.url()}]: ${e.message}`));
   await pub.goto(origin + '/');
   await pub.getByRole('heading', { level: 1, name: 'El sistema digital que impulsa tu negocio.' }).waitFor();
-  await pub.getByLabel('Empresa').fill('Visitante Sintético LLC');
+  await pub.locator('input[name="company"]').fill('Visitante Sintético LLC');
   await pub.getByLabel('Tu nombre').fill('Luis Prueba');
   await pub.getByLabel('Correo').fill('luis@visitante.example.invalid');
   await pub.getByLabel('Recepcionista IA').check();
-  await pub.getByLabel('Cuéntanos tu proyecto').fill('Queremos una recepcionista IA para reservas.');
+  await pub.locator('textarea[name="message"]').fill('Queremos una recepcionista IA para reservas.');
   await pub.getByRole('button', { name: 'Solicitar cotización' }).click();
   await pub.getByText(/Recibimos tu solicitud/).waitFor();
   const overflowPub = await pub.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
@@ -785,7 +876,7 @@ test('Nova Restaurant through the real app: one form, three departments, no dupl
   assert.equal(Number((await one("select count(*) n from crm_leads where company='Visitante Sintético LLC'")).n), 0);
   await pub.goto(origin + '/?lang=en');
   await pub.getByRole('heading', { level: 1, name: 'The digital system that powers your business.' }).waitFor();
-  assert.match(await pub.title(), /AI, websites, CRM and automation/, 'English page has an English title');
+  assert.match(await pub.title(), /Websites, CRM & AI for Business/, 'English page has the current English title');
   assert.equal(await pub.locator('link[rel="canonical"]').count(), 0, 'no canonical that would mark the English page as a duplicate of the Spanish one');
   // Search-engine surface: robots.txt keeps the private OS out, sitemap lists only public pages.
   const robotsTxt = await (await fetch(origin + '/robots.txt')).text();

@@ -30,10 +30,10 @@ const AREAS: { name: string; es: string; en: string; modules: ModuleKey[]; href:
 
 const digits = (v: number | null) => v === null ? "—" : String(v);
 
-export function ClientOverview({ lang, client, owner, contacts, nextSteps, nextStepsUnavailable = false, latest, latestUnavailable = false, counts, candidates, candidateError }: {
+export function ClientOverview({ lang, client, owner, contacts, nextSteps, nextStepsUnavailable = false, latest, latestUnavailable = false, counts, candidates, candidateError, financeAvailable = false }: {
   lang: Lang; client: Client; owner: string; contacts: Contact[] | null;
   nextSteps: Task[]; nextStepsUnavailable?: boolean; latest: Latest | null; latestUnavailable?: boolean; counts: ClientCounts;
-  candidates: LinkableProduct[]; candidateError: boolean;
+  candidates: LinkableProduct[]; candidateError: boolean; financeAvailable?: boolean;
 }) {
   const name = client.trade_name || client.legal_name;
   const initials = name.split(/\s+/).slice(0, 2).map(part => part[0] ?? "").join("").toUpperCase();
@@ -72,10 +72,16 @@ export function ClientOverview({ lang, client, owner, contacts, nextSteps, nextS
       </div>
 
       <nav className={styles.jump} aria-label={pick(lang, "Ir a una sección", "Jump to section")}>
+        <a href="#client-overview">Overview</a>
         <a href="#client-tools">{pick(lang, "Herramientas", "Tools")}</a>
         <a href="#internal-workspace">{pick(lang, "Expediente", "Dossier")}</a>
         <a href="#projects">{pick(lang, "Proyectos", "Projects")}</a>
+        <a href="#sales">{pick(lang, "Ventas", "Sales")}</a>
+        <Link href={`${base}/contracts`}>{pick(lang, "Contratos", "Agreements")}</Link>
         <a href="#client-files">{pick(lang, "Documentos", "Files")}</a>
+        {financeAvailable && <a href="#workspace-costs">{pick(lang, "Finanzas", "Finance")}</a>}
+        <a href="#activities">{pick(lang, "Actividad", "Activity")}</a>
+        <Link href={`/admin/workspace/crm/tasks?client=${client.id}`}>{pick(lang, "Tareas", "Tasks")}</Link>
         <a href="#history">{pick(lang, "Historial", "History")}</a>
       </nav>
 

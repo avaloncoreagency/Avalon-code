@@ -1,5 +1,6 @@
 "use client";
 import Link from "next/link";
+import { pick, type Lang } from "@/lib/i18n";
 import { useCallback, useEffect, useState } from "react";
 import {
   sections,
@@ -71,7 +72,8 @@ function Metric({ label, value }: { label: string; value: string }) {
     </div>
   );
 }
-export function Crm({ section = "leads", focusLeadId }: { section?: CrmSection; focusLeadId?: string }) {
+export function Crm({ section = "leads", focusLeadId, lang = "es" }: { section?: CrmSection; focusLeadId?: string; lang?: Lang }) {
+  const t = (es: string, en: string) => pick(lang, es, en);
   const entity: Entity =
     section === "calendar"
       ? "events"
@@ -93,6 +95,7 @@ export function Crm({ section = "leads", focusLeadId }: { section?: CrmSection; 
   const [editor, setEditor] = useState<{
       entity: Entity;
       row: Row | null;
+      userId: string;
     } | null>(null),
     [detail, setDetail] = useState<Row | null>(null);
   const focusedLead = section === "leads" ? focusLeadId : undefined;
@@ -139,7 +142,7 @@ export function Crm({ section = "leads", focusLeadId }: { section?: CrmSection; 
     setExistingLead(null);
     try {
       const result = await request(body);
-      setNotice("Guardado correctamente.");
+      setNotice(t("Guardado correctamente.", "Saved successfully."));
       reload();
       return result;
     } catch (e) {
@@ -162,7 +165,7 @@ export function Crm({ section = "leads", focusLeadId }: { section?: CrmSection; 
   const rows = data?.rows ?? [],
     stages = data?.stages ?? [];
   const edit = (row: Row | null, kind: Entity = entity) => {
-    setEditor({ entity: kind, row });
+    if (data) setEditor({ entity: kind, row, userId: data.userId });
   };
   const current = sections.find((x) => x.slug === section)!;
   function table() {
@@ -174,10 +177,10 @@ export function Crm({ section = "leads", focusLeadId }: { section?: CrmSection; 
           </caption>
           <thead>
             <tr>
-              <th>Registro</th>
-              <th>Detalle</th>
-              <th>Estado / valor</th>
-              <th>Acciones</th>
+              <th>{t("Registro", "Record")}</th>
+              <th>{t("Detalle", "Details")}</th>
+              <th>{t("Estado / valor", "Status / value")}</th>
+              <th>{t("Acciones", "Actions")}</th>
             </tr>
           </thead>
           <tbody>
@@ -199,7 +202,7 @@ export function Crm({ section = "leads", focusLeadId }: { section?: CrmSection; 
                       <br />
                       {row.lead_id && (
                         <Link href={`/admin/workspace/crm/leads?lead=${row.lead_id}`}>
-                          Abrir lead
+                          {t("Abrir lead", "Open lead")}
                         </Link>
                       )}
                     </>
@@ -246,14 +249,14 @@ export function Crm({ section = "leads", focusLeadId }: { section?: CrmSection; 
                         {scoreProspect(row).score}/100 · completitud
                       </span>
                       <details>
-                        <summary>Explicar puntuación</summary>
+                        <summary>{t("Explicar puntuación", "Explain score")}</summary>
                         {scoreProspect(row).reasons.map((reason) => (
                           <p key={reason}>{reason}</p>
                         ))}
                       </details>
                       {row.lead_id && (
                         <Link href={`/admin/workspace/crm/leads?lead=${row.lead_id}`}>
-                          Ver lead convertido
+                          {t("Ver lead convertido", "View converted lead")}
                         </Link>
                       )}
                     </>
@@ -269,15 +272,15 @@ export function Crm({ section = "leads", focusLeadId }: { section?: CrmSection; 
                       entity === "prospects" && row.status === "converted"
                     ) && (
                       <button disabled={busy} onClick={() => edit(row)}>
-                        Editar
+                        {t("Editar", "Edit")}
                       </button>
                     )}
                     {entity === "leads" && (
                       <>
                         <button onClick={() => setDetail(row)}>
-                          Notas e historial
+                          {t("Notas e historial", "Notes and history")}
                         </button>
-                        {!row.archived && <Link href={`/admin/workspace/crm/sales/new?lead=${encodeURIComponent(String(row.id))}`}>Registrar venta</Link>}
+                        {!row.archived && <Link href={`/admin/workspace/crm/sales/new?lead=${encodeURIComponent(String(row.id))}`}>{t("Registrar venta", "Record sale")}</Link>}
                         <button
                           disabled={busy}
                           onClick={() => {
@@ -296,7 +299,7 @@ export function Crm({ section = "leads", focusLeadId }: { section?: CrmSection; 
                               });
                           }}
                         >
-                          {row.archived ? "Restaurar" : "Archivar"}
+                          {row.archived ? t("Restaurar", "Restore") : t("Archivar", "Archive")}
                         </button>
                       </>
                     )}
@@ -313,7 +316,7 @@ export function Crm({ section = "leads", focusLeadId }: { section?: CrmSection; 
                             });
                         }}
                       >
-                        Cancelar
+                        {t("Cancelar", "Cancel")}
                       </button>
                     )}
                     {entity === "prospects" && row.status === "approved" && (
@@ -323,7 +326,7 @@ export function Crm({ section = "leads", focusLeadId }: { section?: CrmSection; 
                           action({ action: "convert", id: row.id })
                         }
                       >
-                        Convertir en lead
+                        {t("Convertir en lead", "Convert to lead")}
                       </button>
                     )}
                   </div>
@@ -342,25 +345,24 @@ export function Crm({ section = "leads", focusLeadId }: { section?: CrmSection; 
           <div className={s.eyebrow}>Avalon OS / CRM</div>
           <h1 className={s.title}>{current.label === "Leads Pipeline" ? "Leads Pipeline" : current.label}</h1>
           <p className={s.subtitle}>
-            Operaciones comerciales de Avalon Core Agency.
+            {t("Operaciones comerciales de Avalon Core Agency.", "Avalon Core Agency commercial operations.")}
           </p>
         </div>
         <div className={s.actions}>
           <Link href="/admin/workspace/crm" className={s.link}>
-            Inicio del CRM
+            {t("Inicio del CRM", "CRM home")}
           </Link>
           <Link href="/admin/dashboard" className={s.link}>
             ← Dashboard
           </Link>
         </div>
       </header>
-      <CrmNavigation active={section} />
-      <CrmTools active={section} />
+      <CrmNavigation active={section} lang={lang} />
+      <CrmTools active={section} lang={lang} />
       {focusedLead && <p className={s.notice} role="status">Oportunidad enlazada por ID exacto. <Link href="/admin/workspace/crm/leads">Ver todo el pipeline</Link></p>}
       {section === "hunter" && <TitanRadar onChanged={reload} />}
       <p className={s.muted}>
-        Datos persistidos de la agencia. Valores comerciales estimados en USD;
-        no representan ingresos cobrados.
+        {t("Datos persistidos de la agencia. Valores comerciales estimados en USD; no representan ingresos cobrados.", "Saved agency data. Estimated commercial values in USD; they do not represent collected revenue.")}
       </p>
       {existingLead && (
         <div role="status" className={s.notice} data-testid="existing-lead">
@@ -371,17 +373,17 @@ export function Crm({ section = "leads", focusLeadId }: { section?: CrmSection; 
             disabled={busy}
             onClick={() => action({ action: "link_existing", id: existingLead.prospectId })}
           >
-            Vincular al lead existente
+            {t("Vincular al lead existente", "Link to existing lead")}
           </button>
         </div>
       )}
       {error && (
         <div role="alert" className={s.notice}>
-          {error} <button onClick={reload}>Reintentar</button>
+          {error} <button onClick={reload}>{t("Reintentar", "Retry")}</button>
         </div>
       )}
       {notice && <p role="status">{notice}</p>}
-      <section className={s.panel} aria-label="Filtros" hidden={Boolean(focusedLead)}>
+      <section className={s.panel} aria-label={t("Filtros", "Filters")} hidden={Boolean(focusedLead)}>
         <form
           className={s.filters}
           onSubmit={(e) => {
@@ -398,33 +400,33 @@ export function Crm({ section = "leads", focusLeadId }: { section?: CrmSection; 
           {(entity === "leads" || entity === "prospects") && (
             <>
               <label>
-                Buscar empresa, contacto o correo
+                {t("Buscar empresa, contacto o correo", "Search company, contact or email")}
                 <input name="q" defaultValue={filters.q} />
               </label>
               {section !== "hunter" && <label>
-                Responsable (UUID)
+                {t("Responsable (UUID)", "Owner (UUID)")}
                 <input name="owner" defaultValue={filters.owner} />
               </label>}
               <label>
-                Origen exacto
+                {t("Origen exacto", "Exact source")}
                 <input name="source" defaultValue={filters.source} />
               </label>
             </>
           )}
           <label>
-            Desde (UTC)
+            {t("Desde (UTC)", "From (UTC)")}
             <input type="date" name="from" defaultValue={filters.from} />
           </label>
           <label>
-            Hasta (UTC)
+            {t("Hasta (UTC)", "To (UTC)")}
             <input type="date" name="to" defaultValue={filters.to} />
           </label>
           {section === "leads" && (
             <>
               <label>
-                Etapa
+                {t("Etapa", "Stage")}
                 <select name="stage" defaultValue={filters.stage}>
-                  <option value="">Todas</option>
+                  <option value="">{t("Todas", "All")}</option>
                   {stages.map((x) => (
                     <option value={x.id} key={x.id}>
                       {x.label}
@@ -433,18 +435,18 @@ export function Crm({ section = "leads", focusLeadId }: { section?: CrmSection; 
                 </select>
               </label>
               <label>
-                Mostrar
+                {t("Mostrar", "Show")}
                 <select name="archived" defaultValue={filters.archived}>
-                  <option value="false">Activos</option>
-                  <option value="true">Archivados</option>
+                  <option value="false">{t("Activos", "Active")}</option>
+                  <option value="true">{t("Archivados", "Archived")}</option>
                 </select>
               </label>
               <label>
-                Orden
+                {t("Orden", "Sort")}
                 <select name="sort" defaultValue={filters.sort}>
-                  <option value="created_at">Más recientes</option>
-                  <option value="company">Empresa Z–A</option>
-                  <option value="value">Mayor valor</option>
+                  <option value="created_at">{t("Más recientes", "Most recent")}</option>
+                  <option value="company">{t("Empresa Z–A", "Company Z\u2013A")}</option>
+                  <option value="value">{t("Mayor valor", "Highest value")}</option>
                 </select>
               </label>
             </>
@@ -456,51 +458,16 @@ export function Crm({ section = "leads", focusLeadId }: { section?: CrmSection; 
                 <input name={key} defaultValue={filters[key]} />
               </label>
             ))}
-          <button type="submit">Aplicar filtros</button>
+          <button type="submit">{t("Aplicar filtros", "Apply filters")}</button>
         </form>
       </section>
-      {loading ? (
-        <p role="status">Cargando CRM…</p>
-      ) : (
-        data && (
-          <>
-            {section !== "kpis" && (
-              <div className={s.actions}>
-                <button onClick={() => edit(null)}>
-                  Crear{" "}
-                  {entity === "leads"
-                    ? "lead"
-                    : entity === "events"
-                      ? "evento"
-                      : entity === "prospects"
-                        ? "prospecto"
-                        : "registro manual"}
-                </button>
-                {section === "leads" && (
-                  <>
-                    <button
-                      aria-pressed={view === "kanban"}
-                      onClick={() => setView("kanban")}
-                    >
-                      Kanban
-                    </button>
-                    <button
-                      aria-pressed={view === "table"}
-                      onClick={() => setView("table")}
-                    >
-                      Tabla
-                    </button>
-                  </>
-                )}
-                <button onClick={reload}>Actualizar</button>
-              </div>
-            )}
             {editor && (
               <RecordForm
                 key={`${editor.entity}-${editor.row?.id ?? "new"}`}
+                lang={lang}
                 entity={editor.entity}
                 row={editor.row}
-                userId={data.userId}
+                userId={editor.userId}
                 stages={stages}
                 busy={busy}
                 onClose={() => setEditor(null)}
@@ -514,6 +481,42 @@ export function Crm({ section = "leads", focusLeadId }: { section?: CrmSection; 
                   setEditor(null);
                 }}
               />
+            )}
+      {loading ? (
+        <p role="status">{t("Cargando CRM…", "Loading CRM\u2026")}</p>
+      ) : (
+        data && (
+          <>
+            {section !== "kpis" && (
+              <div className={s.actions}>
+                <button onClick={() => edit(null)}>
+                  {t("Crear", "Create")}{" "}
+                  {entity === "leads"
+                    ? "lead"
+                    : entity === "events"
+                      ? t("evento", "event")
+                      : entity === "prospects"
+                        ? t("prospecto", "prospect")
+                        : t("registro manual", "manual record")}
+                </button>
+                {section === "leads" && (
+                  <>
+                    <button
+                      aria-pressed={view === "kanban"}
+                      onClick={() => setView("kanban")}
+                    >
+                      Kanban
+                    </button>
+                    <button
+                      aria-pressed={view === "table"}
+                      onClick={() => setView("table")}
+                    >
+                      {t("Tabla", "Table")}
+                    </button>
+                  </>
+                )}
+                <button onClick={reload}>{t("Actualizar", "Refresh")}</button>
+              </div>
             )}
             {section === "leads" && <LeadLink onOpen={setDetail} />}
             {detail && (
@@ -537,6 +540,7 @@ export function Crm({ section = "leads", focusLeadId }: { section?: CrmSection; 
                 table()
               ) : (
                 <LeadBoard
+                  lang={lang}
                   stages={stages}
                   leads={rows}
                   total={data.count ?? rows.length}
@@ -566,18 +570,18 @@ export function Crm({ section = "leads", focusLeadId }: { section?: CrmSection; 
               <>
                 <div className={s.filters}>
                   <label>
-                    Vista
+                    {t("Vista", "View")}
                     <select
                       value={calendarView}
                       onChange={(e) => setCalendarView(e.target.value)}
                     >
-                      <option value="month">Mensual</option>
-                      <option value="week">Semanal</option>
-                      <option value="day">Diaria</option>
+                      <option value="month">{t("Mensual", "Month")}</option>
+                      <option value="week">{t("Semanal", "Week")}</option>
+                      <option value="day">{t("Diaria", "Day")}</option>
                     </select>
                   </label>
                   <label>
-                    Fecha
+                    {t("Fecha", "Date")}
                     <input
                       type="date"
                       value={day}
@@ -587,7 +591,7 @@ export function Crm({ section = "leads", focusLeadId }: { section?: CrmSection; 
                     />
                   </label>
                   <label>
-                    Zona de visualización
+                    {t("Zona de visualización", "Display timezone")}
                     <select
                       value={zone}
                       onChange={(e) => setZone(e.target.value)}
@@ -626,7 +630,7 @@ export function Crm({ section = "leads", focusLeadId }: { section?: CrmSection; 
                       filter("to", end.toISOString().slice(0, 10));
                     }}
                   >
-                    Cargar periodo
+                    {t("Cargar periodo", "Load period")}
                   </button>
                 </div>
                 <Calendar
@@ -698,7 +702,7 @@ export function Crm({ section = "leads", focusLeadId }: { section?: CrmSection; 
                             {row.status === "approved" && <button disabled={busy} onClick={() => action({ action: "convert", id: row.id })}>Pasar al pipeline</button>}
                           </>}
                           {row.status === "converted" && row.lead_id &&
-                            <Link href={"/admin/workspace/crm/leads?lead=" + String(row.lead_id)} className={s.link}>Abrir lead</Link>}
+                            <Link href={"/admin/workspace/crm/leads?lead=" + String(row.lead_id)} className={s.link}>{t("Abrir lead", "Open lead")}</Link>}
                         </div>
                         <small className={s.muted}>Fuente: {String(row.source ?? "manual")} · {stamp(row.acquired_at)}</small>
                       </article>
@@ -785,22 +789,21 @@ export function Crm({ section = "leads", focusLeadId }: { section?: CrmSection; 
             {section !== "kpis" && (
               <>
                 <p role="status">
-                  {data.count ?? 0} registros · página {currentPage + 1}. Tablero,
-                  calendario y tabla muestran hasta 50 registros de esta página.
+                  {data.count ?? 0} {t("registros · página", "records · page")} {currentPage + 1}. {t("Tablero, calendario y tabla muestran hasta 50 registros de esta página.", "Board, calendar and table show up to 50 records on this page.")}
                 </p>
-                {!rows.length && <p>No hay registros para estos filtros.</p>}
+                {!rows.length && <p>{t("No hay registros para estos filtros.", "No records match these filters.")}</p>}
                 <div className={s.actions}>
                   <button
                     disabled={currentPage === 0}
                     onClick={() => setPage((p) => p - 1)}
                   >
-                    Anterior
+                    {t("Anterior", "Previous")}
                   </button>
                   <button
                     disabled={(currentPage + 1) * 50 >= (data.count ?? 0)}
                     onClick={() => setPage((p) => p + 1)}
                   >
-                    Siguiente
+                    {t("Siguiente", "Next")}
                   </button>
                 </div>
               </>
