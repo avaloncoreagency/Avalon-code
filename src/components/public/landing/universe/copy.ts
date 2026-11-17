@@ -29,10 +29,10 @@ export const UNIVERSE: Record<Lang, UniverseCopy> = {
       ["Lanzamos y acompañamos", "Lo ponemos en marcha, te enseñamos a usarlo y seguimos disponibles."],
     ] },
     hero: {
-      eyebrow: "Para contratistas, profesionales y empresas",
-      line1: "Tu negocio.", line2: "Sin límites.",
-      sub: "Construimos las herramientas digitales que ayudan a tu negocio a crecer.",
-      primary: "Explora lo que podemos crear", secondary: "Comienza tu proyecto", scroll: "Desliza para despegar",
+      eyebrow: "Barberías · clínicas · contratistas · restaurantes · tiendas",
+      line1: "Más clientes. Más trabajo.", line2: "Más crecimiento.",
+      sub: "Convertimos las oportunidades de tu negocio en clientes atendidos, citas confirmadas y ventas mejor organizadas.",
+      primary: "Descubre cómo puede crecer tu negocio", secondary: "Explora una demostración", scroll: "Haz crecer tu árbol",
     },
     launch: {
       eyebrow: "El despegue", title: "No necesitas entender la tecnología. Necesitas saber lo que puede hacer por tu negocio.",
@@ -102,10 +102,10 @@ export const UNIVERSE: Record<Lang, UniverseCopy> = {
       ["Launch and support", "We put it live, show you how to use it and stay available."],
     ] },
     hero: {
-      eyebrow: "For contractors, professionals and businesses",
-      line1: "Your business.", line2: "Beyond limits.",
-      sub: "We build the digital tools that help your business grow.",
-      primary: "Explore what we can build", secondary: "Start your project", scroll: "Scroll to launch",
+      eyebrow: "Barbershops · clinics · contractors · restaurants · stores",
+      line1: "More customers. More work.", line2: "More growth.",
+      sub: "We turn your business's opportunities into customers attended, appointments confirmed and better-organized sales.",
+      primary: "See how your business can grow", secondary: "Explore a demo", scroll: "Grow your tree",
     },
     launch: {
       eyebrow: "The launch", title: "You don't need to understand the technology. You need to know what it can do for your business.",

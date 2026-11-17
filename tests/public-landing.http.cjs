@@ -71,7 +71,7 @@ test("PUBLIC WEB QA: ES/EN, 8 solutions, mobile/desktop, preselected quote and i
     await page.setViewportSize({ width, height: width < 600 ? 844 : 900 });
     await page.goto(origin + "/", { waitUntil: "domcontentloaded" });
     await page.locator("h1").first().waitFor();
-    assert.match(await page.locator("h1").first().innerText(), /negocio/i);
+    assert.match(await page.locator("h1").first().innerText(), /clientes/i);
     await noOverflow(`ES ${width}px`);
     if ([320, 390, 1440].includes(width)) {
       await page.screenshot({ path: path.join(evidenceDir, `landing-es-${width}.png`), fullPage: true, animations: "disabled", timeout: 25000 });
@@ -79,7 +79,7 @@ test("PUBLIC WEB QA: ES/EN, 8 solutions, mobile/desktop, preselected quote and i
   }
   await page.setViewportSize({ width: 390, height: 844 });
   await page.goto(origin + "/?lang=en", { waitUntil: "domcontentloaded" });
-  assert.match(await page.locator("h1").first().innerText(), /business/i);
+  assert.match(await page.locator("h1").first().innerText(), /customers/i);
   // The shared root <html> is ES, while SiteChrome correctly scopes translated content with lang=en.\n  assert.equal(await page.locator('[data-landing]').getAttribute("lang"), "en");
   await noOverflow("EN 390px");
   await page.screenshot({ path: path.join(evidenceDir, "landing-en-390.png"), fullPage: true, animations: "disabled", timeout: 25000 });
@@ -94,12 +94,13 @@ test("PUBLIC WEB QA: ES/EN, 8 solutions, mobile/desktop, preselected quote and i
   }
 
   // Marketing CTA and the showcase's service preselection are real navigations, not decorative buttons.
-  await page.goto(origin + "/?lang=en#showroom", { waitUntil: "domcontentloaded" });
-  await page.getByRole("tab", { name: /AI chatbots/i }).click();
-  await page.locator('#showroom a[href*="services=chatbots"]').click();
-  await page.waitForURL(/services=chatbots/);
+  await page.goto(origin + "/?lang=en#demos", { waitUntil: "domcontentloaded" });
+  await page.getByRole("tab", { name: /More customers attended/i }).click();
+  await page.locator('#demos a[href*="services=receptionist,chatbots"]').click();
+  await page.waitForURL(/services=receptionist,chatbots/);
   assert.ok(await page.locator('input[name="services"][value="chatbots"]').isChecked());
-  assert.equal(await page.locator('input[name="services"]:checked').count(), 1);
+  assert.ok(await page.locator('input[name="services"][value="receptionist"]').isChecked());
+  assert.equal(await page.locator('input[name="services"]:checked').count(), 2);
 
   // Visitor-selected combinations must survive navigation and remain editable.
   await page.goto(origin + "/?services=chatbots,funnels#cotizacion");
@@ -126,7 +127,7 @@ test("PUBLIC WEB QA: ES/EN, 8 solutions, mobile/desktop, preselected quote and i
 
   // content-visibility:auto defers offscreen painting. Full-page screenshots alone can appear blank.
   // Scroll each section INTO the viewport to assert actual visibility and capture what visitors see.
-  const sections = ["objetivos", "soluciones", "showroom", "como-funciona", "industrias", "proyectos", "preguntas", "cotizacion"];
+  const sections = ["arbol", "industria", "demos", "recorrido", "soluciones", "como-funciona", "proyectos", "preguntas", "cotizacion"];
   for (const [language, width] of [["es", 390], ["es", 1440], ["en", 390]]) {
     await page.setViewportSize({ width, height: width < 600 ? 844 : 900 });
     await page.goto(origin + (language === "en" ? "/?lang=en" : "/"), { waitUntil: "domcontentloaded" });
@@ -144,73 +145,105 @@ test("PUBLIC WEB QA: ES/EN, 8 solutions, mobile/desktop, preselected quote and i
     }
   }
 
-  // Exercise the real renderer in software only for synthetic CI; never claim physical-device performance.
-  // Projected 3D markers: every marker the layout offers (visible + pointer-events) must accept a REAL click.
-  // No force:true — Playwright's actionability checks (stable, visible, not intercepted) are the assertion.
-  const clickOfferedMarkers = async (page, selector, pressedSelector) => {
-    let clicked = 0; const withdrawn = [], skipped = [];
-    const count = await page.locator(selector).count();
-    // Offered at rest, before any selection re-flows the panel over part of the installation.
-    await page.locator(`${selector.split(" ")[0]} [data-markers="rest"]`).waitFor({ state: "attached", timeout: 30000 });
-    const initial = await page.locator(selector).evaluateAll(els => els.filter(el => { const cs = getComputedStyle(el); return cs.pointerEvents !== "none" && Number(cs.opacity) > 0.5; }).length);
-    for (let i = 0; i < count; i++) {
-      await page.waitForTimeout(400); // the previous selection re-flows the panel; let the layout re-place markers
-      // A selection turns the orbit; software GL in CI is slow, so wait for the layout's own "rest" signal.
-      await page.locator(`${selector.split(" ")[0]} [data-markers="rest"]`).waitFor({ state: "attached", timeout: 30000 });
-      const marker = page.locator(selector).nth(i);
-      const isOffered = () => marker.evaluate(el => { const cs = getComputedStyle(el); return cs.pointerEvents !== "none" && Number(cs.opacity) > 0.5; });
-      if (!(await isOffered())) { skipped.push(i); continue; }
-      const before = await page.locator(pressedSelector).nth(i).getAttribute("aria-pressed");
-      try { await marker.click({ timeout: 5000 }); }
-      catch (error) { if (await isOffered()) throw error; withdrawn.push(i); continue; } // withdrawn (now covered) is correct; offered-but-unclickable is the bug
-      if (before !== "true") assert.equal(await page.locator(pressedSelector).nth(i).getAttribute("aria-pressed"), "true", `${selector} #${i} selects its opportunity`);
-      clicked++;
+  // ── Avalon Ultimate 2.0 · real interactions, no force:true. Software GL only; never claims device performance. ──
+  const live = await browser.newContext({ viewport: { width: 390, height: 844 }, reducedMotion: "no-preference" });
+  const intro = await live.newPage(); intro.on("pageerror", e => errors.push(e.message));
+  // Intro: plays on first visit, is skippable, then never blocks the page again in the session.
+  await intro.goto(origin + "/?lang=en");
+  await intro.locator("#avalon-intro").waitFor({ timeout: 5000 });
+  await intro.getByRole("button", { name: "Skip intro" }).click();
+  await intro.locator("#avalon-intro").waitFor({ state: "detached", timeout: 3000 });
+  await intro.reload(); await intro.waitForTimeout(400);
+  assert.equal(await intro.locator("#avalon-intro").count(), 0, "intro plays once per session");
+  await intro.close();
+  await live.addInitScript(() => { window.__AVALON_FORCE_GL = true; try { sessionStorage.setItem("avalon-intro-v2", "1"); } catch {} });
+  const p = await live.newPage(); p.on("pageerror", e => errors.push(e.message));
+  const money = async sel => Number(((await p.locator(sel).textContent()) || "0").replace(/[^0-9.]/g, ""));
+  for (const width of [320, 375, 390, 430, 768, 1024, 1440, 1920]) {
+    const full = width === 390 || width === 1440;
+    await p.setViewportSize({ width, height: width < 768 ? 844 : 1000 });
+    await p.goto(origin + "/?lang=en");
+    // The Growth Tree: seed → water → branches → fruit → harvest → simulated money.
+    const tree = p.locator("#arbol");
+    await tree.scrollIntoViewIfNeeded();
+    const water = tree.getByRole("button", { name: "Water the business" });
+    for (let i = 0; i < 4; i++) { await water.click(); await p.waitForTimeout(1000); }
+    const branches = tree.locator("ul button");
+    assert.equal(await branches.count(), 6);
+    for (let i = 0; i < 6; i++) { await branches.nth(i).click(); assert.equal(await branches.nth(i).getAttribute("aria-pressed"), "true"); }
+    for (let i = 0; i < 2; i++) { await water.click(); await p.waitForTimeout(1000); }
+    const ripe = tree.locator('button[data-stage="3"]');
+    await ripe.first().waitFor({ timeout: 15000 });
+    await ripe.first().click();
+    await p.waitForFunction(() => /\$[1-9]/.test(document.querySelector('#arbol [class*="bank"] b')?.textContent || ""), null, { timeout: 8000 });
+    assert.ok(await tree.locator('[class*="cash"]').count() >= 1 || /\$[1-9]/.test(await tree.locator('[class*="bank"] b').textContent()), "harvest shows the money effect");
+    // Tools multiply the harvest: with all six active the crown fills with fruit and "Harvest all" pays out at once.
+    const fruit = await tree.locator('button[data-stage]:not([data-stage="0"])').count();
+    assert.ok(fruit >= 20, `six tools grow a fruitful crown at ${width}: ${fruit}`);
+    assert.match(await tree.getByText(/Harvest multiplier ×4\.0/).textContent(), /×4\.0/);
+    if (full) {
+      const bankValue = async () => Number(((await tree.locator('[class*="bank"] b').textContent()) || "0").replace(/[^0-9]/g, ""));
+      await tree.locator('button[data-stage="3"]').nth(2).waitFor({ timeout: 15000 });
+      const before = await bankValue();
+      await tree.getByRole("button", { name: /Harvest all \(\d+\)/ }).click();
+      await p.waitForFunction(b => Number((document.querySelector('#arbol [class*="bank"] b')?.textContent || "0").replace(/[^0-9]/g, "")) > b + 1000, before, { timeout: 12000 });
+      assert.ok((await bankValue()) > before + 1000, "a full harvest pays out visibly more simulated money");
     }
-    return { initial, clicked, withdrawn, skipped };
-  };
-  const live = await browser.newContext({viewport:{width:390,height:844},reducedMotion:"no-preference"});
-  await live.addInitScript(() => { window.__AVALON_FORCE_GL = true; });
-  const scenePage = await live.newPage(); scenePage.on("pageerror", e=>errors.push(e.message));
-  for (const width of [320,375,390,430,768,1024,1440,1920]) {
-    await scenePage.setViewportSize({width,height:width<768?844:1080});
-    await scenePage.goto(origin+"/?lang=en");
-    await scenePage.locator('html[data-universe="live"]').waitFor({timeout:20000});
-    await scenePage.evaluate(() => {const e=document.querySelector('#motor'); window.scrollTo(0,e.getBoundingClientRect().top+scrollY+innerHeight*.7);});
-    await scenePage.waitForTimeout(1200); // the camera eases to the scroll position; markers latch once it rests
-    const projectedChips = await clickOfferedMarkers(scenePage, '#motor [aria-hidden="true"] button', '#motor [role="group"] button');
-    assert.ok(projectedChips.initial >= 1 && projectedChips.clicked >= 1, `projected engine chips offered/clicked at ${width}: ${JSON.stringify(projectedChips)}`);
-    const engine = scenePage.locator('#motor');
-    const chips = engine.getByRole('button');
-    assert.equal(await chips.count(),6);
-    await chips.nth(2).click();
-    assert.equal(await chips.nth(2).getAttribute('aria-pressed'),'true');
-    await scenePage.evaluate(() => {const e=document.querySelector('#arbol');window.scrollTo(0,e.getBoundingClientRect().top+scrollY+(e.offsetHeight-innerHeight)*.85);});
-    await scenePage.waitForTimeout(400);
-    await scenePage.waitForTimeout(900);
-    const projectedApples = await clickOfferedMarkers(scenePage, '#arbol [aria-hidden="true"] button', '#arbol [role="group"] button');
-    assert.ok(projectedApples.initial >= (width >= 768 ? 4 : 2) && projectedApples.clicked >= 1, `projected apples offered/clicked at ${width}: ${JSON.stringify(projectedApples)}`);
-    console.log(`markers ${width}: engine ${JSON.stringify(projectedChips)} tree ${JSON.stringify(projectedApples)}`);
-    const apples=scenePage.locator('#arbol [role="group"] button');
-    assert.equal(await apples.count(),10);
-    const pick = (await apples.nth(0).getAttribute('aria-pressed')) === 'true' ? 1 : 0; // the selector toggles
-    await apples.nth(pick).click();
-    assert.equal(await apples.nth(pick).getAttribute('aria-pressed'),'true');
-    assert.ok(await scenePage.evaluate(()=>document.documentElement.scrollWidth<=document.documentElement.clientWidth+1),`live scene fits ${width}`);
-    await scenePage.screenshot({path:path.join(evidenceDir,`universe-live-${width}.png`)});
+    assert.ok(await p.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth + 1), `tree fits ${width}`);
+    await p.screenshot({ path: path.join(evidenceDir, `growth-tree-${width}.png`) });
+    if (!full) continue;
+    // Industry selector re-seeds every demo.
+    await p.locator("#industria").getByRole("radio", { name: /Roofing/ }).click();
+    await p.locator("#industria").getByText("Solid Roofing · demo").waitFor();
+    const demos = p.locator("#demos");
+    // 1 · Chat books a real slot in the shared calendar.
+    await demos.getByRole("tab", { name: /More customers attended/ }).click();
+    await demos.getByRole("button", { name: /leak, can you come/ }).click();
+    await demos.getByRole("button", { name: "Roof inspection" }).click();
+    await demos.locator('[class*="quick"] button').first().click();
+    await demos.getByText(/All set,/).waitFor({ timeout: 5000 });
+    // 2 · Calendar: book a free slot, then cancel it.
+    await demos.getByRole("tab", { name: /Calendar with work/ }).click();
+    const booked = Number(await demos.locator("dl div:nth-child(2) dd").first().textContent());
+    await demos.getByRole("button", { name: /Mon 18:00: free, book/ }).first().click();
+    assert.equal(Number(await demos.locator("dl div:nth-child(2) dd").first().textContent()), booked + 1, "calendar booking");
+    await demos.getByRole("button", { name: /Mon 18:00: / }).first().click();
+    await demos.getByRole("button", { name: "Cancel" }).click();
+    assert.equal(Number(await demos.locator("dl div:nth-child(2) dd").first().textContent()), booked, "calendar cancel");
+    // 3 · CRM: move one opportunity all the way to Won.
+    await demos.getByRole("tab", { name: /Opportunity CRM/ }).click();
+    const first = demos.locator('section[aria-label="New"] article').first();
+    const who = (await first.locator("p").first().textContent()).replace(/\$.*/, "").trim();
+    for (const stage of ["Contacted", "Appointment", "Quote", "Negotiation", "Won"]) await demos.getByRole("button", { name: `Move ${who} to ${stage}` }).click();
+    await demos.locator('section[aria-label="Won"]').getByText(who).waitFor();
+    // 5 · Store: cart, coupon, demo checkout, order becomes a won sale.
+    await demos.getByRole("tab", { name: /Online store/ }).click();
+    await demos.getByRole("button", { name: "Add to cart" }).click();
+    await demos.getByRole("button", { name: "Add one" }).click();
+    await demos.getByLabel("Coupon").fill("AVALON10"); await demos.getByRole("button", { name: "Apply" }).click();
+    await demos.getByText(/Coupon applied/).waitFor();
+    await demos.getByRole("button", { name: "Go to checkout" }).click();
+    await demos.getByText("Demo checkout · no payment is processed").waitFor();
+    await demos.getByRole("radio", { name: "Klarna" }).click();
+    await demos.getByRole("button", { name: "Place demo order" }).click();
+    await demos.getByText("Demo order confirmed").waitFor();
+    // 6 · Ads: levers recalculate; leads flow into the CRM.
+    await demos.getByRole("tab", { name: /Ads → money/ }).click();
+    const before = await money('#demos dl div:first-child dd');
+    await demos.getByLabel(/Monthly budget/).evaluate(el => { Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value").set.call(el, "5000"); el.dispatchEvent(new Event("input", { bubbles: true })); });
+    assert.ok((await money('#demos dl div:first-child dd')) > before, "revenue recalculates with budget");
+    await demos.getByRole("button", { name: /Send \d leads to the CRM/ }).click();
+    await demos.getByText(/ad leads are now in/).waitFor();
+    // Integrated journey: ad → lead → booking → CRM → sale → fruit.
+    const journey = p.locator("#recorrido");
+    await journey.getByRole("button", { name: "Run the full journey" }).click();
+    await journey.locator('li[data-state="now"]', { hasText: "A branch of the tree grows" }).waitFor({ timeout: 20000 });
+    assert.ok((await journey.locator("ul li").count()) >= 4, "live activity feed");
+    // Demo sales ripen fruit on the tree.
+    await p.waitForFunction(() => document.querySelectorAll('#arbol button[data-stage="3"]').length > 0, null, { timeout: 5000 });
+    assert.ok(await p.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth + 1), `demos fit ${width}`);
+    await journey.screenshot({ path: path.join(evidenceDir, `growth-journey-${width}.png`) });
   }
-  // User changes motion preference during the tour: no invisible projected controls remain.
-  await scenePage.emulateMedia({reducedMotion:'reduce'});
-  await scenePage.locator('html[data-universe="live"]').waitFor({state:'detached'});
-  for (const selector of ['#motor [role="group"] button','#arbol [role="group"] button']) {
-    const buttons=scenePage.locator(selector);
-    for (let i=0;i<await buttons.count();i++) {
-      assert.ok(await buttons.nth(i).isVisible());
-      assert.equal(await buttons.nth(i).getAttribute('tabindex'),null);
-      assert.equal(await buttons.nth(i).evaluate(el=>el.style.transform),'');
-    }
-  }
-  await scenePage.locator('#motor').scrollIntoViewIfNeeded();
-  await scenePage.screenshot({path:path.join(evidenceDir,'universe-motion-fallback.png')});
   await live.close();
   assert.deepEqual(errors, [], "No browser exceptions after scrolling through landing sections");
 });
