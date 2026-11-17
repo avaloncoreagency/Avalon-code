@@ -23,3 +23,10 @@ Client360 attachment gallery formatted timestamps in a client component independ
 Baseline 653 unit tests, typecheck, lint and build approved; focused SQL tests and final SHA CI results recorded in PR. Chromium startup locally blocked by socket/ptrace EPERM, no bypass. Added existing Sales browser extension for real UI against synthetic Auth/REST and isolated PGlite: invoices, payment verification/reversal, commission lifecycle, offer approval invalidation, client ledger ES/EN at 390/1440. Not real Supabase accounts or physical Safari/iPhone.
 
 Next action: pass final-SHA CI and review own PR; activation in production still requires separate backup/migration/finance-access approval per CRM_OPERATIONAL_RELEASE.md §4. New broader BACKEND_READY request is a development-only continuation; do not deploy this UI or apply SQL from that request.
+
+
+## Verified failure and follow-up
+
+First own-SHA CI (8d2d6cc) executed all new financial interactions but failed the retained pageerror assertion on Calendar ?date=2026-11-22 with React #418 (job 134135649768, run 44110835701). No blind rerun. Calendar labels now use explicit month/weekday tokens and server-provided initialToday; unit regression prevents runtime ICU wording from affecting hydration. Follow-up bfac2b9 has new checks, root incident remains open pending repeatable causal reproduction.
+
+Local production-schema acceptance passed after binding Next explicitly to 127.0.0.1 (avoids unavailable network-interface discovery) and reusing the existing stop-child helper (prevents waiting for an already-exited child). One blocked attempt and interrupted hanging cleanup are not counted as passed tests. No assertions or schema markers removed.
