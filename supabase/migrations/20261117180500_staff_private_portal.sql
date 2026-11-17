@@ -228,15 +228,19 @@ language plpgsql security invoker set search_path='' as $$
 declare state text;
 begin
  if tg_table_name='staff_portal_access' then
-   if new.active then
-     state:=case when tg_op='INSERT' or not old.active then 'access_granted' else 'access_changed' end;
+   if tg_op='INSERT' then
+     state:=case when new.active then 'access_granted' else 'access_revoked' end;
+   elsif new.active then
+     state:=case when not old.active then 'access_granted' else 'access_changed' end;
    else
      state:='access_revoked';
    end if;
    insert into public.staff_permission_events(user_id,action) values(new.user_id,state);
  else
-   if new.active then
-     state:=case when tg_op='INSERT' or not old.active then 'client_granted' else 'client_changed' end;
+   if tg_op='INSERT' then
+     state:=case when new.active then 'client_granted' else 'client_revoked' end;
+   elsif new.active then
+     state:=case when not old.active then 'client_granted' else 'client_changed' end;
    else
      state:='client_revoked';
    end if;
@@ -249,5 +253,19 @@ create trigger staff_access_audit after insert or update on public.staff_portal_
  for each row execute function crm_private.staff_permissions_audit();
 create trigger staff_client_grant_audit after insert or update on public.staff_client_grants
  for each row execute function crm_private.staff_permissions_audit();
+
+-- A disabled account must disappear from recipient lists at the database layer,
+-- even when a UI action fails after updating the principal's access.
+create function crm_private.staff_contact_revoke() returns trigger
+language plpgsql security invoker set search_path='' as $
+begin
+ if not new.active then
+   update public.staff_contacts set is_listed=false where user_id=new.user_id;
+ end if;
+ return new;
+end $;
+revoke all on function crm_private.staff_contact_revoke() from public,anon,authenticated;
+create trigger staff_contact_revoke after insert or update of active on public.staff_portal_access
+ for each row execute function crm_private.staff_contact_revoke();
 
 commit;
