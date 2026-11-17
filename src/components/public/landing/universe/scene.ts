@@ -368,7 +368,7 @@ export function createUniverse(canvas: HTMLCanvasElement, opts: { mobile: boolea
     for (const c of tips) { if (chosen.length >= APPLE_COUNT) break; if (!chosen.includes(c)) chosen.push(c); }
     const appleGeo = track(appleGeometry());
     const stemGeo = track(new THREE.CylinderGeometry(.009, .014, .11, 8));
-    const leafGeo = track(new THREE.SphereGeometry(.066, 12, 8));
+    const appleLeafGeo = track(new THREE.SphereGeometry(.066, 12, 8));
     const stemMat = chrome(0x839aa9, .38), leafMat = chrome(0x4dbea5, .34);
     const apples = chosen.slice(0, APPLE_COUNT).sort((a, b) => a.t - b.t).map((c, i) => {
       const color = i % 3 === 1 ? 0xb064d8 : 0xe6a15c;
@@ -382,7 +382,7 @@ export function createUniverse(canvas: HTMLCanvasElement, opts: { mobile: boolea
       m.position.copy(c.p).add(new THREE.Vector3(0, -0.24, 0));
       m.rotation.y = i * 1.3;
       const stem = new THREE.Mesh(stemGeo, stemMat); stem.position.set(0, .148, 0); stem.rotation.z = .15; m.add(stem);
-      const leaf = new THREE.Mesh(leafGeo, leafMat);
+      const leaf = new THREE.Mesh(appleLeafGeo, leafMat);
       leaf.position.set(.062, .18, .007); leaf.scale.set(1.2, .22, .78); leaf.rotation.z = -.55; m.add(leaf);
       const halo = sprite(i % 3 === 1 ? COL.magenta : COL.orange, 1.25, .3);
       m.add(halo); tree.add(m);
