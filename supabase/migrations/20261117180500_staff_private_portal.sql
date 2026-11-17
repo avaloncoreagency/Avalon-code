@@ -137,7 +137,12 @@ create function crm_private.staff_casefile_stamp() returns trigger
 language plpgsql security invoker set search_path='' as $$
 begin
  if tg_op='INSERT' then
-   if not crm_private.is_owner() then new.user_id := auth.uid(); end if;
+   if not crm_private.is_owner() then
+     if new.user_id is distinct from auth.uid() then
+       raise exception 'casefile_self_only' using errcode='42501';
+     end if;
+     new.user_id := auth.uid();
+   end if;
    new.created_at:=now();
  else
    if new.user_id is distinct from old.user_id or
