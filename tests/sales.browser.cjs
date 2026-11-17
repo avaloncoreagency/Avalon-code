@@ -770,11 +770,11 @@ test('Nova Restaurant through the real app: one form, three departments, no dupl
   pub.on('pageerror', e => errors.push(`pageerror [${pub.url()}]: ${e.message}`));
   await pub.goto(origin + '/');
   await pub.getByRole('heading', { level: 1, name: 'El sistema digital que impulsa tu negocio.' }).waitFor();
-  await pub.getByLabel('Empresa').fill('Visitante Sintético LLC');
+  await pub.getByLabel('Nombre de tu negocio, marca u oficio').fill('Visitante Sintético LLC');
   await pub.getByLabel('Tu nombre').fill('Luis Prueba');
   await pub.getByLabel('Correo').fill('luis@visitante.example.invalid');
   await pub.getByLabel('Recepcionista IA').check();
-  await pub.getByLabel('Cuéntanos tu proyecto').fill('Queremos una recepcionista IA para reservas.');
+  await pub.getByLabel('¿Qué problema quieres resolver o qué te gustaría mejorar?').fill('Queremos una recepcionista IA para reservas.');
   await pub.getByRole('button', { name: 'Solicitar cotización' }).click();
   await pub.getByText(/Recibimos tu solicitud/).waitFor();
   const overflowPub = await pub.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
@@ -785,7 +785,7 @@ test('Nova Restaurant through the real app: one form, three departments, no dupl
   assert.equal(Number((await one("select count(*) n from crm_leads where company='Visitante Sintético LLC'")).n), 0);
   await pub.goto(origin + '/?lang=en');
   await pub.getByRole('heading', { level: 1, name: 'The digital system that powers your business.' }).waitFor();
-  assert.match(await pub.title(), /AI, websites, CRM and automation/, 'English page has an English title');
+  assert.match(await pub.title(), /Websites, CRM & AI for Business/, 'English page has an English title');
   assert.equal(await pub.locator('link[rel="canonical"]').count(), 0, 'no canonical that would mark the English page as a duplicate of the Spanish one');
   // Search-engine surface: robots.txt keeps the private OS out, sitemap lists only public pages.
   const robotsTxt = await (await fetch(origin + '/robots.txt')).text();
