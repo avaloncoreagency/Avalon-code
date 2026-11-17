@@ -490,15 +490,21 @@ export function createUniverse(canvas: HTMLCanvasElement, opts: { mobile: boolea
   const resize = () => {
     const w = canvas.clientWidth || window.innerWidth, h = canvas.clientHeight || window.innerHeight;
     width = w; height = h; aspect = w / h; fit = aspect < 1 ? clamp(aspect * 1.3, 0.5, 1) : 1;
+    // Guard maximum framebuffer size even after rotation, split-screen or external display changes.
+    const maxDpr = Math.max(.75, limitDpr(w, h));
+    if (dpr > maxDpr) { dpr = maxDpr; renderer.setPixelRatio(dpr); }
     renderer.setSize(w, h, false); camera.aspect = aspect; camera.updateProjectionMatrix(); K = keys();
     const ps = h * dpr; pUni.uSize.value = ps * 0.085;
     scene.traverse(o => { const u = (o as THREE.Points).material as THREE.ShaderMaterial | undefined; if (o !== particles && u && u.uniforms && u.uniforms.uSize) u.uniforms.uSize.value = ps * 0.11; });
   };
 
-  let raf = 0, running = false, last = 0, slow = 0, frames = 0;
+  let raf = 0, running = false, last = 0, lastProjection = 0;
+  let qualityTime = 0, qualityFrames = 0, fastestMs = 1000 / 60, poorWindows = 0, strongWindows = 0;
+  let particleFraction = 1;
   const tick = (now: number) => {
     raf = requestAnimationFrame(tick);
-    const dt = Math.min(0.05, (now - last) / 1000 || 0.016); last = now; time.value += dt;
+    const rawMs = Math.max(1, now - last);
+    const dt = Math.min(0.05, rawMs / 1000 || 0.016); last = now; time.value += dt;
     // A jump link (e.g. hero → quote form) cuts to the destination instead of fast-forwarding through every universe.
     if (Math.abs(T - Ts) > 1.3) Ts = T; else Ts += (T - Ts) * Math.min(1, dt * 5.5); pxs += (px - pxs) * Math.min(1, dt * 4); pys += (py - pys) * Math.min(1, dt * 4);
     boost = Math.max(0, boost - dt * 1.4); kick = Math.max(0, kick - dt * 1.8);
@@ -506,12 +512,43 @@ export function createUniverse(canvas: HTMLCanvasElement, opts: { mobile: boolea
     moveCamera(); camera.updateMatrixWorld();
     for (const u of updaters) u(dt, time.value);
     for (const r of ripples) if (r.m.visible) { r.age += dt; const k = r.age / 1.15; if (k >= 1) { r.m.visible = false; continue; } r.m.scale.setScalar(0.2 + r.max * (1 - (1 - k) * (1 - k))); (r.m.material as THREE.MeshBasicMaterial).opacity = (1 - k) * 0.85; }
-    frame.t = Ts; frameCb?.(frame);
+    frame.t = Ts;
+    // Project HTML hit targets at 60 fps desktop/30 mobile while the actual scene is
+    // free to render at native 60/90/120 Hz. DOM layout must not cap GPU animation.
+    if (now - lastProjection >= (opts.mobile ? 1000 / 30 : 1000 / 60)) {
+      frameCb?.(frame); lastProjection = now;
+    }
     renderer.render(scene, camera);
-    // Adaptive quality: if the first seconds are slow, drop resolution once instead of stuttering forever.
-    if (frames < 120) { frames++; if (dt > 0.03) slow++; if (frames === 120 && slow > 45 && dpr > 1) { dpr = 1; renderer.setPixelRatio(1); resize(); pGeo.setDrawRange(0, Math.floor(N / 2)); } if (frames === 120) slow = 0; }
-    // Watchdog: if it is still far from fluid after the downgrade, hand over to the static experience.
-    else if (frames < 300) { frames++; if (dt > 0.045) slow++; if (frames === 300 && slow > 110) opts.onTooSlow?.(); }
+    // Continuous frame-budget governor rather than a one-time "first 120 frames" downgrade.
+    // requestAnimationFrame naturally follows 60/90/120 Hz screens where supported.
+    if (rawMs < 50 && rawMs > 4) {
+      qualityTime += rawMs; qualityFrames++;
+      fastestMs = Math.min(fastestMs, rawMs);
+    }
+    if (qualityFrames >= 120) {
+      const average = qualityTime / qualityFrames;
+      const refreshBudget = fastestMs < 12.4 ? 1000 / 120 : 1000 / 60;
+      const cap = Math.max(.75, limitDpr(width, height));
+      canvas.dataset.refreshBudget = refreshBudget < 12 ? "120" : "60";
+      if (average > refreshBudget * 1.19) {
+        poorWindows++; strongWindows = 0;
+        if (dpr > .76) {
+          dpr = Math.max(.75, dpr - .18); renderer.setPixelRatio(dpr); resize();
+          particleFraction = Math.max(.5, particleFraction - .1);
+          pGeo.setDrawRange(0, Math.floor(N * particleFraction));
+        } else if (poorWindows >= 5) opts.onTooSlow?.();
+      } else if (average < refreshBudget * .82 && dpr < cap - .05) {
+        strongWindows++; poorWindows = 0;
+        if (strongWindows >= 3) {
+          dpr = Math.min(cap, dpr + .12); renderer.setPixelRatio(dpr); resize();
+          particleFraction = Math.min(1, particleFraction + .1);
+          pGeo.setDrawRange(0, Math.floor(N * particleFraction));
+          strongWindows = 0;
+        }
+      } else { poorWindows = 0; strongWindows = 0; }
+      canvas.dataset.renderScale = dpr.toFixed(2);
+      qualityTime = 0; qualityFrames = 0; fastestMs = 1000 / 60;
+    }
   };
 
   const ndc = new THREE.Vector3();
@@ -526,9 +563,9 @@ export function createUniverse(canvas: HTMLCanvasElement, opts: { mobile: boolea
       if (!opts.ambientOnly && Ts < 0.95) spawnRipple(a.set(0, 0, 0), 7, COL.violet);
       if (Ts > 0.8 && Ts < 2.1) boost = 1;
     },
-    setEngineActive(i) { engineActive = clamp(Math.round(i), 0, ENGINE_COUNT - 1); },
+    setEngineActive(i) { const next = clamp(Math.round(i), 0, ENGINE_COUNT - 1); if (next !== engineActive) kick = Math.max(kick, .45); engineActive = next; },
     setEngineHover(i) { engineHover = i; },
-    setAppleActive(i) { appleActive = i; },
+    setAppleActive(i) { if (i !== appleActive && i !== null) kick = Math.max(kick, .65); appleActive = i; },
     onFrame(cb) { frameCb = cb; },
     resize,
     start() { if (running) return; running = true; last = performance.now(); raf = requestAnimationFrame(tick); },
