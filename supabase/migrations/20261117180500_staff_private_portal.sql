@@ -13,7 +13,8 @@ create table public.staff_portal_access (
  updated_at timestamptz not null default now()
 );
 alter table public.staff_portal_access enable row level security;
-revoke all on public.staff_portal_access from public, anon, authenticated;
+revoke all on public.staff_portal_access from anon;
+revoke all on public.staff_portal_access from public, authenticated;
 grant select, insert, update on public.staff_portal_access to authenticated;
 create policy staff_access_read on public.staff_portal_access for select to authenticated
  using (user_id=(select auth.uid()) or (select crm_private.is_owner()));
@@ -41,7 +42,8 @@ create table public.staff_contacts (
  is_listed boolean not null default false
 );
 alter table public.staff_contacts enable row level security;
-revoke all on public.staff_contacts from public, anon, authenticated;
+revoke all on public.staff_contacts from anon;
+revoke all on public.staff_contacts from public, authenticated;
 grant select, insert, update on public.staff_contacts to authenticated;
 create policy staff_contacts_read on public.staff_contacts for select to authenticated
  using ((select crm_private.is_owner()) or (is_listed and (select crm_private.staff_active())));
@@ -72,7 +74,8 @@ create table public.staff_client_grants (
 );
 create index staff_client_grants_client_idx on public.staff_client_grants(client_id);
 alter table public.staff_client_grants enable row level security;
-revoke all on public.staff_client_grants from public, anon, authenticated;
+revoke all on public.staff_client_grants from anon;
+revoke all on public.staff_client_grants from public, authenticated;
 grant select, insert, update on public.staff_client_grants to authenticated;
 create policy staff_client_grants_read on public.staff_client_grants for select to authenticated
  using ((select crm_private.is_owner()) or
@@ -98,7 +101,8 @@ create table public.staff_casefiles (
 create index staff_casefiles_owner_idx on public.staff_casefiles(user_id,updated_at desc);
 create index staff_casefiles_link_idx on public.staff_casefiles(linked_client_id);
 alter table public.staff_casefiles enable row level security;
-revoke all on public.staff_casefiles from public, anon, authenticated;
+revoke all on public.staff_casefiles from anon;
+revoke all on public.staff_casefiles from public, authenticated;
 grant select, insert on public.staff_casefiles to authenticated;
 grant update (title,contact_name,notes,status) on public.staff_casefiles to authenticated;
 create policy staff_casefiles_read on public.staff_casefiles for select to authenticated
@@ -172,7 +176,8 @@ create table public.staff_private_messages (
 create index staff_messages_inbox_idx on public.staff_private_messages(recipient_id,created_at desc);
 create index staff_messages_sent_idx on public.staff_private_messages(sender_id,created_at desc);
 alter table public.staff_private_messages enable row level security;
-revoke all on public.staff_private_messages from public, anon, authenticated;
+revoke all on public.staff_private_messages from anon;
+revoke all on public.staff_private_messages from public, authenticated;
 grant select, insert on public.staff_private_messages to authenticated;
 grant update (read_at) on public.staff_private_messages to authenticated;
 create policy staff_messages_read on public.staff_private_messages for select to authenticated
@@ -220,7 +225,8 @@ create table public.staff_permission_events (
  recorded_at timestamptz not null default now()
 );
 alter table public.staff_permission_events enable row level security;
-revoke all on public.staff_permission_events from public, anon, authenticated;
+revoke all on public.staff_permission_events from anon;
+revoke all on public.staff_permission_events from public, authenticated;
 grant select, insert on public.staff_permission_events to authenticated;
 create policy staff_events_read on public.staff_permission_events for select to authenticated
  using ((select crm_private.is_owner()));
