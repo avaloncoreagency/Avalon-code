@@ -83,3 +83,28 @@ test("fallback clears every projected style and hidden-button tabindex", () => {
   assert.deepEqual(removed,["transform","opacity","z-index","pointer-events"]);
   assert.deepEqual(attrs,["tabindex"]);
 });
+
+
+test("premium material upgrade uses real PBR surface and an organic fruit silhouette", () => {
+  const scene = read("src/components/public/landing/universe/scene.ts");
+  assert.match(scene, /brushedSurfaceTexture/);
+  assert.match(scene, /roughnessMap: microSurface/);
+  assert.match(scene, /bumpMap: opts\.mobile \? null : microSurface/, "disable expensive bump shading on phones");
+  assert.match(scene, /RoundedBoxGeometry/);
+  assert.match(scene, /appleGeometry\(\)/);
+  assert.match(scene, /coreMetal\.scale/, "PBR shell stays beneath moving energy skin");
+  assert.match(scene, /engineMetal\.scale/);
+});
+
+test("4K display budget and native high-refresh rendering remain adaptive and honest", () => {
+  const scene = read("src/components/public/landing/universe/scene.ts");
+  assert.ok(scene.includes("8_294_400"), "4K pixel ceiling on desktop");
+  assert.ok(scene.includes("3_000_000"), "mobile rendering is thermally capped");
+  assert.ok(scene.includes("1000 / 120"), "support native high-refresh screens");
+  assert.match(scene, /renderer\.setPixelRatio\(dpr\)/);
+  assert.match(scene, /qualityFrames >= 120/, "continuous quality governor");
+  assert.match(scene, /onTooSlow\?\.\(\)/, "fallback for devices that remain underpowered");
+  const living = read("src/components/public/landing/universe/living-universe.tsx");
+  assert.match(living, /activeTouch/);
+  assert.doesNotMatch(living, /preventDefault\(/, "scroll and touch accessibility remain native");
+});
