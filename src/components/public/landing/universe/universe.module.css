@@ -99,6 +99,10 @@
 
   /* Projected mode: chips and apples follow their 3D objects. */
   :global(html[data-universe="live"]) .chips, :global(html[data-universe="live"]) .apples { position: absolute; inset: 0; display: block; pointer-events: none; }
+  /* The tree's hit targets must be above the decorative stage and the information sheet.
+     Without an explicit stacking layer, overlapping sticky content eats real taps and clicks. */
+  :global(html[data-universe="live"]) .actTree .apples { z-index: 5; }
+  :global(html[data-universe="live"]) .actTree .treePanel { z-index: 2; }
   :global(html[data-universe="live"]) .chip, :global(html[data-universe="live"]) .apple { position: absolute; left: 0; top: 0; opacity: 0; will-change: transform, opacity; transition: background .25s, border-color .25s, box-shadow .25s, opacity .35s; }
   :global(html[data-universe="live"]) .apple { width: 56px; height: 56px; min-height: 0; padding: 0; justify-content: center; background: transparent; border: 1px solid rgba(255, 255, 255, 0); backdrop-filter: none; -webkit-backdrop-filter: none; border-radius: 50%; }
   :global(html[data-universe="live"]) .apple i { display: none; }
