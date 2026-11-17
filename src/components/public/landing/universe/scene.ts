@@ -255,8 +255,8 @@ export function createUniverse(canvas: HTMLCanvasElement, opts: { mobile: boolea
     const engEnergy = new THREE.Mesh(sphereGeo, energyMat(COL.cyan, COL.electric)); engEnergy.scale.setScalar(0.85); engine.add(engEnergy);
     const engRings = buildRings(engine, [1.25, 1.5]);
     const moduleGeos: THREE.BufferGeometry[] = [
-      new THREE.BoxGeometry(1.25, 0.82, 0.09),                       // website: a screen
-      new THREE.BoxGeometry(0.82, 0.82, 0.82),                       // e-commerce: a package
+      new RoundedBoxGeometry(1.25, .82, .12, 4, .065),             // website: beveled display housing
+      new RoundedBoxGeometry(.82, .82, .82, 4, .07),                 // e-commerce: machined package
       new THREE.CylinderGeometry(0.5, 0.5, 0.85, 28, 3),             // CRM: a data store
       new THREE.ConeGeometry(0.55, 1.0, 28, 1, true),                // marketing: a megaphone
       new THREE.TorusGeometry(0.46, 0.16, 16, 40),                   // communication: a headset ring
@@ -266,7 +266,22 @@ export function createUniverse(canvas: HTMLCanvasElement, opts: { mobile: boolea
       const g = new THREE.Group();
       const mesh = new THREE.Mesh(geo, chrome(0xd6dcf2, 0.16)); if (i === 3) { mesh.rotation.z = -Math.PI / 2; (mesh.material as THREE.MeshStandardMaterial).side = THREE.DoubleSide; }
       const edges = new THREE.LineSegments(track(new THREE.EdgesGeometry(geo, 25)), track(new THREE.LineBasicMaterial({ color: MODULE_COLORS[i], transparent: true, opacity: 0.9, blending: THREE.AdditiveBlending, depthWrite: false })));
-      mesh.add(edges); const halo = sprite(MODULE_COLORS[i], 2.6, 0.45); g.add(halo, mesh); engine.add(g);
+      mesh.add(edges);
+      if (i === 0) {
+        // Deep glossy glass in a rounded bezel gives the website object real surface depth.
+        const screen = new THREE.Mesh(track(new RoundedBoxGeometry(1.07, .64, .026, 3, .035)),
+          track(new THREE.MeshPhysicalMaterial({ color: 0x132c4b, metalness: .24, roughness: .11,
+            clearcoat: 1, clearcoatRoughness: .06, envMapIntensity: 1.6, emissive: 0x07162d, emissiveIntensity: .22 })));
+        screen.position.z = .077; mesh.add(screen);
+        const stripe = new THREE.Mesh(track(new THREE.BoxGeometry(.78, .018, .007)),
+          track(new THREE.MeshBasicMaterial({ color: COL.cyan, transparent: true, opacity: .65 })));
+        stripe.position.set(0, .17, .094); screen.add(stripe);
+      }
+      if (i === 1) {
+        const band = new THREE.Mesh(track(new RoundedBoxGeometry(.89, .10, .89, 2, .022)),
+          chrome(0x98b2d5, .31)); band.position.y = .05; mesh.add(band);
+      }
+      const halo = sprite(MODULE_COLORS[i], 2.15, 0.3); g.add(halo, mesh); engine.add(g);
       return { g, mesh, halo, pos: new THREE.Vector3(), s: 1 };
     });
     const linkGeo = track(new THREE.BufferGeometry());
@@ -322,7 +337,7 @@ export function createUniverse(canvas: HTMLCanvasElement, opts: { mobile: boolea
       return m;
     };
     const trunkGeo = track(buildSegs(segs, tMax, 0.2, 0.8));
-    tree.add(new THREE.Mesh(trunkGeo, growMat(chrome(0xaab6e6, 0.2), "vec3(.19,.6,1.) * 1.1")));
+    tree.add(new THREE.Mesh(trunkGeo, growMat(chrome(0x9aacc6, 0.36), "vec3(.19,.6,1.) * .48")));
     const rootGeo = track(buildSegs(roots, rMax, 0, 0.24));
     tree.add(new THREE.Mesh(rootGeo, growMat(track(new THREE.MeshStandardMaterial({ color: 0x1b2f66, metalness: 0.7, roughness: 0.35, emissive: COL.electric, emissiveIntensity: 0.7 })), "vec3(.19,.85,.96) * 1.3")));
     const tipT = (t: number) => 0.2 + (t / tMax) * 0.8;
@@ -346,11 +361,26 @@ export function createUniverse(canvas: HTMLCanvasElement, opts: { mobile: boolea
       if (chosen.every(o => o.p.distanceTo(c.p) > 1.25) && Math.abs(c.p.z) < 3.2) chosen.push(c);
     }
     for (const c of tips) { if (chosen.length >= APPLE_COUNT) break; if (!chosen.includes(c)) chosen.push(c); }
-    const appleGeo = track(new THREE.SphereGeometry(0.19, 24, 18));
+    const appleGeo = track(appleGeometry());
+    const stemGeo = track(new THREE.CylinderGeometry(.009, .014, .11, 8));
+    const leafGeo = track(new THREE.SphereGeometry(.066, 12, 8));
+    const stemMat = chrome(0x839aa9, .38), leafMat = chrome(0x4dbea5, .34);
     const apples = chosen.slice(0, APPLE_COUNT).sort((a, b) => a.t - b.t).map((c, i) => {
-      const color = i % 3 === 1 ? COL.magenta : COL.orange;
-      const m = new THREE.Mesh(appleGeo, track(new THREE.MeshStandardMaterial({ color, emissive: color, emissiveIntensity: 1.3, metalness: 0.3, roughness: 0.12, envMapIntensity: 2 })));
-      m.position.copy(c.p).add(new THREE.Vector3(0, -0.24, 0)); const halo = sprite(color, 1.5, 0.6); m.add(halo); tree.add(m);
+      const color = i % 3 === 1 ? 0xb064d8 : 0xe6a15c;
+      // Dim, refractive-looking enamel under physically rendered softboxes; not a flat self-lit ball.
+      const m = new THREE.Mesh(appleGeo, track(new THREE.MeshPhysicalMaterial({
+        color, metalness: .28, roughness: .14, envMapIntensity: 2.2,
+        clearcoat: 1, clearcoatRoughness: .07,
+        iridescence: .13, iridescenceIOR: 1.48, iridescenceThicknessRange: [130, 270],
+        emissive: color, emissiveIntensity: .17,
+      })));
+      m.position.copy(c.p).add(new THREE.Vector3(0, -0.24, 0));
+      m.rotation.y = i * 1.3;
+      const stem = new THREE.Mesh(stemGeo, stemMat); stem.position.set(0, .148, 0); stem.rotation.z = .15; m.add(stem);
+      const leaf = new THREE.Mesh(leafGeo, leafMat);
+      leaf.position.set(.062, .18, .007); leaf.scale.set(1.2, .22, .78); leaf.rotation.z = -.55; m.add(leaf);
+      const halo = sprite(i % 3 === 1 ? COL.magenta : COL.orange, 1.25, .3);
+      m.add(halo); tree.add(m);
       return { m, halo, t: tipT(c.t), s: 0 };
     });
     const ground = sprite(COL.electric, 1, 0.5); ground.scale.set(15, 2.6, 1); ground.position.y = 0.1; tree.add(ground);
@@ -416,8 +446,8 @@ export function createUniverse(canvas: HTMLCanvasElement, opts: { mobile: boolea
         apples.forEach((ap, i) => {
           const on = appleActive === i ? 1 : 0; const target = smooth(ap.t, ap.t + 0.07, grow) * (1 + on * 0.6 + Math.sin(t * 2.2 + i * 1.3) * 0.07);
           ap.s += (target - ap.s) * Math.min(1, dt * 6); ap.m.scale.setScalar(Math.max(0.001, ap.s));
-          (ap.m.material as THREE.MeshStandardMaterial).emissiveIntensity = 1.1 + on * 1.6 + Math.sin(t * 2.6 + i) * 0.25;
-          (ap.halo.material as THREE.SpriteMaterial).opacity = 0.45 + on * 0.5;
+          (ap.m.material as THREE.MeshPhysicalMaterial).emissiveIntensity = .17 + on * .65 + Math.sin(t * 1.7 + i) * .08;
+          (ap.halo.material as THREE.SpriteMaterial).opacity = .24 + on * .43;
           wp.setFromMatrixPosition(ap.m.matrixWorld); front.copy(wp).project(camera);
           frame.tree.set([(front.x * 0.5 + 0.5) * width, (-front.y * 0.5 + 0.5) * height, front.z < 1 ? Math.min(1, ap.s) : 0], i * 3);
         });
