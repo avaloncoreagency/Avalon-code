@@ -521,8 +521,8 @@ export function createUniverse(canvas: HTMLCanvasElement, opts: { mobile: boolea
     renderer.render(scene, camera);
     // Continuous frame-budget governor rather than a one-time "first 120 frames" downgrade.
     // requestAnimationFrame naturally follows 60/90/120 Hz screens where supported.
-    if (rawMs < 50 && rawMs > 4) {
-      qualityTime += rawMs; qualityFrames++;
+    if (rawMs < 120 && rawMs > 4) {
+      qualityTime += Math.min(rawMs, 70); qualityFrames++;
       fastestMs = Math.min(fastestMs, rawMs);
     }
     if (qualityFrames >= 120) {
@@ -537,7 +537,7 @@ export function createUniverse(canvas: HTMLCanvasElement, opts: { mobile: boolea
           particleFraction = Math.max(.5, particleFraction - .1);
           pGeo.setDrawRange(0, Math.floor(N * particleFraction));
         } else if (poorWindows >= 5) opts.onTooSlow?.();
-      } else if (average < refreshBudget * .82 && dpr < cap - .05) {
+      } else if (average < refreshBudget * 1.07 && dpr < cap - .05) {
         strongWindows++; poorWindows = 0;
         if (strongWindows >= 3) {
           dpr = Math.min(cap, dpr + .12); renderer.setPixelRatio(dpr); resize();
