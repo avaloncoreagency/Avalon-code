@@ -145,7 +145,7 @@ export const FINDINGS: Finding[] = [
     title: ["RPC privilegiadas accesibles a usuarios autenticados: distintos modelos de autorización", "Privileged RPCs callable by authenticated users: mixed authorization models"],
     location: "public.crm_* · public.os_bridge_* · public.os_code_* · public.office_directory",
     fix: ["Las funciones CRM/Office comprueban owner; otras exigen token u os_private.is_owner(). Auditar el contrato individual y probar usuarios sin membresía.", "CRM/Office check owner; others require tokens or os_private.is_owner(). Audit each contract and test non-members."],
-    evidence: "2026-11-14: Supabase advisor reports 38 SECURITY DEFINER functions callable by authenticated role. Warning does not prove bypass; exhaustive per-RPC owner/scope checks and non-member tests still pending.",
+    evidence: "2026-11-17: advisor 6 anon + 38 authenticated (39 unique) matches the repository exactly; tests/definer-gates.test.cjs proves every executable definer RPC is owner-, token- or allowlist-gated with no dynamic SQL; PGlite non-member tests cover CRM, sales and Core Engine money RPCs. Dynamic abuse/rate-limit review of the 6 public endpoints remains.",
   },
   {
     id: "R-19", severity: "low", status: "blocked", area: "Supabase",
