@@ -74,3 +74,16 @@ El cambio se entrega en rama/PR independiente para integración de Claude. No se
 Pendientes para aceptación final: revisión de backend actual y entorno aislado por SHA, dos sesiones autorizadas independientes con persistencia remota, Safari/iPhone real, #191 si vuelve a aparecer, prueba de recuperación ante red caída/errores en todos los formularios heredados y revisión de contraste con herramienta automatizada. Comisiones devengadas y saldos solo pueden ampliar su UI cuando exista un contrato financiero verificable; no se calculan a partir de listas truncadas. Rendimiento y gastos reales: no medidos.
 
 Next action: integrador revisa la PR y sus capturas/CI por SHA; completa aceptación de sesiones remotas antes de autorizar release. No cerrar #179 o #191 por inspección estática ni por una captura aislada.
+
+
+## Continuación: formularios heredados (16 noviembre 2026, Nueva York)
+
+Base publicada b93e3a43a5fbf04620a6a7201ef0fbd83823b224; rama local codex/command-center-followup. Main continúa c9a3fec. Se preservan PRs ajenos y no se toca backend.
+
+- Editor de las cinco entidades: etiquetas EN/ES, claves y etapas almacenadas sin traducción destructiva; required en selects.
+- Filtros, acciones principales y paginación del CRM traducidos. Esto no certifica traducción completa de Radar/Timeline/KPI heredados.
+- Borrador: confirmación al descartar, aviso antes de cerrar pestaña, protección contra doble submit y conservación ante refresh del listado. El formulario se mantiene montado fuera del estado de carga. No se promete persistencia del borrador después de recargar.
+- Pruebas nuevas: etiquetas SSR y Playwright con errores 503/409, refresh y cancelar descarte. Datos sintéticos; no prueban sesiones remotas reales.
+- #191: comentarios confirman intermitencia en el mismo SHA. Se conserva detector y primera pila de error; sin reproducción nueva, sin afirmar causa ni cierre.
+- Chromium local bloqueado por socket EPERM. CI es la vía de prueba de navegador; Safari/iPhone físico y dos cuentas remotas autorizadas siguen pendientes.
+- Sin cambios de permisos, producción, SQL ni dependencias. No se certifica auditoría exhaustiva de contraste/accesibilidad.

@@ -104,7 +104,11 @@ test('Nova Restaurant through the real app: one form, three departments, no dupl
     const ctx = await browser.newContext({ viewport, timezoneId, locale: lang === "es" ? "es-ES" : "en-US" });
     await ctx.addCookies([{ name: cookieName, value: cookieValue(s), url: origin }, { name: "avalon-lang", value: lang, url: origin }]);
     const page = await ctx.newPage();
-    page.on('pageerror', e => errors.push(`pageerror [${page.url()}]: ${e.message}`));
+    page.on('pageerror', e => {
+      errors.push(`pageerror [${page.url()}]: ${e.message}`);
+      // Synthetic fixture only: preserve the first hydration stack without muting the failure.
+      if (errors.filter(x => x.startsWith('pageerror')).length === 1) fs.writeFileSync(`${EVIDENCE}/first-pageerror.txt`, `${page.url()}\n${e.stack || e.message}`);
+    });
     return page;
   };
   const page = await context(miguel);
@@ -728,6 +732,37 @@ test('Nova Restaurant through the real app: one form, three departments, no dupl
   await matrix.getByText('Your pipeline, stage by stage').waitFor();
   assert.ok(await matrix.getByRole('region', { name: 'Sales command center' }).isVisible());
   await matrix.screenshot({ path: EVIDENCE + '/command-pipeline-desktop.png', fullPage: true });
+  // Real browser UI with synthetic API failures: retain drafts and require explicit discard.
+  await matrix.getByRole('button', { name: 'Create lead', exact: true }).click();
+  const editor = matrix.getByRole('region', { name: 'Record editor' });
+  await editor.getByLabel('Company *', { exact: true }).fill('Draft recovery synthetic');
+  await editor.getByLabel('Source *', { exact: true }).fill('synthetic-qa');
+  let writes = 0;
+  const failSave = async route => {
+    if (route.request().method() !== 'POST') return route.continue();
+    writes++;
+    await route.fulfill({status: writes === 1 ? 503 : 409,contentType:'application/json',body:JSON.stringify({error:writes === 1 ? 'Synthetic provider unavailable' : 'Synthetic version conflict'})});
+  };
+  await matrix.getByRole('button',{name:'Refresh',exact:true}).click();
+  await matrix.getByRole('region',{name:'Opportunity pipeline'}).waitFor();
+  assert.equal(await editor.getByLabel('Company *',{exact:true}).inputValue(),'Draft recovery synthetic','refresh preserves editor draft');
+  await matrix.route('**/admin/workspace/crm/api', failSave);
+  for (const message of ['Synthetic provider unavailable','Synthetic version conflict']) {
+    await editor.getByRole('button', {name:'Save',exact:true}).click();
+    await editor.getByRole('alert').filter({hasText:message}).waitFor();
+    assert.equal(await editor.getByLabel('Company *',{exact:true}).inputValue(),'Draft recovery synthetic');
+    assert.equal(await editor.getByLabel('Source *',{exact:true}).inputValue(),'synthetic-qa');
+  }
+  matrix.once('dialog', dialog => dialog.dismiss());
+  await editor.getByRole('button',{name:'Close editor'}).click();
+  assert.ok(await editor.isVisible(), 'cancelled discard keeps draft');
+  await matrix.screenshot({path:EVIDENCE+'/command-form-conflict.png',fullPage:true});
+  matrix.once('dialog', dialog => dialog.accept());
+  await editor.getByRole('button',{name:'Close editor'}).click();
+  await editor.waitFor({state:'hidden'});
+  await matrix.unroute('**/admin/workspace/crm/api',failSave);
+  assert.equal(writes,2,'only deliberate saves reached the synthetic endpoint');
+
 
   // History of the whole journey on the client timeline.
   await page.goto(`${origin}/admin/workspace/crm/activity?client=${orbit.id}`);
