@@ -3,6 +3,7 @@ import type { Metadata, Viewport } from "next";
 import { QuoteForm } from "@/components/public/quote-form";
 import { COPY, GROUPS, SERVICE_ORDER, type Lang } from "@/components/public/landing/copy";
 import { Icon } from "@/components/public/landing/icons";
+import { Cinema } from "@/components/public/landing/cinema";
 import { Effects } from "@/components/public/landing/effects";
 import { AnyIndustry } from "@/components/public/landing/industries";
 import { Journey, Reveal } from "@/components/public/landing/interactive";
@@ -82,6 +83,11 @@ export default async function Home({ searchParams }: { searchParams: Promise<Rec
       <EngineStage lang={lang} />
       <TreeStage lang={lang} />
 
+      {/* AVALON · THE FILM — the four universes as photoreal Higgsfield films. */}
+      <section id="pelicula" aria-labelledby="h-film">
+        <Cinema lang={lang} />
+      </section>
+
       {/* Help a visitor choose by goal rather than industry jargon. */}
       <section id="objetivos" className={s.section} aria-labelledby="h-goals">
         <div className={s.wrap}>
@@ -158,7 +164,10 @@ export default async function Home({ searchParams }: { searchParams: Promise<Rec
       <section id="cotizacion" className={s.section} aria-labelledby="h-quote">
         <div className={s.wrap}>
           <div className={s.contact}>
-            <img className={s.contactBg} src={MEDIA.closing.src} alt="" width={1920} height={1080} loading="lazy" decoding="async" />
+            <picture>
+              <source media="(max-aspect-ratio: 1/1)" srcSet="/brand/closing-m.webp" />
+              <img className={s.contactBg} src={MEDIA.closing.src} alt="" width={1920} height={1080} loading="lazy" decoding="async" />
+            </picture>
             <div className={s.contactGrid}>
               <div><p className={s.eyebrow}>{t.contact.eyebrow}</p><h2 id="h-quote" className={s.h2}>{t.contact.title}</h2><p className={s.lead}>{t.contact.lead}</p>
                 <ul className={s.points}>{t.contact.points.map(x => <li key={x}><Icon name="check" size={18} />{x}</li>)}</ul>

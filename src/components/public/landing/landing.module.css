@@ -469,10 +469,9 @@
 .browser, .adCard { --ink: #0b1030; --ink-2: #3b4266; --ink-3: #6b7290; --line: rgba(40, 52, 120, .14); color: var(--ink); }
 .siteCta { color: #0b1030; }
 
-/* Earlier Higgsfield stills were produced for a light page. Until the dark masters are approved they are graded
-   towards the Ultimate palette (multiply tint) so they read as lit screens instead of white cards. */
+/* Dark photoreal Higgsfield masters (2026-11-17): no colour grading needed, only a soft vignette that seats the
+   image into the page and keeps overlaid text legible. */
 .workArt, .media { position: relative; }
-.workArt::after, .media::after { content: ""; position: absolute; inset: 0; pointer-events: none; mix-blend-mode: multiply;
-  background: linear-gradient(155deg, rgba(41, 121, 255, .55), rgba(120, 71, 255, .6) 60%, rgba(10, 16, 36, .75)); }
-.workArt img, .media img, .media video { filter: saturate(1.25) contrast(1.08); }
-.contactBg { opacity: .14 !important; mix-blend-mode: screen; filter: saturate(1.4); }
+.workArt::after, .media::after { content: ""; position: absolute; inset: 0; pointer-events: none;
+  background: radial-gradient(120% 100% at 50% 40%, transparent 55%, rgba(5, 6, 16, .55) 100%); }
+.contactBg { opacity: .42 !important; mix-blend-mode: normal; filter: none; }
