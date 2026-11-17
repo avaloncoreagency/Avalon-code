@@ -75,6 +75,28 @@ function appleGeometry() {
   pos.needsUpdate = true; geo.computeVertexNormals(); return geo;
 }
 
+/** Deterministic rough tree bark: real dark umber grain and vertical fissures.
+ *  Visual continuity with the eventual Higgsfield orchard shot, no external network.
+ */
+function barkTexture() {
+  const canvas = document.createElement("canvas"); canvas.width = canvas.height = 256;
+  const ctx = canvas.getContext("2d")!, img = ctx.createImageData(256, 256), rand = rng(4011);
+  for (let y = 0; y < 256; y++) for (let x = 0; x < 256; x++) {
+    const cracks = Math.pow(Math.abs(Math.sin(x * .115 + Math.sin(y * .033) * 1.8)), 19);
+    const grain = Math.sin(x * .25 + Math.sin(y * .07) * 1.6) * 10 + (rand() - .5) * 23;
+    const dark = cracks * 55, idx = (y * 256 + x) * 4;
+    img.data[idx] = clamp(79 + grain - dark, 18, 150);
+    img.data[idx + 1] = clamp(52 + grain * .72 - dark, 12, 120);
+    img.data[idx + 2] = clamp(34 + grain * .48 - dark, 8, 96);
+    img.data[idx + 3] = 255;
+  }
+  ctx.putImageData(img, 0, 0);
+  const tex = new THREE.CanvasTexture(canvas);
+  tex.wrapS = tex.wrapT = THREE.RepeatWrapping; tex.repeat.set(2, 3);
+  tex.colorSpace = THREE.SRGBColorSpace; tex.anisotropy = 4;
+  return tex;
+}
+
 const SOFT_POINT = `varying float vAlpha; varying vec3 vCol;
 void main(){ float d = length(gl_PointCoord - .5); float a = smoothstep(.5, .0, d); gl_FragColor = vec4(vCol, a * a * vAlpha); }`;
 
@@ -115,8 +137,8 @@ export function createUniverse(canvas: HTMLCanvasElement, opts: { mobile: boolea
   const rim = new THREE.PointLight(COL.violet, 90, 60); rim.position.set(-6, 2, -6); camera.add(rim);
   const warm = new THREE.PointLight(COL.orange, 30, 50); warm.position.set(1, -5, -3); camera.add(warm);
 
-  const glowTex = glowTexture(), microSurface = brushedSurfaceTexture();
-  const disposables: { dispose(): void }[] = [glowTex, microSurface, env, pmrem];
+  const glowTex = glowTexture(), microSurface = brushedSurfaceTexture(), bark = barkTexture();
+  const disposables: { dispose(): void }[] = [glowTex, microSurface, bark, env, pmrem];
   const track = <T extends { dispose(): void }>(x: T) => { disposables.push(x); return x; };
   const sprite = (color: number, size: number, opacity = 1) => {
     const s = new THREE.Sprite(track(new THREE.SpriteMaterial({ map: glowTex, color, transparent: true, opacity, blending: THREE.AdditiveBlending, depthWrite: false, fog: false })));
@@ -305,6 +327,11 @@ export function createUniverse(canvas: HTMLCanvasElement, opts: { mobile: boolea
     // ── IV · THE GROWTH TREE ────────────────────────────────────────────────────────────────────────────────────
     type Seg = { a: THREE.Vector3; b: THREE.Vector3; r0: number; r1: number; t0: number; t1: number };
     const tree = new THREE.Group(); tree.position.copy(TREE); scene.add(tree);
+    // The growth world is a real orchard: botanical warm light and a soft green sky fill.
+    const sun = new THREE.DirectionalLight(0xffe4ad, 2.7);
+    sun.position.set(-5, 10, 8); tree.add(sun);
+    const canopyFill = new THREE.HemisphereLight(0xb8dfb1, 0x48351e, 1.35);
+    tree.add(canopyFill);
     const R = rng(4242); const segs: Seg[] = [], roots: Seg[] = []; const tips: { p: THREE.Vector3; t: number }[] = [];
     const up = new THREE.Vector3(0, 1, 0), tmp = new THREE.Vector3();
     const branch = (list: Seg[], a: THREE.Vector3, dir: THREE.Vector3, len: number, rad: number, depth: number, t0: number, isRoot: boolean) => {
@@ -342,9 +369,15 @@ export function createUniverse(canvas: HTMLCanvasElement, opts: { mobile: boolea
       return m;
     };
     const trunkGeo = track(buildSegs(segs, tMax, 0.2, 0.8));
-    tree.add(new THREE.Mesh(trunkGeo, growMat(chrome(0x9aacc6, 0.36), "vec3(.19,.6,1.) * .48")));
+    tree.add(new THREE.Mesh(trunkGeo, growMat(track(new THREE.MeshStandardMaterial({
+      color: 0xffffff, map: bark, roughness: .92, metalness: 0,
+      bumpMap: opts.mobile ? null : bark, bumpScale: .045,
+    })), "vec3(.09,.07,.035) * .06")));
     const rootGeo = track(buildSegs(roots, rMax, 0, 0.24));
-    tree.add(new THREE.Mesh(rootGeo, growMat(track(new THREE.MeshStandardMaterial({ color: 0x1b2f66, metalness: 0.7, roughness: 0.35, emissive: COL.electric, emissiveIntensity: 0.7 })), "vec3(.19,.85,.96) * 1.3")));
+    tree.add(new THREE.Mesh(rootGeo, growMat(track(new THREE.MeshStandardMaterial({
+      color: 0x9c846d, map: bark, roughness: .96, metalness: 0,
+      bumpMap: opts.mobile ? null : bark, bumpScale: .055,
+    })), "vec3(.05,.08,.03) * .03")));
     const tipT = (t: number) => 0.2 + (t / tMax) * 0.8;
     // Leaves: glints at every tip and along the last twigs.
     const leafPts: number[] = [], leafT: number[] = [];
