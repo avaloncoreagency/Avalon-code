@@ -8,6 +8,8 @@ on:
       - 'src/components/crm/**'
       - 'src/app/admin/workspace/crm/**'
       - 'tests/sales*'
+      - 'tests/core-engine*'
+      - 'scripts/security/**'
       - 'tests/qa/**'
       - '.github/workflows/sales-core.yml'
   workflow_dispatch:

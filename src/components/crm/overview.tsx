@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useEffect, useState } from "react";
 import { CrmNavigation, CrmTools } from "./navigation";
 import { COMMON_UNITS, canonicalUnit, latestPerUnit } from "@/lib/crm/usage-units";
+import { CreditCenter } from "@/components/ai-credits/credit-center";
 import s from "./crm.module.css";
 
 type UsageRow = {
@@ -92,6 +93,10 @@ export function CrmOverview() {
       </header>
       <CrmNavigation />
       <CrmTools active="overview" />
+
+      <section className={s.panel} aria-label="Créditos de IA personales y compartidos">
+        <CreditCenter />
+      </section>
 
       <section className={s.panel} aria-labelledby="usage-heading">
         <h2 id="usage-heading">Centro de consumo de IA · Uso de tokens y costos</h2>
