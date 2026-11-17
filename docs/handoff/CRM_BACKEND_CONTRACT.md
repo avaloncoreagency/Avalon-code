@@ -339,3 +339,85 @@ La ruta `POST /admin/workspace/crm/pipeline/files` ya calcula el hash real, así
 - Sustituir la comparación de correo de Clientes 360° (§3.3).
 - Enviar `consent_version` en `/f/[slug]`.
 - Mostrar `commission_approval_forged` con el mensaje sugerido.
+
+---
+
+# Operation Core Engine — contrato backend → Codex (2026-11-17)
+
+| Campo | Valor |
+|---|---|
+| Rama | `claude/core-engine-c0`, sobre `main` `c9a3fec` |
+| Migración | `supabase/migrations/20261117100000_crm_core_engine.sql` (aditiva; **sin aplicar** en producción) |
+| Tipos y validación | `src/lib/sales/core-engine.ts` (puro, sin E/S) |
+| Llamadas de servidor | `src/lib/sales/core-engine-server.ts` (`server-only`; sesión del usuario; la base vuelve a comprobar el rol de propietario) |
+| Pruebas | `tests/core-engine.database.cjs` (PGlite, 3 escenarios), `tests/core-engine.test.cjs`, `tests/definer-gates.test.cjs` |
+
+Las secciones anteriores (CRM Titan) siguen vigentes. Esta sección **añade** contrato; no cambia firmas existentes.
+
+## A. Modelos y estados
+
+| Tabla | Estados | Escritura | Lectura |
+|---|---|---|---|
+| `crm_service_catalog` (columnas nuevas) | `offer_status`: `draft` → `approved` → `retired`; `offer_version` | `update` directo de propietario (RLS existente) | propietarios |
+| `crm_invoices` | `issued` → `void` | solo RPC | propietario **con** `finance_access` |
+| `crm_payments` (columnas nuevas) | `recorded` → `verified`; `recorded`/`verified` → `reversed` | `insert` directo (existente); transiciones por RPC | propietarios |
+| `crm_commissions` | `agreed` → `accrued` → `paid`; `agreed`/`accrued` → `cancelled` | solo RPC | propietario con `finance_access` |
+
+Reglas del catálogo, aplicadas por trigger:
+- Aprobar una oferta exige un precio y registra `offer_approved_by = auth.uid()`. Nadie aprueba en nombre de otro.
+- Editar el precio, el alcance, las condiciones o la comisión de una oferta aprobada la devuelve a `draft` con `offer_version + 1`.
+- No se siembran precios ni porcentajes.
+
+## B. RPC
+
+| Función | Entrada | Salida | Errores (`message`) |
+|---|---|---|---|
+| `crm_invoice_record(request jsonb)` | `{sale_id, number, amount, issued_on?, due_on?, note?, attachment_id?, currency?}` | `{invoice_id, replayed}` | `invoice_invalid_amount`, `invoice_invalid_sale`, `invoice_currency_mismatch`, `invoice_number_taken`, `invoice_exceeds_sale_total`, `invoice_document_other_client` |
+| `crm_invoice_void(p_invoice, p_reason)` | motivo de ≥5 caracteres | — | `void_reason_required`, `invoice_has_payments` |
+| `crm_payment_verify(p_payment, p_evidence)` | evidencia de ≥3 caracteres | — | `payment_evidence_required`, `payment_reversed` |
+| `crm_payment_reverse(p_payment, p_reason)` | motivo de ≥5 caracteres | — | `reversal_reason_required` |
+| `crm_commission_agree(request jsonb)` | `{sale_id, kind: sale\|referral, basis(≥10), beneficiary_id XOR beneficiary_name, rate_pct XOR fixed_amount}` | `{commission_id, amount, currency}` | `commission_rate_or_fixed`, `commission_unknown_beneficiary`, `commission_invalid_sale`, `commission_zero` |
+| `crm_commission_transition(p_commission, p_to, p_note)` | `accrued` / `paid` (con referencia) / `cancelled` (con motivo) | — | `commission_requires_verified_payment`, `commission_payout_reference_required`, `commission_invalid_transition`, `cancel_reason_required` |
+| `crm_client_finance_ledger(p_client)` | — | `{currencies: LedgerCurrency[]}` | `crm_forbidden`, `finance_forbidden`, `client_not_found` |
+
+Todas devuelven `crm_forbidden` (42501) a quien no es propietario. Restricciones únicas:
+- `crm_payments_sale_reference_unique`: la misma referencia bancaria no se registra dos veces.
+- `crm_commissions_one_open`: una sola comisión abierta por beneficiario y venta.
+
+Para mostrar cualquier error, usa `coreEngineMessage(error)`. Nunca muestres el SQL.
+
+## C. Cálculos
+
+- **Comisión porcentual:** `round((subtotal − descuento) × rate / 100, 2)`. Se calcula sobre el neto, sin impuestos.
+- **`collected`:** pagos no revertidos. **`collected_verified`:** solo los verificados.
+- **`profit`:** `collected − expenses − commissions_paid`.
+- **`outstanding`:** `contracted − collected`.
+- Las monedas nunca se mezclan ni se convierten.
+- Los importes llegan como texto decimal exacto.
+- Una comisión solo se devenga cuando hay al menos un pago **verificado** de esa venta. Marcarla como pagada solo registra una transferencia hecha fuera de Avalon; no se ejecuta ningún pago.
+
+## D. Ejemplo sintético (piloto de la barbería, B2B)
+
+1. Venta Website + CRM: 1500.00 + 900.10, total `2400.10`.
+2. Factura F-0001 por `1200.05`.
+3. Pago con referencia BANK-REF-0001 por `1200.05`, verificado.
+4. Referido al 10 %: `240.01`, devengado y pagado (PAYOUT-SINT-01).
+5. Pago duplicado de 500, revertido.
+6. Gasto de `150.50`.
+
+Libro resultante:
+- contratado 2400.10
+- facturado 1200.05
+- cobrado 1200.05
+- verificado 1200.05
+- gastos 150.50
+- comisiones pagadas 240.01
+- beneficio **809.54**
+- pendiente 1200.05
+
+**Next action (Codex):**
+1. En Venta → detalle, añadir paneles de Facturas, Pagos (verificar/revertir) y Comisiones usando `core-engine-server.ts`.
+2. En Clientes 360°, mostrar `loadClientLedger` cuando esté disponible y el resumen actual cuando devuelva `unavailable`.
+3. En el catálogo (Ajustes), añadir los campos comerciales y el botón Aprobar.
+
+No se necesita ninguna API nueva.
