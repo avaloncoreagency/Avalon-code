@@ -9,9 +9,11 @@ import { label } from "@/lib/sales/domain";
 import { saveService, toggleRule } from "./actions";
 import s from "@/components/sales/sales.module.css";
 import { ClientReadiness } from "@/components/crm/client-readiness";
+import { OfferFields } from "@/components/sales/core-panels";
+import type { CatalogOffer } from "@/lib/sales/core-engine";
 export const dynamic = "force-dynamic";
 
-type Service = { id: string; code: string; name: string; billing_type: string; suggested_price: string | null; default_assignee_id: string | null; active: boolean; version: number; task_template: { title: string }[]; crm_departments: { label: string } | null };
+type Service = Partial<CatalogOffer> & { id: string; code: string; name: string; billing_type: string; suggested_price: string | null; default_assignee_id: string | null; active: boolean; version: number; task_template: { title: string }[]; crm_departments: { label: string } | null };
 type Rule = { id: string; key: string; label: string; label_en: string; description: string; enabled: boolean; updated_at: string };
 type Stage = { id: string; label: string; kind: string; position: number };
 
@@ -20,7 +22,7 @@ export default async function CrmSettings({ searchParams }: { searchParams: Prom
   const lang = await getLang();
   const p = await searchParams;
   const [services, rules, owners, stages] = await Promise.all([
-    run<Service[]>(supabase.from("crm_service_catalog").select("id,code,name,billing_type,suggested_price,default_assignee_id,active,version,task_template,crm_departments(label)").order("department_id").order("name")),
+    run<Service[]>(supabase.from("crm_service_catalog").select("*,crm_departments(label)").order("department_id").order("name")),
     run<Rule[]>(supabase.from("crm_automation_rules").select("id,key,label,label_en,description,enabled,updated_at").order("key")),
     run<{ user_id: string; email: string }[]>(supabase.rpc("crm_owner_directory")),
     run<Stage[]>(supabase.from("crm_stages").select("id,label,kind,position").order("position")),
@@ -44,7 +46,7 @@ export default async function CrmSettings({ searchParams }: { searchParams: Prom
             <button className={s.button}>{pick(lang, "Guardar servicio", "Save service")}</button>
           </div>
           <details><summary className={s.muted}>{pick(lang, `Plantilla: ${x.task_template.length} tarea(s) iniciales`, `Template: ${x.task_template.length} starter task(s)`)}</summary><ol className={s.muted}>{x.task_template.map((t, i) => <li key={i}>{t.title}</li>)}</ol></details>
-        </form></li>)}</ul>}
+        </form>{x.offer_status ? <OfferFields offer={x as CatalogOffer} id={x.id} version={x.version} lang={lang}/> : <p className={s.muted}>{pick(lang,"Condiciones avanzadas pendientes de migración.","Advanced commercial terms pending migration.")}</p>}</li>)}</ul>}
     </section>
     <div className={s.columns}>
       <section className={s.panel} aria-labelledby="rules"><header><h2 id="rules">{pick(lang, "Automatizaciones", "Automations")}</h2><Link href="/admin/workspace/crm/activity?module=automation">{pick(lang, "Historial", "History")}</Link></header>
