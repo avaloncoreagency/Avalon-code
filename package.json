@@ -21,7 +21,8 @@
     "bridge:test": "node --test tests/dev-bridge/*.test.cjs",
     "bridge:brief": "node scripts/dev-bridge/cli.cjs brief",
     "creative:validate": "node scripts/creative-bridge/validate.cjs",
-    "acx": "node scripts/gitless/acx.mjs"
+    "acx": "node scripts/gitless/acx.mjs",
+    "bridge:health": "node scripts/bridge-health/cli.cjs"
   },
   "dependencies": {
     "@supabase/ssr": "0.6.1",
