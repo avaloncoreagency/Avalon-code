@@ -1,5 +1,6 @@
 "use client";
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
+import { pick, type Lang } from "@/lib/i18n";
 import type { Entity, Row, Stage } from "@/lib/crm/domain";
 import s from "./crm.module.css";
 type Field = {
@@ -156,6 +157,58 @@ export const fields: Record<Entity, Field[]> = {
     { name: "source", label: "Fuente del registro manual", required: true },
   ],
 };
+const englishLabels: Record<string, string> = {
+  "Empresa": "Company",
+  "Contacto": "Contact",
+  "Correo": "Email",
+  "Teléfono": "Phone",
+  "Origen / fuente": "Source",
+  "Responsable (UUID de membresía)": "Owner (membership UUID)",
+  "Etapa": "Stage",
+  "Valor estimado (USD)": "Estimated value (USD)",
+  "Probabilidad (%)": "Probability (%)",
+  "Prioridad": "Priority",
+  "Próximo seguimiento": "Next follow-up",
+  "Motivo de pérdida": "Loss reason",
+  "Industria": "Industry",
+  "Ubicación": "Location",
+  "Oportunidad documentada": "Documented opportunity",
+  "Fecha de obtención": "Acquisition date",
+  "Revisión": "Review",
+  "Título": "Title",
+  "Responsable (UUID)": "Owner (UUID)",
+  "Lead relacionado (UUID)": "Related lead (UUID)",
+  "Participantes internos (nombres separados por comas)": "Internal participants (comma-separated names)",
+  "Inicio": "Start",
+  "Final": "End",
+  "Tipo": "Type",
+  "Estado": "Status",
+  "Lead (UUID)": "Lead (UUID)",
+  "Nota / actividad": "Note / activity",
+  "Vencimiento": "Due date",
+  "Proveedor": "Provider",
+  "Consumo acumulado del periodo": "Cumulative usage for period",
+  "Unidad (tokens, créditos, USD…)": "Unit (tokens, credits, USD…)",
+  "Inicio del periodo": "Period start",
+  "Fin del periodo": "Period end",
+  "Límite (opcional)": "Limit (optional)",
+  "Umbral de alerta (%)": "Alert threshold (%)",
+  "Fuente del registro manual": "Manual record source",
+  "Baja": "Low",
+  "Alta": "High",
+  "Normal": "Normal",
+  "Pendiente": "Pending",
+  "Aprobado": "Approved",
+  "Rechazado": "Rejected",
+  "Reunión": "Meeting",
+  "Llamada": "Call",
+  "Seguimiento": "Follow-up",
+  "Tarea": "Task",
+  "Programado": "Scheduled",
+  "Completado": "Completed",
+  "Cancelado": "Cancelled",
+  "Completada": "Completed"
+};
 function localDate(value: unknown) {
   if (!value) return "";
   const d = new Date(String(value));
@@ -171,7 +224,9 @@ export function RecordForm({
   onSave,
   onClose,
   busy,
+  lang = "es",
 }: {
+  lang?: Lang;
   entity: Entity;
   row: Row | null;
   stages: Stage[];
@@ -181,6 +236,16 @@ export function RecordForm({
   busy: boolean;
 }) {
   const [error, setError] = useState("");
+  const [dirty, setDirty] = useState(false);
+  const submitting = useRef(false);
+  const t = (es: string, en: string) => pick(lang, es, en);
+  const labelText = (label: string) => lang === "en" ? (englishLabels[label] ?? label) : label;
+  useEffect(() => {
+    if (!dirty) return;
+    const warn = (event: BeforeUnloadEvent) => { event.preventDefault(); };
+    window.addEventListener("beforeunload", warn);
+    return () => window.removeEventListener("beforeunload", warn);
+  }, [dirty]);
   const defaults: Record<string, unknown> = {
     owner_id: userId,
     stage_id: stages[0]?.id,
@@ -193,16 +258,19 @@ export function RecordForm({
   };
   const zone = Intl.DateTimeFormat().resolvedOptions().timeZone;
   return (
-    <section className={s.panel} aria-label="Editor de registro">
-      <h2>{row?.id ? "Editar registro" : "Crear registro"}</h2>
+    <section className={s.panel} aria-label={t("Editor de registro", "Record editor")}>
+      <h2>{row?.id ? t("Editar registro", "Edit record") : t("Crear registro", "Create record")}</h2>
       <p className={s.muted}>
-        Fechas en tu zona: {zone}. El responsable debe tener una membresía
-        existente.
+        {t("Fechas en tu zona:", "Dates in your timezone:")} {zone}. {t("El responsable debe tener una membresía existente.", "The owner must have an existing membership.")}
       </p>
       <form
         className={s.form}
+        aria-busy={busy}
+        onChange={() => setDirty(true)}
         onSubmit={async (e) => {
           e.preventDefault();
+          if (busy || submitting.current) return;
+          submitting.current = true;
           setError("");
           const data = Object.fromEntries(new FormData(e.currentTarget));
           const values: Record<string, unknown> = {
@@ -217,8 +285,11 @@ export function RecordForm({
                   ? new Date(String(data[field.name])).toISOString()
                   : null;
             await onSave(values);
+            setDirty(false);
           } catch (err) {
-            setError((err as Error).message);
+            setError(err instanceof Error ? err.message : t("No se pudo guardar. Conservamos tu borrador.", "Could not save. Your draft is preserved."));
+          } finally {
+            submitting.current = false;
           }
         }}
       >
@@ -233,17 +304,18 @@ export function RecordForm({
               return (
                 <label key={field.name} className={s.field}>
                   <span>
-                    {field.label}
+                    {labelText(field.label)}
                     {field.required ? " *" : ""}
                   </span>
                   {options ? (
                     <select
                       name={field.name}
+                      required={field.required}
                       defaultValue={String(val ?? options[0][0])}
                     >
                       {options.map(([value, label]) => (
                         <option key={value} value={value}>
-                          {label}
+                          {field.name === "stage_id" ? label : labelText(label)}
                         </option>
                       ))}
                     </select>
@@ -278,11 +350,12 @@ export function RecordForm({
               );
             })}
           </div>
+          {dirty && <p role="status">{t("Cambios sin guardar", "Unsaved changes")}</p>}
           {error && <p role="alert">{error}</p>}
           <div className={s.actions}>
-            <button type="submit">{busy ? "Guardando…" : "Guardar"}</button>
-            <button type="button" onClick={onClose}>
-              Cerrar editor
+            <button type="submit">{busy ? t("Guardando…", "Saving…") : t("Guardar", "Save")}</button>
+            <button type="button" onClick={() => { if (!dirty || window.confirm(t("¿Descartar los cambios sin guardar?", "Discard unsaved changes?"))) onClose(); }}>
+              {t("Cerrar editor", "Close editor")}
             </button>
           </div>
         </fieldset>

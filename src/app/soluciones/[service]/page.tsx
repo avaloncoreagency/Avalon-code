@@ -9,10 +9,12 @@ import { MEDIA, VISUAL_FOR } from "@/components/public/landing/media";
 import { ProductVideo } from "@/components/public/landing/product-video";
 import { ServiceDemo } from "@/components/public/landing/showroom";
 import { SiteChrome, qs } from "@/components/public/landing/site-chrome";
+import { MODULE_FOR, UNIVERSE } from "@/components/public/landing/universe/copy";
+import u from "@/components/public/landing/universe/universe.module.css";
 import s from "@/components/public/landing/landing.module.css";
 
 const SITE_ORIGIN = "https://avaloncoreagency.com";
-export const viewport: Viewport = { themeColor: "#f7f8fd", colorScheme: "light", viewportFit: "cover" };
+export const viewport: Viewport = { themeColor: "#050610", colorScheme: "dark", viewportFit: "cover" };
 export const dynamicParams = false;
 export function generateStaticParams() { return SERVICE_ORDER.map(service => ({ service })); }
 
@@ -69,6 +71,7 @@ export default async function ServicePage({ params, searchParams }: Props) {
   const lang: Lang = (await searchParams).lang === "en" ? "en" : "es";
   const t = COPY[lang], v = t.services[service], d = DETAIL[lang][service], q = qs(lang);
   const visual = VISUAL_FOR[service];
+  const U = UNIVERSE[lang], mod = U.engine.modules[MODULE_FOR[service]];
   const related = RELATED_SERVICES[service];
   return (
     <SiteChrome lang={lang} path={`/soluciones/${service}`}>
@@ -84,6 +87,15 @@ export default async function ServicePage({ params, searchParams }: Props) {
           <div className={s.heroArtIn}><ProductVideo poster={visual.src} srcSet={`${visual.small} ${visual.small.includes("-960") ? 960 : 720}w, ${visual.src} ${visual.w}w`} video={visual.video} alt={visual.alt[lang]} w={visual.w} h={visual.h} priority /></div>
         </div>
       </section>
+      {/* Problem → solution, told for a business owner. Availability is stated as it is. */}
+      <section className={s.section} aria-labelledby="h-why">
+        <div className={`${s.wrap} ${u.why}`}>
+          <Reveal className={u.whyCard}><p className={u.eyebrow}>{U.engine.problem}</p><h2 id="h-why" className={u.whyText}>{mod.problem}</h2></Reveal>
+          <Reveal className={`${u.whyCard} ${u.whyOn}`} delay={90}><p className={u.eyebrow}>{U.engine.solution}</p><p className={u.whyText}>{mod.solution}</p>
+            {mod.availability && <p className={u.avail}>{mod.availability}</p>}
+            <ul className={u.checks}>{mod.benefits.map(b => <li key={b}><Icon name="check" size={15} />{b}</li>)}</ul></Reveal>
+        </div>
+      </section>
       <section className={s.section} aria-labelledby="h-feat">
         <h2 id="h-feat" className={s.srOnly}>{lang === "es" ? "Funciones" : "Features"}</h2>
         <div className={`${s.wrap} ${s.svcFeatures}`}>{d.features.map(([h, p], i) => <Reveal key={h} className={s.card} delay={i * 80}>
@@ -93,6 +105,12 @@ export default async function ServicePage({ params, searchParams }: Props) {
         <div className={s.wrap}>
           <Reveal className={s.head}><p className={s.eyebrow}>{t.show.eyebrow}</p><h2 id="h-demo" className={s.h2}>{v.name}</h2><p className={s.sub}>{t.show.lead}</p></Reveal>
           <div className={s.showroom}><span className={s.badge}>{t.show.badge}</span><ServiceDemo lang={lang} service={service} /><p className={s.needs}>{t.show.needs}</p></div>
+        </div>
+      </section>
+      <section className={s.section} aria-labelledby="h-proc">
+        <div className={s.wrap}>
+          <Reveal className={s.head}><p className={s.eyebrow}>{U.process.eyebrow}</p><h2 id="h-proc" className={s.h2}>{U.process.title}</h2></Reveal>
+          <ol className={u.process}>{U.process.steps.map(([h, p], i) => <Reveal as="li" key={h} delay={i * 80}><span>{String(i + 1).padStart(2, "0")}</span><h3>{h}</h3><p>{p}</p></Reveal>)}</ol>
         </div>
       </section>
       <section className={s.section} aria-labelledby="h-rel">

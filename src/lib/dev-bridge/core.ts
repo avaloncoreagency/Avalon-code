@@ -20,9 +20,15 @@ export class Api {
       catch { if(attempt===2) throw Error('Provider network/timeout failure'); await this.pause(200*2**attempt); continue; }
       if(response.ok) return response.json();
       if((response.status===429 || response.status>=500 || (response.status===403 && response.headers.get('x-ratelimit-remaining')==='0')) && attempt<2) {
-        const retry=Number(response.headers.get('retry-after') ?? 0)*1000;
-        if(retry>10000) throw Error('Provider rate limit; retry next synchronization');
-        await this.pause(Math.max(retry,200*2**attempt));continue;
+        // Retry-After can be seconds OR an HTTP date. A malformed header
+        // must not become NaN (which would accidentally hot-loop at zero delay).
+        const header=response.headers.get('retry-after')?.trim()??'';
+        const retry=/^\d+(?:\.\d+)?$/.test(header)
+          ? Number(header)*1000
+          : header ? Date.parse(header)-Date.now() : 0;
+        const delay=Number.isFinite(retry) ? Math.max(0,retry,200*2**attempt) : 200*2**attempt;
+        if(delay>10000) throw Error('Provider rate limit; retry next synchronization');
+        await this.pause(delay);continue;
       }
       throw Error(`Provider HTTP ${response.status}`);
     }

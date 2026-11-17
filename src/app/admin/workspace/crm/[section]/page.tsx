@@ -1,4 +1,5 @@
 import { notFound } from "next/navigation";
+import { getLang } from "@/lib/i18n-server";
 import { LeadWorkbench } from "@/components/crm/lead-workbench";
 import { Suite } from "@/components/suite/suite";
 import { Crm } from "@/components/crm/crm";
@@ -16,6 +17,7 @@ export default async function CrmSectionPage({
   params: Promise<{ section: string }>;
   searchParams: Promise<{ lead?: string | string[] }>;
 }) {
+  const lang = await getLang();
   const [{ section }, query] = await Promise.all([params, searchParams]);
   if (!crmSections.some((item) => item.slug === section)) notFound();
   // A Radar deep link is an exact ID filter; never accept arbitrary PostgREST queries.
@@ -24,7 +26,7 @@ export default async function CrmSectionPage({
   return (
     <Suite active="crm">
       {section === "leads" && !focusLeadId && <LeadWorkbench />}
-      <Crm section={section as CrmSection} focusLeadId={focusLeadId} />
+      <Crm section={section as CrmSection} focusLeadId={focusLeadId} lang={lang} />
     </Suite>
   );
 }

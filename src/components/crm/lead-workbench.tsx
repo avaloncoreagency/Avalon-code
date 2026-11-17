@@ -6,6 +6,7 @@ import { run } from "@/lib/os/data";
 import { crmBusinessDayBounds } from "@/lib/crm/business-day";
 import { QuickAdd } from "@/components/crm/intel/quick-add";
 import s from "@/components/sales/sales.module.css";
+import { CommandSummary, loadCommandSummary } from "./command-summary";
 
 type Filter = "today" | "overdue" | "new" | "diagnosis" | "proposal" | "contract";
 const cards: { key: Filter; es: string; en: string }[] = [
@@ -34,10 +35,10 @@ export async function LeadWorkbench() {
     base().in("stage_id", ["proposal", "negotiation"]).limit(1),
     base().in("contract_status", ["draft", "internal_review", "sent_for_signature", "signed_pending_verification"]).limit(1),
   ];
-  const [owners, ...results] = await Promise.all([
+  const [[owners, ...results], commandData] = await Promise.all([Promise.all([
     run<{ user_id: string; email: string }[]>(supabase.rpc("crm_owner_directory")),
     ...counts.map(query => run<unknown[]>(query)),
-  ]);
+  ]), loadCommandSummary(supabase)]);
   return (
     <section className={s.hud} aria-label={pick(lang, "Mi jornada comercial", "My sales workday")}>
       <header className={s.header}>
@@ -53,6 +54,7 @@ export async function LeadWorkbench() {
           <Link className={s.button} href="/admin/workspace/crm/tasks">{pick(lang, "Tareas", "Tasks")}</Link>
         </div>
       </header>
+      <CommandSummary supabase={supabase} lang={lang} data={commandData} />
       <div className={s.stats}>
         {cards.map((card, i) => (
           <Link key={card.key} className={s.stat} href={`/admin/workspace/crm/desk?f=${card.key}`}>

@@ -3,16 +3,25 @@ import { crmNavigation } from "@/lib/crm/domain";
 import { pick, type Lang } from "@/lib/i18n";
 import s from "./crm.module.css";
 
-/** Leads, Sales and Clients 360 are always visible; secondary tools remain available. */
+const daily = [
+  ...crmNavigation,
+  { slug: "calendar", href: "/admin/workspace/crm/calendar", label: "Calendario" },
+  { slug: "tasks", href: "/admin/workspace/crm/tasks", label: "Tareas" },
+];
+const names: Record<string, [string, string]> = {
+  leads: ["Leads Pipeline", "Leads Pipeline"], sales: ["Ventas", "Sales"],
+  clients: ["Clientes 360°", "Clients 360°"], calendar: ["Calendario", "Calendar"], tasks: ["Tareas", "Tasks"],
+};
+/** All five daily operations remain visible without opening a secondary menu. */
 export function CrmNavigation({ active, lang = "es" }: { active?: string; lang?: Lang }) {
-  const selected = active === "sales" || active === "new" ? "sales" : active === "clients" ? "clients" : "leads";
+  const selected = active === "new" ? "sales" : active;
   return (
-    <nav aria-label={pick(lang, "Secciones principales del CRM", "CRM primary sections")} className={s.tabs}>
-      {crmNavigation.map((tab) => (
+    <nav aria-label={pick(lang, "Secciones principales del CRM", "CRM primary sections")} className={`${s.tabs} ${s.primaryTabs}`}>
+      {daily.map((tab) => (
         <Link key={tab.slug} href={tab.href}
           className={`${s.tab} ${selected === tab.slug ? s.active : ""}`}
           aria-current={selected === tab.slug ? "page" : undefined}>
-          {tab.slug === "clients" ? pick(lang, "Clientes 360°", "Clients 360°") : tab.slug === "sales" ? pick(lang, "Ventas", "Sales") : tab.label}
+          {pick(lang, ...names[tab.slug])}
         </Link>
       ))}
     </nav>
