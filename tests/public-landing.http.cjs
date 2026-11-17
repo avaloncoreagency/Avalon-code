@@ -21,7 +21,7 @@ async function freePort() {
   return port;
 }
 
-test("PUBLIC WEB QA: ES/EN, 8 solutions, mobile/desktop, preselected quote and isolated DB", { timeout: 230000 }, async t => {
+test("PUBLIC WEB QA: ES/EN, 8 solutions, mobile/desktop, preselected quote and isolated DB", { timeout: 360000 }, async t => {
   const db = new PGlite(); t.after(() => db.close());
   await db.exec(fs.readFileSync("tests/sql/00_supabase_stub.sql", "utf8"));
   await db.exec(`insert into auth.users(id) values('${OWNER}');`);
@@ -55,7 +55,7 @@ test("PUBLIC WEB QA: ES/EN, 8 solutions, mobile/desktop, preselected quote and i
   }
   assert.ok(running, "Isolated Next.js did not start: " + logs);
 
-  const browser = await chromium.launch({ executablePath: process.env.CHROME_PATH || undefined, headless: true });
+  const browser = await chromium.launch({ executablePath: process.env.CHROME_PATH || undefined, headless: true, args: ["--enable-unsafe-swiftshader"] });
   t.after(() => browser.close());
   const page = await browser.newPage({ viewport: { width: 390, height: 844 }, reducedMotion: "reduce" });
   const errors = [];
@@ -67,7 +67,7 @@ test("PUBLIC WEB QA: ES/EN, 8 solutions, mobile/desktop, preselected quote and i
     assert.ok(x.scroll <= x.width + 1, `${label}: horizontal overflow ${JSON.stringify(x)}`);
   };
 
-  for (const width of [320, 390, 430, 768, 1440]) {
+  for (const width of [320, 375, 390, 430, 768, 1024, 1440, 1920]) {
     await page.setViewportSize({ width, height: width < 600 ? 844 : 900 });
     await page.goto(origin + "/", { waitUntil: "domcontentloaded" });
     await page.locator("h1").first().waitFor();
@@ -143,5 +143,44 @@ test("PUBLIC WEB QA: ES/EN, 8 solutions, mobile/desktop, preselected quote and i
       });
     }
   }
+
+  // Exercise the real renderer in software only for synthetic CI; never claim physical-device performance.
+  const live = await browser.newContext({viewport:{width:390,height:844},reducedMotion:"no-preference"});
+  await live.addInitScript(() => { window.__AVALON_FORCE_GL = true; });
+  const scenePage = await live.newPage(); scenePage.on("pageerror", e=>errors.push(e.message));
+  for (const width of [320,375,390,430,768,1024,1440,1920]) {
+    await scenePage.setViewportSize({width,height:width<768?844:1080});
+    await scenePage.goto(origin+"/?lang=en");
+    await scenePage.locator('html[data-universe="live"]').waitFor({timeout:20000});
+    await scenePage.evaluate(() => {const e=document.querySelector('#motor'); window.scrollTo(0,e.getBoundingClientRect().top+scrollY+innerHeight*.7);});
+    await scenePage.waitForTimeout(400);
+    const engine = scenePage.locator('#motor');
+    const chips = engine.getByRole('button');
+    assert.equal(await chips.count(),6);
+    await chips.nth(2).click();
+    assert.equal(await chips.nth(2).getAttribute('aria-pressed'),'true');
+    await scenePage.evaluate(() => {const e=document.querySelector('#arbol');window.scrollTo(0,e.getBoundingClientRect().top+scrollY+(e.offsetHeight-innerHeight)*.85);});
+    await scenePage.waitForTimeout(400);
+    const apples=scenePage.locator('#arbol [role="group"] button');
+    assert.equal(await apples.count(),10);
+    await apples.nth(0).click();
+    assert.equal(await apples.nth(0).getAttribute('aria-pressed'),'true');
+    assert.ok(await scenePage.evaluate(()=>document.documentElement.scrollWidth<=document.documentElement.clientWidth+1),`live scene fits ${width}`);
+    await scenePage.screenshot({path:path.join(evidenceDir,`universe-live-${width}.png`)});
+  }
+  // User changes motion preference during the tour: no invisible projected controls remain.
+  await scenePage.emulateMedia({reducedMotion:'reduce'});
+  await scenePage.locator('html[data-universe="live"]').waitFor({state:'detached'});
+  for (const selector of ['#motor [role="group"] button','#arbol [role="group"] button']) {
+    const buttons=scenePage.locator(selector);
+    for (let i=0;i<await buttons.count();i++) {
+      assert.ok(await buttons.nth(i).isVisible());
+      assert.equal(await buttons.nth(i).getAttribute('tabindex'),null);
+      assert.equal(await buttons.nth(i).evaluate(el=>el.style.transform),'');
+    }
+  }
+  await scenePage.locator('#motor').scrollIntoViewIfNeeded();
+  await scenePage.screenshot({path:path.join(evidenceDir,'universe-motion-fallback.png')});
+  await live.close();
   assert.deepEqual(errors, [], "No browser exceptions after scrolling through landing sections");
 });
