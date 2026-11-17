@@ -49,7 +49,7 @@ test("staff portal: owner-granted clients, isolated personal dossiers, private D
  const [case1]=await q("insert into staff_casefiles(title,notes,linked_client_id) values('Private A','Secret for A',$1) returning id,user_id",[client.id]);
  assert.equal(case1.user_id,EMP1);
  const [case2]=await q("insert into staff_casefiles(title,notes) values('Personal prospect A','Unlinked private file') returning id");
- await assert.rejects(db.query("insert into staff_casefiles(user_id,title) values($1,'Spoof')",[EMP2]),/row-level security|policy|permission denied/i);
+ await assert.rejects(db.query("insert into staff_casefiles(user_id,title) values($1,'Spoof')",[EMP2]),/row-level security|policy|permission denied|casefile_self_only/i);
  await assert.rejects(db.query("insert into staff_casefiles(title,linked_client_id) values('No access',gen_random_uuid())"),/row-level security|foreign key|policy/i);
  const [msg]=await q("insert into staff_private_messages(sender_id,recipient_id,body) values($1,$2,'Hello B') returning id,sender_id",[MIGUEL,EMP2]);
  assert.equal(msg.sender_id,EMP1,"message sender derived from verified session");
