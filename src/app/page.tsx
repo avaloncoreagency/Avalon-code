@@ -2,15 +2,15 @@
 import type { Metadata, Viewport } from "next";
 import { QuoteForm } from "@/components/public/quote-form";
 import { COPY, GROUPS, SERVICE_ORDER, type Lang } from "@/components/public/landing/copy";
-import { HeroScene } from "@/components/public/landing/hero-scene";
 import { Icon } from "@/components/public/landing/icons";
-import { AmbientVideo, CountUp, Effects } from "@/components/public/landing/effects";
+import { Effects } from "@/components/public/landing/effects";
 import { AnyIndustry } from "@/components/public/landing/industries";
 import { Journey, Reveal } from "@/components/public/landing/interactive";
-import { ProductVideo } from "@/components/public/landing/product-video";
-import { ScrollSequence } from "@/components/public/landing/scroll-sequence";
 import { MEDIA } from "@/components/public/landing/media";
 import { Showroom } from "@/components/public/landing/showroom";
+import { UNIVERSE } from "@/components/public/landing/universe/copy";
+import { EngineStage, LaunchStage, TreeStage } from "@/components/public/landing/universe/stages";
+import u from "@/components/public/landing/universe/universe.module.css";
 import { SiteChrome, qs } from "@/components/public/landing/site-chrome";
 import s from "@/components/public/landing/landing.module.css";
 
@@ -47,13 +47,7 @@ export async function generateMetadata({ searchParams }: { searchParams: Promise
   };
 }
 
-export const viewport: Viewport = { themeColor: "#f7f8fd", colorScheme: "light", viewportFit: "cover" };
-
-/** Hero facts: only claims we can stand behind (count of solutions, example industries in the composer, AI availability). */
-const STATS: Record<Lang, [number, string, string][]> = {
-  es: [[8, "", "servicios para elegir"], [60, "+", "negocios de ejemplo"], [1, "", "plan a tu medida"]],
-  en: [[8, "", "services to explore"], [60, "+", "business examples"], [1, "", "tailored plan"]],
-};
+export const viewport: Viewport = { themeColor: "#050610", colorScheme: "dark", viewportFit: "cover" };
 
 const WORK_ART = ["/brand/devices-960.webp", "/brand/automation-720.webp", "/brand/ecommerce-720.webp"];
 
@@ -63,32 +57,30 @@ export default async function Home({ searchParams }: { searchParams: Promise<Rec
   const rawServices = (Array.isArray(params.services) ? params.services.join(",") : params.services ?? "").slice(0, 160);
   const selected = new Set(rawServices.split(","));
   const initialServices = SERVICE_ORDER.filter(key => selected.has(key));
-  const t = COPY[lang], q = qs(lang);
+  const t = COPY[lang], q = qs(lang), U = UNIVERSE[lang];
   return (
-    <SiteChrome lang={lang}>
+    <SiteChrome lang={lang} scene="universe">
       <Effects />
-      {/* 01 · Hero */}
-      <section className={s.hero} aria-labelledby="h-hero">
-        <div className={`${s.wrap} ${s.heroGrid}`}>
-          <div className={s.heroIntro}>
-            <p className={s.eyebrow}>{t.hero.eyebrow}</p>
-            <h1 id="h-hero" className={s.h1}>{lang === "es" ? <>El sistema digital que <em>impulsa</em> tu negocio.</> : <>The digital system that <em>powers</em> your business.</>}</h1>
-            <p className={s.lead}>{t.hero.lead}</p>
-            <div className={s.ctas}>
-              <a className={`${s.btn} ${s.primary}`} data-magnet href="#objetivos">{t.hero.primary}<Icon name="arrow" size={18} /></a>
-              <a className={`${s.btn} ${s.ghost}`} href="#experiencia"><Icon name="play" size={16} />{t.hero.secondary}</a>
+      {/* I · THE IGNITION — the commercial message is server-rendered text (LCP); the 3D core lives in the backdrop. */}
+      <section className={u.hero} data-universe-section="ignition" aria-labelledby="h-hero">
+        <div className={u.heroInner}>
+          <div className={u.heroCopy}>
+            <p className={u.eyebrow}>{U.hero.eyebrow}</p>
+            <h1 id="h-hero" className={u.title}><span>{U.hero.line1}</span> <span className={u.accent}>{U.hero.line2}</span></h1>
+            <p className={u.sub}>{U.hero.sub}</p>
+            <div className={u.heroCtas}>
+              <a className={u.cta} data-magnet href="#motor">{U.hero.primary}<Icon name="arrow" size={18} /></a>
+              <a className={u.ctaGhost} href="#cotizacion">{U.hero.secondary}</a>
             </div>
-            <dl className={s.stats}>{STATS[lang].map(([n, suf, l]) => <div key={l}><dt className={s.srOnly}>{l}</dt><dd><CountUp to={n} suffix={suf} /><span>{l}</span></dd></div>)}</dl>
           </div>
-          <div className={s.heroArtIn}><HeroScene lang={lang} /></div>
         </div>
+        <a className={u.scrollCue} href="#despegue"><span>{U.hero.scroll}</span><i aria-hidden="true" /></a>
       </section>
 
-      {/* 02 · Cinematic scroll story (Higgsfield fly-through) */}
-      <section id="experiencia" className={s.seqSection} aria-labelledby="h-seq">
-        <h2 id="h-seq" className={s.srOnly}>{lang === "es" ? "Cómo Avalon conecta tu negocio" : "How Avalon connects your business"}</h2>
-        <ScrollSequence lang={lang} />
-      </section>
+      {/* II · THE LAUNCH  ·  III · THE GROWTH ENGINE  ·  IV · THE GROWTH TREE */}
+      <LaunchStage lang={lang} />
+      <EngineStage lang={lang} />
+      <TreeStage lang={lang} />
 
       {/* Help a visitor choose by goal rather than industry jargon. */}
       <section id="objetivos" className={s.section} aria-labelledby="h-goals">
@@ -127,7 +119,6 @@ export default async function Home({ searchParams }: { searchParams: Promise<Rec
 
       {/* 04 · How it works together */}
       <section id="como-funciona" className={`${s.section} ${s.journeySec}`} aria-labelledby="h-journey">
-        <AmbientVideo src={MEDIA.network.video} poster={MEDIA.network.poster} />
         <div className={s.wrap}>
           <Reveal className={s.head}><p className={s.eyebrow}>{t.journey.eyebrow}</p><h2 id="h-journey" className={s.h2}>{t.journey.title}</h2></Reveal>
           <Journey lang={lang} />
@@ -139,19 +130,6 @@ export default async function Home({ searchParams }: { searchParams: Promise<Rec
         <div className={s.wrap}>
           <Reveal className={s.head}><p className={s.eyebrow}>{t.ind.eyebrow}</p><h2 id="h-ind" className={s.h2}>{t.ind.title}</h2><p className={s.sub}>{t.ind.lead}</p></Reveal>
           <AnyIndustry lang={lang} />
-        </div>
-      </section>
-
-      {/* Brand statement: Higgsfield glass sculpture of the Avalon mark */}
-      <section className={s.section} aria-labelledby="h-core">
-        <div className={`${s.wrap} ${s.core}`}>
-          <Reveal className={s.coreArt}><ProductVideo poster={MEDIA.logo.small} srcSet={`${MEDIA.logo.small} 960w, ${MEDIA.logo.src} 1920w`} video={MEDIA.logo.video} alt={MEDIA.logo.alt[lang]} w={1920} h={1080} /></Reveal>
-          <Reveal className={s.coreText}>
-            <p className={s.eyebrow}>Avalon Core</p>
-            <h2 id="h-core" className={s.h2}>{lang === "es" ? <>Un núcleo. <em className={s.gradText}>Todo tu negocio.</em></> : <>One core. <em className={s.gradText}>Your whole business.</em></>}</h2>
-            <p className={s.sub}>{lang === "es" ? "Diseño, software e inteligencia artificial construidos por el mismo equipo y conectados entre sí. Sin piezas sueltas ni proveedores que no se hablan." : "Design, software and AI built by the same team and connected to each other. No loose pieces, no vendors that don't talk."}</p>
-            <a className={`${s.btn} ${s.primary}`} data-magnet href="#cotizacion" style={{ marginTop: 26 }}>{t.nav.quote}<Icon name="arrow" size={18} /></a>
-          </Reveal>
         </div>
       </section>
 

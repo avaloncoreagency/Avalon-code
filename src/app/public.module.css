@@ -1,20 +1,24 @@
-/* Quote form (shared by the landing and /soluciones/*). Light Concept B styling; logic lives in quote-form.tsx. */
-.form { display:grid; gap:14px; color:#0b1030; font-family:inherit; }
+/* Quote form (shared by the landing and /soluciones/*). Avalon Ultimate dark styling; logic lives in quote-form.tsx. */
+.form { display:grid; gap:14px; color:#e8ecf5; font-family:inherit; }
 .row { display:grid; grid-template-columns:repeat(auto-fit,minmax(min(100%,220px),1fr)); gap:12px; }
-.form label { display:grid; gap:6px; font-size:14px; font-weight:600; color:#3b4266; }
-.form input, .form textarea { background:#fff; color:#0b1030; border:1px solid rgba(40,52,120,.18); border-radius:14px; padding:12px 14px; font:inherit; font-size:16px; min-height:48px; transition:border-color .2s, box-shadow .2s; }
+.form label { display:grid; gap:6px; font-size:14px; font-weight:600; color:#aab3d0; }
+.form input, .form textarea { background:rgba(255,255,255,.06); color:#e8ecf5; border:1px solid rgba(255,255,255,.16); border-radius:14px; padding:12px 14px; font:inherit; font-size:16px; min-height:48px; transition:border-color .2s, box-shadow .2s; }
 .form textarea { resize:vertical; }
-.form input:focus, .form textarea:focus { border-color:#3554ff; outline:none; box-shadow:0 0 0 4px rgba(53,84,255,.14); }
-.services { border:1px solid rgba(40,52,120,.12); border-radius:16px; display:flex; flex-wrap:wrap; gap:8px; padding:12px; margin:0; }
-.services legend { font-size:14px; font-weight:600; color:#3b4266; padding:0 6px; }
-.services label { display:flex !important; align-items:center; gap:8px; border:1px solid rgba(40,52,120,.16); border-radius:999px; padding:6px 14px; min-height:42px; background:#fff; font-weight:500; cursor:pointer; }
-.services label:has(input:checked) { border-color:#3554ff; background:#eef1ff; color:#1d2bb3; }
-.services input { min-height:auto !important; accent-color:#3554ff; width:16px; height:16px; }
-.cta { display:inline-flex; align-items:center; justify-content:center; gap:8px; min-height:52px; padding:0 24px; border-radius:999px; border:0; background:#0d1233; color:#fff; font:inherit; font-weight:700; text-decoration:none; cursor:pointer; box-shadow:0 14px 30px -14px rgba(13,18,51,.6); transition:transform .2s, box-shadow .2s; }
+.form input:focus, .form textarea:focus { border-color:#5c9bff; outline:none; box-shadow:0 0 0 4px rgba(41,121,255,.25); }
+.services { border:1px solid rgba(255,255,255,.12); border-radius:16px; display:flex; flex-wrap:wrap; gap:8px; padding:12px; margin:0; }
+.services legend { font-size:14px; font-weight:600; color:#aab3d0; padding:0 6px; }
+.services label { display:flex !important; align-items:center; gap:8px; border:1px solid rgba(255,255,255,.16); border-radius:999px; padding:6px 14px; min-height:42px; background:rgba(255,255,255,.05); font-weight:500; cursor:pointer; }
+.services label:has(input:checked) { border-color:#5c9bff; background:rgba(41,121,255,.22); color:#fff; }
+.services input { min-height:auto !important; accent-color:#2979ff; width:16px; height:16px; }
+.cta { display:inline-flex; align-items:center; justify-content:center; gap:8px; min-height:52px; padding:0 24px; border-radius:999px; border:0; background:linear-gradient(120deg,#2979ff,#7847ff); color:#fff; font:inherit; font-weight:700; text-decoration:none; cursor:pointer; box-shadow:0 14px 34px -12px rgba(41,121,255,.8); transition:transform .2s, box-shadow .2s; }
 .cta:hover { transform:translateY(-1px); box-shadow:0 18px 36px -14px rgba(53,84,255,.55); }
 .cta:disabled { opacity:.6; transform:none; }
 .hp { position:absolute; left:-9999px; width:1px; height:1px; overflow:hidden; }
-.error { margin:0; padding:12px 14px; border-radius:14px; border:1px solid #f3b3c2; background:#fff1f4; color:#8a1d36; }
-.success { padding:20px; border-radius:18px; border:1px solid #9fe0c0; background:#effcf5; color:#0f5132; font-size:17px; }
-.note { color:#6b7290; font-size:13px; }
+.error { margin:0; padding:12px 14px; border-radius:14px; border:1px solid rgba(255,120,150,.5); background:rgba(255,80,120,.12); color:#ffc2cf; }
+.success { padding:20px; border-radius:18px; border:1px solid rgba(80,220,160,.5); background:rgba(40,200,140,.12); color:#b9f5d8; font-size:17px; }
+.note { color:#7c86aa; font-size:13px; }
 @media (prefers-reduced-motion: reduce) { .cta { transition:none; } .cta:hover { transform:none; } }
+.form input::placeholder, .form textarea::placeholder { color:#7c86aa; }
+/* Fields never overflow their column (two-up rows on narrow cards). */
+.form label { min-width:0; }
+.form input:not([type="checkbox"]), .form textarea { width:100%; min-width:0; box-sizing:border-box; }
