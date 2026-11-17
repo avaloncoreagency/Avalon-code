@@ -175,7 +175,8 @@ test("PUBLIC WEB QA: ES/EN, 8 solutions, mobile/desktop, preselected quote and i
     const ripe = tree.locator('button[data-stage="3"]');
     await ripe.first().waitFor({ timeout: 15000 });
     await ripe.first().click();
-    await p.waitForFunction(() => /\$[1-9]/.test(document.querySelector("#arbol dl div:last-child dd")?.textContent || ""), null, { timeout: 8000 });
+    await p.waitForFunction(() => /\$[1-9]/.test(document.querySelector('#arbol [class*="bank"] b')?.textContent || ""), null, { timeout: 8000 });
+    assert.ok(await tree.locator('[class*="cash"]').count() >= 1 || /\$[1-9]/.test(await tree.locator('[class*="bank"] b').textContent()), "harvest shows the money effect");
     assert.ok(await p.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth + 1), `tree fits ${width}`);
     await p.screenshot({ path: path.join(evidenceDir, `growth-tree-${width}.png`) });
     if (!full) continue;

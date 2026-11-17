@@ -25,6 +25,27 @@ Todas las demostraciones usan datos sintéticos en memoria del navegador; no se 
 5. **Tienda online** — catálogo de zapatillas (ilustraciones vectoriales recoloreables, 2 vistas), color, talla, carrito, cantidades, cupón `AVALON10`, envío, total, checkout de demostración (tarjeta de prueba no editable; Apple Pay/Klarna/PayPal solo como ejemplo visual), confirmación y venta en el CRM.
 6. **Publicidad → dinero** — 6 palancas; fórmulas visibles (Clics = Presupuesto ÷ CPC; Impresiones = Clics ÷ 2.5 %; Prospectos, Reservas, Ventas, Ingresos, ROAS, neto); flujo animado; enviar prospectos al CRM; lluvia de monedas cuando hay ventas. Puede dar resultado negativo: es honesto.
 
+## 1b. Integración total del árbol (segunda ronda)
+
+**Auditoría (Checkpoint A).** El árbol vivía en una tarjeta (`.stage` con borde, radio y sombra) junto a una columna de texto: se leía como «foto encima del fondo». Sin continuidad de luz, sin atmósfera compartida y con controles en paneles separados.
+
+**Escena integrada (Checkpoint B).**
+- Sección a sangre completa con unidades de contenedor (`cqh`/`cqw`): el árbol se dimensiona y coloca respecto a la escena en cualquier pantalla.
+- **Extensión ambiental**: el mismo máster, ampliado y desenfocado, llena la sala; su saturación y brillo siguen al crecimiento, así el color de los bordes coincide por construcción.
+- **Pluma elíptica** compuesta `(copa ∪ base) ∩ fundido superior`: opacidad cero en todos los bordes de la foto; no hay rectángulo visible.
+- Atmósfera compartida: rayos volumétricos, halo que crece con el negocio, bruma inferior, polvo en la luz y partículas en un solo canvas de toda la escena.
+- Profundidad: parallax del puntero solo en sala, rayos y halo (el árbol y los frutos nunca se mueven bajo el cursor); parallax de scroll en el mundo. Sin `preserve-3d`, para que el toque caiga exactamente donde se ve el fruto.
+
+**Minijuego (Checkpoint C).**
+- Regar: **mantén pulsado** (o toca) un único botón grande con anillo de progreso; cada toque garantiza ~1.1 s de agua y los toques se acumulan; el crecimiento sigue el tiempo real (no depende de la carga del hilo principal). Esfuerzo en 3 niveles (Constante · Comprometido · Ambicioso). Regadera, chorro de agua, salpicaduras, raíces que se iluminan y pulsos de energía que suben por el tronco.
+- Herramientas: 6 nodos luminosos sobre la copa (escritorio) + un riel accesible con nombre y resultado de cada multiplicador; activar lanza un estallido de energía y enciende esa parte de la copa.
+- Didáctica: 4 pasos visibles (Riega → Activa herramientas → Cosecha frutos → Mira el resultado) y una pista contextual en cada fase. Lema: «No vendemos herramientas. Vendemos multiplicadores de trabajo.»
+- Frutos: sprites reales con halo, brillo especular, balanceo desde el pedúnculo, pulso de energía y realce al pasar/tocar.
+- Cosecha: caída con gravedad, aplastamiento y dos rebotes; en el suelo, onda de choque dorada, ráfaga de partículas, **moneda de oro girando con $**, importe «+$X» y su significado («Venta conseguida»…); el contador de ingresos simulados vive sobre la base de piedra en móvil.
+- Reinicio sin recargar.
+
+**Intro.** El logotipo nace de la luz: blanco incandescente y difuso, se enfría hasta metal pulido antes del iris.
+
 ## 2. Inventario Higgsfield reutilizado (sin créditos nuevos)
 
 | Recurso | Uso en 2.0 |
@@ -67,7 +88,8 @@ Retirado de la página: galería «La película» y las películas completas de 
 | El Despegue es la intro cinematográfica (no una tarjeta de vídeo) | ✓ |
 | Transición real hacia el logotipo auténtico | ✓ (path del logo oficial, metal + destello, iris) |
 | Un único árbol | ✓ (árbol WebGL y etapas proyectadas eliminados) |
-| El árbol crece por interacción | ✓ |
+| El árbol crece por interacción | ✓ (mantener o tocar «Regar»; crecimiento por tiempo real) |
+| El árbol ya no parece una imagen superpuesta | ✓ (escena a sangre, extensión ambiental, pluma elíptica sin bordes) |
 | Los frutos se cosechan y caen con gravedad | ✓ |
 | La caída produce una representación del resultado económico | ✓ (partículas doradas, moneda, contador) |
 | Demos funcionales, no imágenes | ✓ (6) |
@@ -82,4 +104,4 @@ Retirado de la página: galería «La película» y las películas completas de 
 | Sin romper funcionalidad previa | ✓ (cotización, páginas de servicio, 657 pruebas) |
 | No invade backend de Codex | ✓ (solo `src/components/public`, `src/app/page.tsx`, `public/brand`, pruebas y docs públicas) |
 
-Capturas: `docs/brand/ultimate-2/*.jpg` (escritorio 1440 e iPhone 13).
+Capturas: `docs/brand/ultimate-2/*.jpg` (escritorio 1440, tablet 1024 e iPhone 13), incluidas semilla, riego, árbol crecido y cosecha con moneda.

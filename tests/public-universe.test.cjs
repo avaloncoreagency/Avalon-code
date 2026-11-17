@@ -92,7 +92,12 @@ test("one tree only: the WebGL tree stage is gone and the photoreal tree is a re
   assert.ok(!fs.existsSync("src/components/public/landing/universe/stages.tsx"), "projected 3D tree removed");
   assert.ok(!fs.existsSync("src/components/public/landing/cinema.tsx"), "video gallery removed");
   const tree = read(`${GROWTH}/tree.tsx`);
-  for (const k of ["water", "activate", "harvest", "restart", "fruitQueue", "requestAnimationFrame"]) assert.ok(tree.includes(k), k);
+  for (const k of ["startPour", "endPour", "activate", "harvest", "restart", "fruitQueue", "requestAnimationFrame", "setPointerCapture"]) assert.ok(tree.includes(k), k);
+  const css = read(`${GROWTH}/tree.module.css`);
+  assert.match(css, /container-type: size/, "the scene sizes the world to the section");
+  assert.match(css, /mask-composite: intersect, add/, "the photo is feathered on every edge (no framed picture)");
+  assert.doesNotMatch(css, /\.stage \{[^}]*border-radius/, "no card around the tree");
+  assert.match(tree, /No vendemos herramientas\. Vendemos multiplicadores de trabajo\./);
   assert.match(tree, /plate-720\.webp/); assert.match(tree, /apple-\$\{sp\.sprite\}\.webp/);
   for (let i = 0; i < 9; i++) assert.ok(fs.existsSync(`public/brand/tree/apple-${i}.webp`), `apple sprite ${i}`);
   assert.match(tree, /No representa ganancias reales/); assert.match(tree, /does not represent real earnings/);
