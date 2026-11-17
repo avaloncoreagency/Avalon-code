@@ -392,6 +392,31 @@ export function createUniverse(canvas: HTMLCanvasElement, opts: { mobile: boolea
           vCol = mix(vec3(.47,.28,1.), vec3(.19,.85,.96), aL.y); vCol = mix(vCol, vec3(.91,.93,.96), step(.8, aL.y)); }`,
       fragmentShader: SOFT_POINT })));
     tree.add(leaves);
+    // Instanced botanical leaf blades cast real directional shading; far more convincing than
+    // the previous glowing particle-only canopy, with only one foliage draw call.
+    const twigSegments = segs.filter(s => s.r0 < .12);
+    const foliageCount = Math.min(opts.mobile ? 320 : 920, twigSegments.length * 8);
+    const leafShape = new THREE.Shape();
+    leafShape.moveTo(0, -.16);
+    leafShape.bezierCurveTo(-.13, -.055, -.13, .075, 0, .19);
+    leafShape.bezierCurveTo(.13, .075, .13, -.055, 0, -.16);
+    const foliageGeometry = track(new THREE.ShapeGeometry(leafShape, 3));
+    const foliageMat = track(new THREE.MeshStandardMaterial({
+      color: 0xffffff, metalness: 0, roughness: .83, side: THREE.DoubleSide,
+    }));
+    const foliage = new THREE.InstancedMesh(foliageGeometry, foliageMat, foliageCount);
+    const pose = new THREE.Object3D();
+    for (let i = 0; i < foliageCount; i++) {
+      const s = twigSegments[i % twigSegments.length], p = s.a.clone().lerp(s.b, .2 + R() * .8);
+      pose.position.copy(p).add(new THREE.Vector3((R()-.5)*.7,(R()-.5)*.65,(R()-.5)*.7));
+      pose.rotation.set(R()*TAU,R()*TAU,R()*TAU); pose.scale.setScalar(.8 + R() * .9);
+      pose.updateMatrix(); foliage.setMatrixAt(i, pose.matrix);
+      const palette = [0x315c2b, 0x456c35, 0x6c8d46, 0x76944c, 0x4a7836];
+      foliage.setColorAt(i, new THREE.Color(palette[i % palette.length]));
+    }
+    foliage.instanceMatrix.needsUpdate = true;
+    if (foliage.instanceColor) foliage.instanceColor.needsUpdate = true;
+    foliage.frustumCulled = false; foliage.visible = false; tree.add(foliage);
     // Apples: ten well-spread tips.
     const chosen: { p: THREE.Vector3; t: number }[] = [];
     for (const c of [...tips].sort((a, b) => Math.atan2(a.p.z, a.p.x) - Math.atan2(b.p.z, b.p.x))) {
@@ -489,7 +514,9 @@ export function createUniverse(canvas: HTMLCanvasElement, opts: { mobile: boolea
       // Overshoot to 1.12 so the last twigs, leaves and apples (birth time ≈ 1) finish growing too.
       const grow = smooth(3.04, 3.78, Ts) * 1.12; growUni.uGrow.value = grow; frame.grow = Math.min(1, grow);
       if (tree.visible) {
-        tree.rotation.y = Math.sin(t * 0.18) * 0.1 + pxs * 0.14; tree.rotation.z = Math.sin(t * 0.35) * 0.012;
+        foliage.visible = grow > .68;
+        foliage.rotation.z = Math.sin(t * .65) * .012; foliage.rotation.x = Math.cos(t * .47) * .008;
+        tree.rotation.y = Math.sin(t * 0.18) * 0.07 + pxs * 0.1; tree.rotation.z = Math.sin(t * 0.35) * 0.012;
         tree.updateMatrixWorld();
         apples.forEach((ap, i) => {
           const on = appleActive === i ? 1 : 0; const target = smooth(ap.t, ap.t + 0.07, grow) * (1 + on * 0.6 + Math.sin(t * 2.2 + i * 1.3) * 0.07);
