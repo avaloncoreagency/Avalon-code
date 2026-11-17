@@ -54,3 +54,60 @@ export async function loadClientLedger(db: SupabaseClient, clientId: string): Pr
   if (error) return { ok: false, message: coreEngineMessage(error) };
   return { ok: true, data: data as ClientLedger };
 }
+
+export type InvoiceRow = { id: string; number: string; amount: string; currency: string; issued_on: string; due_on: string | null; status: "issued" | "void"; void_reason: string };
+export type PaymentRow = { id: string; amount: string; currency: string; received_on: string; reference: string; status: "recorded" | "verified" | "reversed"; evidence: string; reversal_reason: string; invoice_id: string | null };
+export type CommissionRow = { id: string; kind: string; beneficiary_id: string | null; beneficiary_name: string; amount: string; currency: string; status: CommissionStatus; basis: string; paid_reference: string; cancel_reason: string };
+
+/** Read through the same signed-in adapter. Exact counts make bounded lists explicit. */
+export async function loadSaleOperations(db: SupabaseClient, saleId: string) {
+  const [invoices, payments, commissions] = await Promise.all([
+    db.from("crm_invoices").select("id,number,amount,currency,issued_on,due_on,status,void_reason", {count:"exact"}).eq("sale_id",saleId).order("created_at",{ascending:false}).limit(100),
+    db.from("crm_payments").select("id,amount,currency,received_on,reference,status,evidence,reversal_reason,invoice_id", {count:"exact"}).eq("sale_id",saleId).order("received_on",{ascending:false}).limit(100),
+    db.from("crm_commissions").select("id,kind,beneficiary_id,beneficiary_name,amount,currency,status,basis,paid_reference,cancel_reason", {count:"exact"}).eq("sale_id",saleId).order("created_at",{ascending:false}).limit(100),
+  ]);
+  const error = invoices.error ?? payments.error ?? commissions.error;
+  if (error) return {ok:false as const,message:coreEngineMessage(error)};
+  return {ok:true as const, invoices:invoices.data as InvoiceRow[],payments:payments.data as PaymentRow[],commissions:commissions.data as CommissionRow[],
+    counts:{invoices:invoices.count,payments:payments.count,commissions:commissions.count}};
+}
+
+/** Scope mutable records to the rendered sale before invoking existing database RPCs. */
+export async function runSaleOperation(db: SupabaseClient, saleId: string, operation: string, input: Record<string, unknown>): Promise<Outcome<unknown>> {
+  const sale = await db.from("crm_sales").select("id,client_id").eq("id",saleId).maybeSingle();
+  if (sale.error || !sale.data) return {ok:false,message:coreEngineMessage(sale.error)};
+  const capability = await loadClientLedger(db,sale.data.client_id);
+  if (!capability.ok) return capability;
+  if (operation === "invoice") return recordInvoice(db,{...input,sale_id:saleId});
+  if (operation === "agree") return agreeCommission(db,{...input,sale_id:saleId});
+  const table = operation === "void" ? "crm_invoices" : ["verify","reverse"].includes(operation) ? "crm_payments" : "crm_commissions";
+  const record = await db.from(table).select("id").eq("id",String(input.id ?? "")).eq("sale_id",saleId).maybeSingle();
+  if (record.error || !record.data) return {ok:false,message:coreEngineMessage(record.error)};
+  if (operation === "void") return voidInvoice(db,record.data.id,String(input.reason ?? ""));
+  if (operation === "verify") return verifyPayment(db,record.data.id,String(input.evidence ?? ""));
+  if (operation === "reverse") return reversePayment(db,record.data.id,String(input.reason ?? ""));
+  if (["accrued","paid","cancelled"].includes(operation)) return transitionCommission(db,record.data.id,operation as Exclude<CommissionStatus,"agreed">,String(input.note ?? ""));
+  return {ok:false,message:coreEngineMessage(null)};
+}
+
+/** Contract §A catalog writes reuse the existing table, optimistic version and trigger. */
+export async function saveCatalogOffer(db: SupabaseClient, id: string, version: number, input: Record<string, unknown>, approve = false): Promise<Outcome<unknown>> {
+  const current = await db.from("crm_service_catalog").select("*").eq("id",id).maybeSingle();
+  if (current.error || !current.data || !("offer_status" in current.data)) return {ok:false,message:coreEngineMessage(current.error)};
+  let values: Record<string, unknown> = {offer_status:"approved"};
+  if (!approve) {
+    values = {};
+    for (const key of ["monthly_price","direct_cost","target_margin_pct","estimated_days","commission_value"]) {
+      const raw = String(input[key] ?? "").trim();
+      if (raw && (!/^\d{1,13}(\.\d{1,2})?$/.test(raw) || !Number.isFinite(Number(raw)))) return {ok:false,message:coreEngineMessage(null)};
+      values[key] = raw || null;
+    }
+    for (const key of ["deliverables","exclusions","payment_terms"]) values[key] = String(input[key] ?? "").trim();
+    if (!["none","sale_pct","referral_pct","fixed"].includes(String(input.commission_kind))) return {ok:false,message:coreEngineMessage(null)};
+    values.commission_kind = input.commission_kind;
+    // Basic catalog price/routing remain in the existing form; this form only edits the added contract fields.
+  }
+  const result = await db.from("crm_service_catalog").update(values).eq("id",id).eq("version",version).select("id").maybeSingle();
+  if (result.error || !result.data) return {ok:false,message:result.error ? coreEngineMessage(result.error) : "El registro cambió. Actualiza antes de reintentar."};
+  return {ok:true,data:result.data};
+}
