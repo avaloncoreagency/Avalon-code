@@ -1,0 +1,45 @@
+/* AVALON · THE FILM — cinematic stage for the four universe films. Dark, letterboxed, legible at 320–1920. */
+.cinema { position: relative; width: min(1320px, 100%); margin-inline: auto; padding: clamp(56px, 9vw, 120px) max(16px, env(safe-area-inset-left)) clamp(40px, 6vw, 80px); }
+.head { max-width: 640px; margin-bottom: clamp(20px, 3vw, 32px); }
+.eyebrow { margin: 0 0 10px; font-size: 12px; font-weight: 700; letter-spacing: .22em; text-transform: uppercase; color: #30daf4; }
+.title { margin: 0; font-size: clamp(30px, 4.6vw, 60px); line-height: 1.02; letter-spacing: -.035em; font-weight: 750; color: #fff; }
+.sub { margin: 14px 0 0; max-width: 52ch; color: rgba(232, 236, 245, .74); font-size: clamp(15px, 1.4vw, 18px); line-height: 1.55; }
+
+.stage { position: relative; overflow: hidden; border-radius: clamp(18px, 2.4vw, 30px); aspect-ratio: 16 / 9; background: #050610;
+  border: 1px solid rgba(255, 255, 255, .1); box-shadow: 0 60px 140px -60px rgba(41, 121, 255, .55), 0 30px 80px -40px rgba(0, 0, 0, .9); isolation: isolate; }
+.stage[data-portrait="true"] { aspect-ratio: 9 / 14; max-height: 82svh; margin-inline: auto; }
+.poster, .video { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; display: block; }
+.poster { z-index: 0; animation: kenburns 14s ease-out both; }
+.video { z-index: 1; }
+@keyframes kenburns { from { transform: scale(1.06); } to { transform: scale(1); } }
+.shade { position: absolute; inset: 0; z-index: 2; pointer-events: none;
+  background: linear-gradient(180deg, rgba(5, 6, 16, .55) 0%, transparent 22%, transparent 55%, rgba(5, 6, 16, .88) 100%),
+              radial-gradient(120% 90% at 50% 50%, transparent 60%, rgba(5, 6, 16, .55) 100%); }
+.caption { position: absolute; z-index: 3; left: clamp(16px, 3vw, 40px); right: 84px; bottom: clamp(16px, 3vw, 36px); display: flex; gap: 16px; align-items: flex-end;
+  animation: rise .9s cubic-bezier(.2, .8, .2, 1) both; }
+.caption h3 { margin: 0; font-size: clamp(20px, 2.6vw, 36px); letter-spacing: -.02em; line-height: 1.05; color: #fff; }
+.caption p { margin: 6px 0 0; max-width: 46ch; font-size: clamp(13.5px, 1.3vw, 17px); line-height: 1.45; color: rgba(232, 236, 245, .82); }
+.num { flex: none; display: grid; place-items: center; width: clamp(44px, 4.6vw, 60px); height: clamp(44px, 4.6vw, 60px); border-radius: 50%;
+  font-weight: 750; font-size: clamp(14px, 1.4vw, 18px); color: #fff; border: 1px solid rgba(255, 255, 255, .28); background: rgba(8, 12, 30, .55); backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px); }
+@keyframes rise { from { opacity: 0; transform: translateY(14px); } }
+.toggle { position: absolute; z-index: 4; right: clamp(14px, 2.4vw, 28px); bottom: clamp(14px, 2.4vw, 28px); width: 48px; height: 48px; border-radius: 50%;
+  display: grid; place-items: center; color: #fff; cursor: pointer; border: 1px solid rgba(255, 255, 255, .3); background: rgba(8, 12, 30, .6); backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px); }
+.toggle:hover { border-color: #2979ff; } .toggle:focus-visible { outline: 3px solid #30daf4; outline-offset: 3px; }
+
+.chapters { list-style: none; margin: 14px 0 0; padding: 0; display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; }
+.chapters button { width: 100%; min-height: 56px; display: grid; grid-template-columns: auto 1fr; grid-template-rows: auto auto; column-gap: 10px; row-gap: 8px; align-items: center;
+  padding: 12px 14px; border-radius: 16px; text-align: left; cursor: pointer; color: rgba(232, 236, 245, .78); font: 600 14px var(--sans, system-ui);
+  background: rgba(8, 12, 30, .6); border: 1px solid rgba(255, 255, 255, .1); transition: border-color .25s, background .25s, color .25s; }
+.chapters button:hover { border-color: rgba(92, 155, 255, .6); color: #fff; }
+.chapters button:focus-visible { outline: 3px solid #30daf4; outline-offset: 2px; }
+.chapters button[aria-pressed="true"] { color: #fff; border-color: rgba(92, 155, 255, .7); background: linear-gradient(140deg, rgba(41, 121, 255, .22), rgba(120, 71, 255, .14) 60%, rgba(8, 12, 30, .7)); }
+.cNum { font-weight: 750; color: #30daf4; } .cTitle { overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+.track { grid-column: 1 / -1; height: 2px; border-radius: 2px; background: rgba(255, 255, 255, .12); overflow: hidden; }
+.fill { display: block; height: 100%; background: linear-gradient(90deg, #2979ff, #7847ff, #ff8736); transform-origin: left; transform: scaleX(0); }
+
+@media (max-width: 720px) {
+  .chapters { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+  .chapters button { min-height: 52px; padding: 10px 12px; font-size: 13px; }
+  .caption { right: 72px; gap: 12px; }
+}
+@media (prefers-reduced-motion: reduce) { .poster, .caption { animation: none; } }

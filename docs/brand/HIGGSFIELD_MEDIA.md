@@ -53,3 +53,34 @@ Gasto acumulado: 1903.75 → 1751.75 créditos (152 en total; 56.75 en esta rond
 ## Pendiente
 
 - El revelado en vídeo del logo ya existe (lote 3). El símbolo SVG del encabezado sigue animándose con CSS.
+
+## 2026-11-17 · Cinematic realism masters (owner-approved budget)
+
+Art direction: luxury technology × cinematic realism × premium architecture. Real materials only (brushed titanium,
+optical glass, basalt, board-formed concrete, bronze, walnut, leather); midnight palette with electric blue/violet
+light and amber for opportunity. No text, logos, people or brands in any frame.
+
+Stills: `gpt_image_2_6`, 4K, quality high (4.25 credits each). Films: `kling3_0` pro, image-to-video from the still,
+sound off (10 s = 17.5 credits, 5 s = 8.75). Web derivatives: WebP q76–80 (Pillow, Lanczos); H.264 CRF 25–26,
+30 fps, no audio track, `+faststart`.
+
+| Asset (public/brand) | Still job | Film job |
+|---|---|---|
+| `u/ignition-{1280,2400}.webp`, `u/ignition.mp4` | cd8f72c5-79e4-4e2a-9735-1c845dd775eb | 6bc89f81-434d-4249-b32d-5800d540394e |
+| `u/ignition-m-{720,1080}.webp`, `u/ignition-m.mp4` | b8b028a5-0517-4f79-8ec7-95c02cdcfa12 | 1016f3b8-4af3-478e-89ee-9ee4dcc2c2e7 |
+| `u/launch-*.webp`, `u/launch.mp4` | 33485337-96fc-4c6b-8bf2-ac3a1e31ce9d | 1f2e95f4-816c-47ee-af2a-d5792055f332 |
+| `u/launch-m-*.webp`, `u/launch-m.mp4` | e13d9d2b-cdb3-4b11-a493-ebfc13ce9c2e | 0f69d72c-8650-4f4b-aee3-6f9989a8d766 |
+| `u/engine-*.webp`, `u/engine.mp4` | 624ec0c5-b7ea-4b60-96c0-1214542d9799 | ed4a67a8-b5e3-44c5-80af-92fb12613d41 |
+| `u/engine-m-*.webp`, `u/engine-m.mp4` | 4b904673-ddb1-49d2-9c76-dddeb191a604 | 22af4fbc-9a82-4e4a-adbf-1d033d18b9b2 |
+| `u/tree-*.webp`, `u/tree.mp4` | 5b84efe5-eebf-41b9-bb85-4cc534b36404 | 8d7a7b1c-76fd-47a0-b84c-8084355c6f81 |
+| `u/tree-m-*.webp`, `u/tree-m.mp4` | ca93c214-b16a-47a8-97c0-c6f97b0a86f2 | 22a003a7-dffd-4899-afbe-89abd514649a |
+| `closing.webp` / `closing-m.webp` | c7440750-1085-4d7a-9e18-0daccdf2624e / 39d3b8a0-5af6-48cb-8dba-3eb191431a53 | 4cefa2e9-0f88-41e8-bb1f-496e2c646475 (not served) |
+| `devices{,-960}.webp`, `devices-loop.mp4` | 6840efa3-4d12-42f6-9ce6-8ecfb2af9638 | 2c048a75-7c7a-47c2-9525-64fa1481fe2f |
+| `ecommerce{,-720}.webp`, `ecommerce-loop.mp4` | 79bf7303-48db-4719-8c03-c2dfffb4603d | b2210bef-60a2-47b0-aba1-c977728c1291 |
+| `receptionist{,-720}.webp`, `receptionist-loop.mp4` | aee4b8cf-d851-402e-a893-c6c980e8352d | 87e4539f-ed04-43ef-807d-844e7dd47a82 |
+| `automation{,-720}.webp`, `automation-loop.mp4` | e39f4880-783a-4b59-a9ac-29c0bb34fc96 | df381245-d57f-484c-8faf-9ed07d901238 |
+| `marketing{,-720}.webp`, `marketing-loop.mp4` | c1e14819-a520-4c42-a1ad-8e4adc06ca19 | c5e2b0ba-ccab-4f17-ae33-b16c52c52bc1 |
+| `network.webp`, `network-loop.mp4` | 606f9396-69cb-49d9-8c57-709b6f0c3e77 | 53091e03-9a79-4114-aa77-d40feba005f0 |
+
+Spend for this round (account balance, measured): 1735.75 → 1457.75 = **278 credits** for 16 stills, 9 ten-second
+films and 6 five-second loops. The universe CSS no longer hot-links CloudFront URLs; every frame is served from this repo.

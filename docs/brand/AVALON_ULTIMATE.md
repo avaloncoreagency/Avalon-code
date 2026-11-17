@@ -55,7 +55,11 @@ Las etiquetas del motor y las manzanas son botones HTML reales que siguen la pro
 
 No probado: Safari real en iPhone (solo emulación de Chromium).
 
-## 5. Producción Higgsfield propuesta — **requiere autorización; no se ha gastado nada**
+## 5. Producción Higgsfield — **autorizada y producida el 2026-11-17** (278 créditos; detalle y job ids en `HIGGSFIELD_MEDIA.md`)
+
+Producido: 16 stills 4K (cuatro universos en 16:9 y 9:16, cierre, dispositivos, tienda, recepcionista, automatización, marketing, red), 9 películas de 10 s y 6 loops de 5 s (Kling 3.0 pro). Integrado: sección «La película» (cuatro capítulos), fondos fotorrealistas de los universos (atmósfera con WebGL; escena completa sin WebGL), masters oscuros de productos y cierre.
+
+Propuesta original:
 
 Precios observados en esta cuenta: imagen 4K 4.25 créditos; vídeo kling3_0 pro 5 s 8.75; 10 s 17.5. Saldo: 1751.75.
 
@@ -71,8 +75,8 @@ Masters 8K: solo tendrían sentido para las cuatro stills de universo; el precio
 
 ## 6. Pendiente
 
-1. Autorización de gasto Higgsfield (§5) y aprobación de la dirección visual.
+1. ~~Autorización de gasto Higgsfield (§5)~~ — aprobada y ejecutada el 2026-11-17.
 2. Prueba en dispositivos reales (fluidez e INP) y Safari iOS.
-3. Sustituir las miniaturas graduadas por los masters oscuros.
+3. ~~Sustituir las miniaturas graduadas por los masters oscuros~~ — hecho el 2026-11-17.
 4. Página propia de Industrias y de Proyectos (hoy son secciones de la portada).
 5. Fusión: solo con autorización expresa.

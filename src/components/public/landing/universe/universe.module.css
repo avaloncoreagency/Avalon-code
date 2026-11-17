@@ -15,29 +15,39 @@
 .cosmos canvas { display: block; width: 100%; height: 100%; opacity: 0; transition: opacity 1.4s ease; }
 .cosmos canvas[data-on="true"] { opacity: 1; }
 
-/* Higgsfield 4K masters live on the owner canvas. Web-optimized derivatives are used
-   as cinematic atmospheric layers, not as replacements for actual interactive WebGL.
-   The dark gradient and pointer-events:none keep text legible and controls reachable.
-   These URLs are from the owner-authorized Higgsfield Cinema Studio generation jobs. */
+/* Higgsfield photoreal masters (docs/brand/HIGGSFIELD_MEDIA.md), served locally from /public/brand/u as optimized WebP.
+   Live WebGL: a faint atmospheric layer behind the installation. Without WebGL (reduced motion, data saver, no GPU,
+   watchdog): the master becomes the scene itself, so the fallback is cinematic instead of an empty dark page.
+   The gradient keeps copy legible and pointer-events:none keeps every control reachable. */
 .hero::before, .actLaunch .stage::before, .actEngine .stage::before, .actTree .stage::before {
   content: ""; position: absolute; inset: 0; pointer-events: none; z-index: 0;
   background-size: cover; background-repeat: no-repeat; background-position: center;
-  opacity: .21; -webkit-mask-image: linear-gradient(to bottom, transparent 0%, #000 19%, #000 77%, transparent 100%);
-  mask-image: linear-gradient(to bottom, transparent 0%, #000 19%, #000 77%, transparent 100%);
+  opacity: .22; transition: opacity 1.2s ease;
+  -webkit-mask-image: linear-gradient(to bottom, transparent 0%, #000 14%, #000 80%, transparent 100%);
+  mask-image: linear-gradient(to bottom, transparent 0%, #000 14%, #000 80%, transparent 100%);
 }
-.hero::before { background-image: linear-gradient(90deg, rgba(5,6,16,.96) 0%, rgba(5,6,16,.60) 50%, rgba(5,6,16,.14) 100%), url("https://d8j0ntlcm91z4.cloudfront.net/user_3LQAwhuUWNp8peiw4paAponIfx2/hf_20261117_050522_b4ddf43c-060d-4ab4-a522-73e5571e9626_min.webp"); background-position: 61% center; opacity: .52; }
-.actLaunch .stage::before { background-image: linear-gradient(90deg, rgba(5,6,16,.55), rgba(5,6,16,.52)), url("https://d8j0ntlcm91z4.cloudfront.net/user_3LQAwhuUWNp8peiw4paAponIfx2/hf_20261117_050519_662a5359-132e-4eee-81b9-8184d502a8be_min.webp"); }
-.actEngine .stage::before { background-image: linear-gradient(90deg, rgba(5,6,16,.78), rgba(5,6,16,.42)), url("https://d8j0ntlcm91z4.cloudfront.net/user_3LQAwhuUWNp8peiw4paAponIfx2/hf_20261117_050518_7c5cf538-cfbe-420e-be61-f6b4058f0917_min.webp"); }
-.actTree .stage::before { background-image: linear-gradient(90deg, rgba(5,6,16,.70), rgba(5,6,16,.35)), url("https://d8j0ntlcm91z4.cloudfront.net/user_3LQAwhuUWNp8peiw4paAponIfx2/hf_20261117_050518_c76f961e-a811-4dba-bb73-168524b527a9_min.webp"); }
+.hero::before { background-image: linear-gradient(90deg, rgba(5,6,16,.94) 0%, rgba(5,6,16,.55) 48%, rgba(5,6,16,.1) 100%), url("/brand/u/ignition-1280.webp"); }
+.actLaunch .stage::before { background-image: linear-gradient(90deg, rgba(5,6,16,.55), rgba(5,6,16,.5)), url("/brand/u/launch-1280.webp"); }
+.actEngine .stage::before { background-image: linear-gradient(90deg, rgba(5,6,16,.82), rgba(5,6,16,.3) 60%, rgba(5,6,16,.2)), url("/brand/u/engine-1280.webp"); }
+.actTree .stage::before { background-image: linear-gradient(90deg, rgba(5,6,16,.78), rgba(5,6,16,.28) 60%, rgba(5,6,16,.18)), url("/brand/u/tree-1280.webp"); }
+@media (min-width: 1500px) {
+  .hero::before { background-image: linear-gradient(90deg, rgba(5,6,16,.94) 0%, rgba(5,6,16,.55) 48%, rgba(5,6,16,.1) 100%), url("/brand/u/ignition-2400.webp"); }
+  .actLaunch .stage::before { background-image: linear-gradient(90deg, rgba(5,6,16,.55), rgba(5,6,16,.5)), url("/brand/u/launch-2400.webp"); }
+  .actEngine .stage::before { background-image: linear-gradient(90deg, rgba(5,6,16,.82), rgba(5,6,16,.3) 60%, rgba(5,6,16,.2)), url("/brand/u/engine-2400.webp"); }
+  .actTree .stage::before { background-image: linear-gradient(90deg, rgba(5,6,16,.78), rgba(5,6,16,.28) 60%, rgba(5,6,16,.18)), url("/brand/u/tree-2400.webp"); }
+}
 .heroInner, .scrollCue, .stageHead, .launchInner { position: relative; z-index: 1; }
-@media (max-width: 899px) {
-  .hero::before { background-position: 65% center; opacity: .34; }
-  .actLaunch .stage::before, .actEngine .stage::before, .actTree .stage::before { background-position: center top; opacity: .17; }
+@media (max-aspect-ratio: 1/1) {
+  .hero::before { background-image: linear-gradient(180deg, rgba(5,6,16,.15) 0%, rgba(5,6,16,.55) 55%, rgba(5,6,16,.95) 100%), url("/brand/u/ignition-m-720.webp"); background-position: center top; opacity: .4; }
+  .actLaunch .stage::before { background-image: linear-gradient(180deg, rgba(5,6,16,.6), rgba(5,6,16,.45)), url("/brand/u/launch-m-720.webp"); }
+  .actEngine .stage::before { background-image: linear-gradient(180deg, rgba(5,6,16,.7), rgba(5,6,16,.2) 40%, rgba(5,6,16,.9)), url("/brand/u/engine-m-720.webp"); background-position: center top; }
+  .actTree .stage::before { background-image: linear-gradient(180deg, rgba(5,6,16,.7), rgba(5,6,16,.2) 40%, rgba(5,6,16,.9)), url("/brand/u/tree-m-720.webp"); background-position: center top; }
 }
-@media (prefers-reduced-motion: reduce) {
-  .hero::before { opacity: .50; }
-  .actLaunch .stage::before, .actEngine .stage::before, .actTree .stage::before { opacity: .40; }
-}
+/* No live scene: the photoreal master carries the universe. */
+:global(html:not([data-universe="live"])) .hero::before { opacity: .62; }
+:global(html:not([data-universe="live"])) .actLaunch .stage::before,
+:global(html:not([data-universe="live"])) .actEngine .stage::before,
+:global(html:not([data-universe="live"])) .actTree .stage::before { opacity: .5; }
 
 .eyebrow { margin: 0 0 14px; font-size: 12px; font-weight: 700; letter-spacing: .26em; text-transform: uppercase; color: var(--cyan); }
 
