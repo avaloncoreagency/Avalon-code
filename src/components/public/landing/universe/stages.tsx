@@ -56,14 +56,21 @@ export function EngineStage({ lang }: { lang: Lang }) {
       const half = el.offsetWidth / 2 + 8, cx = clamp(x, half, Math.max(half, box.width - half)), drop = box.width < 900 ? 34 : 56;
       el.style.transform = `translate3d(${cx.toFixed(1)}px, ${y.toFixed(1)}px, 0) translate(-50%, ${drop}px) scale(${(0.88 + (depth + 1) * 0.06).toFixed(3)})`;
       el.style.opacity = show ? String(0.5 + (depth + 1) * 0.25) : "0"; el.style.zIndex = String(10 + Math.round(depth * 5));
-      el.style.pointerEvents = show ? "auto" : "none"; el.tabIndex = show ? 0 : -1;
+      el.style.pointerEvents = show ? "auto" : "none"; el.tabIndex = -1;
     }
   }), []);
   const m = t.modules[active];
   return <section id="motor" className={`${u.act} ${u.actEngine}`} data-universe-section="engine" aria-labelledby="h-engine">
     <div className={u.stage} ref={stage}>
       <header className={u.stageHead}><p className={u.eyebrow}>{t.eyebrow}</p><h2 id="h-engine" className={u.stageTitle}>{t.title}</h2><p className={u.stageLead}>{t.lead}</p></header>
-      <div className={u.chips} role="group" aria-label={t.pick}>
+      {/* Stable controls provide reliable touch and keyboard selection when orbiting 3D labels move. */}
+      <div className={u.engineQuickNav} role="group" aria-label={t.pick}>
+        {t.modules.map((mod, i) => <button key={mod.key} type="button" className={u.engineOption} aria-pressed={active === i}
+          onClick={() => setActive(i)} onFocus={() => universeBus.engineHover(i)} onBlur={() => universeBus.engineHover(null)}>
+          <Icon name={mod.key} size={16} /><span>{mod.label}</span>
+        </button>)}
+      </div>
+      <div className={u.chips} aria-hidden="true">
         {t.modules.map((mod, i) => <button key={mod.key} type="button" ref={el => { chips.current[i] = el; }} className={u.chip} aria-pressed={active === i}
           onClick={() => { setActive(i); }} onPointerEnter={() => universeBus.engineHover(i)} onPointerLeave={() => universeBus.engineHover(null)}
           onFocus={() => universeBus.engineHover(i)} onBlur={() => universeBus.engineHover(null)}>
