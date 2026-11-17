@@ -177,6 +177,18 @@ test("PUBLIC WEB QA: ES/EN, 8 solutions, mobile/desktop, preselected quote and i
     await ripe.first().click();
     await p.waitForFunction(() => /\$[1-9]/.test(document.querySelector('#arbol [class*="bank"] b')?.textContent || ""), null, { timeout: 8000 });
     assert.ok(await tree.locator('[class*="cash"]').count() >= 1 || /\$[1-9]/.test(await tree.locator('[class*="bank"] b').textContent()), "harvest shows the money effect");
+    // Tools multiply the harvest: with all six active the crown fills with fruit and "Harvest all" pays out at once.
+    const fruit = await tree.locator('button[data-stage]:not([data-stage="0"])').count();
+    assert.ok(fruit >= 20, `six tools grow a fruitful crown at ${width}: ${fruit}`);
+    assert.match(await tree.getByText(/Harvest multiplier ×4\.0/).textContent(), /×4\.0/);
+    if (full) {
+      const bankValue = async () => Number(((await tree.locator('[class*="bank"] b').textContent()) || "0").replace(/[^0-9]/g, ""));
+      await tree.locator('button[data-stage="3"]').nth(2).waitFor({ timeout: 15000 });
+      const before = await bankValue();
+      await tree.getByRole("button", { name: /Harvest all \(\d+\)/ }).click();
+      await p.waitForFunction(b => Number((document.querySelector('#arbol [class*="bank"] b')?.textContent || "0").replace(/[^0-9]/g, "")) > b + 1000, before, { timeout: 12000 });
+      assert.ok((await bankValue()) > before + 1000, "a full harvest pays out visibly more simulated money");
+    }
     assert.ok(await p.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth + 1), `tree fits ${width}`);
     await p.screenshot({ path: path.join(evidenceDir, `growth-tree-${width}.png`) });
     if (!full) continue;

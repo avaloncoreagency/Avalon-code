@@ -98,6 +98,10 @@ test("one tree only: the WebGL tree stage is gone and the photoreal tree is a re
   assert.match(css, /mask-composite: intersect, add/, "the photo is feathered on every edge (no framed picture)");
   assert.doesNotMatch(css, /\.stage \{[^}]*border-radius/, "no card around the tree");
   assert.match(tree, /No vendemos herramientas\. Vendemos multiplicadores de trabajo\./);
+  // Tools are what make the tree pay: no tools → no fruit; each tool adds +50 % fruit, ripening and value.
+  assert.match(tree, /const MULT_STEP = \.5;/); assert.match(tree, /const mult = 1 \+ active \* MULT_STEP;/);
+  assert.ok((tree.match(/branch: \d, sprite: \d \}/g) || []).length >= 24, "a fruitful crown (≥ 24 fruit positions)");
+  assert.match(tree, /harvestAll/); assert.match(tree, /Sin herramientas: 0 frutos/);
   assert.match(tree, /plate-720\.webp/); assert.match(tree, /apple-\$\{sp\.sprite\}\.webp/);
   for (let i = 0; i < 9; i++) assert.ok(fs.existsSync(`public/brand/tree/apple-${i}.webp`), `apple sprite ${i}`);
   assert.match(tree, /No representa ganancias reales/); assert.match(tree, /does not represent real earnings/);

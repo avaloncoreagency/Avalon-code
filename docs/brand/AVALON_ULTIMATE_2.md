@@ -44,7 +44,12 @@ Todas las demostraciones usan datos sintéticos en memoria del navegador; no se 
 - Cosecha: caída con gravedad, aplastamiento y dos rebotes; en el suelo, onda de choque dorada, ráfaga de partículas, **moneda de oro girando con $**, importe «+$X» y su significado («Venta conseguida»…); el contador de ingresos simulados vive sobre la base de piedra en móvil.
 - Reinicio sin recargar.
 
-**Intro.** El logotipo nace de la luz: blanco incandescente y difuso, se enfría hasta metal pulido antes del iris.
+**Árbol fructífero (tercera ronda).**
+- 26 frutos (9 del máster + 17 posiciones muestreadas sobre el follaje real dorado del máster, separadas ≥ 10.5 % del ancho para poder tocarlos en móvil).
+- **Las herramientas son lo que hace que dé dinero:** sin herramientas el árbol crece pero no da frutos («Sin herramientas: 0 frutos»); cada herramienta suma +50 % (multiplicador ×1 → ×4, medidor de 6 segmentos): más frutos (cada rama aporta los suyos), maduración más rápida (madura `⌈activas × multiplicador ÷ 2⌉` frutos por segundo) y más valor por fruto.
+- Valor simulado de un fruto = clientes × ticket medio del sector × multiplicador (p. ej. barbería ×4: «+$980 · 28 clientes nuevos»); etiquetado como simulación.
+- **«Cosechar todo (N)»**: cascada de frutos, lluvia de monedas y un gran total «Cosecha completa +$X». Con 6 herramientas una cosecha completa ronda $18 000–27 000 simulados (barbería).
+- Al activar una herramienta aparece «+50 % cosecha» sobre su rama; los frutos rebrotan al instante tras cada cosecha. El logotipo nace de la luz: blanco incandescente y difuso, se enfría hasta metal pulido antes del iris.
 
 ## 2. Inventario Higgsfield reutilizado (sin créditos nuevos)
 

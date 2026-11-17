@@ -26,6 +26,24 @@ const SPOTS: Spot[] = [
   { x: .4606, y: .2346, r: .0431, branch: 3, sprite: 5 },
   { x: .6137, y: .1582, r: .0424, branch: 4, sprite: 2 }, { x: .8581, y: .1973, r: .0377, branch: 4, sprite: 3 },
   { x: .8688, y: .2926, r: .0414, branch: 5, sprite: 7 }, { x: .7049, y: .3286, r: .0412, branch: 5, sprite: 8 },
+  // More fruit: positions sampled on the master's real foliage (golden-leaf mask), spaced for touch (≥ 10.5 % of width).
+  { x: 0.6921, y: 0.2185, r: .036, branch: 4, sprite: 0 },
+  { x: 0.5642, y: 0.3425, r: .036, branch: 3, sprite: 1 },
+  { x: 0.6433, y: 0.2791, r: .036, branch: 5, sprite: 2 },
+  { x: 0.3973, y: 0.3070, r: .036, branch: 3, sprite: 3 },
+  { x: 0.2523, y: 0.2342, r: .036, branch: 0, sprite: 4 },
+  { x: 0.7535, y: 0.1093, r: .036, branch: 4, sprite: 5 },
+  { x: 0.5084, y: 0.1646, r: .036, branch: 3, sprite: 6 },
+  { x: 0.5681, y: 0.2379, r: .036, branch: 3, sprite: 7 },
+  { x: 0.8481, y: 0.1382, r: .036, branch: 4, sprite: 8 },
+  { x: 0.3667, y: 0.2077, r: .036, branch: 1, sprite: 0 },
+  { x: 0.2015, y: 0.0846, r: .036, branch: 1, sprite: 1 },
+  { x: 0.3816, y: 0.0604, r: .036, branch: 2, sprite: 2 },
+  { x: 0.7497, y: 0.2739, r: .036, branch: 5, sprite: 3 },
+  { x: 0.1392, y: 0.3024, r: .036, branch: 0, sprite: 4 },
+  { x: 0.1362, y: 0.1828, r: .036, branch: 1, sprite: 5 },
+  { x: 0.5499, y: 0.1101, r: .036, branch: 2, sprite: 6 },
+  { x: 0.9274, y: 0.2435, r: .036, branch: 5, sprite: 7 },
 ];
 // Branch nodes (where each multiplier attaches to the crown), same frame as SPOTS. Mask zones live in the CSS.
 const NODES = [[.2, .265], [.27, .15], [.43, .085], [.5, .27], [.72, .14], [.78, .31]];
@@ -39,10 +57,10 @@ const COPY = {
     hints: [
       "Mantén pulsado «Regar» (o tócalo) para invertir trabajo y constancia.",
       "Sigue regando: el tronco necesita el 50 % para sostener ramas.",
-      "Activa herramientas: cada rama es un multiplicador que produce frutos.",
-      "Los frutos maduran mientras riegas. Riega un poco más.",
-      "¡Hay frutos maduros! Tócalos para cosecharlos.",
-      "Cuando tu negocio crece, los resultados dan fruto.",
+      "Tu árbol ya es fuerte, pero sin herramientas no da frutos. Activa una: cada herramienta es lo que hace que dé dinero.",
+      "Cada herramienta activa = más frutos, más rápido y de más valor. Riega para acelerar.",
+      "¡Frutos maduros! Tócalos uno a uno o cosecha todo de una vez.",
+      "Con todas las herramientas, tu negocio da frutos sin parar.",
     ],
     water: "Regar", waterLabel: "Regar el negocio", pouring: "Regando…", invest: "Inversión y esfuerzo",
     level: ["Constante", "Comprometido", "Ambicioso"],
@@ -54,7 +72,9 @@ const COPY = {
     ],
     lock: "Riega hasta el 50 %", activate: "Activar", active: "Activa",
     harvestApple: (b: string) => `Cosechar fruto maduro de «${b}»`, unripe: (b: string) => `Fruto creciendo en «${b}»`,
-    labels: ["Venta conseguida", "Reserva completada", "Cliente convertido", "Ingreso generado"],
+    labels: ["clientes nuevos", "reservas completadas", "ventas cerradas", "clientes convertidos"],
+    harvestAll: (n: number) => `Cosechar todo (${n})`, harvestTotal: "Cosecha completa",
+    demoSale: "venta de la demostración", mult: "Multiplicador de cosecha", multHint: "cada herramienta suma +50 % de frutos y de dinero", boost: "+50 % cosecha", noTools: "Sin herramientas: 0 frutos",
     explore: "Explora las demostraciones", solutions: "Descubre las soluciones", restart: "Reiniciar simulación",
     fromDemo: "Una venta de las demostraciones hizo madurar un fruto",
   },
@@ -65,10 +85,10 @@ const COPY = {
     hints: [
       "Press and hold “Water” (or tap it) to invest work and consistency.",
       "Keep watering: the trunk needs 50% to carry branches.",
-      "Activate tools: each branch is a multiplier that bears fruit.",
-      "Fruit ripens while you water. Water a little more.",
-      "There is ripe fruit! Tap it to harvest.",
-      "When your business grows, results bear fruit.",
+      "Your tree is strong, but without tools it bears no fruit. Activate one: tools are what make it produce money.",
+      "Every active tool = more fruit, faster, and worth more. Water to speed it up.",
+      "Ripe fruit! Tap them one by one or harvest everything at once.",
+      "With every tool active, your business keeps bearing fruit.",
     ],
     water: "Water", waterLabel: "Water the business", pouring: "Watering…", invest: "Investment & effort",
     level: ["Steady", "Committed", "Ambitious"],
@@ -80,7 +100,9 @@ const COPY = {
     ],
     lock: "Water to 50%", activate: "Activate", active: "Active",
     harvestApple: (b: string) => `Harvest ripe fruit from “${b}”`, unripe: (b: string) => `Fruit growing on “${b}”`,
-    labels: ["Sale closed", "Booking completed", "Customer converted", "Revenue generated"],
+    labels: ["new customers", "bookings completed", "sales closed", "customers converted"],
+    harvestAll: (n: number) => `Harvest all (${n})`, harvestTotal: "Full harvest",
+    demoSale: "sale from the demos", mult: "Harvest multiplier", multHint: "each tool adds +50% fruit and money", boost: "+50% harvest", noTools: "No tools: 0 fruit",
     explore: "Explore the demos", solutions: "Discover the solutions", restart: "Restart simulation",
     fromDemo: "A sale in the demos ripened a fruit",
   },
@@ -88,6 +110,7 @@ const COPY = {
 
 type P = { kind: "dust" | "drop" | "splash" | "gold" | "spark"; x: number; y: number; vx: number; vy: number; life: number; max: number; size: number };
 type Coin = { id: number; x: number; amount: string; label: string };
+const MULT_STEP = .5;   // each active tool adds +50 % to fruit production, ripening speed and value
 
 export function GrowthTree({ lang }: { lang: Lang }) {
   const c = COPY[lang];
@@ -97,7 +120,9 @@ export function GrowthTree({ lang }: { lang: Lang }) {
   const [branches, setBranches] = useState<boolean[]>(() => Array(6).fill(false));
   const [stage, setStage] = useState<number[]>(() => Array(SPOTS.length).fill(0));   // 0 none · 1 bud · 2 young · 3 ripe
   const [value, setValue] = useState<number[]>(() => Array(SPOTS.length).fill(0));
-  const [falling, setFalling] = useState<number | null>(null);
+  const [falling, setFalling] = useState<number[]>([]);
+  const fallingRef = useRef(new Set<number>());
+  const [boosts, setBoosts] = useState<{ id: number; b: number }[]>([]), [total, setTotal] = useState<{ id: number; amount: number } | null>(null);
   const [coins, setCoins] = useState<Coin[]>([]), [waves, setWaves] = useState<{ id: number; x: number }[]>([]);
   const [revenue, setRevenue] = useState(0), [shown, setShown] = useState(0), [harvested, setHarvested] = useState(0), [bump, setBump] = useState(0);
   const [effort, setEffort] = useState(1);                  // 0 steady · 1 committed · 2 ambitious
@@ -108,6 +133,10 @@ export function GrowthTree({ lang }: { lang: Lang }) {
 
   const rate = [16, 22, 30][effort];                         // % of growth per second of watering
   const active = branches.filter(Boolean).length;
+  const mult = 1 + active * MULT_STEP;
+  // Simulated value of one fruit = several customers × the industry's average ticket × the tools multiplier.
+  const baseUnits = Math.min(8, Math.max(1, Math.round(240 / ticket)));
+  const fruitValue = (bonus = 1) => { const units = Math.max(1, Math.round(baseUnits * mult * bonus)); return { units, amount: units * ticket }; };
   const ripe = stage.filter(x => x === 3).length;
   const phase = growth === 0 ? 0 : growth < 50 ? 1 : active === 0 ? 2 : active === 6 && growth >= 100 && harvested >= 3 ? 5 : ripe > 0 ? 4 : 3;
   const step = phase <= 1 ? 0 : phase === 2 ? 1 : phase < 5 ? 2 : 3;
@@ -185,8 +214,8 @@ export function GrowthTree({ lang }: { lang: Lang }) {
     setStage(prev => {
       const next = [...prev];
       for (let n = 0; n < times; n++) {
-        const i = next.findIndex((x, k) => x > 0 && x < 3 && branches[SPOTS[k].branch]);
-        if (i < 0) break; next[i] += 1;
+        const open = next.map((x, k) => (x > 0 && x < 3 && branches[SPOTS[k].branch] && !fallingRef.current.has(k) ? k : -1)).filter(k => k >= 0);
+        if (!open.length) break; next[open[Math.floor(Math.random() * open.length)]] += 1;   // spread across the crown
       }
       return next;
     });
@@ -198,8 +227,8 @@ export function GrowthTree({ lang }: { lang: Lang }) {
     const now = performance.now(), dt = Math.min(.5, Math.max(0, (now - (lastTick.current || now)) / 1000)); lastTick.current = now;
     setGrowth(v => Math.min(100, Math.round((v + rate * dt) * 10) / 10));
     ripenAcc.current += dt;
-    if (ripenAcc.current >= .5) { ripenAcc.current = 0; ripen(1); }
-  }, [rate, ripen]);
+    if (ripenAcc.current >= .5) { ripenAcc.current = 0; ripen(Math.max(1, active)); }
+  }, [rate, ripen, active]);
 
   // Every press (tap or hold) guarantees at least ~1.1 s of water from that press, so quick taps add up instead of
   // cutting a pour short; holding keeps the water flowing until release.
@@ -223,7 +252,7 @@ export function GrowthTree({ lang }: { lang: Lang }) {
     if (growth < 50 || branches[b]) return;
     setBranches(prev => prev.map((x, i) => x || i === b));
     setStage(prev => prev.map((x, i) => (SPOTS[i].branch === b && x === 0 ? 1 : x)));
-    setValue(prev => prev.map((x, i) => (SPOTS[i].branch === b && !x ? ticket : x)));
+    const id = Date.now(); setBoosts(bs => [...bs, { id, b }]); window.setTimeout(() => setBoosts(bs => bs.filter(k => k.id !== id)), 1800);
     const bx = box.current, sc = scene.current;
     if (bx && sc && !reduced.current) {   // a burst of energy where the branch attaches
       const sr = sc.getBoundingClientRect(), br = bx.getBoundingClientRect(), [nx, ny] = NODES[b];
@@ -235,9 +264,10 @@ export function GrowthTree({ lang }: { lang: Lang }) {
   // Natural ripening on active branches while the scene is visible.
   useEffect(() => {
     if (!active) return;
-    const id = window.setInterval(() => { if (visible.current && growth >= 50) ripen(1); }, 2400);
+    // More tools → more fruit ripens per tick: the multiplier is visible in how fast the tree fills up.
+    const id = window.setInterval(() => { if (visible.current && growth >= 50) ripen(Math.ceil(active * mult / 2)); }, 1100);
     return () => window.clearInterval(id);
-  }, [active, growth, ripen]);
+  }, [active, growth, ripen, mult]);
 
   // A sale in any demo ripens one apple on the branch that produced it.
   useEffect(() => {
@@ -249,35 +279,38 @@ export function GrowthTree({ lang }: { lang: Lang }) {
     setBranches(prev => prev.map((x, k) => x || k === f.branch));
     if (i >= 0) {
       setStage(prev => prev.map((x, k) => (k === i ? 3 : SPOTS[k].branch === f.branch && x === 0 ? 1 : x)));
-      setValue(prev => prev.map((x, k) => (k === i ? amount : x || ticket)));
+      setValue(prev => prev.map((x, k) => (k === i ? amount : x)));
     }
     setNotice(c.fromDemo);
     dispatch({ type: "fruitTaken", id: f.id });
   }, [state.fruitQueue, state.sales, stage, dispatch, ticket, c.fromDemo]);
 
   /* ── harvest: gravity, two bounces, shockwave, gold burst, spinning coin, revenue ───────────────────────── */
-  const harvest = (i: number) => {
-    if (stage[i] !== 3 || falling !== null) return;
-    const node = box.current, el = apples.current[i], sc = scene.current; if (!node || !el || !sc) return;
-    const amount = value[i] || ticket, label = c.labels[seq.current++ % c.labels.length];
+  const harvest = (i: number, opts: { quiet?: boolean } = {}) => {
+    if (stage[i] !== 3 || fallingRef.current.has(i)) return 0;
+    const node = box.current, el = apples.current[i], sc = scene.current; if (!node || !el || !sc) return 0;
+    const fv = value[i] ? { units: 0, amount: value[i] } : fruitValue(.85 + Math.random() * .4);
+    const noun = c.labels[seq.current++ % c.labels.length];
+    const label = fv.units ? `${fv.units} ${noun}` : c.demoSale;
+    fallingRef.current.add(i); setFalling([...fallingRef.current]);
     const land = (dx: number) => {
       const sr = sc.getBoundingClientRect(), br = node.getBoundingClientRect();
       const x = br.left - sr.left + SPOTS[i].x * br.width + dx, y = br.top - sr.top + FLOOR * br.height;
       if (!reduced.current) {
-        for (let k = 0; k < 46; k++) { const a = Math.random() * Math.PI; const s = 120 + Math.random() * 260; fx.current.push({ kind: "gold", x, y: y - 4, vx: Math.cos(a) * s * (Math.random() < .5 ? -1 : 1), vy: -Math.sin(a) * s, life: 0, max: 1 + Math.random() * .8, size: 1.4 + Math.random() * 2.4 }); }
+        const n = opts.quiet ? 22 : 46;
+        for (let k = 0; k < n; k++) { const a = Math.random() * Math.PI; const sp = 120 + Math.random() * 260; fx.current.push({ kind: "gold", x, y: y - 4, vx: Math.cos(a) * sp * (Math.random() < .5 ? -1 : 1), vy: -Math.sin(a) * sp, life: 0, max: 1 + Math.random() * .8, size: 1.4 + Math.random() * 2.4 }); }
         kick();
       }
-      const id = Date.now() + i, xr = (SPOTS[i].x * br.width + dx) / br.width;
+      const id = Date.now() + i * 7 + Math.random(), xr = (SPOTS[i].x * br.width + dx) / br.width;
       setWaves(ws => [...ws, { id, x: xr }]); window.setTimeout(() => setWaves(ws => ws.filter(k => k.id !== id)), 1300);
-      setCoins(cs => [...cs, { id, x: xr, amount: `+${money(amount)}`, label }]); window.setTimeout(() => setCoins(cs => cs.filter(k => k.id !== id)), 2600);
-      setRevenue(r => r + amount); setHarvested(n => n + 1); setBump(b => b + 1);
+      setCoins(cs => [...cs.slice(-7), { id, x: xr, amount: `+${money(fv.amount)}`, label }]); window.setTimeout(() => setCoins(cs => cs.filter(k => k.id !== id)), 2600);
+      setRevenue(r => r + fv.amount); setHarvested(n => n + 1); setBump(b => b + 1);
       el.style.transform = ""; el.style.opacity = "";
-      setFalling(null);
+      fallingRef.current.delete(i); setFalling([...fallingRef.current]);
       setStage(prev => prev.map((x, k) => (k === i ? (branches[SPOTS[i].branch] ? 1 : 0) : x)));   // the branch keeps producing
-      setValue(prev => prev.map((x, k) => (k === i ? ticket : x)));
+      setValue(prev => prev.map((x, k) => (k === i ? 0 : x)));
     };
-    setFalling(i);
-    if (reduced.current) { land(0); return; }
+    if (reduced.current) { land(0); return fv.amount; }
     const ground = (FLOOR - SPOTS[i].y) * node.clientHeight;
     let y = 0, vy = -110, x = 0, rot = 0, bounces = 0, last = performance.now(), squash = 1;
     const vx = (Math.random() - .5) * 90;
@@ -291,11 +324,20 @@ export function GrowthTree({ lang }: { lang: Lang }) {
       requestAnimationFrame(stepFall);
     };
     requestAnimationFrame(stepFall);
+    return fv.amount;
+  };
+
+  // Harvest everything that is ripe: a cascade of falling fruit, a rain of coins and one big total.
+  const harvestAll = () => {
+    const ripeIdx = stage.map((x, k) => (x === 3 && !fallingRef.current.has(k) ? k : -1)).filter(k => k >= 0);
+    let sum = 0;
+    ripeIdx.forEach((k, n) => { const amount = value[k] || fruitValue(1).amount; sum += amount; window.setTimeout(() => harvest(k, { quiet: true }), n * 130); });
+    if (sum) { const id = Date.now(); setTotal({ id, amount: sum }); window.setTimeout(() => setTotal(tt => (tt?.id === id ? null : tt)), 3400); }
   };
 
   const restart = () => {
     setGrowth(0); setBranches(Array(6).fill(false)); setStage(Array(SPOTS.length).fill(0)); setValue(Array(SPOTS.length).fill(0));
-    setRevenue(0); setShown(0); setHarvested(0); setNotice(""); setCoins([]); setWaves([]);
+    setRevenue(0); setShown(0); setHarvested(0); setNotice(""); setCoins([]); setWaves([]); setTotal(null);
   };
 
   const vars = useMemo(() => {
@@ -332,9 +374,9 @@ export function GrowthTree({ lang }: { lang: Lang }) {
             </button>)}
             {SPOTS.map((sp, i) => {
               const st = stage[i], name = c.branches[sp.branch][0];
-              return <button key={i} ref={el => { apples.current[i] = el; }} type="button" className={t.apple} data-stage={st} data-falling={falling === i}
+              return <button key={i} ref={el => { apples.current[i] = el; }} type="button" className={t.apple} data-stage={st} data-falling={falling.includes(i)}
                 style={{ left: `${sp.x * 100}%`, top: `${sp.y * 100}%`, width: `${sp.r * 2 * 1.45 * 100}%`, ["--d" as string]: `${(i % 4) * -.7}s` }}
-                disabled={st !== 3 || falling !== null} tabIndex={st === 0 ? -1 : 0} aria-hidden={st === 0}
+                disabled={st !== 3 || falling.includes(i)} tabIndex={st === 0 ? -1 : 0} aria-hidden={st === 0}
                 aria-label={st === 3 ? c.harvestApple(name) : c.unripe(name)} onClick={() => harvest(i)}>
                 <span className={t.fruit}><span className={t.glow} /><img src={`/brand/tree/apple-${sp.sprite}.webp`} alt="" width={160} height={160} loading="lazy" decoding="async" draggable={false} /><span className={t.spec} /></span>
               </button>;
@@ -342,6 +384,8 @@ export function GrowthTree({ lang }: { lang: Lang }) {
             {waves.map(w => <span key={w.id} className={t.wave} style={{ left: `${w.x * 100}%`, top: `${FLOOR * 100}%` }} aria-hidden="true" />)}
             {coins.map(k => <span key={k.id} className={t.cash} style={{ left: `${k.x * 100}%`, top: `${FLOOR * 100}%` }} aria-hidden="true">
               <span className={t.coin}><b>$</b></span><strong>{k.amount}</strong><em>{k.label}</em></span>)}
+            {boosts.map(k => <span key={k.id} className={t.boost} style={{ left: `${NODES[k.b][0] * 100}%`, top: `${NODES[k.b][1] * 100}%` }} aria-hidden="true">{c.boost}</span>)}
+            {total && <span key={total.id} className={t.total} aria-hidden="true"><small>{c.harvestTotal}</small>+{money(total.amount)}</span>}
           </div>
         </div>
         <canvas ref={canvas} className={t.fx} aria-hidden="true" />
@@ -356,11 +400,14 @@ export function GrowthTree({ lang }: { lang: Lang }) {
 
         <div className={t.bank} data-bump={bump % 2} aria-live="polite">
           <span>{c.revenue}</span><b key={bump}>{money(shown)}</b>
-          <small>{harvested} {c.harvested.toLowerCase()} · {active}/6 {c.tools.toLowerCase()}</small>
+          <small>{harvested} {c.harvested.toLowerCase()} · ×{mult.toFixed(1)}</small>
         </div>
 
         <div className={t.dock}>
           <p className={t.hint} aria-live="polite">{notice || c.hints[phase]}</p>
+          {ripe >= 2 && <button type="button" className={t.harvestAll} onClick={harvestAll}>
+            <span aria-hidden="true">$</span>{c.harvestAll(ripe)}
+          </button>}
           <div className={t.controls}>
             <button type="button" className={t.water} aria-label={c.waterLabel} data-on={pouring}
               onPointerDown={e => { if (e.button === 0) { e.currentTarget.setPointerCapture?.(e.pointerId); startPour(); } }}
@@ -375,10 +422,15 @@ export function GrowthTree({ lang }: { lang: Lang }) {
               <div>{c.level.map((l, i) => <button key={l} type="button" role="radio" aria-checked={effort === i} onClick={() => setEffort(i)}>{l}</button>)}</div>
             </div>
           </div>
+          <div className={t.multi} aria-live="polite">
+            <b>{c.mult} ×{mult.toFixed(1)}</b>
+            <span className={t.segs} aria-hidden="true">{branches.map((on, b) => <i key={b} data-on={on} />)}</span>
+            <small>{active ? c.multHint : c.noTools}</small>
+          </div>
           <ul className={t.rail} aria-label={c.tools}>
             {c.branches.map(([name, result], b) => <li key={name}>
               <button type="button" aria-pressed={branches[b]} disabled={growth < 50 && !branches[b]} onClick={() => activate(b)}>
-                <i aria-hidden="true" /><span><b>{name}</b><small>{branches[b] ? `${c.active} · ${result}` : growth < 50 ? c.lock : result}</small></span>
+                <i aria-hidden="true" /><span><b>{name}</b><small>{branches[b] ? `${c.active} · ${result}` : growth < 50 ? c.lock : `${result} · ${c.boost}`}</small></span>
               </button>
             </li>)}
           </ul>

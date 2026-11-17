@@ -12,7 +12,7 @@
 .wrap { --ink: #f3f5fb; --ink2: rgba(232, 236, 245, .76); --ink3: rgba(232, 236, 245, .52); --gold: #ffbf6b; --line: rgba(255, 255, 255, .12); --bg: #050610; position: relative; }
 .scene { position: relative; overflow: hidden; isolation: isolate; container-type: size; background: #07080e;
   height: clamp(700px, 100svh, 1020px); --mx: 0; --my: 0; --sy: 0;
-  --H: min(108cqh, 175cqw); --floor: 68cqh; --bw: calc(var(--H) * .5625);
+  --H: min(104cqh, 175cqw); --floor: 64cqh; --bw: calc(var(--H) * .5625);
   transition: --g 1.4s cubic-bezier(.2, .8, .2, 1), --all 2.4s ease, --pour .5s ease, --b0 1.6s ease, --b1 1.6s ease, --b2 1.6s ease, --b3 1.6s ease, --b4 1.6s ease, --b5 1.6s ease; }
 
 /* 1 · The room: the same master, enlarged and blurred — identical light and colour all the way to the edges. */
@@ -41,12 +41,12 @@
 .dormant, .alive { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; display: block; user-select: none; pointer-events: none; }
 .dormant { filter: grayscale(.7) brightness(.44) contrast(1.08) sepia(.15); }
 .alive { filter: saturate(1.08) contrast(1.04) brightness(calc(.92 + var(--pour) * .12));
-  --m: radial-gradient(ellipse calc(var(--b0) * 27% + .1%) calc(var(--b0) * 11% + .1%) at 20% 27%, #000 45%, transparent 100%),
-       radial-gradient(ellipse calc(var(--b1) * 22% + .1%) calc(var(--b1) * 10% + .1%) at 26% 16%, #000 45%, transparent 100%),
-       radial-gradient(ellipse calc(var(--b2) * 26% + .1%) calc(var(--b2) * 9% + .1%) at 42% 8.5%, #000 45%, transparent 100%),
-       radial-gradient(ellipse calc(var(--b3) * 20% + .1%) calc(var(--b3) * 11% + .1%) at 48% 24%, #000 45%, transparent 100%),
-       radial-gradient(ellipse calc(var(--b4) * 30% + .1%) calc(var(--b4) * 11% + .1%) at 73% 16%, #000 45%, transparent 100%),
-       radial-gradient(ellipse calc(var(--b5) * 27% + .1%) calc(var(--b5) * 10% + .1%) at 79% 30%, #000 45%, transparent 100%),
+  --m: radial-gradient(ellipse calc(var(--b0) * 35% + .1%) calc(var(--b0) * 14% + .1%) at 20% 27%, #000 45%, transparent 100%),
+       radial-gradient(ellipse calc(var(--b1) * 29% + .1%) calc(var(--b1) * 13% + .1%) at 26% 16%, #000 45%, transparent 100%),
+       radial-gradient(ellipse calc(var(--b2) * 34% + .1%) calc(var(--b2) * 12% + .1%) at 42% 8.5%, #000 45%, transparent 100%),
+       radial-gradient(ellipse calc(var(--b3) * 26% + .1%) calc(var(--b3) * 14% + .1%) at 48% 24%, #000 45%, transparent 100%),
+       radial-gradient(ellipse calc(var(--b4) * 39% + .1%) calc(var(--b4) * 14% + .1%) at 73% 16%, #000 45%, transparent 100%),
+       radial-gradient(ellipse calc(var(--b5) * 35% + .1%) calc(var(--b5) * 13% + .1%) at 79% 30%, #000 45%, transparent 100%),
        linear-gradient(to top, #000 0%, #000 calc(36% + var(--g) * .31%), transparent calc(44% + var(--g) * .31%)),
        linear-gradient(rgba(0, 0, 0, var(--all)), rgba(0, 0, 0, var(--all)));
   -webkit-mask-image: var(--m); mask-image: var(--m); -webkit-mask-repeat: no-repeat; mask-repeat: no-repeat; }
@@ -173,6 +173,25 @@
 .rail button[aria-pressed="true"] i { background: radial-gradient(circle at 35% 30%, #fff8e6, #ffcf86 45%, #ff9a3c 80%); box-shadow: 0 0 14px rgba(255, 180, 90, 1); }
 .rail button[aria-pressed="true"] small { color: var(--gold); }
 
+/* Tools make the tree pay: activation chip, multiplier meter, harvest-all and the big total. */
+.boost { position: absolute; z-index: 9; transform: translate(-50%, -50%); pointer-events: none; white-space: nowrap; font: 800 14px var(--sans, system-ui); color: #fff;
+  padding: 6px 12px; border-radius: 999px; background: linear-gradient(120deg, rgba(255, 150, 60, .92), rgba(255, 196, 110, .92)); box-shadow: 0 0 26px rgba(255, 170, 80, .8); animation: boost 1.8s cubic-bezier(.2, .8, .2, 1) forwards; }
+@keyframes boost { 0% { opacity: 0; transform: translate(-50%, -20%) scale(.6); } 18% { opacity: 1; transform: translate(-50%, -80%) scale(1.06); } 75% { opacity: 1; } 100% { opacity: 0; transform: translate(-50%, -220%); } }
+.total { position: absolute; z-index: 9; left: 50%; top: 40%; transform: translate(-50%, -50%); pointer-events: none; display: grid; justify-items: center; white-space: nowrap;
+  font: 900 clamp(34px, 7cqw, 64px) var(--sans, system-ui); color: #ffd58a; text-shadow: 0 0 30px rgba(255, 170, 80, .95), 0 4px 0 rgba(90, 45, 0, .5); animation: total 3.4s cubic-bezier(.2, .8, .2, 1) forwards; }
+.total small { font-size: 13px; font-weight: 800; letter-spacing: .2em; text-transform: uppercase; color: #fff; text-shadow: 0 2px 12px rgba(0, 0, 0, .8); }
+@keyframes total { 0% { opacity: 0; transform: translate(-50%, -30%) scale(.5); } 14% { opacity: 1; transform: translate(-50%, -50%) scale(1.12); } 24% { transform: translate(-50%, -50%) scale(1); } 80% { opacity: 1; } 100% { opacity: 0; transform: translate(-50%, -80%) scale(1.04); } }
+.harvestAll { min-height: 54px; display: inline-flex; align-items: center; gap: 10px; padding: 0 24px; border: 0; border-radius: 999px; cursor: pointer; font: 800 16px var(--sans, system-ui); color: #2a1702;
+  background: linear-gradient(120deg, #ffe0a0, #ffb252 55%, #ff8a2a); box-shadow: 0 0 0 0 rgba(255, 180, 90, .7), 0 16px 40px -14px rgba(255, 150, 60, .95); animation: ripeCall 1.6s ease-out infinite; }
+.harvestAll span { width: 28px; height: 28px; display: grid; place-items: center; border-radius: 50%; background: radial-gradient(circle at 32% 28%, #fff6d8, #ffd27f 40%, #c47f22); color: #5b3405; font-weight: 900; box-shadow: inset 0 -2px 4px rgba(90, 45, 0, .5); }
+.harvestAll:focus-visible { outline: 3px solid #30daf4; outline-offset: 3px; }
+@keyframes ripeCall { 0% { box-shadow: 0 0 0 0 rgba(255, 180, 90, .7), 0 16px 40px -14px rgba(255, 150, 60, .95); } 100% { box-shadow: 0 0 0 16px rgba(255, 180, 90, 0), 0 16px 40px -14px rgba(255, 150, 60, .95); } }
+.multi { display: flex; flex-wrap: wrap; align-items: center; justify-content: center; gap: 6px 12px; text-align: center; }
+.multi b { font: 800 15px var(--sans, system-ui); color: var(--gold); text-shadow: 0 0 14px rgba(255, 170, 80, .5); }
+.multi small { width: 100%; font-size: 12px; color: var(--ink2); }
+.segs { display: inline-flex; gap: 4px; }
+.segs i { width: 22px; height: 7px; border-radius: 4px; background: rgba(255, 255, 255, .14); transition: background .4s, box-shadow .4s; }
+.segs i[data-on="true"] { background: linear-gradient(90deg, #ffcf86, #ff9a3c); box-shadow: 0 0 10px rgba(255, 170, 80, .8); }
 .final { display: flex; flex-wrap: wrap; justify-content: center; gap: 10px; }
 .cta, .ghost, .reset { min-height: 46px; display: inline-flex; align-items: center; justify-content: center; padding: 0 18px; border-radius: 999px; font: 700 14px var(--sans, system-ui); text-decoration: none; cursor: pointer; }
 .cta { color: #fff; background: linear-gradient(120deg, #2979ff, #7847ff); border: 0; }
@@ -182,7 +201,7 @@
 
 /* Stacked composition (phones, tablets, narrow laptops): title above the crown, dock below the roots. */
 @media (max-width: 1179px) {
-  .scene { height: clamp(880px, calc(100svh + 180px), 1180px); --H: min(76cqh, 165cqw); --floor: calc(100cqh - 340px); }
+  .scene { height: clamp(960px, calc(100svh + 260px), 1260px); --H: min(72cqh, 165cqw); --floor: calc(100cqh - 420px); }
   .head { left: 50%; transform: translateX(-50%); top: 28px; width: min(640px, calc(100cqw - 32px)); text-align: center; }
   .title { font-size: clamp(30px, 8.4cqw, 48px); }
   .motto { margin-top: 10px; font-size: 14.5px; }
@@ -198,7 +217,7 @@
 }
 @media (max-width: 620px) {
   /* Phones: a taller scene so the crown sits below the title; revenue rests on the stone base where coins land. */
-  .scene { height: clamp(980px, calc(100svh + 290px), 1180px); --H: min(62cqh, 160cqw); --floor: calc(100cqh - 470px); }
+  .scene { height: clamp(1080px, calc(100svh + 380px), 1280px); --H: min(58cqh, 160cqw); --floor: calc(100cqh - 560px); }
   .bank { left: 50%; right: auto; top: calc(var(--floor) + 18px); transform: translateX(-50%); grid-auto-flow: column; align-items: baseline; justify-items: center; gap: 8px; white-space: nowrap; }
   .bank small { display: none; }
   .steps li:not([data-state="now"]) { font-size: 0; gap: 0; }
