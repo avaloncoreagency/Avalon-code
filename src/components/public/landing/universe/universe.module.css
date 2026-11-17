@@ -159,3 +159,14 @@
 @media (max-width: 980px) { .why { grid-template-columns: minmax(0, 1fr); } .process { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
 @media (max-width: 560px) { .process { grid-template-columns: minmax(0, 1fr); } }
 @media (max-width: 480px) { .treePanel .panelCtas { flex-wrap: wrap; } .treePanel .panelCtas .cta, .treePanel .panelCtas .ctaGhost { flex: 1 1 100%; } }
+
+/* Hardware loss / watchdog / data saver: normal document flow, not an empty pinned tour. */
+:global(html:not([data-universe="live"])) .act { height: auto; }
+:global(html:not([data-universe="live"])) .stage { position: relative; height: auto; overflow: visible; padding-block: 64px; }
+:global(html:not([data-universe="live"])) .launchStages { min-height: 0; }
+:global(html:not([data-universe="live"])) .launchStages li { position: relative; opacity: 1; transform: none; pointer-events: auto; }
+:global(html:not([data-universe="live"])) .panel { position: relative; inset: auto; width: min(440px, 100%); max-height: none; overflow: visible; }
+:global(html:not([data-universe="live"])) .checks { display: grid; }
+:global(html:not([data-universe="live"])) .panelLabel { display: block; }
+:global(html:not([data-universe="live"])) .chip { min-height: 44px; }
+.chip:focus-visible, .apple:focus-visible, .cta:focus-visible, .ctaGhost:focus-visible, .close:focus-visible { outline: 3px solid #30daf4; outline-offset: 4px; }

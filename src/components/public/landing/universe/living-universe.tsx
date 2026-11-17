@@ -45,7 +45,16 @@ export function LivingUniverse({ variant = "universe" }: { variant?: "universe" 
 
     // The scene itself is optional.
     let handle: UniverseHandle | null = null, dead = false;
-    const reduce = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    const motionQuery = window.matchMedia("(prefers-reduced-motion: reduce)");
+    const reduce = motionQuery.matches;
+    let disabled = reduce;
+    const deactivate = () => {
+      disabled = true; universeBus.detach(); handle?.dispose(); handle = null;
+      canvas.dataset.on = "false"; delete root.dataset.universe;
+    };
+    const motionChanged = () => { if (motionQuery.matches) deactivate(); };
+    motionQuery.addEventListener("change", motionChanged); off.push(() => motionQuery.removeEventListener("change", motionChanged));
+    canvas.addEventListener("webglcontextlost", deactivate); off.push(() => canvas.removeEventListener("webglcontextlost", deactivate));
     const saver = (navigator as Navigator & { connection?: { saveData?: boolean } }).connection?.saveData === true;
     // WebGL must be hardware-accelerated: a software rasterizer (no GPU) would burn the main thread for a worse result.
     // QA can force the scene on such machines with window.__AVALON_FORCE_GL (screenshots only; never set in production).
@@ -62,14 +71,12 @@ export function LivingUniverse({ variant = "universe" }: { variant?: "universe" 
       const boot = async () => {
         try {
           const { createUniverse } = await import("./scene");
-          if (dead) return;
+          if (dead || disabled) return;
           const mobile = window.matchMedia("(max-width: 820px), (pointer: coarse)").matches;
           const forced = (window as Window & { __AVALON_FORCE_GL?: boolean }).__AVALON_FORCE_GL === true;
-          handle = createUniverse(canvas, { mobile, ambientOnly: variant === "ambient", onTooSlow: forced ? undefined : () => {
-            universeBus.detach(); handle?.dispose(); handle = null; canvas.dataset.on = "false"; delete root.dataset.universe;
-          } });
+          handle = createUniverse(canvas, { mobile, ambientOnly: variant === "ambient", onTooSlow: forced ? undefined : deactivate });
         } catch { handle = null; return; }
-        universeBus.attach(handle); handle.start();
+        universeBus.attach(handle); if (!document.hidden) handle.start();
         canvas.dataset.on = "true"; root.dataset.universe = variant === "universe" ? "live" : "ambient";
         listen("resize", () => handle?.resize());
         listen("pointermove", e => { if (e.pointerType === "mouse") handle?.setPointer((e.clientX / window.innerWidth) * 2 - 1, (e.clientY / window.innerHeight) * 2 - 1); }, { passive: true });
@@ -79,7 +86,7 @@ export function LivingUniverse({ variant = "universe" }: { variant?: "universe" 
       };
       // After first paint and when the main thread is idle: the hero copy is the LCP, not the canvas.
       const w = window as Window & { requestIdleCallback?: (cb: () => void, o?: { timeout: number }) => number };
-      if (w.requestIdleCallback) w.requestIdleCallback(() => void boot(), { timeout: 1500 }); else window.setTimeout(() => void boot(), 350);
+      if (w.requestIdleCallback) w.requestIdleCallback(() => { if (!dead && !disabled) void boot(); }, { timeout: 1500 }); else window.setTimeout(() => { if (!dead && !disabled) void boot(); }, 350);
     }
     return () => {
       dead = true; cancelAnimationFrame(raf); for (const f of off) f();

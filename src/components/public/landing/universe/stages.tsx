@@ -6,6 +6,14 @@ import { universeBus } from "./bus";
 import { UNIVERSE } from "./copy";
 import u from "./universe.module.css";
 
+/** Remove projected-only styles before returning to normal document flow. */
+export function resetProjection(elements: (HTMLButtonElement | null)[]) {
+  for (const el of elements) {
+    if (!el) continue;
+    for (const property of ["transform", "opacity", "z-index", "pointer-events"]) el.style.removeProperty(property);
+    el.removeAttribute("tabindex");
+  }
+}
 const clamp = (v: number, a: number, b: number) => Math.min(b, Math.max(a, v));
 const q = (lang: Lang) => (lang === "en" ? "?lang=en" : "");
 const quoteHref = (lang: Lang, services: string) => `/?${lang === "en" ? "lang=en&" : ""}${services ? `services=${services}` : ""}#cotizacion`;
@@ -37,6 +45,7 @@ export function EngineStage({ lang }: { lang: Lang }) {
     if (n !== scrollIdx.current) { scrollIdx.current = n; setActive(n); }   // scrolling moves the tour on; a click holds until then
   }), []);
   useEffect(() => { universeBus.engine(active); }, [active]);
+  useEffect(() => universeBus.onReset(() => resetProjection(chips.current)), []);
   useEffect(() => universeBus.onFrame(f => {
     const box = stage.current?.getBoundingClientRect(); if (!box) return;
     for (let i = 0; i < 6; i++) {
@@ -47,7 +56,7 @@ export function EngineStage({ lang }: { lang: Lang }) {
       const half = el.offsetWidth / 2 + 8, cx = clamp(x, half, Math.max(half, box.width - half)), drop = box.width < 900 ? 34 : 56;
       el.style.transform = `translate3d(${cx.toFixed(1)}px, ${y.toFixed(1)}px, 0) translate(-50%, ${drop}px) scale(${(0.88 + (depth + 1) * 0.06).toFixed(3)})`;
       el.style.opacity = show ? String(0.5 + (depth + 1) * 0.25) : "0"; el.style.zIndex = String(10 + Math.round(depth * 5));
-      el.style.pointerEvents = show ? "auto" : "none";
+      el.style.pointerEvents = show ? "auto" : "none"; el.tabIndex = show ? 0 : -1;
     }
   }), []);
   const m = t.modules[active];
@@ -84,13 +93,14 @@ export function TreeStage({ lang }: { lang: Lang }) {
   const t = UNIVERSE[lang].tree; const [active, setActive] = useState<number | null>(null); const [hover, setHover] = useState<number | null>(null);
   const stage = useRef<HTMLDivElement>(null), dots = useRef<(HTMLButtonElement | null)[]>([]);
   useEffect(() => { universeBus.apple(hover ?? active); }, [hover, active]);
+  useEffect(() => universeBus.onReset(() => resetProjection(dots.current)), []);
   useEffect(() => universeBus.onFrame(f => {
     const box = stage.current?.getBoundingClientRect(); if (!box) return;
     for (let i = 0; i < 10; i++) {
       const el = dots.current[i]; if (!el) continue;
       const s = f.tree[i * 3 + 2], show = s > 0.35 && f.t > 2.95 && f.t < 4.6;
       el.style.transform = `translate3d(${(f.tree[i * 3] - box.left).toFixed(1)}px, ${(f.tree[i * 3 + 1] - box.top).toFixed(1)}px, 0) translate(-50%, -50%)`;
-      el.style.opacity = show ? "1" : "0"; el.style.pointerEvents = show ? "auto" : "none";
+      el.style.opacity = show ? "1" : "0"; el.style.pointerEvents = show ? "auto" : "none"; el.tabIndex = show ? 0 : -1;
     }
   }), []);
   const a = active === null ? null : t.apples[active];

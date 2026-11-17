@@ -6,7 +6,7 @@ const ts = require("typescript");
 
 const read = f => fs.readFileSync(f, "utf8");
 const load = file => {
-  const js = ts.transpileModule(read(file), { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 } }).outputText;
+  const js = ts.transpileModule(read(file), { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022, jsx: ts.JsxEmit.ReactJSX } }).outputText;
   const mod = { exports: {} }; new Function("module", "exports", "require", js)(mod, mod.exports, () => ({})); return mod.exports;
 };
 const { UNIVERSE, MODULE_FOR } = load("src/components/public/landing/universe/copy.ts");
@@ -64,4 +64,22 @@ test("the public transformation does not touch the private OS", () => {
   const chrome = read("src/components/public/landing/site-chrome.tsx");
   assert.match(chrome, /<LivingUniverse variant=\{scene\} \/>/);
   assert.doesNotMatch(read("src/app/layout.tsx"), /LivingUniverse|universe/, "the admin shell never loads the scene");
+});
+
+
+test("detaching WebGL notifies controls to restore accessible document flow", () => {
+  const { universeBus } = load("src/components/public/landing/universe/bus.ts");
+  let reset = 0, listener = undefined;
+  const release = universeBus.onReset(() => reset++);
+  universeBus.attach({setTimeline(){},onFrame(fn){listener=fn;}});
+  assert.equal(typeof listener, "function");
+  universeBus.detach(); assert.equal(listener, null); assert.equal(reset, 1);
+  release(); universeBus.detach(); assert.equal(reset, 1);
+});
+test("fallback clears every projected style and hidden-button tabindex", () => {
+  const { resetProjection } = load("src/components/public/landing/universe/stages.tsx");
+  const removed = [], attrs = [];
+  resetProjection([null,{style:{removeProperty:p=>removed.push(p)},removeAttribute:a=>attrs.push(a)}]);
+  assert.deepEqual(removed,["transform","opacity","z-index","pointer-events"]);
+  assert.deepEqual(attrs,["tabindex"]);
 });
