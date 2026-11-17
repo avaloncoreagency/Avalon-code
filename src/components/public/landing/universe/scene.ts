@@ -180,14 +180,17 @@ export function createUniverse(canvas: HTMLCanvasElement, opts: { mobile: boolea
 
   if (!opts.ambientOnly) {
     // ── Energy core (shared look for Ignition and the Growth Engine) ────────────────────────────────────────────
+    // The moving aurora is a translucent coat on top of a PBR metal core, not an unlit sphere.
     const energyMat = (a: number, b: number) => track(new THREE.ShaderMaterial({
+      transparent: true, depthWrite: false, blending: THREE.AdditiveBlending,
       uniforms: { uTime: time, uA: { value: new THREE.Color(a) }, uB: { value: new THREE.Color(b) }, uPower: { value: 1 } },
       vertexShader: `varying vec3 vN; varying vec3 vP; varying vec3 vV; void main(){ vN = normalize(normalMatrix*normal); vec4 mv = modelViewMatrix*vec4(position,1.); vV = normalize(-mv.xyz); vP = position; gl_Position = projectionMatrix*mv; }`,
       fragmentShader: `uniform float uTime; uniform vec3 uA; uniform vec3 uB; uniform float uPower; varying vec3 vN; varying vec3 vP; varying vec3 vV;
         void main(){ float f = pow(1. - max(dot(normalize(vN), normalize(vV)), 0.), 2.);
           float n = sin(vP.x*6.+uTime*1.3)*sin(vP.y*7.-uTime*1.1)*sin(vP.z*5.+uTime*.9);
           float bands = .5 + .5*sin(vP.y*13. + n*3.5 + uTime*2.);
-          vec3 col = mix(uA, uB, bands)*(.5+.7*n) + f*vec3(.55,.8,1.)*1.5; gl_FragColor = vec4(col*uPower, 1.); }`,
+          vec3 col = mix(uA, uB, bands)*(.5+.7*n) + f*vec3(.55,.8,1.)*1.5;
+          gl_FragColor = vec4(col*uPower, .12 + f*.16 + bands*.08); }`,
     }));
     const sphereGeo = track(new THREE.SphereGeometry(1, 48, 32));
     const buildRings = (parent: THREE.Group, radii: number[]) => radii.map((r, i) => {
@@ -199,7 +202,8 @@ export function createUniverse(canvas: HTMLCanvasElement, opts: { mobile: boolea
     const core = new THREE.Group(); scene.add(core);
     const coreGlow = sprite(COL.electric, 9, 0.55); core.add(coreGlow);
     const coreGlow2 = sprite(COL.violet, 5, 0.5); core.add(coreGlow2);
-    const coreEnergy = new THREE.Mesh(sphereGeo, energyMat(COL.electric, COL.violet)); coreEnergy.scale.setScalar(0.62); core.add(coreEnergy);
+    const coreMetal = new THREE.Mesh(sphereGeo, liquid()); coreMetal.scale.setScalar(.585); core.add(coreMetal);
+    const coreEnergy = new THREE.Mesh(sphereGeo, energyMat(COL.electric, COL.violet)); coreEnergy.scale.setScalar(.635); core.add(coreEnergy);
     const coreRings = buildRings(core, [1.55, 1.85, 2.2]);
     const P = (x: number, y: number) => new THREE.Vector2((x - 70) / 52, (63 - y) / 52);
     const markGeo = track(new THREE.ExtrudeGeometry([new THREE.Shape([P(70, 12), P(131, 112), P(99, 112), P(70, 62), P(40, 112), P(9, 112)]), new THREE.Shape([P(70, 79), P(91, 115), P(49, 115)])],
@@ -252,7 +256,8 @@ export function createUniverse(canvas: HTMLCanvasElement, opts: { mobile: boolea
     // ── III · THE GROWTH ENGINE ─────────────────────────────────────────────────────────────────────────────────
     const engine = new THREE.Group(); engine.position.copy(ENGINE); scene.add(engine);
     engine.add(sprite(COL.electric, 8, 0.5));
-    const engEnergy = new THREE.Mesh(sphereGeo, energyMat(COL.cyan, COL.electric)); engEnergy.scale.setScalar(0.85); engine.add(engEnergy);
+    const engineMetal = new THREE.Mesh(sphereGeo, chrome(0x90b6cd, .2)); engineMetal.scale.setScalar(.79); engine.add(engineMetal);
+    const engEnergy = new THREE.Mesh(sphereGeo, energyMat(COL.cyan, COL.electric)); engEnergy.scale.setScalar(0.855); engine.add(engEnergy);
     const engRings = buildRings(engine, [1.25, 1.5]);
     const moduleGeos: THREE.BufferGeometry[] = [
       new RoundedBoxGeometry(1.25, .82, .12, 4, .065),             // website: beveled display housing
@@ -395,7 +400,9 @@ export function createUniverse(canvas: HTMLCanvasElement, opts: { mobile: boolea
       const dive = smooth(1.0, 1.07, Ts); core.visible = Ts < 1.4;
       if (core.visible) {
         const breathe = 1 + Math.sin(t * 1.4) * 0.04 + kick * 0.25;
-        coreEnergy.scale.setScalar(0.62 * breathe * smooth(0, 1.1, w) * (1 - dive));
+        coreEnergy.scale.setScalar(.635 * breathe * smooth(0, 1.1, w) * (1 - dive));
+        coreMetal.scale.setScalar(.585 * breathe * smooth(0, 1.1, w) * (1 - dive));
+        coreMetal.rotation.y = t * .09; coreMetal.rotation.x = Math.sin(t * .32) * .12;
         (coreEnergy.material as THREE.ShaderMaterial).uniforms.uPower.value = 0.9 + kick * 1.2 + Math.sin(t * 2.1) * 0.08;
         coreGlow.scale.setScalar((7 + Math.sin(t * 1.4) * 0.6 + kick * 5) * (0.3 + 0.7 * birth)); coreGlow2.scale.setScalar(4.2 + kick * 3);
         const ringS = smooth(0.5, 1.9, w) * (1 + smooth(0.9, 1.08, Ts) * 7);
@@ -416,7 +423,10 @@ export function createUniverse(canvas: HTMLCanvasElement, opts: { mobile: boolea
       if (engine.visible) {
         const target = Math.PI / 2 - engineActive * (TAU / ENGINE_COUNT);
         let d = (target - orbitBase) % TAU; if (d > Math.PI) d -= TAU; if (d < -Math.PI) d += TAU; orbitBase += d * Math.min(1, dt * 3.2);
-        engEnergy.scale.setScalar(0.85 * (1 + Math.sin(t * 1.6) * 0.05 + kick * 0.2));
+        const energyPulse = 1 + Math.sin(t * 1.6) * .05 + kick * .2;
+        engEnergy.scale.setScalar(.855 * energyPulse);
+        engineMetal.scale.setScalar(.79 * energyPulse);
+        engineMetal.rotation.y = t * .16;
         engRings.forEach((r, i) => { r.rotation.x += dt * (0.3 + i * 0.2); r.rotation.z += dt * 0.2; });
         const wideE = aspect >= 1.15, rx = wideE ? 3.9 : 2.25, rz = wideE ? 2.4 : 1.7, ms = wideE ? 0.92 : 0.62;
         modules.forEach((mo, i) => {
