@@ -71,7 +71,7 @@ El análisis (`scripts/security/definer-audit.cjs`) toma la última definición 
 **P0, resueltas en esta rama (sin aplicar a producción):** catálogo comercial, facturas, conciliación, comisiones, libro financiero, bloqueo de proyecto, políticas explícitas, prueba estática de RPC y marcador de compatibilidad.
 
 **P0, requieren al propietario:**
-1. Aplicar `20261117100000` en producción (respaldo y autorización).
+1. ~~Aplicar `20261117100000` en producción~~ — **hecho el 2026-11-17** con autorización del propietario (registro `20261117155716_crm_core_engine`).
 2. Dar acceso financiero en `crm_private.finance_access` a quien corresponda.
 3. Decidir precios, aprobar ofertas y retirar `recepcionista-ia` del catálogo activo (`active = false`) desde el CRM.
 
