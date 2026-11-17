@@ -4,6 +4,7 @@ import { headers } from "next/headers";
 import { AUTH_RULES, authLimiter, clientIp, hashKey } from "@/lib/security/rate-limit";
 import { createClient } from "@/lib/supabase/server";
 import { getOwnerState } from "@/lib/auth/access";
+import { getStaffState } from "@/lib/auth/staff";
 import { verifyLoginHuman } from "@/lib/security/turnstile";
 
 // Avalon sign-in uses the owner's email and password, never a social redirect.
@@ -62,9 +63,12 @@ export async function signIn(formData: FormData) {
     redirect("/admin/login?error=unavailable");
   }
   if (owner.state === "mfa") redirect("/admin/mfa");
-  if (owner.state !== "ok") {
-    await supabase.auth.signOut({ scope: "local" });
-    redirect("/admin/login?error=unauthorized");
-  }
-  redirect("/admin/dashboard");
+  if (owner.state === "ok") redirect("/admin/dashboard");
+  // An operator becomes an employee only after an owner explicitly activates
+  // staff_portal_access. No unapproved account can reach the owner suite.
+  const staff = await getStaffState(supabase);
+  if (staff.state === "ok") redirect("/staff");
+  if (staff.state === "mfa") redirect("/staff/mfa");
+  await supabase.auth.signOut({ scope: "local" });
+  redirect("/admin/login?error=unauthorized");
 }
