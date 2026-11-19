@@ -33,7 +33,7 @@ create table public.crm_attributed_conversions (
 );
 create index crm_attributed_conversions_client_created on public.crm_attributed_conversions (client_id, created_at desc);
 alter table public.crm_attributed_conversions enable row level security;
-revoke all on public.crm_attributed_conversions from public, anon, authenticated;
+revoke all on public.crm_attributed_conversions from anon, authenticated, public;
 grant select on public.crm_attributed_conversions to authenticated;
 create policy crm_attribution_finance_read on public.crm_attributed_conversions for select to authenticated
   using ((select crm_private.is_owner()) and (select crm_private.can_view_client_finances()));
