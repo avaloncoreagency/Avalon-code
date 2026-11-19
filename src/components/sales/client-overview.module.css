@@ -18,3 +18,15 @@
 .manualLink summary { cursor:pointer; min-height:44px; color:#d7ecff; font-size:13px; display:list-item; padding:10px 2px }
 .manualLink .linkForm { margin-top:8px }
 .manualLink input { min-height:44px; min-width:0; padding:10px; color:#f4fbff; background:#111f3d; border:1px solid #47718e; border-radius:10px; font:inherit }
+
+
+/* A single, client-locked entry point for external products; compact on phone. */
+.quickAttach {display:grid;gap:11px;margin:12px 0 18px;padding:15px;border:1px solid rgba(70,216,246,.35);background:rgba(21,49,76,.62);border-radius:13px}
+.quickAttachRow {display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:10px}
+.quickAttach label {min-width:0;display:grid;gap:6px;color:#cfdfef;font-size:12px}
+.quickAttach select,.quickAttach input,.quickAttach button {width:100%;min-height:44px;border-radius:10px;border:1px solid #47718e;background:#111f3d;color:#f4fbff;padding:10px;font:inherit;min-width:0}
+.quickAttach button {cursor:pointer;background:linear-gradient(120deg,#0d5e82,#453c96);border-color:rgba(102,216,245,.6);font-weight:700}
+.quickAttach details summary {cursor:pointer;padding:7px 0;color:#d4eafe;font-size:12px}
+.quickAttach details[open] .quickAttachRow {margin-top:10px}
+.quickAttach small {color:#afc6db;font-size:11px;line-height:1.55}
+.quickAttach :is(input,select,button,summary):focus-visible {outline:2px solid #66d9ff;outline-offset:2px}

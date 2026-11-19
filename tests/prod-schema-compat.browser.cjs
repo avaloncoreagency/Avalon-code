@@ -10,16 +10,16 @@ const fs = require('node:fs');
 const { PGlite } = require('@electric-sql/pglite');
 const { startBridge } = require('./support/rest-bridge.cjs');
 
-// Reconciled with the Supabase production migration ledger (read-only list_migrations) on 2026-11-17.
-// Production has 41 recorded migrations; the last three are product_control_extended_import_categories_release,
-// fk_lookup_indexes_release and crm_client_agreement_drafts_release (applied 2026-11-14).
-// Local filenames differ from the remote ledger in timestamps; the first 41 replayed source files are the baseline.
-// 20261117100000_crm_core_engine is NOT in production. Verify the remote ledger before moving this marker.
-const PRODUCTION_LAST_LOCAL_MIGRATION = '20261114160000_crm_client_agreement_drafts.sql';
+// Reconciled with the Supabase production migration ledger (read-only schema_migrations) on 2026-11-19.
+// Production has 45 recorded migrations; the last one is crm_quoting_studio (20261119210002, applied 2026-11-19 with
+// owner approval; the local file carries the same version). Earlier local filenames differ from the remote ledger in
+// timestamps; the first 45 replayed source files are the baseline. Verify the remote ledger before moving this marker.
+const PRODUCTION_LAST_LOCAL_MIGRATION = '20261119210002_crm_quoting_studio.sql';
+const PRODUCTION_MIGRATIONS = 45;
 const ROUTES = ['/admin/dashboard', '/admin/profile', '/admin/settings', '/admin/search', '/admin/security',
   '/admin/workspace/crm', '/admin/workspace/crm/desk', '/admin/workspace/crm/hunter', '/admin/workspace/crm/leads', '/admin/workspace/crm/activity',
   '/admin/workspace/crm/calendar', '/admin/workspace/crm/clients', '/admin/workspace/crm/notifications', '/admin/workspace/crm/sales', '/admin/workspace/crm/sales/new',
-  '/admin/workspace/crm/settings', '/admin/workspace/crm/tasks', '/admin/workspace/library', '/admin/workspace/website-designer',
+  '/admin/workspace/crm/settings', '/admin/workspace/crm/tasks', '/admin/workspace/crm/quotes', '/admin/workspace/crm/quotes/new', '/admin/workspace/library', '/admin/workspace/website-designer',
   '/admin/workspace/ecommerce-designer', '/admin/workspace/crm-creator', '/admin/workspace/ai-receptionist', '/admin/workspace/ai-communications',
   '/admin/workspace/marketing-hub', '/admin/workspace/marketing-hub/funnels', '/admin/workspace/marketing-hub/growth'];
 const MIGUEL = '00000000-0000-4000-8000-0000000000a1';
@@ -32,16 +32,15 @@ test('new code on the production schema: no private page crashes before migratio
   await db.exec(`insert into auth.users(id,email) values('${MIGUEL}','miguel@example.invalid');`);
   const files = fs.readdirSync('supabase/migrations').filter(f => f.endsWith('.sql')).sort();
   const applied = files.filter(f => f <= PRODUCTION_LAST_LOCAL_MIGRATION);
-  assert.ok(files.includes(PRODUCTION_LAST_LOCAL_MIGRATION) && applied.length === 41, `production state = 41 local files (${applied.length})`);
+  assert.ok(files.includes(PRODUCTION_LAST_LOCAL_MIGRATION) && applied.length === PRODUCTION_MIGRATIONS, `production state = ${PRODUCTION_MIGRATIONS} local files (${applied.length})`);
   for (const file of applied) {
     await db.exec(fs.readFileSync(`supabase/migrations/${file}`, 'utf8'));
     if (file.startsWith('20261102053022')) await db.exec(`insert into agency_memberships(user_id,role) values('${MIGUEL}','owner');`);
   }
-  // Production already has contract drafts (applied 2026-11-14) but NOT the Core Engine ledger: pages opened on an
-  // existing client must show an honest unavailable state for the missing tables, not a 500.
+  // Production has contract drafts (2026-11-14) and the Core Engine ledger (2026-11-17).
   const schema = await db.query("select to_regclass('public.crm_client_agreement_drafts') as drafts, to_regclass('public.crm_invoices') as invoices");
   assert.equal(schema.rows[0].drafts, 'crm_client_agreement_drafts', 'production has contract drafts');
-  assert.equal(schema.rows[0].invoices, null, 'production does not yet have the Core Engine ledger');
+  assert.equal(schema.rows[0].invoices, 'crm_invoices', 'production has the Core Engine ledger');
   // Guarded CRM triggers require an owner auth.uid, even during synthetic fixture setup.
   // Emulate the signed-in owner for this one insert; do not disable trigger/RLS checks.
   await db.exec(`select set_config('request.jwt.claim.sub', '${MIGUEL}', false);`);

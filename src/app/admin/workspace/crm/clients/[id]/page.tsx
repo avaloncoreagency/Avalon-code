@@ -10,19 +10,20 @@ import { SERVICES, isService } from "@/lib/os/client-hud";
 import { MODULE_KEYS, type ModuleKey } from "@/lib/os/domain";
 import { checkClientProjectLink } from "@/lib/crm/client-project-link";
 import { ClientOverview, type ClientCounts, type LinkableProduct } from "@/components/sales/client-overview";
+import { ClientEditPanel } from "@/components/sales/client-edit-panel";
 import { LeadAttachments, type LeadAttachment } from "@/components/crm/lead-attachments";
-import { label, money } from "@/lib/sales/domain";
+import { money } from "@/lib/sales/domain";
 import { ClientWorkspace } from "@/components/sales/client-workspace";
 import { loadAllRows, emptyLoaded, type FinanceSummary } from "@/lib/sales/client-finance";
 import { getCrmCapabilities, loadClientFinance } from "@/lib/sales/client-finance-server";
-import { addClientActivity, addContact, updateClient, updateClientNotes } from "../actions";
+import { addClientActivity, ensureClientOpportunity } from "../actions";
 import s from "@/components/sales/sales.module.css";
 import { loadClientLedger } from "@/lib/sales/core-engine-server";
 import { LedgerPanel } from "@/components/sales/core-panels";
 export const dynamic = "force-dynamic";
 
 type Client = { id: string; client_code: string; legal_name: string; trade_name: string; website: string; industry: string; country: string; location: string; source: string; notes: string; owner_id: string; origin_lead_id: string | null; status: string; created_at: string; version: number };
-type Contact = { id: string; full_name: string; email: string | null; phone: string; role: string; is_primary: boolean };
+type Contact = { id: string; version: number; full_name: string; email: string | null; phone: string; role: string; is_primary: boolean };
 type Sale = { id: string; sale_number: string; sold_on: string; currency: string; total: string; recurring_monthly: string; status: string; contract_status: string; delivery_status: string; crm_payments: { amount: string }[]; crm_sale_lines: { id: string }[] };
 type Order = { id: string; sale_id: string; department_id: string; project_id: string | null; status: string; due_on: string | null; assignee_id: string; recurrence: string; crm_departments: { label: string } | null };
 type Task = { id: string; title: string; status: string; priority: string; due_at: string | null; assignee_id: string; project_id: string | null };
@@ -55,11 +56,13 @@ export default async function Client360({ params, searchParams }: { params: Prom
     run<null>(supabase.from("crm_tasks").select("id", { count: "exact" }).eq("client_id", id).in("status", OPEN).lt("due_at", now).range(0, 0)),
     run<null>(supabase.from("crm_work_orders").select("id", { count: "exact" }).eq("client_id", id).range(0, 0)),
     run<null>(supabase.from("crm_client_agreement_drafts").select("id", { count: "exact" }).eq("client_id", id).range(0, 0)),
+    // Quotes issued to this client, including those issued to its opportunity before it became a client.
+    run<null>(supabase.from("crm_quotes").select("id", { count: "exact" }).or(leadId ? `client_id.eq.${id},lead_id.eq.${leadId}` : `client_id.eq.${id}`).range(0, 0)),
   ]) : Promise.resolve(null);
   // Client 360° finance (KENJI #98): every sale and every expense is read page by page until the exact server
   // count is reached. A subtotal is never shown as the client's profitability (see src/lib/sales/client-finance.ts).
   const [contacts, salesLoaded, orders, projects, legacy, tasks, timeline, owners, lead, activities, meetings, financeResult, documents, unassigned] = await Promise.all([
-    run<Contact[]>(supabase.from("crm_contacts").select("id,full_name,email,phone,role,is_primary").eq("client_id", id).order("is_primary", { ascending: false }).order("full_name")),
+    run<Contact[]>(supabase.from("crm_contacts").select("id,version,full_name,email,phone,role,is_primary").eq("client_id", id).order("is_primary", { ascending: false }).order("full_name")),
     financePermitted
       ? loadAllRows<Sale>((from, to) => supabase.from("crm_sales").select(SALE_COLUMNS, { count: "exact" }).eq("client_id", id).order("sold_on", { ascending: false }).order("id").range(from, to))
       : Promise.resolve(emptyLoaded<Sale>()),
@@ -70,7 +73,7 @@ export default async function Client360({ params, searchParams }: { params: Prom
     run<Task[]>(supabase.from("crm_tasks").select("id,title,status,priority,due_at,assignee_id,project_id").eq("client_id", id).order("due_at", { ascending: true, nullsFirst: false }).limit(300)),
     run<Event[]>(supabase.from("crm_timeline").select("id,event_type,module,detail,result,from_state,to_state,actor_id,created_at").eq("client_id", id).order("id", { ascending: false }).limit(40)),
     run<{ user_id: string; email: string }[]>(supabase.rpc("crm_owner_directory")),
-    leadId ? run<{ id: string; company: string; stage_id: string; value: string; source: string; created_at: string } | null>(supabase.from("crm_leads").select("id,company,stage_id,value,source,created_at").eq("id", leadId).maybeSingle()) : Promise.resolve(null),
+    leadId ? run<{ id: string; company: string; stage_id: string; value: string; source: string; created_at: string; crm_stages: {label:string}|null } | null>(supabase.from("crm_leads").select("id,company,stage_id,value,source,created_at,crm_stages(label)").eq("id", leadId).maybeSingle()) : Promise.resolve(null),
     // Activities on the client (FK) and, for history, on its origin lead.
     run<{ id: string; body: string; status: string; kind?: string; due_at: string | null; created_by: string; created_at: string }[]>(supabase.from("crm_activities").select("id,body,status,kind,due_at,created_by,created_at").or(leadId ? `client_id.eq.${id},lead_id.eq.${leadId}` : `client_id.eq.${id}`).order("created_at", { ascending: false }).limit(25)),
     leadId ? run<{ id: string; title: string; starts_at: string; kind: string; status: string }[]>(supabase.from("crm_events").select("id,title,starts_at,kind,status").eq("lead_id", leadId).order("starts_at", { ascending: false }).limit(10)) : Promise.resolve(null),
@@ -104,6 +107,7 @@ export default async function Client360({ params, searchParams }: { params: Prom
     overdueTasks: n(2),
     workOrders: n(3),
     agreements: n(4),
+    quotes: n(5),
     sales: financeAllowed && salesLoaded.complete && !salesLoaded.failed ? salesLoaded.rows.length : null,
     documents: documents.error ? null : documents.count,
     modules: moduleCounts,
@@ -120,19 +124,32 @@ export default async function Client360({ params, searchParams }: { params: Prom
   ];
   const nextSteps = openTasks.filter(t => !t.due_at || t.due_at >= now).slice(0, 6);
 
+  // Link or create an opportunity only after an explicit owner action.
+  const linking = c && !c.origin_lead_id
+    ? await run<boolean>(supabase.rpc("crm_client_opportunity_capability"))
+    : null;
+  const canOpenOpportunity = linking?.data === true && !linking.error;
   return <Suite active="crm"><div className={s.hud}>
     <OpsHeader lang={lang} active="clients" eyebrow={`CRM / Clientes / ${c?.client_code ?? ""}`} title={c?.legal_name ?? pick(lang, "Cliente", "Client")}
       lead={c ? [c.trade_name, c.industry, [c.location, c.country].filter(Boolean).join(", "), `${pick(lang, "Fuente", "Source")}: ${c.source}`].filter(Boolean).join(" · ") : undefined}
-      actions={c && <><Link className={`${s.button} ${s.primary}`} href={`/admin/workspace/crm/sales/new?client=${c.id}`}>{pick(lang, "+ Nueva venta", "+ New sale")}</Link><Link className={s.button} href={`/admin/workspace/crm/clients/${c.id}/contracts`}>{pick(lang, "Generar contrato", "Generate agreement")}</Link><Link className={s.button} href={`/admin/workspace/crm/tasks?view=all&client=${c.id}`}>{pick(lang, "Tareas", "Tasks")}</Link><Link className={s.button} href={`/admin/workspace/crm/activity?client=${c.id}`}>{pick(lang, "Actividad", "Activity")}</Link></>} />
+      actions={c && <><Link className={`${s.button} ${s.primary}`} href={`/admin/workspace/crm/clients/${c.id}?edit=1#client-edit`}>{pick(lang, "Editar ficha y contactos", "Edit profile and contacts")}</Link>{c.origin_lead_id && <Link className={s.button} href={`/admin/workspace/crm/quotes/new?client=${c.id}`}>{pick(lang, "+ Crear cotización", "+ Create quote")}</Link>}<Link className={s.button} href={`/admin/workspace/crm/quotes?client=${c.id}`}>{pick(lang, "Cotizaciones", "Quotes")}</Link><Link className={s.button} href={`/admin/workspace/crm/sales/new?client=${c.id}`}>{pick(lang, "+ Nueva venta", "+ New sale")}</Link><Link className={s.button} href={`/admin/workspace/crm/clients/${c.id}/contracts`}>{pick(lang, "Generar contrato", "Generate agreement")}</Link><Link className={s.button} href={`/admin/workspace/crm/clients/${c.id}/results`}>{financePermitted ? pick(lang, "Comisiones por cobrar", "Commissions receivable") : pick(lang, "Comisiones (requiere permiso)", "Commissions (permission required)")}</Link>{!c.origin_lead_id && canOpenOpportunity && <form action={ensureClientOpportunity}><input type="hidden" name="client_id" value={c.id}/><button className={s.button} type="submit">{pick(lang, "+ Crear lead vinculado", "+ Create linked lead")}</button></form>}<Link className={s.button} href={`/admin/workspace/crm/tasks?view=all&client=${c.id}`}>{pick(lang, "Tareas", "Tasks")}</Link><Link className={s.button} href={`/admin/workspace/crm/activity?client=${c.id}`}>{pick(lang, "Actividad", "Activity")}</Link></>} />
     <OkFlash lang={lang} code={q(p, "ok")} /><ErrorFlash lang={lang} code={q(p, "error")} />
     {client.error ? <Unavailable lang={lang} code={client.error} /> : c && <>
+      {!c.origin_lead_id && <p className={s.flash} data-tone="warn" role="status">{pick(lang,
+        "Esta ficha aún no tiene una oportunidad comercial vinculada. La sincronización automática estará disponible cuando se habilite la actualización de base de datos; ninguna venta se ha inventado.",
+        "This record has no linked sales opportunity. Automatic linking will become available after the database update; no sale has been fabricated.")}</p>}
+      {!c.origin_lead_id && !canOpenOpportunity && <p className={s.flash} data-tone="warn" role="status">{pick(lang,
+        "Esta ficha no tiene un lead vinculado. Si ya existe una oportunidad, comprueba su identidad antes de asociarla. Ninguna venta se inventa.",
+        "No linked lead exists. Verify an existing opportunity's identity before associating it; no sale is fabricated.")}</p>}
       {caps.source === "unavailable" && <p className={s.flash} data-tone="warn" role="status">{pick(lang, "No se pudo verificar el acceso financiero. Los importes privados permanecen ocultos.", "Finance access could not be verified. Private amounts remain hidden.")}</p>}
+      <ClientEditPanel client={c} contacts={contacts.data ?? []} unavailable={Boolean(contacts.error)} lang={lang} open={q(p, "edit") === "1"} />
       <ClientOverview lang={lang} client={c} owner={ownerName(ownerList, c.owner_id)}
         contacts={contacts.error ? null : (contacts.data ?? [])} nextSteps={nextSteps} nextStepsUnavailable={Boolean(tasks.error)}
         latest={timeline.data?.[0] ?? null} latestUnavailable={Boolean(timeline.error)} counts={counts}
-        candidates={candidates} candidateError={Boolean(unassigned.error)} financeAvailable={financeAllowed} />
+        candidates={candidates} candidateError={Boolean(unassigned.error)} financeAvailable={financeAllowed} leadStage={lead?.data?.crm_stages?.label ?? lead?.data?.stage_id ?? null} />
       {ledger?.ok && <LedgerPanel ledger={ledger.data} lang={lang}/>}
       {(!ledger || ("unavailable" in ledger)) && finance && finance.currencies.some(f => f.sales > 0) && <section className={s.stats} aria-label={pick(lang, "Situación financiera del cliente", "Client financial summary")}>
+
         {finance.currencies.filter(f => f.sales > 0).map(f => <div key={f.currency} className={s.stat}>
           <span>{pick(lang, "Contratado", "Contracted")} · {f.currency}{finance.complete ? "" : ` · ${pick(lang, "parcial", "partial")}`}</span>
           <strong>{money(lang, f.contractedCents / 100, f.currency)}</strong>
@@ -174,20 +191,6 @@ export default async function Client360({ params, searchParams }: { params: Prom
             <dt>{pick(lang, "Estado", "Status")}</dt><dd><Tag lang={lang} value={c.status} /></dd>
           </dl>
           {contacts.error ? <Unavailable lang={lang} code={contacts.error} /> : <ul className={s.list} style={{ marginTop: 12 }}>{(contacts.data ?? []).map(ct => <li key={ct.id}><strong>{ct.full_name}{ct.is_primary ? ` · ${pick(lang, "principal", "primary")}` : ""}</strong><span className={s.muted}>{[ct.role, ct.email, ct.phone].filter(Boolean).join(" · ") || "—"}</span></li>)}</ul>}
-          <details style={{ marginTop: 10 }}><summary>{pick(lang, "Añadir contacto", "Add contact")}</summary>
-            <form action={addContact} className={s.form} style={{ marginTop: 10 }}><input type="hidden" name="client_id" value={c.id} />
-              <div className={s.row}><label className={s.field}>{pick(lang, "Nombre *", "Name *")}<input name="full_name" required maxLength={160} /></label><label className={s.field}>Email<input name="email" type="email" maxLength={254} /></label></div>
-              <div className={s.row}><label className={s.field}>{pick(lang, "Teléfono", "Phone")}<input name="phone" type="tel" maxLength={40} /></label><label className={s.field}>{pick(lang, "Cargo", "Role")}<input name="role" maxLength={120} /></label></div>
-              <button className={s.button}>{pick(lang, "Guardar contacto", "Save contact")}</button></form></details>
-          <h3>{pick(lang, "Notas", "Notes")}</h3>
-          <form action={updateClientNotes} className={s.form}><input type="hidden" name="client_id" value={c.id} /><label className={s.field}><span className={s.srOnly}>{pick(lang, "Notas", "Notes")}</span><textarea name="notes" maxLength={4000} rows={4} defaultValue={c.notes} /></label><button className={s.button}>{pick(lang, "Guardar notas", "Save notes")}</button></form>
-          <details style={{ marginTop: 12 }}><summary>{pick(lang, "Editar datos del cliente", "Edit client details")}</summary>
-            <form action={updateClient} className={s.form} style={{ marginTop: 10 }}><input type="hidden" name="client_id" value={c.id} /><input type="hidden" name="version" value={c.version} />
-              <div className={s.row}><label className={s.field}>{pick(lang, "Nombre de empresa *", "Company name *")}<input name="legal_name" required maxLength={200} defaultValue={c.legal_name} /></label><label className={s.field}>{pick(lang, "Nombre comercial", "Trade name")}<input name="trade_name" maxLength={200} defaultValue={c.trade_name} /></label></div>
-              <div className={s.row}><label className={s.field}>Web<input name="website" type="url" maxLength={500} placeholder="https://" defaultValue={c.website} /></label><label className={s.field}>{pick(lang, "Industria", "Industry")}<input name="industry" maxLength={120} defaultValue={c.industry} /></label></div>
-              <div className={s.row}><label className={s.field}>{pick(lang, "País", "Country")}<input name="country" maxLength={80} defaultValue={c.country} /></label><label className={s.field}>{pick(lang, "Ubicación", "Location")}<input name="location" maxLength={200} defaultValue={c.location} /></label></div>
-              <div className={s.row}><label className={s.field}>{pick(lang, "Fuente *", "Source *")}<input name="source" required maxLength={200} defaultValue={c.source} /></label><label className={s.field}>{pick(lang, "Estado", "Status")}<select name="status" defaultValue={c.status}>{["active", "inactive", "archived"].map(x => <option key={x} value={x}>{label(lang, x)}</option>)}</select></label></div>
-              <button className={s.button}>{pick(lang, "Guardar cambios", "Save changes")}</button></form></details>
           {lead?.data && <><h3>{pick(lang, "Lead y oportunidad de origen", "Origin lead and opportunity")}</h3>
             <p className={s.muted}><Link href={`/admin/workspace/crm/lead/${lead.data.id}`}>{lead.data.company}</Link> · {lead.data.stage_id} · {lead.data.source} · {formatDate(lang, lead.data.created_at)}</p>
             {(meetings?.data ?? []).length > 0 && <><h3>{pick(lang, "Reuniones y seguimientos", "Meetings and follow-ups")}</h3><ul className={s.list}>{meetings!.data!.map(m => <li key={m.id}><strong>{m.title}</strong><small className={s.muted}>{formatDate(lang, m.starts_at, true)} · {m.kind} · {m.status}</small></li>)}</ul></>}

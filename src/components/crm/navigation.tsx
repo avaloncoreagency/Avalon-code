@@ -4,15 +4,17 @@ import { pick, type Lang } from "@/lib/i18n";
 import s from "./crm.module.css";
 
 const daily = [
-  ...crmNavigation,
+  crmNavigation[0],
+  { slug: "quotes", href: "/admin/workspace/crm/quotes", label: "Cotizaciones" },
+  ...crmNavigation.slice(1),
   { slug: "calendar", href: "/admin/workspace/crm/calendar", label: "Calendario" },
   { slug: "tasks", href: "/admin/workspace/crm/tasks", label: "Tareas" },
 ];
 const names: Record<string, [string, string]> = {
-  leads: ["Leads Pipeline", "Leads Pipeline"], sales: ["Ventas", "Sales"],
+  leads: ["Leads Pipeline", "Leads Pipeline"], quotes: ["Cotizaciones", "Quotes"], sales: ["Ventas", "Sales"],
   clients: ["Clientes 360°", "Clients 360°"], calendar: ["Calendario", "Calendar"], tasks: ["Tareas", "Tasks"],
 };
-/** All five daily operations remain visible without opening a secondary menu. */
+/** All six daily operations remain visible without opening a secondary menu. */
 export function CrmNavigation({ active, lang = "es" }: { active?: string; lang?: Lang }) {
   const selected = active === "new" ? "sales" : active;
   return (
@@ -30,7 +32,6 @@ export function CrmNavigation({ active, lang = "es" }: { active?: string; lang?:
 
 /** Keep the complete workflow one tap away, without six competing top-level tabs. */
 const tools = [
-  ["hunter", "/admin/workspace/crm/hunter", "Radar / Lead Hunter", "Radar / Lead Hunter"],
   ["desk", "/admin/workspace/crm/desk", "Bandeja comercial avanzada", "Advanced sales desk"],
   ["overview", "/admin/workspace/crm/overview", "Resumen y consumo", "Overview and usage"],
   ["new", "/admin/workspace/crm/sales/new", "Registrar venta", "Record sale"],
@@ -41,6 +42,8 @@ const tools = [
   ["activity", "/admin/workspace/crm/activity", "Centro de actividad", "Activity center"],
   ["settings", "/admin/workspace/crm/settings", "Configuración", "Settings"],
   ["ai-usage", "/admin/workspace/crm/ai-usage", "Uso de IA", "AI usage"],
+  // The experimental Radar is deliberately last; lead entry is the primary workflow.
+  ["hunter", "/admin/workspace/crm/hunter", "Radar / Lead Hunter", "Radar / Lead Hunter"],
 ] as const;
 
 export function CrmTools({ lang = "es", active }: { lang?: Lang; active?: string }) {

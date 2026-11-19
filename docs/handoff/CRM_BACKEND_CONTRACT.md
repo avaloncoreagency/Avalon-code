@@ -347,7 +347,7 @@ La ruta `POST /admin/workspace/crm/pipeline/files` ya calcula el hash real, así
 | Campo | Valor |
 |---|---|
 | Rama | `claude/core-engine-c0`, sobre `main` `c9a3fec` |
-| Migración | `supabase/migrations/20261117100000_crm_core_engine.sql` (aditiva; **sin aplicar** en producción) |
+| Migración | `supabase/migrations/20261117155716_crm_core_engine.sql` (aditiva; **aplicada en producción** el 2026-11-17, versión del registro `20261117155716`) |
 | Tipos y validación | `src/lib/sales/core-engine.ts` (puro, sin E/S) |
 | Llamadas de servidor | `src/lib/sales/core-engine-server.ts` (`server-only`; sesión del usuario; la base vuelve a comprobar el rol de propietario) |
 | Pruebas | `tests/core-engine.database.cjs` (PGlite, 3 escenarios), `tests/core-engine.test.cjs`, `tests/definer-gates.test.cjs` |

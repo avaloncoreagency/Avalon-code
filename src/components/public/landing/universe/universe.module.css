@@ -15,29 +15,39 @@
 .cosmos canvas { display: block; width: 100%; height: 100%; opacity: 0; transition: opacity 1.4s ease; }
 .cosmos canvas[data-on="true"] { opacity: 1; }
 
-/* Higgsfield 4K masters live on the owner canvas. Web-optimized derivatives are used
-   as cinematic atmospheric layers, not as replacements for actual interactive WebGL.
-   The dark gradient and pointer-events:none keep text legible and controls reachable.
-   These URLs are from the owner-authorized Higgsfield Cinema Studio generation jobs. */
+/* Higgsfield photoreal masters (docs/brand/HIGGSFIELD_MEDIA.md), served locally from /public/brand/u as optimized WebP.
+   Live WebGL: a faint atmospheric layer behind the installation. Without WebGL (reduced motion, data saver, no GPU,
+   watchdog): the master becomes the scene itself, so the fallback is cinematic instead of an empty dark page.
+   The gradient keeps copy legible and pointer-events:none keeps every control reachable. */
 .hero::before, .actLaunch .stage::before, .actEngine .stage::before, .actTree .stage::before {
   content: ""; position: absolute; inset: 0; pointer-events: none; z-index: 0;
   background-size: cover; background-repeat: no-repeat; background-position: center;
-  opacity: .21; -webkit-mask-image: linear-gradient(to bottom, transparent 0%, #000 19%, #000 77%, transparent 100%);
-  mask-image: linear-gradient(to bottom, transparent 0%, #000 19%, #000 77%, transparent 100%);
+  opacity: .22; transition: opacity 1.2s ease;
+  -webkit-mask-image: linear-gradient(to bottom, transparent 0%, #000 14%, #000 80%, transparent 100%);
+  mask-image: linear-gradient(to bottom, transparent 0%, #000 14%, #000 80%, transparent 100%);
 }
-.hero::before { background-image: linear-gradient(90deg, rgba(5,6,16,.96) 0%, rgba(5,6,16,.60) 50%, rgba(5,6,16,.14) 100%), url("https://d8j0ntlcm91z4.cloudfront.net/user_3LQAwhuUWNp8peiw4paAponIfx2/hf_20261117_050522_b4ddf43c-060d-4ab4-a522-73e5571e9626_min.webp"); background-position: 61% center; opacity: .52; }
-.actLaunch .stage::before { background-image: linear-gradient(90deg, rgba(5,6,16,.55), rgba(5,6,16,.52)), url("https://d8j0ntlcm91z4.cloudfront.net/user_3LQAwhuUWNp8peiw4paAponIfx2/hf_20261117_050519_662a5359-132e-4eee-81b9-8184d502a8be_min.webp"); }
-.actEngine .stage::before { background-image: linear-gradient(90deg, rgba(5,6,16,.78), rgba(5,6,16,.42)), url("https://d8j0ntlcm91z4.cloudfront.net/user_3LQAwhuUWNp8peiw4paAponIfx2/hf_20261117_050518_7c5cf538-cfbe-420e-be61-f6b4058f0917_min.webp"); }
-.actTree .stage::before { background-image: linear-gradient(90deg, rgba(5,6,16,.70), rgba(5,6,16,.35)), url("https://d8j0ntlcm91z4.cloudfront.net/user_3LQAwhuUWNp8peiw4paAponIfx2/hf_20261117_050518_c76f961e-a811-4dba-bb73-168524b527a9_min.webp"); }
+.hero::before { background-image: linear-gradient(90deg, rgba(5,6,16,.94) 0%, rgba(5,6,16,.55) 48%, rgba(5,6,16,.1) 100%), url("/brand/u/ignition-1280.webp"); }
+.actLaunch .stage::before { background-image: linear-gradient(90deg, rgba(5,6,16,.55), rgba(5,6,16,.5)), url("/brand/u/launch-1280.webp"); }
+.actEngine .stage::before { background-image: linear-gradient(90deg, rgba(5,6,16,.82), rgba(5,6,16,.3) 60%, rgba(5,6,16,.2)), url("/brand/u/engine-1280.webp"); }
+.actTree .stage::before { background-image: linear-gradient(90deg, rgba(5,6,16,.78), rgba(5,6,16,.28) 60%, rgba(5,6,16,.18)), url("/brand/u/tree-1280.webp"); }
+@media (min-width: 1500px) {
+  .hero::before { background-image: linear-gradient(90deg, rgba(5,6,16,.94) 0%, rgba(5,6,16,.55) 48%, rgba(5,6,16,.1) 100%), url("/brand/u/ignition-2400.webp"); }
+  .actLaunch .stage::before { background-image: linear-gradient(90deg, rgba(5,6,16,.55), rgba(5,6,16,.5)), url("/brand/u/launch-2400.webp"); }
+  .actEngine .stage::before { background-image: linear-gradient(90deg, rgba(5,6,16,.82), rgba(5,6,16,.3) 60%, rgba(5,6,16,.2)), url("/brand/u/engine-2400.webp"); }
+  .actTree .stage::before { background-image: linear-gradient(90deg, rgba(5,6,16,.78), rgba(5,6,16,.28) 60%, rgba(5,6,16,.18)), url("/brand/u/tree-2400.webp"); }
+}
 .heroInner, .scrollCue, .stageHead, .launchInner { position: relative; z-index: 1; }
-@media (max-width: 899px) {
-  .hero::before { background-position: 65% center; opacity: .34; }
-  .actLaunch .stage::before, .actEngine .stage::before, .actTree .stage::before { background-position: center top; opacity: .17; }
+@media (max-aspect-ratio: 1/1) {
+  .hero::before { background-image: linear-gradient(180deg, rgba(5,6,16,.15) 0%, rgba(5,6,16,.55) 55%, rgba(5,6,16,.95) 100%), url("/brand/u/ignition-m-720.webp"); background-position: center top; opacity: .4; }
+  .actLaunch .stage::before { background-image: linear-gradient(180deg, rgba(5,6,16,.6), rgba(5,6,16,.45)), url("/brand/u/launch-m-720.webp"); }
+  .actEngine .stage::before { background-image: linear-gradient(180deg, rgba(5,6,16,.7), rgba(5,6,16,.2) 40%, rgba(5,6,16,.9)), url("/brand/u/engine-m-720.webp"); background-position: center top; }
+  .actTree .stage::before { background-image: linear-gradient(180deg, rgba(5,6,16,.7), rgba(5,6,16,.2) 40%, rgba(5,6,16,.9)), url("/brand/u/tree-m-720.webp"); background-position: center top; }
 }
-@media (prefers-reduced-motion: reduce) {
-  .hero::before { opacity: .50; }
-  .actLaunch .stage::before, .actEngine .stage::before, .actTree .stage::before { opacity: .40; }
-}
+/* No live scene: the photoreal master carries the universe. */
+:global(html:not([data-universe="live"])) .hero::before { opacity: .62; }
+:global(html:not([data-universe="live"])) .actLaunch .stage::before,
+:global(html:not([data-universe="live"])) .actEngine .stage::before,
+:global(html:not([data-universe="live"])) .actTree .stage::before { opacity: .5; }
 
 .eyebrow { margin: 0 0 14px; font-size: 12px; font-weight: 700; letter-spacing: .26em; text-transform: uppercase; color: var(--cyan); }
 
@@ -45,9 +55,9 @@
 .hero { position: relative; min-height: 100vh; min-height: 100svh; margin-top: -68px; padding: 120px 0 84px; display: grid; align-items: center; }
 .heroInner { width: min(1200px, 100% - 2 * max(20px, env(safe-area-inset-left))); margin-inline: auto; }
 .heroCopy { max-width: 640px; }
-.title { margin: 0; font-size: clamp(46px, 8.6vw, 124px); line-height: .92; letter-spacing: -.045em; font-weight: 800; text-transform: uppercase; }
+.title { margin: 0; font-size: clamp(40px, 6.6vw, 100px); line-height: .94; letter-spacing: -.045em; font-weight: 800; text-transform: uppercase; }
 .title span { display: block; }
-.title .accent { background: linear-gradient(100deg, #fff 0%, #9fc3ff 30%, var(--violet) 62%, var(--magenta) 88%, var(--orange)); -webkit-background-clip: text; background-clip: text; color: transparent; padding-right: .06em; }
+.title .accent { background: linear-gradient(100deg, #fff 0%, #9fc3ff 30%, var(--violet) 62%, var(--magenta) 88%, var(--orange)); -webkit-background-clip: text; background-clip: text; color: transparent; padding-right: .06em; padding-top: .12em; margin-top: -.12em; display: inline-block; }
 .sub { margin: 26px 0 0; max-width: 30ch; font-size: clamp(18px, 2vw, 24px); line-height: 1.45; color: var(--ink-2); }
 .heroCtas { display: flex; flex-wrap: wrap; gap: 12px; margin-top: 34px; }
 .cta, .ctaGhost { display: inline-flex; align-items: center; justify-content: center; gap: 10px; min-height: 52px; padding: 0 26px; border-radius: 999px; font: 650 15px/1 var(--sans); text-decoration: none; cursor: pointer; border: 1px solid transparent; -webkit-tap-highlight-color: transparent; transition: transform .25s cubic-bezier(.2, .8, .2, 1), box-shadow .25s, background .25s, border-color .25s, filter .25s; }
@@ -93,6 +103,9 @@
 .chip[aria-pressed="true"] { background: linear-gradient(120deg, var(--electric), var(--violet)); border-color: transparent; color: #fff; box-shadow: 0 10px 34px -8px rgba(41, 121, 255, .9); }
 .chip[aria-pressed="true"] svg { color: #fff; }
 
+/* Selector + information panel travel together: one clear column on desktop, one bottom dock on phones,
+   so neither ever sits on top of the 3D installation whose markers they control. */
+.dock { display: grid; gap: 14px; align-content: start; min-width: 0; }
 .panel { position: relative; width: min(440px, 100%); padding: clamp(18px, 2.4vw, 28px); border-radius: 26px; background: linear-gradient(160deg, rgba(14, 20, 48, .86), rgba(8, 10, 26, .9)); border: 1px solid rgba(255, 255, 255, .14); box-shadow: 0 40px 100px -40px rgba(0, 0, 0, .9), inset 0 1px 0 rgba(255, 255, 255, .1); backdrop-filter: blur(22px) saturate(1.3); -webkit-backdrop-filter: blur(22px) saturate(1.3); animation: panelIn .5s cubic-bezier(.2, .8, .2, 1); }
 @keyframes panelIn { from { opacity: 0; transform: translateY(14px); } }
 .panel h3 { margin: 0 0 12px; font-size: clamp(22px, 2.4vw, 30px); letter-spacing: -.025em; line-height: 1.1; }
@@ -154,20 +167,28 @@
   :global(html[data-universe="live"]) .apple::before { content: ""; position: absolute; inset: 8px; border-radius: 50%; border: 1px solid rgba(255, 190, 140, .55); animation: ping 2.6s ease-out infinite; }
   @keyframes ping { 0% { transform: scale(.6); opacity: .9; } 100% { transform: scale(1.5); opacity: 0; } }
 
-  /* Wide screens: copy and panel on the left, the installation on the right. */
-  @media (min-width: 900px) {
+  /* Wide screens: copy and panel on the left, the installation on the right. The aspect rule mirrors scene.ts
+     (aspect >= 1.15 = side framing), so CSS and camera never disagree about where the installation is. */
+  @media (min-width: 900px) and (min-aspect-ratio: 23/20) {
     .stage { padding-top: 104px; gap: 18px; }
     .treePanel[data-empty="true"] { width: min(380px, 100%); }
+    .dock { width: min(460px, 100%); }
+    .dock .engineQuickNav, .dock .appleQuickNav { flex-wrap: wrap; overflow: visible; padding-bottom: 4px; }
   }
-  @media (min-width: 900px) and (max-height: 980px) {
+  @media (min-width: 900px) and (min-aspect-ratio: 23/20) and (max-height: 980px) {
     .stage { padding-top: 88px; gap: 12px; } .stageLead { display: none; } .stageTitle { font-size: clamp(26px, 3.4vw, 40px); }
     .panel { padding: 18px; } .panel h3 { font-size: 22px; margin-bottom: 8px; } .pairs { gap: 8px; margin-bottom: 10px; } .pairs dd { font-size: 13.5px; line-height: 1.45; } .checks { font-size: 13px; gap: 4px; } .panelCtas { margin-top: 12px; }
   }
   /* Portrait / phones: the installation sits in the upper half, the panel is a bottom sheet. */
-  @media (max-width: 899px) {
+  @media (max-width: 899px), (max-aspect-ratio: 229/200) {
     .stage { padding: 76px 16px 14px; gap: 8px; }
     .stageTitle { font-size: clamp(24px, 6.4vw, 34px); } .stageLead { display: none; }
-    .panel { position: absolute; left: 12px; right: 12px; bottom: 12px; width: auto; max-height: 44svh; overflow-y: auto; padding: 14px 16px; border-radius: 22px; }
+    .dock { position: absolute; left: 12px; right: 12px; bottom: 12px; gap: 6px; z-index: 3; max-width: 680px; margin-inline: auto; }
+    .dock .engineQuickNav, .dock .appleQuickNav { padding: 0 2px 2px; }
+    .dock .panel { position: relative; left: auto; right: auto; bottom: auto; }
+    /* Phones: fruit sit closer together on screen; a 44px target (WCAG 2.5.5) lets more of them stay selectable. */
+    :global(html[data-universe="live"]) .apple { width: 44px; height: 44px; }
+    .panel { position: absolute; left: 12px; right: 12px; bottom: 12px; width: auto; max-height: 40svh; overflow-y: auto; padding: 14px 16px; border-radius: 22px; }
     .panel h3 { font-size: 19px; margin-bottom: 6px; } .panelKicker { margin-bottom: 6px; font-size: 11px; } .pairs { gap: 6px; margin-bottom: 8px; } .pairs dt { font-size: 10px; margin-bottom: 2px; } .pairs dd { font-size: 13px; line-height: 1.4; }
     .checks { display: none; } .panelLabel { display: none; } .panelCtas { margin-top: 10px; flex-wrap: nowrap; gap: 8px; } .panelCtas .cta { flex: 1 1 auto; min-height: 44px; padding: 6px 14px; font-size: 13px; line-height: 1.2; text-align: center; } .panelCtas .ctaGhost { flex: 0 0 auto; min-height: 44px; padding: 0 14px; font-size: 13px; }
     .avail { font-size: 12px; padding: 8px 10px; margin-bottom: 10px; } .note { margin-top: 10px; padding-top: 10px; font-size: 11px; }
@@ -179,7 +200,7 @@
 @media (max-width: 899px) {
   .hero { align-items: end; padding: 96px 0 74px; }
   .scrollCue { bottom: 10px; } .scrollCue i { height: 22px; }
-  .title { font-size: clamp(44px, 14.5vw, 84px); }
+  .title { font-size: clamp(36px, 11.4vw, 64px); }
   .sub { margin-top: 18px; font-size: 17px; max-width: 26ch; }
   .heroCtas { margin-top: 24px; } .heroCtas .cta, .heroCtas .ctaGhost { flex: 1 1 100%; }
   .cosmos { background:
@@ -211,6 +232,7 @@
 :global(html:not([data-universe="live"])) .stage { position: relative; height: auto; overflow: visible; padding-block: 64px; }
 :global(html:not([data-universe="live"])) .launchStages { min-height: 0; }
 :global(html:not([data-universe="live"])) .launchStages li { position: relative; opacity: 1; transform: none; pointer-events: auto; }
+:global(html:not([data-universe="live"])) .dock { position: relative; inset: auto; width: auto; }
 :global(html:not([data-universe="live"])) .panel { position: relative; inset: auto; width: min(440px, 100%); max-height: none; overflow: visible; }
 :global(html:not([data-universe="live"])) .checks { display: grid; }
 :global(html:not([data-universe="live"])) .panelLabel { display: block; }

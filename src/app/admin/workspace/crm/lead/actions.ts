@@ -263,6 +263,31 @@ export async function updateLeadMeta(form: FormData) {
   if (/^[a-z][a-z0-9-]{1,49}$/.test(field(form, "stage_id"))) patch.stage_id = field(form, "stage_id");
   if (form.has("next_action")) patch.next_action = clip(field(form, "next_action"), 300);
   if (form.has("loss_reason")) patch.loss_reason = clip(field(form, "loss_reason"), 1000);
+  if (form.has("company")) {
+    const company = field(form, "company").trim();
+    if (!company || company.length > 200) back(LEAD(lead), { error: "invalid", edit: "1" });
+    patch.company = company;
+  }
+  if (form.has("email")) {
+    const email = field(form, "email").trim().toLowerCase();
+    if (email.length > 254 || (email && !/^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$/.test(email))) back(LEAD(lead), { error: "invalid", edit: "1" });
+    patch.email = email || null;
+  }
+  if (form.has("zip")) {
+    const zip = field(form, "zip").trim();
+    if (zip && !/^[A-Za-z0-9 -]{3,10}$/.test(zip)) back(LEAD(lead), { error: "invalid", edit: "1" });
+    patch.zip = zip;
+  }
+  if (form.has("industry_key")) {
+    const key = field(form, "industry_key").trim();
+    if (key && !isIndustry(key)) back(LEAD(lead), { error: "invalid", edit: "1" });
+    patch.industry_key = key || null;
+  }
+  if (form.has("source")) {
+    const source = field(form, "source").trim();
+    if (!source || source.length > 200) back(LEAD(lead), { error: "invalid", edit: "1" });
+    patch.source = source;
+  }
   for (const k of ["legal_name", "contact", "contact_title", "phone", "address", "city", "specialty", "service_area"] as const)
     if (form.has(k)) patch[k] = clip(field(form, k), k === "service_area" ? 300 : k === "address" || k === "legal_name" ? 200 : 160);
   if (form.has("google_business_url")) patch.google_business_url = httpsUrl(field(form, "google_business_url"));
@@ -271,7 +296,7 @@ export async function updateLeadMeta(form: FormData) {
   if (error) back(LEAD(lead), { error: intelErrorCode(error) });
   if (!data?.length) back(LEAD(lead), { error: "conflict" });
   revalidatePath(LEAD(lead)); revalidatePath(DESK);
-  back(LEAD(lead), { ok: "saved" });
+  back(LEAD(lead), { ok: "saved", edit: "1" });
 }
 
 // ── Commercial terms: proposed vs agreed ─────────────────────────────────────────────────────────────────────────

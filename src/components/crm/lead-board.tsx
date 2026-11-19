@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, type DragEvent } from "react";
+import { useEffect, useRef, useState, type DragEvent } from "react";
 import Link from "next/link";
 import type { Row, Stage } from "@/lib/crm/domain";
 import { followUpState, groupPipeline } from "@/lib/crm/kanban";
@@ -27,14 +27,59 @@ const priorityText: Record<string, [string, string]> = { high: ["Alta", "High"],
 export function LeadBoard({ lang = "es", stages, leads, total, page, busy, currentOwnerId, onEdit, onDetail, onMove }: Props) {
   const [draggedId, setDraggedId] = useState<string | null>(null);
   const [targetId, setTargetId] = useState<string | null>(null);
+  const scrollRef = useRef<HTMLDivElement>(null);
+  const dragPointer = useRef<{ x: number; y: number } | null>(null);
   const columns = groupPipeline(stages, leads);
+  const openStages = stages.filter((stage) => stage.kind === "open");
   const t = (es: string, en: string) => pick(lang, es, en);
+
+  // Native drag-and-drop does not scroll overflow containers when a card reaches
+  // an offscreen column. A frame loop keeps scrolling even when dragover pauses.
+  useEffect(() => {
+    if (!draggedId) return;
+    let frame = 0;
+    const trackPointer = (event: globalThis.DragEvent) => {
+      dragPointer.current = { x: event.clientX, y: event.clientY };
+    };
+    const scrollAtEdge = () => {
+      const node = scrollRef.current;
+      const pointer = dragPointer.current;
+      if (node && pointer) {
+        const rect = node.getBoundingClientRect();
+        if (pointer.y >= rect.top - 40 && pointer.y <= rect.bottom + 40) {
+          const edge = Math.min(110, rect.width * 0.22);
+          const leftDistance = pointer.x - rect.left;
+          const rightDistance = rect.right - pointer.x;
+          const strength = leftDistance >= 0 && leftDistance < edge
+            ? -Math.pow(1 - leftDistance / edge, 2)
+            : rightDistance >= 0 && rightDistance < edge
+              ? Math.pow(1 - rightDistance / edge, 2)
+              : 0;
+          if (strength) {
+            node.scrollLeft += strength * 25;
+            // Scrolling changes the column beneath a stationary drag pointer.
+            const column = document.elementFromPoint(pointer.x, pointer.y)?.closest<HTMLElement>("[data-kanban-stage]");
+            if (column && node.contains(column)) setTargetId((current) => current === column.dataset.kanbanStage ? current : column.dataset.kanbanStage ?? null);
+          }
+        }
+      }
+      frame = requestAnimationFrame(scrollAtEdge);
+    };
+    window.addEventListener("dragover", trackPointer);
+    frame = requestAnimationFrame(scrollAtEdge);
+    return () => {
+      window.removeEventListener("dragover", trackPointer);
+      cancelAnimationFrame(frame);
+      dragPointer.current = null;
+    };
+  }, [draggedId]);
 
   function drop(event: DragEvent<HTMLElement>, stageId: string) {
     event.preventDefault();
     const id = event.dataTransfer.getData("application/x-avalon-lead") || draggedId;
     setDraggedId(null);
     setTargetId(null);
+    dragPointer.current = null;
     if (busy || !id) return;
     const lead = leads.find((item) => String(item.id) === id);
     if (lead && String(lead.stage_id) !== stageId) onMove(lead, stageId);
@@ -49,12 +94,13 @@ export function LeadBoard({ lang = "es", stages, leads, total, page, busy, curre
         </div>
         <p>{t("Arrastra una tarjeta o usa Cambiar etapa. Abre Ficha para las notas y el historial.", "Drag a card or use Change stage. Open Details for notes and history.")}</p>
       </div>
-      <div className={s.scroll} role="region" tabIndex={0} aria-label={t("Columnas del pipeline; desplázate horizontalmente para ver todas las etapas", "Pipeline columns; scroll horizontally to see all stages")}>
+      <div ref={scrollRef} className={s.scroll} data-dragging={draggedId ? "true" : undefined} role="region" tabIndex={0} aria-label={t("Columnas del pipeline; desplázate horizontalmente para ver todas las etapas", "Pipeline columns; scroll horizontally to see all stages")}>
         <div className={s.board}>
           {columns.map(({ stage, leads: cards, estimatedValue }) => (
             <section
               className={s.column}
               key={stage.id}
+              data-kanban-stage={stage.id}
               data-drop-target={targetId === stage.id ? "true" : undefined}
               aria-label={stage.label}
               onDragOver={(event) => { if (!busy) { event.preventDefault(); event.dataTransfer.dropEffect = "move"; } }}
@@ -72,6 +118,9 @@ export function LeadBoard({ lang = "es", stages, leads, total, page, busy, curre
               <div className={s.cards}>
                 {cards.map((lead) => {
                   const followUp = followUpState(lead.follow_up_at);
+                  const stagePosition = openStages.findIndex((stage) => stage.id === String(lead.stage_id));
+                  const previousStage = stagePosition > 0 ? openStages[stagePosition - 1] : null;
+                  const nextStage = stagePosition >= 0 ? openStages[stagePosition + 1] : null;
                   return (
                     <article
                       className={s.card}
@@ -83,7 +132,7 @@ export function LeadBoard({ lang = "es", stages, leads, total, page, busy, curre
                         event.dataTransfer.setData("application/x-avalon-lead", id);
                         setDraggedId(id);
                       }}
-                      onDragEnd={() => { setDraggedId(null); setTargetId(null); }}
+                      onDragEnd={() => { setDraggedId(null); setTargetId(null); dragPointer.current = null; }}
                     >
                       <div className={s.cardTitle}>
                         <strong>{String(lead.company || t("Empresa sin nombre", "Unnamed business"))}</strong>
@@ -102,8 +151,16 @@ export function LeadBoard({ lang = "es", stages, leads, total, page, busy, curre
                         {" · "}{(priorityText[String(lead.priority)] ? pick(lang, ...priorityText[String(lead.priority)]) : t("Prioridad no indicada", "Priority not set"))}
                       </p>
                       <p className={s.source} title={String(lead.source ?? "")}>{t("Origen", "Source")}: {String(lead.source || t("Sin registrar", "Not recorded"))}</p>
+                      <div className={s.quickStage} aria-label={t(`Mover ${String(lead.company)} por el pipeline`, `Move ${String(lead.company)} through pipeline`)}>
+                        <button type="button" disabled={busy || !previousStage} onClick={() => previousStage && onMove(lead, previousStage.id)} aria-label={t(`Retroceder a ${previousStage?.label ?? "etapa anterior"}`, `Move back to ${previousStage?.label ?? "previous stage"}`)} title={previousStage?.label}>
+                          ← {t("Anterior", "Previous")}
+                        </button>
+                        <button type="button" disabled={busy || !nextStage} onClick={() => nextStage && onMove(lead, nextStage.id)} aria-label={t(`Avanzar a ${nextStage?.label ?? "etapa siguiente"}`, `Advance to ${nextStage?.label ?? "next stage"}`)} title={nextStage?.label}>
+                          {t("Avanzar", "Advance")} →
+                        </button>
+                      </div>
                       <label className={s.change}>
-                        {t("Cambiar etapa", "Change stage")}
+                        {t("Ir a otra etapa", "Jump to another stage")}
                         <select
                           aria-label={t(`Etapa de ${String(lead.company)}`, `Stage for ${String(lead.company)}`)}
                           disabled={busy}
@@ -115,10 +172,16 @@ export function LeadBoard({ lang = "es", stages, leads, total, page, busy, curre
                       </label>
                       <div className={s.actions}>
                         <button type="button" disabled={busy} onClick={() => onDetail(lead)}>{t("Ficha", "Details")}</button>
-                        <button type="button" disabled={busy} onClick={() => onEdit(lead)}>{t("Editar", "Edit")}</button>
+                        <Link href={`/admin/workspace/crm/lead/${String(lead.id)}?tab=summary&edit=1#lead-edit`} draggable={false}>{t("Editar datos", "Edit profile")}</Link>
                         {!lead.archived && <Link href={`/admin/workspace/crm/sales/new?lead=${encodeURIComponent(String(lead.id))}`} draggable={false} aria-label={t(`Registrar venta para ${String(lead.company)}`, `Record sale for ${String(lead.company)}`)}>{t("Registrar venta", "Record sale")}</Link>}
-                         <Link href={`/admin/workspace/crm/lead/${String(lead.id)}`} draggable={false}>Deal Review</Link>
-                         <Link href={`/admin/workspace/clients/${String(lead.id)}`} draggable={false}>{t("Proyectos", "Projects")}</Link>
+                        <details className={s.moreActions}>
+                          <summary>{t("Más opciones", "More options")}</summary>
+                          <div className={s.moreLinks}>
+                            <button type="button" disabled={busy} onClick={() => onEdit(lead)}>{t("Edición rápida", "Quick edit")}</button>
+                            <Link href={`/admin/workspace/crm/lead/${String(lead.id)}`} draggable={false}>{t("Revisar oportunidad", "Review deal")}</Link>
+                            <Link href={`/admin/workspace/clients/${String(lead.id)}`} draggable={false}>{t("Proyectos", "Projects")}</Link>
+                          </div>
+                        </details>
                       </div>
                     </article>
                   );

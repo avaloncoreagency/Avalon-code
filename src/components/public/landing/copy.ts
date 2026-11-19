@@ -6,7 +6,7 @@ export const SERVICE_ORDER: ServiceKey[] = ["website", "ecommerce", "crm", "rece
 
 export const COPY = {
   es: {
-    nav: { solutions: "Soluciones", showroom: "Showroom", industries: "Industrias", work: "Proyectos", quote: "Cotizar proyecto", menu: "Menú", lang: "EN", langLabel: "Ver en inglés" },
+    nav: { solutions: "Soluciones", showroom: "Demostraciones", industries: "Tu crecimiento", work: "Proyectos", quote: "Cotizar proyecto", menu: "Menú", lang: "EN", langLabel: "Ver en inglés" },
     hero: {
       eyebrow: "Para contratistas, profesionales y empresas",
       title: "El sistema digital que impulsa tu negocio.",
@@ -81,7 +81,7 @@ export const COPY = {
     footer: { tagline: "Soluciones digitales, automatización e IA para negocios que quieren crecer.", admin: "Acceso del equipo", rights: "Todos los derechos reservados." },
   },
   en: {
-    nav: { solutions: "Solutions", showroom: "Showroom", industries: "Industries", work: "Work", quote: "Get a quote", menu: "Menu", lang: "ES", langLabel: "Ver en español" },
+    nav: { solutions: "Solutions", showroom: "Demos", industries: "Your growth", work: "Work", quote: "Get a quote", menu: "Menu", lang: "ES", langLabel: "Ver en español" },
     hero: {
       eyebrow: "For contractors, professionals and businesses",
       title: "The digital system that powers your business.",

@@ -2,6 +2,7 @@ import Link from "next/link";
 import type { ModuleKey } from "@/lib/os/domain";
 import { pick, formatDate, type Lang } from "@/lib/i18n";
 import { linkExistingProject } from "@/app/admin/workspace/crm/clients/project-actions";
+import { createProject } from "@/app/admin/workspace/project-actions";
 import styles from "./client-overview.module.css";
 
 type Client = {
@@ -16,7 +17,7 @@ type ModuleCounts = Record<ModuleKey, number | null>;
 export type ClientCounts = {
   products: number | null; activeProducts: number | null; openTasks: number | null;
   overdueTasks: number | null; sales: number | null; documents: number | null;
-  workOrders: number | null; agreements: number | null; modules: ModuleCounts;
+  workOrders: number | null; agreements: number | null; quotes?: number | null; modules: ModuleCounts;
 };
 export type LinkableProduct = { id: string; name: string; module: ModuleKey };
 
@@ -30,10 +31,10 @@ const AREAS: { name: string; es: string; en: string; modules: ModuleKey[]; href:
 
 const digits = (v: number | null) => v === null ? "—" : String(v);
 
-export function ClientOverview({ lang, client, owner, contacts, nextSteps, nextStepsUnavailable = false, latest, latestUnavailable = false, counts, candidates, candidateError, financeAvailable = false }: {
+export function ClientOverview({ lang, client, owner, contacts, nextSteps, nextStepsUnavailable = false, latest, latestUnavailable = false, counts, candidates, candidateError, financeAvailable = false, leadStage = null }: {
   lang: Lang; client: Client; owner: string; contacts: Contact[] | null;
   nextSteps: Task[]; nextStepsUnavailable?: boolean; latest: Latest | null; latestUnavailable?: boolean; counts: ClientCounts;
-  candidates: LinkableProduct[]; candidateError: boolean; financeAvailable?: boolean;
+  candidates: LinkableProduct[]; candidateError: boolean; financeAvailable?: boolean; leadStage?: string | null;
 }) {
   const name = client.trade_name || client.legal_name;
   const initials = name.split(/\s+/).slice(0, 2).map(part => part[0] ?? "").join("").toUpperCase();
@@ -47,6 +48,7 @@ export function ClientOverview({ lang, client, owner, contacts, nextSteps, nextS
     { es: "Documentos", en: "Documents", value: counts.documents, href: "#client-files" },
     { es: "Ventas registradas", en: "Recorded sales", value: counts.sales, href: `/admin/workspace/crm/sales?client=${client.id}` },
     { es: "Órdenes de trabajo", en: "Work orders", value: counts.workOrders, href: "#projects" },
+    { es: "Cotizaciones", en: "Quotes", value: counts.quotes ?? null, href: `/admin/workspace/crm/quotes?client=${client.id}` },
     { es: "Borradores de acuerdo", en: "Agreement drafts", value: counts.agreements, href: `${base}/contracts` },
   ];
   const place = [client.location, client.country].filter(Boolean).join(", ");
@@ -59,13 +61,16 @@ export function ClientOverview({ lang, client, owner, contacts, nextSteps, nextS
           <h2>{name}</h2>
           <p className={styles.subtitle}>{[client.trade_name && client.legal_name !== client.trade_name ? client.legal_name : "", client.industry, place].filter(Boolean).join(" · ") || pick(lang, "Completa los datos de este cliente", "Complete this client's profile")}</p>
           <div className={styles.meta}>
-            <span data-status={client.status}>{pick(lang, "Estado", "Status")}: {client.status}</span>
+            <span data-status={client.status}>{pick(lang, "Estado de ficha", "Record status")}: {client.status}</span>
+             <span>{pick(lang, "Etapa comercial", "Sales stage")}: {leadStage || pick(lang, "Sin oportunidad vinculada", "No linked opportunity")}</span>
             <span>{pick(lang, "Responsable", "Owner")}: {owner}</span>
             <span>{pick(lang, "Desde", "Since")}: {formatDate(lang, client.created_at)}</span>
           </div>
         </div>
         <div className={styles.heroActions}>
-          <Link className={styles.primaryAction} href={`/admin/workspace/crm/sales/new?client=${client.id}`}>{pick(lang, "+ Registrar venta", "+ Record sale")}</Link>
+          <Link className={styles.primaryAction} href="#client-tools">{pick(lang, "+ Conectar producto", "+ Connect product")}</Link>
+           <Link href={`/admin/workspace/crm/clients/${client.id}?edit=1#client-edit`}>{pick(lang, "Editar ficha y contactos", "Edit record and contacts")}</Link>
+           <Link href={`/admin/workspace/crm/sales/new?client=${client.id}`}>{pick(lang, "+ Registrar venta", "+ Record sale")}</Link>
           <Link href={`/admin/workspace/crm/sales?client=${client.id}`}>{pick(lang, "Ver ventas del cliente", "Client sales")}</Link>
           <Link href={`${base}/contracts`}>{pick(lang, "Contratos", "Agreements")}</Link>
         </div>
@@ -98,6 +103,47 @@ export function ClientOverview({ lang, client, owner, contacts, nextSteps, nextS
       <div className={styles.layout}>
         <section className={styles.panel} id="client-tools" aria-labelledby="client-tools-title">
           <div className={styles.panelHead}><h3 id="client-tools-title">{pick(lang, "Ecosistema de herramientas", "Tools ecosystem")}</h3><span>{pick(lang, "Vínculos reales por cliente", "Real client links")}</span></div>
+           <p>{pick(lang, "Prepara un proyecto aunque todavía no exista su website, CRM o tienda. Cuando esté construido, añade su URL HTTPS desde la ficha del producto. Avalon lo vincula con esta empresa, sin registrar una venta.", "Prepare a project even if its website, CRM or store does not exist yet. Once it is built, add its HTTPS URL in the product record. Avalon links it to this company without recording a sale.")}</p>
+          <form action={createProject} className={styles.quickAttach} aria-label={pick(lang, "Registrar un producto para este cliente", "Register a product for this client")}>
+            <input type="hidden" name="client_id" value={client.id} />
+            <div className={styles.quickAttachRow}>
+              <label>{pick(lang, "1. Herramienta", "1. Tool")}
+                <select name="module" required defaultValue="website">
+                  <option value="website">Website</option>
+                  <option value="ecommerce">E-commerce</option>
+                  <option value="crm_creator">CRM personalizado</option>
+                  <option value="marketing">{pick(lang, "Marketing / Funnels", "Marketing / Funnels")}</option>
+                </select>
+              </label>
+              <label>{pick(lang, "Nombre del proyecto", "Project name")}
+                <input name="name" required maxLength={120} placeholder={pick(lang, `Website de ${name}`, `${name} website`)} />
+              </label>
+            </div>
+            <label>{pick(lang, "2. URL HTTPS del producto (si ya existe)", "2. Product HTTPS URL (if available)")}
+              <input name="url" type="url" inputMode="url" maxLength={500} placeholder="https://..." />
+            </label>
+            <small>{pick(lang, "¿Aún no lo construiste? Deja la URL vacía y guarda el proyecto como borrador. Podrás añadir el enlace desde la configuración del producto.", "Not built yet? Leave the URL empty to save a draft project. You can add the link later in product settings.")}</small>
+            <details>
+              <summary>{pick(lang, "Opciones adicionales", "Additional options")}</summary>
+              <div className={styles.quickAttachRow}>
+                <label>{pick(lang, "Creado con", "Built with")}
+                  <select name="source_tool" defaultValue="manual">
+                    <option value="manual">{pick(lang, "Registro manual", "Manual")}</option>
+                    <option value="claude_code">Claude Code</option>
+                    <option value="codex">Codex</option>
+                    <option value="higgsfield">Higgsfield</option>
+                    <option value="chatgpt">ChatGPT</option>
+                    <option value="other">{pick(lang, "Otra herramienta", "Other")}</option>
+                  </select>
+                </label>
+                <label>{pick(lang, "Repositorio HTTPS (opcional)", "HTTPS repository (optional)")}
+                  <input name="repository" type="url" inputMode="url" maxLength={500} placeholder="https://github.com/..." />
+                </label>
+              </div>
+            </details>
+            <button type="submit">{pick(lang, "Guardar y abrir proyecto", "Save and open project")}</button>
+            <small>{pick(lang, "Sin URL queda como borrador pendiente de entrega. No confirma ventas ni publica websites.", "Without a URL, it remains a draft pending delivery. This does not confirm sales or publish websites.")}</small>
+          </form>
           <div className={styles.products}>
             {AREAS.map(area => {
               const nums = area.modules.map(module => counts.modules[module]);
@@ -109,7 +155,7 @@ export function ClientOverview({ lang, client, owner, contacts, nextSteps, nextS
                 <div className={styles.productCount}><strong>{digits(total)}</strong><small>{pick(lang, "registrados", "registered")}</small></div>
                 <div className={styles.productActions}>
                   <Link href={`${area.href}${search}`}>{pick(lang, "Ver productos de este cliente", "View this client\u0027s products")}</Link>
-                  <Link href={area.href + search + fragment}>{pick(lang, "+ Vincular producto nuevo", "+ Register linked product")}</Link>
+                  <Link href={area.href + search + fragment}>{pick(lang, "+ Registrar producto de este cliente", "+ Register product for this client")}</Link>
                 </div>
               </article>;
             })}

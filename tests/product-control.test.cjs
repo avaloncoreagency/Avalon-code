@@ -44,6 +44,20 @@ test('manual registration preserves ownership, source provenance and URL referen
   assert.match(code,/client_lead_id/);
   assert.doesNotMatch(code,/service_role/);
 });
+test('draft product changes to external reference when a real HTTPS URL is saved later',()=>{
+  const actions=read(route+'project-actions.ts');
+  const projectForm=read('src/components/os/projects.tsx');
+  const hud=read('src/components/os/product-hud.tsx');
+  assert.ok(actions.includes('control?.mode === "pending_delivery" || control?.mode === "external_reference"'));
+  assert.ok(actions.includes('mode: metadata.url ? "external_reference" : "pending_delivery"'));
+  assert.ok(actions.includes('...(control ?? {})'));
+  assert.ok(actions.includes('settings })'));
+  assert.ok(actions.includes('revalidatePath(`/admin/workspace/products/${id}`)'));
+  assert.ok(actions.includes('if (current.data.client_id) revalidatePath'));
+  assert.match(projectForm,/OperationsFields lang=\{lang\} value=\{project\.settings\.operations\}/);
+  assert.match(hud,/productMeta.mode==='pending_delivery'/);
+});
+
 test('manual ZIP retries are scoped to the original request and recover lost network responses',()=>{
   const upload=read(route+'library/uploads/route.ts');
   const importer=read('src/components/library/importer.tsx');

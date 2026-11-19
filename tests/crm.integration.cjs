@@ -527,6 +527,10 @@ test(
           await page.getByRole("heading", { name: "Nuestro calendario" }).waitFor();
           await page.getByRole("button", { name: "+ Crear evento" }).waitFor();
         } else {
+          if (suffix === "/leads") {
+            await page.getByRole("region", { name: "Pipeline de oportunidades" }).waitFor();
+            await page.getByText("Filtros avanzados", { exact: true }).click();
+          }
           await page.getByRole("button", { name: "Aplicar filtros" }).waitFor();
         }
         await page.waitForFunction(

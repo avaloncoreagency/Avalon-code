@@ -9,7 +9,7 @@ import { requireOwner } from "@/lib/auth/session";
 import { getLang } from "@/lib/i18n-server";
 import { pick, formatDate, type Lang } from "@/lib/i18n";
 import { run } from "@/lib/os/data";
-import { industryLabel } from "@/lib/crm/intel/industries";
+import { INDUSTRIES, industryLabel } from "@/lib/crm/intel/industries";
 import { intelErrorText } from "@/lib/crm/intel/errors";
 import { templateFor } from "@/lib/crm/intel/templates";
 import { progress } from "@/lib/crm/intel/form";
@@ -92,7 +92,7 @@ export default async function LeadPage({ params, searchParams }: { params: Promi
         <OpsHeader lang={lang} active="" crm="desk" eyebrow={`${industryLabel(lead.industry_key, lang)} · ${(lead.crm_stages as { label: string } | null)?.label ?? lead.stage_id}`} title={lead.company}
           lead={pick(lang, `Responsable: ${who(lead.owner_id)} · Creado por ${who(lead.created_by)} el ${formatDate(lang, lead.created_at)} · Última actualización ${formatDate(lang, lead.updated_at, true)}`,
             `Owner: ${who(lead.owner_id)} · Created by ${who(lead.created_by)} on ${formatDate(lang, lead.created_at)} · Last update ${formatDate(lang, lead.updated_at, true)}`)}
-          actions={<><Link className={`${s.button} ${s.primary}`} href={`${base}/discovery`}>{pick(lang, "Diagnóstico", "Discovery")}</Link><Link className={s.button} href={`${base}?tab=summary#lead-attachments`}>{pick(lang, "Archivos adjuntos", "Attachments")}{files.error ? "" : ` (${files.data?.length ?? 0})`}</Link><Link className={s.button} href="/admin/workspace/crm/desk">{pick(lang, "Mesa comercial", "Sales desk")}</Link></>} />
+          actions={<><Link className={`${s.button} ${s.primary}`} href={`${base}?tab=summary&edit=1#lead-edit`}>{pick(lang, "Editar ficha completa", "Edit full profile")}</Link><Link className={s.button} href={`/admin/workspace/crm/quotes/new?lead=${id}`}>{pick(lang, "+ Crear cotización", "+ Create quote")}</Link><Link className={s.button} href={`/admin/workspace/crm/quotes?lead=${id}`}>{pick(lang, "Cotizaciones", "Quotes")}</Link><Link className={s.button} href={`${base}/discovery`}>{pick(lang, "Diagnóstico", "Discovery")}</Link><Link className={s.button} href={`${base}?tab=summary#lead-attachments`}>{pick(lang, "Archivos adjuntos", "Attachments")}{files.error ? "" : ` (${files.data?.length ?? 0})`}</Link><Link className={s.button} href="/admin/workspace/crm/desk">{pick(lang, "Mesa comercial", "Sales desk")}</Link></>} />
         {ok && <p className={s.flash} data-tone="ok" role="status">{ok === "created" ? pick(lang, "Lead creado. Completa el diagnóstico cuando tengas la información.", "Lead created. Complete the diagnosis when you have the information.") : pick(lang, "Cambios guardados en Avalon.", "Changes saved in Avalon.")}</p>}
         {err && <p className={s.flash} data-tone="error" role="alert">{intelErrorText(lang, err)}</p>}
         <nav className={x.tabs} aria-label={pick(lang, "Secciones del lead", "Lead sections")}>
@@ -169,10 +169,25 @@ export default async function LeadPage({ params, searchParams }: { params: Promi
               <LeadInteractionForm leadId={id} version={lead.version} nextAction={lead.next_action} lang={lang} />
             </section>
 
-            <section className={s.panel} aria-labelledby="assign-title">
-              <h2 id="assign-title">{pick(lang, "Asignación y pipeline", "Assignment and pipeline")}</h2>
+            <section className={s.panel} id="lead-edit" aria-labelledby="assign-title">
+              <h2 id="assign-title">{pick(lang, "Editar lead, contacto y pipeline", "Edit lead, contacts and pipeline")}</h2>
+              <p className={s.muted}>{pick(lang, "Cambia la información del negocio existente; no crea otro lead. Para registrar llamadas y notas usa el seguimiento comercial.", "Update this existing business record without creating another lead. Use commercial follow-ups for calls and notes.")}</p>
               <form action={updateLeadMeta} className={s.form}>
                 <input type="hidden" name="lead" value={id} /><input type="hidden" name="version" value={lead.version} />
+                <div className={s.row}>
+                  <label className={s.field}><span>{pick(lang, "Empresa *", "Business *")}</span><input name="company" defaultValue={lead.company} required maxLength={200} /></label>
+                  <label className={s.field}><span>{pick(lang, "Correo de contacto", "Contact email")}</span><input name="email" type="email" defaultValue={lead.email ?? ""} maxLength={254} /></label>
+                </div>
+                <div className={s.row}>
+                  <label className={s.field}><span>{pick(lang, "Origen *", "Source *")}</span><input name="source" defaultValue={lead.source} required maxLength={200}/></label>
+                  <label className={s.field}><span>ZIP</span><input name="zip" defaultValue={lead.zip} maxLength={10} /></label>
+                  <label className={s.field}><span>{pick(lang, "Industria", "Industry")}</span>
+                    <select name="industry_key" defaultValue={lead.industry_key ?? ""}>
+                      <option value="">{pick(lang, "Sin definir", "Not set")}</option>
+                      {INDUSTRIES.map(industry => <option key={industry.key} value={industry.key}>{industry.label[lang]}</option>)}
+                    </select>
+                  </label>
+                </div>
                 <div className={s.row}>
                   <label className={s.field}><span>{pick(lang, "Responsable", "Owner")}</span><select name="owner_id" defaultValue={lead.owner_id}>{ownerList.map(o => <option key={o.user_id} value={o.user_id}>{o.email.split("@")[0]}{o.user_id === userId ? pick(lang, " (yo)", " (me)") : ""}</option>)}</select></label>
                   <label className={s.field}><span>{pick(lang, "Prioridad", "Priority")}</span><select name="priority" defaultValue={lead.priority}><option value="low">{pick(lang, "Baja", "Low")}</option><option value="normal">Normal</option><option value="high">{pick(lang, "Alta", "High")}</option></select></label>
@@ -181,7 +196,7 @@ export default async function LeadPage({ params, searchParams }: { params: Promi
                       {st.label}{st.kind === "won" && !verified ? pick(lang, " — requiere contrato verificado", " — needs verified contract") : ""}</option>)}</select></label>
                 </div>
                 <label className={s.field}><span>{pick(lang, "Motivo de pérdida (solo si pasa a Perdido)", "Loss reason (only when moving to Lost)")}</span><input name="loss_reason" maxLength={1000} defaultValue={lead.loss_reason} /></label>
-                <details><summary className={x.meta} style={{ cursor: "pointer" }}>{pick(lang, "Datos de identificación", "Identification details")}</summary>
+                <details open={q(p, "edit") === "1"}><summary className={x.meta} style={{ cursor: "pointer" }}>{pick(lang, "Más datos: teléfonos, dirección y enlaces", "More details: phone, address and links")}</summary>
                   <div className={s.row} style={{ marginTop: 8 }}>
                     {([["legal_name", "Nombre legal", "Legal name"], ["contact", "Contacto", "Contact"], ["contact_title", "Cargo", "Title"], ["phone", "Teléfono", "Phone"], ["website", "Website", "Website"],
                       ["google_business_url", "Google Business Profile (URL)", "Google Business Profile (URL)"], ["address", "Dirección", "Address"], ["city", "Ciudad", "City"], ["specialty", "Especialidad", "Specialty"], ["service_area", "Zona de servicio", "Service area"]] as const)

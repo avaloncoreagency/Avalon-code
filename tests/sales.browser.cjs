@@ -226,7 +226,7 @@ test('Nova Restaurant through the real app: one form, three departments, no dupl
   await page.screenshot({ path: EVIDENCE + '/contracts-editor-desktop.png', fullPage: true });
   await Promise.all([
     page.waitForURL(/\/contracts\?ok=created/, { timeout: 30000 }),
-    page.getByRole('button', { name: /Guardar borrador/ }).click()
+    page.getByRole('button', { name: /Guardar borrador y abrir PDF/ }).click()
   ]);
   const row = (await db.query("select id, client_id, created_by, status, template_version, snapshot from public.crm_client_agreement_drafts")).rows[0];
   assert.ok(row, 'server action persisted a draft');
@@ -236,11 +236,25 @@ test('Nova Restaurant through the real app: one form, three departments, no dupl
   assert.equal(row.snapshot.data.agencyName, 'Lucía Álvarez', 'legal identity preserved with accents');
   assert.equal(Number((await db.query("select count(*) n from public.crm_client_agreement_drafts")).rows[0].n), 1);
   const pdfPath = contractsPath + '/' + row.id;
+  const previewSection = page.locator('#contract-preview');
+  await previewSection.getByRole('heading', { name: 'Vista previa del contrato' }).waitFor();
+  await previewSection.locator('iframe[title="PDF de contrato para revisar"]').waitFor();
+  assert.ok(await previewSection.getByRole('button', { name: 'Descargar borrador PDF' }).isDisabled(),
+    'draft download stays disabled until the reviewer acknowledges the preview');
+  await previewSection.getByRole('checkbox', { name: /He abierto la vista previa y revisado el contenido/ }).check();
+  assert.ok(await previewSection.getByRole('link', { name: 'Descargar borrador PDF' }).isVisible(),
+    'review acknowledgement enables an explicit download action');
+  const previewPdf = await get(pdfPath + '?view=inline', miguel);
+  assert.equal(previewPdf.status, 200, 'authenticated owner can preview immutable PDF');
+  assert.match(previewPdf.headers.get('content-disposition') || '', /^inline;/);
+  const previewBytes = Buffer.from(await previewPdf.arrayBuffer());
   const contractPdf = await get(pdfPath, miguel);
   assert.equal(contractPdf.status, 200, 'owner can download private PDF');
   assert.match(contractPdf.headers.get('content-type') || '', /application\/pdf/);
   assert.match(contractPdf.headers.get('cache-control') || '', /no-store/);
+  assert.match(contractPdf.headers.get('content-disposition') || '', /^attachment;/);
   const pdfBuffer = Buffer.from(await contractPdf.arrayBuffer());
+  assert.deepEqual(pdfBuffer, previewBytes, 'preview and download match byte-for-byte');
   assert.match(pdfBuffer.toString('latin1', 0, 12), /^%PDF-1\.4/);
   assert.match(pdfBuffer.toString('latin1'), /Lucía Álvarez/);
   assert.match(pdfBuffer.toString('latin1'), /NOT SIGNED/, 'no false e-signature');
@@ -254,7 +268,7 @@ test('Nova Restaurant through the real app: one form, three departments, no dupl
   await fillAgreement(page);
   await Promise.all([
     page.waitForURL(/\/contracts\?ok=existing/, { timeout: 30000 }),
-    page.getByRole('button', { name: /Guardar borrador/ }).click()
+    page.getByRole('button', { name: /Guardar borrador y abrir PDF/ }).click()
   ]);
   assert.equal(Number((await db.query("select count(*) n from public.crm_client_agreement_drafts")).rows[0].n), 1,
     'double submission created no duplicate contracts');
@@ -263,7 +277,11 @@ test('Nova Restaurant through the real app: one form, three departments, no dupl
   const contractsMobile = await context(samuel, { width: 390, height: 844 });
   await contractsMobile.goto(origin + contractsPath);
   await contractsMobile.getByRole('heading', { name: 'Contratos del cliente' }).waitFor();
-  await contractsMobile.getByRole('link', { name: 'Descargar PDF' }).waitFor();
+  await contractsMobile.getByRole('link', { name: 'Vista previa' }).click();
+  await contractsMobile.locator('#contract-preview iframe').waitFor();
+  assert.ok(await contractsMobile.getByRole('button', { name: 'Descargar borrador PDF' }).isDisabled(), 'second owner also sees review gate');
+  await contractsMobile.getByRole('checkbox', { name: /He abierto la vista previa y revisado el contenido/ }).check();
+  await contractsMobile.getByRole('link', { name: 'Descargar borrador PDF' }).waitFor();
   await contractsMobile.screenshot({ path: EVIDENCE + '/contracts-mobile-chromium.png', fullPage: true });
   const mobileOverflow = await contractsMobile.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
   assert.ok(mobileOverflow <= 1, 'contract editor has no horizontal overflow at 390px (' + mobileOverflow + 'px)');
@@ -610,19 +628,39 @@ test('Nova Restaurant through the real app: one form, three departments, no dupl
   const orbit = await one("select id, origin_lead_id from crm_clients where legal_name='Orbit Dental Sintético'");
   assert.equal(orbit.origin_lead_id, leadId, 'client keeps its origin lead');
   assert.equal(Number((await one("select count(*) n from os_projects where client_id=$1 and module='crm_creator'", [orbit.id])).n), 1, 'CRM Creator received its project');
-  // Edit the client, log a follow-up, both persist after reload.
+  // Owner edits canonical Client 360 and an existing contact; both survive reload.
   await page.goto(`${origin}/admin/workspace/crm/clients/${orbit.id}`);
-  await page.getByText('Editar datos del cliente').click();
-  await page.getByLabel('Industria').fill('Salud dental');
-  await page.getByRole('button', { name: 'Guardar cambios' }).click();
+  await page.getByRole('link', { name: 'Editar ficha y contactos' }).first().click();
+  await page.locator('#client-edit input[name="industry"]').fill('Salud dental');
+  await page.getByRole('button', { name: 'Guardar datos del cliente' }).click();
   await page.getByText('Cambios guardados.').waitFor();
+  await page.getByText('+ Agregar nuevo contacto').click();
+  const addContactForm = page.locator('#client-edit form').filter({ has: page.getByRole('button', { name: 'Agregar contacto' }) });
+  await addContactForm.locator('input[name="full_name"]').fill('Ana Sintética');
+  await addContactForm.locator('input[name="email"]').fill('ana@example.invalid');
+  await addContactForm.locator('input[name="phone"]').fill('305-555-0123');
+  await addContactForm.getByRole('button', { name: 'Agregar contacto' }).click();
+  await page.getByText('Cambios guardados.').waitFor();
+  const contactPanel = page.locator('#client-edit details').filter({ hasText: 'Ana Sintética' }).first();
+  await contactPanel.locator('summary').click();
+  const editContactForm = contactPanel.locator('form');
+  await editContactForm.locator('input[name="phone"]').fill('305-555-0456');
+  await editContactForm.getByRole('button', { name: 'Guardar contacto' }).click();
+  // The prior save already displayed "Cambios guardados."; wait for the UPDATED contact card, not a stale flash.
+  await page.locator('#client-edit details').filter({ hasText: 'Ana Sintética' }).first().getByText('305-555-0456', { exact: false }).waitFor();
+  assert.equal((await one("select phone from crm_contacts where client_id=$1 and full_name='Ana Sintética'", [orbit.id])).phone, '305-555-0456', 'edited contact persists in canonical CRM');
   await page.locator('textarea[name="body"]').fill('Llamada de kickoff sintética');
   await page.locator('input[name="due_on"]').fill('2026-12-01');
-  await page.getByRole('button', { name: 'Registrar actividad' }).click();
-  await page.getByText('Cambios guardados.').waitFor();
+  await Promise.all([
+    page.waitForURL(url => url.pathname.endsWith('/admin/workspace/crm/clients/' + orbit.id) && url.searchParams.get('ok') === 'saved' && !url.searchParams.has('edit')),
+    page.getByRole('button', { name: 'Registrar actividad' }).click(),
+  ]);
+  assert.equal((await one('select industry from crm_clients where id=$1', [orbit.id])).industry, 'Salud dental', 'client business profile persisted');
+  assert.equal(Number((await one("select count(*) n from crm_activities where client_id=$1 and body='Llamada de kickoff sintética'", [orbit.id])).n), 1, 'client activity persisted before refresh');
   await page.reload();
   const orbitHub = await page.locator('#main').innerText();
-  assert.ok(orbitHub.includes('Salud dental') && orbitHub.includes('Llamada de kickoff sintética'), 'client edit and activity persisted');
+  assert.ok(orbitHub.includes('Salud dental'), 'updated client industry appears in the profile');
+  assert.ok(orbitHub.includes('Llamada de kickoff sintética'), 'saved activity appears in the client history');
   assert.ok(orbitHub.includes('Orbit Dental Sintético — CRM personalizado'), 'project visible from the client');
   // Calendar shows persisted due dates (tasks/deliveries) for everyone.
   await page.goto(origin + '/admin/workspace/crm/calendar?owner=all');
@@ -861,7 +899,7 @@ test('Nova Restaurant through the real app: one form, three departments, no dupl
   const pub = await visitor.newPage();
   pub.on('pageerror', e => errors.push(`pageerror [${pub.url()}]: ${e.message}`));
   await pub.goto(origin + '/');
-  await pub.getByRole('heading', { level: 1, name: 'Tu negocio. Sin límites.' }).waitFor();
+  await pub.getByRole('heading', { level: 1, name: /Más clientes\. Más trabajo\. Más crecimiento\./ }).waitFor();
   await pub.locator('input[name="company"]').fill('Visitante Sintético LLC');
   await pub.getByLabel('Tu nombre').fill('Luis Prueba');
   await pub.getByLabel('Correo').fill('luis@visitante.example.invalid');
@@ -876,7 +914,7 @@ test('Nova Restaurant through the real app: one form, three departments, no dupl
   assert.deepEqual({ ...web }, { status: 'pending', source_kind: 'web_form' }, 'web request waits for human review');
   assert.equal(Number((await one("select count(*) n from crm_leads where company='Visitante Sintético LLC'")).n), 0);
   await pub.goto(origin + '/?lang=en');
-  await pub.getByRole('heading', { level: 1, name: 'Your business. Beyond limits.' }).waitFor();
+  await pub.getByRole('heading', { level: 1, name: /More customers\. More work\. More growth\./ }).waitFor();
   assert.match(await pub.title(), /Websites, CRM & AI for Business/, 'English page has the current English title');
   assert.equal(await pub.locator('link[rel="canonical"]').count(), 0, 'no canonical that would mark the English page as a duplicate of the Spanish one');
   // Search-engine surface: robots.txt keeps the private OS out, sitemap lists only public pages.

@@ -28,11 +28,13 @@ export async function createClientAgreement(form: FormData) {
   const errors = validateAgreement(input);
   if (input.agencyLegalForm === "registered_entity" && form.get("entityExistsConfirm") !== "yes") errors.push("entityExistsConfirm");
   if (errors.length) back(here, { error: "fields" });
+  const quoteVersionId = uuidField(form, "quote_version_id");
   const snapshot = makeAgreementSnapshot(input);
   const digest = createHash("sha256").update(canonicalSnapshot(snapshot)).digest("hex");
   const { data, error } = await supabase.from("crm_client_agreement_drafts")
     .insert({client_id:clientId,template_version:AGREEMENT_VERSION,
-      snapshot,snapshot_sha256:digest,created_by:userId,status:"draft"})
+      snapshot,snapshot_sha256:digest,created_by:userId,status:"draft",
+      ...(quoteVersionId ? { quote_version_id: quoteVersionId } : {})})
     .select("id").single();
   if (error?.code === "23505") {
     // A double-tap or network retry must not create a second indistinguishable draft.
@@ -40,7 +42,9 @@ export async function createClientAgreement(form: FormData) {
       .select("id").eq("client_id", clientId).eq("snapshot_sha256", digest).maybeSingle();
     if (already.data?.id) back(here, { ok: "existing", agreement: already.data.id });
   }
-  if (error || !data) back(here, { error: error?.code === "42P01" || error?.code === "PGRST205" ? "schema" : "save" });
+  // The database trigger re-checks that the quote revision is accepted and belongs to this same company.
+  if (error?.message?.includes("agreement_quote_not_accepted")) back(here, { error: "quote" });
+  if (error || !data) back(here, { error: error?.code === "42P01" || error?.code === "PGRST205" || error?.code === "PGRST204" ? "schema" : "save" });
   revalidatePath(here);
   back(here, { ok: "created", agreement: data.id });
 }

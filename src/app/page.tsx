@@ -4,12 +4,11 @@ import { QuoteForm } from "@/components/public/quote-form";
 import { COPY, GROUPS, SERVICE_ORDER, type Lang } from "@/components/public/landing/copy";
 import { Icon } from "@/components/public/landing/icons";
 import { Effects } from "@/components/public/landing/effects";
-import { AnyIndustry } from "@/components/public/landing/industries";
+import { GrowthExperience } from "@/components/public/growth/experience";
+import { INTRO_GUARD, LaunchIntro } from "@/components/public/growth/intro";
 import { Journey, Reveal } from "@/components/public/landing/interactive";
 import { MEDIA } from "@/components/public/landing/media";
-import { Showroom } from "@/components/public/landing/showroom";
 import { UNIVERSE } from "@/components/public/landing/universe/copy";
-import { EngineStage, LaunchStage, TreeStage } from "@/components/public/landing/universe/stages";
 import u from "@/components/public/landing/universe/universe.module.css";
 import { SiteChrome, qs } from "@/components/public/landing/site-chrome";
 import s from "@/components/public/landing/landing.module.css";
@@ -60,6 +59,8 @@ export default async function Home({ searchParams }: { searchParams: Promise<Rec
   const t = COPY[lang], q = qs(lang), U = UNIVERSE[lang];
   return (
     <SiteChrome lang={lang} scene="universe">
+      <script dangerouslySetInnerHTML={{ __html: INTRO_GUARD }} />
+      <LaunchIntro lang={lang} />
       <Effects />
       {/* I · THE IGNITION — the commercial message is server-rendered text (LCP); the 3D core lives in the backdrop. */}
       <section className={u.hero} data-universe-section="ignition" aria-labelledby="h-hero">
@@ -69,30 +70,18 @@ export default async function Home({ searchParams }: { searchParams: Promise<Rec
             <h1 id="h-hero" className={u.title}><span>{U.hero.line1}</span> <span className={u.accent}>{U.hero.line2}</span></h1>
             <p className={u.sub}>{U.hero.sub}</p>
             <div className={u.heroCtas}>
-              <a className={u.cta} data-magnet href="#motor">{U.hero.primary}<Icon name="arrow" size={18} /></a>
-              <a className={u.ctaGhost} href="#cotizacion">{U.hero.secondary}</a>
+              <a className={u.cta} data-magnet href="#arbol">{U.hero.primary}<Icon name="arrow" size={18} /></a>
+              <a className={u.ctaGhost} href="#demos">{U.hero.secondary}</a>
             </div>
           </div>
         </div>
-        <a className={u.scrollCue} href="#despegue"><span>{U.hero.scroll}</span><i aria-hidden="true" /></a>
+        <a className={u.scrollCue} href="#arbol"><span>{U.hero.scroll}</span><i aria-hidden="true" /></a>
       </section>
 
-      {/* II · THE LAUNCH  ·  III · THE GROWTH ENGINE  ·  IV · THE GROWTH TREE */}
-      <LaunchStage lang={lang} />
-      <EngineStage lang={lang} />
-      <TreeStage lang={lang} />
+      {/* AVALON ULTIMATE 2.0 — the Business Growth Experience: tree → industry → demos → integrated journey. */}
+      <GrowthExperience lang={lang} />
 
-      {/* Help a visitor choose by goal rather than industry jargon. */}
-      <section id="objetivos" className={s.section} aria-labelledby="h-goals">
-        <div className={s.wrap}>
-          <Reveal className={s.head}><p className={s.eyebrow}>{t.goals.eyebrow}</p><h2 id="h-goals" className={s.h2}>{t.goals.title}</h2><p className={s.sub}>{t.goals.lead}</p></Reveal>
-          <div className={s.goalGrid}>{t.goals.items.map(([heading, description, service], i) => <Reveal key={service} className={s.card} delay={i * 70}>
-            <span className={s.cardIcon}><Icon name={service as (typeof SERVICE_ORDER)[number]} /></span><h3>{heading}</h3><p>{description}</p>
-            <div className={s.cardLinks}><a href={`/?${lang === "en" ? "lang=en&" : ""}services=${service}#cotizacion`}>{t.goals.action}<Icon name="arrow" size={16} /></a></div>
-          </Reveal>)}</div>
-        </div>
-      </section>
-      {/* 03 · Ecosystem */}
+      {/* Services explained by the result they produce. */}
       <section id="soluciones" className={s.section} aria-labelledby="h-eco">
         <div className={s.wrap}>
           <Reveal className={s.head}><p className={s.eyebrow}>{t.eco.eyebrow}</p><h2 id="h-eco" className={s.h2}>{t.eco.title}</h2><p className={s.sub}>{t.eco.lead}</p></Reveal>
@@ -109,15 +98,7 @@ export default async function Home({ searchParams }: { searchParams: Promise<Rec
         </div>
       </section>
 
-      {/* 03 · Showroom */}
-      <section id="showroom" className={s.section} aria-labelledby="h-show">
-        <div className={s.wrap}>
-          <Reveal className={s.head}><p className={s.eyebrow}>{t.show.eyebrow}</p><h2 id="h-show" className={s.h2}>{t.show.title}</h2><p className={s.sub}>{t.show.lead}</p></Reveal>
-          <Showroom lang={lang} />
-        </div>
-      </section>
-
-      {/* 04 · How it works together */}
+      {/* Working with Avalon */}
       <section id="como-funciona" className={`${s.section} ${s.journeySec}`} aria-labelledby="h-journey">
         <div className={s.wrap}>
           <Reveal className={s.head}><p className={s.eyebrow}>{t.journey.eyebrow}</p><h2 id="h-journey" className={s.h2}>{t.journey.title}</h2></Reveal>
@@ -125,15 +106,7 @@ export default async function Home({ searchParams }: { searchParams: Promise<Rec
         </div>
       </section>
 
-      {/* 05 · Industries */}
-      <section id="industrias" className={s.section} aria-labelledby="h-ind">
-        <div className={s.wrap}>
-          <Reveal className={s.head}><p className={s.eyebrow}>{t.ind.eyebrow}</p><h2 id="h-ind" className={s.h2}>{t.ind.title}</h2><p className={s.sub}>{t.ind.lead}</p></Reveal>
-          <AnyIndustry lang={lang} />
-        </div>
-      </section>
-
-      {/* 06 · Work (conceptual until real, authorized cases exist) */}
+      {/* Examples (clearly labelled until real, authorized cases exist) */}
       <section id="proyectos" className={s.section} aria-labelledby="h-work">
         <div className={s.wrap}>
           <Reveal className={s.head}><p className={s.eyebrow}>{t.work.eyebrow}</p><h2 id="h-work" className={s.h2}>{t.work.title}</h2><p className={s.sub}>{t.work.lead}</p></Reveal>
@@ -158,7 +131,10 @@ export default async function Home({ searchParams }: { searchParams: Promise<Rec
       <section id="cotizacion" className={s.section} aria-labelledby="h-quote">
         <div className={s.wrap}>
           <div className={s.contact}>
-            <img className={s.contactBg} src={MEDIA.closing.src} alt="" width={1920} height={1080} loading="lazy" decoding="async" />
+            <picture>
+              <source media="(max-aspect-ratio: 1/1)" srcSet="/brand/closing-m.webp" />
+              <img className={s.contactBg} src={MEDIA.closing.src} alt="" width={1920} height={1080} loading="lazy" decoding="async" />
+            </picture>
             <div className={s.contactGrid}>
               <div><p className={s.eyebrow}>{t.contact.eyebrow}</p><h2 id="h-quote" className={s.h2}>{t.contact.title}</h2><p className={s.lead}>{t.contact.lead}</p>
                 <ul className={s.points}>{t.contact.points.map(x => <li key={x}><Icon name="check" size={18} />{x}</li>)}</ul>

@@ -1,6 +1,8 @@
 # CRM operational release — Operation Core Engine
 
-Estado: **listo para revisión; sin aplicar en producción.** Las pruebas de esta tabla se ejecutaron en esta sesión, sobre la rama `claude/core-engine-c0`.
+Estado: **aplicado en producción el 2026-11-17** con autorización expresa del propietario (registro `20261117155716_crm_core_engine`, 42 migraciones). Verificación posterior: `get_advisors` sin alertas 0008 y con las 6 nuevas 0029 previstas, todas con control de propietario.
+
+Estado anterior: listo para revisión. Las pruebas de esta tabla se ejecutaron en esta sesión, sobre la rama `claude/core-engine-c0`.
 
 ## 1. Qué cambia
 
@@ -52,7 +54,7 @@ Casos mínimos del encargo, ya cubiertos:
 ## 4. Pasos para activarlo en producción (requieren autorización)
 
 1. Respaldo de `ltbwzcrxeuczdhhtbqgm` (PITR o volcado).
-2. `apply_migration` con el contenido de `20261117100000_crm_core_engine.sql`, en una sola transacción.
+2. `apply_migration` con el contenido de `20261117155716_crm_core_engine.sql` (antes `20261117100000`), en una sola transacción. ✓ 2026-11-17.
 3. Renombrar el archivo del repo a la versión que haya registrado producción y mover `PRODUCTION_LAST_LOCAL_MIGRATION` en `tests/prod-schema-compat.browser.cjs`.
 4. Ejecutar `get_advisors` (seguridad y rendimiento). Lo esperado: las dos alertas 0008 desaparecen y aparecen 6 nuevas 0029, todas con control de propietario.
 5. Conceder `crm_private.finance_access` a los propietarios que deban ver finanzas.

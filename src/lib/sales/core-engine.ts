@@ -1,5 +1,5 @@
 /**
- * Core Engine data contract (migration 20261117100000_crm_core_engine.sql). Pure types, request builders and error
+ * Core Engine data contract (migration 20261117155716_crm_core_engine.sql). Pure types, request builders and error
  * mapping shared by server actions and the UI. No I/O here; see core-engine-server.ts for the RPC calls.
  *
  * Money rules (never mixed): contracted (crm_sales.total) · invoiced (crm_invoices issued) · collected (non-reversed

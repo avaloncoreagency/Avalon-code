@@ -30,3 +30,11 @@ Next action: pass final-SHA CI and review own PR; activation in production still
 First own-SHA CI (8d2d6cc) executed all new financial interactions but failed the retained pageerror assertion on Calendar ?date=2026-11-22 with React #418 (job 134135649768, run 44110835701). No blind rerun. Calendar labels now use explicit month/weekday tokens and server-provided initialToday; unit regression prevents runtime ICU wording from affecting hydration. Follow-up bfac2b9 has new checks, root incident remains open pending repeatable causal reproduction.
 
 Local production-schema acceptance passed after binding Next explicitly to 127.0.0.1 (avoids unavailable network-interface discovery) and reusing the existing stop-child helper (prevents waiting for an already-exited child). One blocked attempt and interrupted hanging cleanup are not counted as passed tests. No assertions or schema markers removed.
+
+## Recovery reconciliation — 2026-11-19
+
+Current main 5f99d05 includes Claude's Commercial Core 360/Quoting Studio. Merged that exact main into this development branch, preserving quote counters, quote links, client editing, canonical product links and lead stage. Only conflict: ClientOverview props/financial panel; retained leadStage plus LedgerPanel and unavailable fallback. No files of Samuel #233 changed relative to main (except the pre-existing shared Sales workflow inherited unchanged from main).
+
+The prior asynchronous CodeQL alert identified operation-controlled verification dispatch. Fixed by explicit handler registry with uniform server ledger capability and record/sale scope, no inherited operation keys or default mutation table. No suppressions or weakened SQL authorization. Local evidence on reconciled candidate: 691 unit tests, TypeScript, lint (0 errors/one pre-existing img warning), build and 9 Core/CRM-flow/Sales SQL tests passed. CI/CodeQL must approve the reconciled remote SHA before the alert is considered resolved.
+
+Production read-only now has 45 migrations, including installed Core Engine and Quoting Studio; no SQL/permissions/accounts changed by this reconciliation. Preview configuration remains blocked by automatic review. No paid provider activated. #191 remains open unless the intermittent hydration failure is causally reproduced/resolved; date labels are a mitigation, not a guarantee.

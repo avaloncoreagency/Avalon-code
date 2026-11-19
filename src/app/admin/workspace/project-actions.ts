@@ -77,6 +77,17 @@ export async function createProject(form: FormData) {
   if (creativeRef && (!metadata.url && !metadata.repository || !companyName && !metadata.client_lead_id && !confirmedClientId))
     back(base, { error: "invalid" });
 
+  // Reusing the same HTTPS URL for the same client is an edit, not a second product.
+  // A database uniqueness constraint is still needed for strict concurrent idempotency.
+  if (confirmedClientId && metadata.url) {
+    const matched = await supabase.from("os_projects").select("id")
+      .eq("module", moduleKey.value).eq("client_id", confirmedClientId)
+      .eq("settings->operations->>url", metadata.url).neq("status", "archived").limit(2);
+    if (matched.error) back(base, { error: mapDbError(matched.error) });
+    if ((matched.data?.length ?? 0) > 1) back(base, { error: "conflict" });
+    if (matched.data?.length === 1) back(`/admin/workspace/products/${matched.data[0].id}`, { ok: "existing" });
+  }
+
   if (creativeRef) {
     // A stable Higgsfield website/job ID is a replay guard, NOT proof of
     // completed generation. Without a DB unique index it is not a lock.
@@ -142,11 +153,25 @@ export async function updateProject(form: FormData) {
     if (related.error || !related.data || related.data.origin_lead_id!==metadata.client_lead_id)
       back(path,{error:"conflict"});
   }
+  // A draft saved before a website exists starts in pending_delivery mode.
+  // Keep its registration mode in sync if its HTTPS URL is attached or removed later;
+  // preserve source provenance, creation timestamp and unrelated bridge modes.
+  const rawControl = current.data.settings?.product_control;
+  const control = rawControl && typeof rawControl === "object" && !Array.isArray(rawControl)
+    ? rawControl as Record<string, unknown> : null;
+  const shouldSyncMode = control?.mode === "pending_delivery" || control?.mode === "external_reference";
+  const settings = {
+    ...current.data.settings,
+    operations: metadata,
+    ...(shouldSyncMode ? { product_control: { ...(control ?? {}), mode: metadata.url ? "external_reference" : "pending_delivery" } } : {}),
+  };
   const { data, error, status: http } = await supabase.from("os_projects")
-    .update({ name: name.value, description: description.value, status: status.value, settings: { ...current.data.settings, operations: metadata } })
+    .update({ name: name.value, description: description.value, status: status.value, settings })
     .eq("id", id).eq("module", moduleKey.value).eq("version", version).select("id");
   if (error) back(path, { error: mapDbError(error, http) });
   if (!data?.length) back(path, { error: "conflict" });
   revalidatePath(base);
+  revalidatePath(`/admin/workspace/products/${id}`);
+  if (current.data.client_id) revalidatePath(`/admin/workspace/crm/clients/${current.data.client_id}`);
   back(path, { ok: status.value === "archived" ? "archived" : "saved" });
 }

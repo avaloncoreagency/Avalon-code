@@ -338,51 +338,7 @@ export function Crm({ section = "leads", focusLeadId, lang = "es" }: { section?:
       </div>
     );
   }
-  return (
-    <div className={s.wrap}>
-      <header className={s.head}>
-        <div>
-          <div className={s.eyebrow}>Avalon OS / CRM</div>
-          <h1 className={s.title}>{current.label === "Leads Pipeline" ? "Leads Pipeline" : current.label}</h1>
-          <p className={s.subtitle}>
-            {t("Operaciones comerciales de Avalon Core Agency.", "Avalon Core Agency commercial operations.")}
-          </p>
-        </div>
-        <div className={s.actions}>
-          <Link href="/admin/workspace/crm" className={s.link}>
-            {t("Inicio del CRM", "CRM home")}
-          </Link>
-          <Link href="/admin/dashboard" className={s.link}>
-            ← Dashboard
-          </Link>
-        </div>
-      </header>
-      <CrmNavigation active={section} lang={lang} />
-      <CrmTools active={section} lang={lang} />
-      {focusedLead && <p className={s.notice} role="status">Oportunidad enlazada por ID exacto. <Link href="/admin/workspace/crm/leads">Ver todo el pipeline</Link></p>}
-      {section === "hunter" && <TitanRadar onChanged={reload} />}
-      <p className={s.muted}>
-        {t("Datos persistidos de la agencia. Valores comerciales estimados en USD; no representan ingresos cobrados.", "Saved agency data. Estimated commercial values in USD; they do not represent collected revenue.")}
-      </p>
-      {existingLead && (
-        <div role="status" className={s.notice} data-testid="existing-lead">
-          Lead existente:{" "}
-          <Link href={`/admin/workspace/crm/leads?lead=${existingLead.id}`}>{existingLead.company}</Link>{" "}
-          <button
-            type="button"
-            disabled={busy}
-            onClick={() => action({ action: "link_existing", id: existingLead.prospectId })}
-          >
-            {t("Vincular al lead existente", "Link to existing lead")}
-          </button>
-        </div>
-      )}
-      {error && (
-        <div role="alert" className={s.notice}>
-          {error} <button onClick={reload}>{t("Reintentar", "Retry")}</button>
-        </div>
-      )}
-      {notice && <p role="status">{notice}</p>}
+  const filtersPanel = (
       <section className={s.panel} aria-label={t("Filtros", "Filters")} hidden={Boolean(focusedLead)}>
         <form
           className={s.filters}
@@ -461,8 +417,9 @@ export function Crm({ section = "leads", focusLeadId, lang = "es" }: { section?:
           <button type="submit">{t("Aplicar filtros", "Apply filters")}</button>
         </form>
       </section>
-            {editor && (
-              <RecordForm
+  );
+  const editorForm = editor ? (
+    <RecordForm
                 key={`${editor.entity}-${editor.row?.id ?? "new"}`}
                 lang={lang}
                 entity={editor.entity}
@@ -481,14 +438,69 @@ export function Crm({ section = "leads", focusLeadId, lang = "es" }: { section?:
                   setEditor(null);
                 }}
               />
-            )}
+  ) : null;
+  return (
+    <div className={s.wrap}>
+      {section === "leads" && (
+        <section className={s.leadFirst} id="crm-create-lead" aria-label={t("Alta manual de leads", "Manual lead creation")}>
+          <button type="button" className={s.primaryLeadAction} disabled={!data || loading || busy} onClick={() => edit(null)}>{t("Crear lead", "Create lead")}</button>
+          <span>{t("Registra una oportunidad y organízala en el pipeline.", "Create an opportunity and manage it in the pipeline.")}</span>
+        </section>
+      )}
+      {section === "leads" && editorForm}
+      <header className={s.head}>
+        <div>
+          <div className={s.eyebrow}>Avalon OS / CRM</div>
+          <h1 className={s.title}>{current.label === "Leads Pipeline" ? "Leads Pipeline" : current.label}</h1>
+          <p className={s.subtitle}>
+            {t("Operaciones comerciales de Avalon Core Agency.", "Avalon Core Agency commercial operations.")}
+          </p>
+        </div>
+        <div className={s.actions}>
+          <Link href="/admin/workspace/crm" className={s.link}>
+            {t("Inicio del CRM", "CRM home")}
+          </Link>
+          <Link href="/admin/dashboard" className={s.link}>
+            ← Dashboard
+          </Link>
+        </div>
+      </header>
+      <CrmNavigation active={section} lang={lang} />
+      <CrmTools active={section} lang={lang} />
+      {focusedLead && <p className={s.notice} role="status">Oportunidad enlazada por ID exacto. <Link href="/admin/workspace/crm/leads">Ver todo el pipeline</Link></p>}
+      {section === "hunter" && <TitanRadar onChanged={reload} />}
+      <p className={s.muted}>
+        {t("Datos persistidos de la agencia. Valores comerciales estimados en USD; no representan ingresos cobrados.", "Saved agency data. Estimated commercial values in USD; they do not represent collected revenue.")}
+      </p>
+      {existingLead && (
+        <div role="status" className={s.notice} data-testid="existing-lead">
+          Lead existente:{" "}
+          <Link href={`/admin/workspace/crm/leads?lead=${existingLead.id}`}>{existingLead.company}</Link>{" "}
+          <button
+            type="button"
+            disabled={busy}
+            onClick={() => action({ action: "link_existing", id: existingLead.prospectId })}
+          >
+            {t("Vincular al lead existente", "Link to existing lead")}
+          </button>
+        </div>
+      )}
+      {error && (
+        <div role="alert" className={s.notice}>
+          {error} <button onClick={reload}>{t("Reintentar", "Retry")}</button>
+        </div>
+      )}
+      {notice && <p role="status">{notice}</p>}
+      {section !== "leads" && filtersPanel}
+       {section !== "leads" && editorForm}
       {loading ? (
         <p role="status">{t("Cargando CRM…", "Loading CRM\u2026")}</p>
       ) : (
         data && (
           <>
             {section !== "kpis" && (
-              <div className={s.actions}>
+              <div className={`${s.actions} ${section === "leads" ? s.leadToolbar : ""}`}>
+                {section !== "leads" && (
                 <button onClick={() => edit(null)}>
                   {t("Crear", "Create")}{" "}
                   {entity === "leads"
@@ -499,6 +511,7 @@ export function Crm({ section = "leads", focusLeadId, lang = "es" }: { section?:
                         ? t("prospecto", "prospect")
                         : t("registro manual", "manual record")}
                 </button>
+                )}
                 {section === "leads" && (
                   <>
                     <button
@@ -566,6 +579,12 @@ export function Crm({ section = "leads", focusLeadId, lang = "es" }: { section?:
                   }}
                 />
               ))}
+            {section === "leads" && !focusedLead && (
+              <details className={s.leadFilters} id="crm-lead-filters">
+                <summary>{t("Filtros avanzados", "Advanced filters")}</summary>
+                {filtersPanel}
+              </details>
+            )}
             {section === "calendar" && (
               <>
                 <div className={s.filters}>
