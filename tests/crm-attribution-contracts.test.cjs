@@ -39,7 +39,7 @@ test("Attribution ledger is separate from rep payouts and locked to finance memb
   assert.match(sql,/commission_due numeric\(15,2\) generated always as/);
   assert.match(sql,/unique \(client_id,external_ref\)/);
   assert.match(sql,/status='verified_signed'/);
-  assert.match(sql,/terms\.updated_at > signed\.verified_at/);
+  assert.match(sql,/term\.updated_at > signed\.verified_at/);
   assert.match(sql,/group by currency/);
   assert.match(sql,/revoke all on public\.crm_attributed_conversions/);
   assert.doesNotMatch(sql,/grant (?:insert|update|delete) on public\.crm_attributed_conversions to authenticated/i);
