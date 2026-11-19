@@ -40,7 +40,7 @@ export default async function SalesPage({ searchParams }: { searchParams: Promis
   return <Suite active="crm"><div className={s.hud}>
     <OpsHeader lang={lang} active="sales" crm="sales" eyebrow="CRM / Ventas" title={pick(lang, "Ventas y entregas", "Sales and delivery")}
       lead={pick(lang, "Ingresos contratados frente a dinero cobrado, órdenes de trabajo abiertas y cada venta con su estado de contrato y entrega.", "Contracted revenue versus money collected, open work orders and every sale with its contract and delivery status.")}
-      actions={<><Link className={`${s.button} ${s.primary}`} href="/admin/workspace/crm/sales/new">{pick(lang, "+ Registrar venta", "+ Record sale")}</Link><Link className={s.button} href="/admin/workspace/crm/leads">{pick(lang, "Ver pipeline", "View pipeline")}</Link></>} />
+      actions={<><Link className={`${s.button} ${s.primary}`} href="/admin/workspace/crm/sales/new">{pick(lang, "+ Registrar venta", "+ Record sale")}</Link><Link className={s.button} href="/admin/workspace/crm/deliveries">{pick(lang, "Centro de entregas", "Delivery center")}</Link><Link className={s.button} href="/admin/workspace/crm/leads">{pick(lang, "Ver pipeline", "View pipeline")}</Link></>} />
     <OkFlash lang={lang} code={q(p, "ok")} /><ErrorFlash lang={lang} code={q(p, "error")} />
     {clientId && <section className={s.panel} aria-label={pick(lang, "Filtro de cliente", "Client filter")}>
       {filteredClient.error ? <Unavailable lang={lang} code={filteredClient.error} /> : <p>
