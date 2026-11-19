@@ -17,7 +17,7 @@ type ModuleCounts = Record<ModuleKey, number | null>;
 export type ClientCounts = {
   products: number | null; activeProducts: number | null; openTasks: number | null;
   overdueTasks: number | null; sales: number | null; documents: number | null;
-  workOrders: number | null; agreements: number | null; modules: ModuleCounts;
+  workOrders: number | null; agreements: number | null; quotes?: number | null; modules: ModuleCounts;
 };
 export type LinkableProduct = { id: string; name: string; module: ModuleKey };
 
@@ -48,6 +48,7 @@ export function ClientOverview({ lang, client, owner, contacts, nextSteps, nextS
     { es: "Documentos", en: "Documents", value: counts.documents, href: "#client-files" },
     { es: "Ventas registradas", en: "Recorded sales", value: counts.sales, href: `/admin/workspace/crm/sales?client=${client.id}` },
     { es: "Órdenes de trabajo", en: "Work orders", value: counts.workOrders, href: "#projects" },
+    { es: "Cotizaciones", en: "Quotes", value: counts.quotes ?? null, href: `/admin/workspace/crm/quotes?client=${client.id}` },
     { es: "Borradores de acuerdo", en: "Agreement drafts", value: counts.agreements, href: `${base}/contracts` },
   ];
   const place = [client.location, client.country].filter(Boolean).join(", ");

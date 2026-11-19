@@ -4,15 +4,17 @@ import { pick, type Lang } from "@/lib/i18n";
 import s from "./crm.module.css";
 
 const daily = [
-  ...crmNavigation,
+  crmNavigation[0],
+  { slug: "quotes", href: "/admin/workspace/crm/quotes", label: "Cotizaciones" },
+  ...crmNavigation.slice(1),
   { slug: "calendar", href: "/admin/workspace/crm/calendar", label: "Calendario" },
   { slug: "tasks", href: "/admin/workspace/crm/tasks", label: "Tareas" },
 ];
 const names: Record<string, [string, string]> = {
-  leads: ["Leads Pipeline", "Leads Pipeline"], sales: ["Ventas", "Sales"],
+  leads: ["Leads Pipeline", "Leads Pipeline"], quotes: ["Cotizaciones", "Quotes"], sales: ["Ventas", "Sales"],
   clients: ["Clientes 360°", "Clients 360°"], calendar: ["Calendario", "Calendar"], tasks: ["Tareas", "Tasks"],
 };
-/** All five daily operations remain visible without opening a secondary menu. */
+/** All six daily operations remain visible without opening a secondary menu. */
 export function CrmNavigation({ active, lang = "es" }: { active?: string; lang?: Lang }) {
   const selected = active === "new" ? "sales" : active;
   return (

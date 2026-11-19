@@ -6,6 +6,7 @@ import { getLang } from "@/lib/i18n-server";
 import { pick } from "@/lib/i18n";
 import { UUID_RE } from "@/components/sales/ui";
 import { AGREEMENT_VERSION, SERVICE_OPTIONS } from "@/lib/contracts/agreement";
+import { contractPrefill, isQuoteContent, type QuoteContent } from "@/lib/quotes/model";
 import { createClientAgreement } from "./actions";
 import { ReviewBeforeDownload } from "./review-before-download";
 import g from "./guide.module.css";
@@ -42,7 +43,7 @@ const name=(lang:"es"|"en",es:string,en:string)=>pick(lang,es,en);
 
 export default async function ClientContracts({params, searchParams}:{
   params:Promise<{id:string}>;
-  searchParams:Promise<{ok?:string;error?:string;agreement?:string;page?:string}>;
+  searchParams:Promise<{ok?:string;error?:string;agreement?:string;page?:string;quote?:string}>;
 }){
   const {id}=await params; if(!UUID_RE.test(id))notFound();
   const {supabase}=await requireOwner();
@@ -75,7 +76,17 @@ export default async function ClientContracts({params, searchParams}:{
     "automatizacion":"Automation","recepcionista-ia":"AI Receptionist",
     "chatbots":"AI Chatbot",
   };
-  const selectedServices = new Set((terms?.services || []).map(key => serviceMap[key] || key)
+  // Quoting Studio → Contract Studio: prefill ONLY from the current revision of an ACCEPTED quote of this same company.
+  let fromQuote: (ReturnType<typeof contractPrefill> & { label: string; versionId: string }) | null = null;
+  if (typeof p.quote === "string" && UUID_RE.test(p.quote)) {
+    const { data: quote } = await supabase.from("crm_quotes").select("id,quote_number,status,current_version,client_id,lead_id").eq("id", p.quote).maybeSingle();
+    if (quote && quote.status === "accepted" && (quote.client_id === id || (leadId && quote.lead_id === leadId))) {
+      const { data: version } = await supabase.from("crm_quote_versions").select("id,content").eq("quote_id", quote.id).eq("version_no", quote.current_version).maybeSingle();
+      if (version && isQuoteContent(version.content))
+        fromQuote = { ...contractPrefill(version.content as QuoteContent, quote.quote_number, quote.current_version), label: quote.quote_number + " v" + quote.current_version, versionId: version.id };
+    }
+  }
+  const selectedServices = new Set((fromQuote ? fromQuote.services : (terms?.services || [])).map(key => serviceMap[key] || key)
     .filter(item => SERVICE_OPTIONS.some(option => option === item)));
   const hasApprovedCommission = !!terms?.commission_approved_by && (terms.billing_model==="commission" || terms.billing_model==="hybrid")
     && terms.commission_pct!==null;
@@ -106,7 +117,9 @@ export default async function ClientContracts({params, searchParams}:{
       {p.ok==="existing"?name(lang,"Este borrador ya estaba guardado; no se creó un duplicado.","This exact draft already existed; no duplicate was created."):
       name(lang,"Borrador guardado. Revísalo antes de descargarlo.","Draft saved. Review it before downloading.")}
     </p>}
-    {p.error&&<p className={s.flash} data-tone="error" role="alert">{p.error==="schema"
+    {p.error&&<p className={s.flash} data-tone="error" role="alert">{p.error==="quote"
+      ? name(lang,"La cotización vinculada ya no está aceptada o no pertenece a este cliente. Vuelve a abrirla desde Cotizaciones.","The linked quote is no longer accepted or does not belong to this client. Reopen it from Quotes.")
+      : p.error==="schema"
       ? name(lang,"La tabla de contratos todavía no está instalada en este entorno.","Contract drafts table is not installed in this environment.")
       : name(lang,"No se pudo guardar. Revisa todos los campos y vuelve a intentarlo.","Could not save. Check all fields and try again.")}</p>}
     {selectedAgreement && <section className={s.panel} id="contract-preview" aria-labelledby="contract-preview-title">
@@ -148,6 +161,14 @@ export default async function ClientContracts({params, searchParams}:{
       </nav>
       <form action={createClientAgreement} className={s.form}>
         <input type="hidden" name="client_id" value={id}/>
+        {fromQuote && <input type="hidden" name="quote_version_id" value={fromQuote.versionId}/>}
+        {fromQuote && <p className={s.flash} data-tone="ok">
+          {name(lang,"Datos importados desde la cotización aceptada ","Imported from accepted quote ")}<strong>{fromQuote.label}</strong>
+          {name(lang,". Revisa cada término: el contrato quedará vinculado a esa versión exacta y no se firma ni se crea ninguna venta automáticamente.",". Review every term: the agreement will reference that exact version; nothing is signed and no sale is created automatically.")}
+        </p>}
+        {typeof p.quote === "string" && !fromQuote && <p className={s.flash} data-tone="warn">
+          {name(lang,"La cotización indicada no está aceptada o no pertenece a este cliente; no se importó ningún dato.","The given quote is not accepted or does not belong to this client; nothing was imported.")}
+        </p>}
         {terms && <p className={s.flash} data-tone={hasApprovedCommission ? "ok" : "warn"}>
           {name(lang,"Datos comerciales acordados importados desde el lead. Confirma todos los términos antes de crear el borrador.",
             "Agreed commercial terms imported from the lead. Review every term before creating a draft.")}
@@ -183,8 +204,8 @@ export default async function ClientContracts({params, searchParams}:{
             <input name="effectiveDate" type="date" defaultValue={new Date().toISOString().slice(0,10)} required/>
           </label>
           {fields.slice(0,7).map(([key,en,es,kind,def])=><label className={s.field} key={key}>{name(lang,es,en)}
-            <input name={key} type={kind} defaultValue={key==="clientAddress"?(client.location||"")+(client.country?", "+client.country:""):
-              key==="clientEmail" ? (contactResult.data?.email || "") : def} required={key!=="agencyBrand"} maxLength={800}/>
+            <input name={key} type={kind} defaultValue={key==="clientAddress"?(fromQuote?.clientAddress || (client.location||"")+(client.country?", "+client.country:"")):
+              key==="clientEmail" ? (fromQuote?.clientEmail || contactResult.data?.email || "") : def} required={key!=="agencyBrand"} maxLength={800}/>
           </label>)}
         </div>
         <fieldset className={s.fieldset} id="contract-services">
@@ -198,20 +219,20 @@ export default async function ClientContracts({params, searchParams}:{
           <legend>{name(lang,"Paso 3 — Alcance, pagos y condiciones","Step 3 — Scope, payments & terms")}</legend>
           <p className={g.hint}>{name(lang,"Indica exactamente qué se entrega, fechas, revisiones, gastos de terceros y cuándo se cobran honorarios o comisiones. No aceptes porcentajes ni presupuestos que no estén aprobados.","State the exact deliverables, timeline, revisions, third-party spend and payment or commission triggers. Do not use unapproved percentages or budgets.")}</p>
           {fields.slice(7).map(([key,en,es,kind,def])=><label className={s.field} key={key}>{name(lang,es,en)}
-            {kind==="textarea"?<textarea name={key} rows={3} defaultValue={key==="commission" ? commissionDescription :
+            {kind==="textarea"?<textarea name={key} rows={3} defaultValue={fromQuote && key in fromQuote && typeof fromQuote[key as keyof typeof fromQuote]==="string" && fromQuote[key as keyof typeof fromQuote] ? String(fromQuote[key as keyof typeof fromQuote]) : key==="commission" ? commissionDescription :
                 key==="adSpend" && terms?.client_ad_budget!==null && terms?.client_ad_budget!==undefined
                   ? "Client advertising spend: USD "+price(terms.client_ad_budget)+". Paid by client unless separately authorized." :
                 key==="specialTerms" ? signedTermsDescription : def} required={key!=="exclusions"&&key!=="specialTerms"} maxLength={3000}/>
-              :<input name={key} type="text" defaultValue={key==="term" && terms?.duration_months
+              :<input name={key} type="text" defaultValue={fromQuote && key in fromQuote && typeof fromQuote[key as keyof typeof fromQuote]==="string" && fromQuote[key as keyof typeof fromQuote] ? String(fromQuote[key as keyof typeof fromQuote]) : key==="term" && terms?.duration_months
                 ? "Initial term: "+terms.duration_months+" months. Start date: "+(terms.start_date || "to be agreed")+
                   ". Renewal/cancellation subject to signed terms."
                 : def} required maxLength={800}/>}
           </label>)}
           <label className={s.field}>{name(lang,"Costo de instalación (USD)","One-time setup fee (USD)")}
-            <input name="setupFee" type="number" min="0" step="0.01" defaultValue={price(terms?.setup_price)} required/>
+            <input name="setupFee" type="number" min="0" step="0.01" defaultValue={fromQuote ? fromQuote.setupFee : price(terms?.setup_price)} required/>
           </label>
           <label className={s.field}>{name(lang,"Honorarios mensuales (USD)","Monthly retainer (USD)")}
-            <input name="monthlyFee" type="number" min="0" step="0.01" defaultValue={price(terms?.monthly_fee)} required/>
+            <input name="monthlyFee" type="number" min="0" step="0.01" defaultValue={fromQuote ? fromQuote.monthlyFee : price(terms?.monthly_fee)} required/>
           </label>
         </fieldset>
         <div className={g.finish} id="contract-finish">

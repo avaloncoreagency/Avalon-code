@@ -54,6 +54,8 @@ export default async function Client360({ params, searchParams }: { params: Prom
     run<null>(supabase.from("crm_tasks").select("id", { count: "exact" }).eq("client_id", id).in("status", OPEN).lt("due_at", now).range(0, 0)),
     run<null>(supabase.from("crm_work_orders").select("id", { count: "exact" }).eq("client_id", id).range(0, 0)),
     run<null>(supabase.from("crm_client_agreement_drafts").select("id", { count: "exact" }).eq("client_id", id).range(0, 0)),
+    // Quotes issued to this client, including those issued to its opportunity before it became a client.
+    run<null>(supabase.from("crm_quotes").select("id", { count: "exact" }).or(leadId ? `client_id.eq.${id},lead_id.eq.${leadId}` : `client_id.eq.${id}`).range(0, 0)),
   ]) : Promise.resolve(null);
   // Client 360° finance (KENJI #98): every sale and every expense is read page by page until the exact server
   // count is reached. A subtotal is never shown as the client's profitability (see src/lib/sales/client-finance.ts).
@@ -102,6 +104,7 @@ export default async function Client360({ params, searchParams }: { params: Prom
     overdueTasks: n(2),
     workOrders: n(3),
     agreements: n(4),
+    quotes: n(5),
     sales: financeAllowed && salesLoaded.complete && !salesLoaded.failed ? salesLoaded.rows.length : null,
     documents: documents.error ? null : documents.count,
     modules: moduleCounts,
@@ -126,7 +129,7 @@ export default async function Client360({ params, searchParams }: { params: Prom
   return <Suite active="crm"><div className={s.hud}>
     <OpsHeader lang={lang} active="clients" eyebrow={`CRM / Clientes / ${c?.client_code ?? ""}`} title={c?.legal_name ?? pick(lang, "Cliente", "Client")}
       lead={c ? [c.trade_name, c.industry, [c.location, c.country].filter(Boolean).join(", "), `${pick(lang, "Fuente", "Source")}: ${c.source}`].filter(Boolean).join(" · ") : undefined}
-      actions={c && <><Link className={`${s.button} ${s.primary}`} href={`/admin/workspace/crm/clients/${c.id}?edit=1#client-edit`}>{pick(lang, "Editar ficha y contactos", "Edit profile and contacts")}</Link><Link className={s.button} href={`/admin/workspace/crm/sales/new?client=${c.id}`}>{pick(lang, "+ Nueva venta", "+ New sale")}</Link><Link className={s.button} href={`/admin/workspace/crm/clients/${c.id}/contracts`}>{pick(lang, "Generar contrato", "Generate agreement")}</Link><Link className={s.button} href={`/admin/workspace/crm/clients/${c.id}/results`}>{financePermitted ? pick(lang, "Comisiones por cobrar", "Commissions receivable") : pick(lang, "Comisiones (requiere permiso)", "Commissions (permission required)")}</Link>{!c.origin_lead_id && canOpenOpportunity && <form action={ensureClientOpportunity}><input type="hidden" name="client_id" value={c.id}/><button className={s.button} type="submit">{pick(lang, "+ Crear lead vinculado", "+ Create linked lead")}</button></form>}<Link className={s.button} href={`/admin/workspace/crm/tasks?view=all&client=${c.id}`}>{pick(lang, "Tareas", "Tasks")}</Link><Link className={s.button} href={`/admin/workspace/crm/activity?client=${c.id}`}>{pick(lang, "Actividad", "Activity")}</Link></>} />
+      actions={c && <><Link className={`${s.button} ${s.primary}`} href={`/admin/workspace/crm/clients/${c.id}?edit=1#client-edit`}>{pick(lang, "Editar ficha y contactos", "Edit profile and contacts")}</Link>{c.origin_lead_id && <Link className={s.button} href={`/admin/workspace/crm/quotes/new?client=${c.id}`}>{pick(lang, "+ Crear cotización", "+ Create quote")}</Link>}<Link className={s.button} href={`/admin/workspace/crm/quotes?client=${c.id}`}>{pick(lang, "Cotizaciones", "Quotes")}</Link><Link className={s.button} href={`/admin/workspace/crm/sales/new?client=${c.id}`}>{pick(lang, "+ Nueva venta", "+ New sale")}</Link><Link className={s.button} href={`/admin/workspace/crm/clients/${c.id}/contracts`}>{pick(lang, "Generar contrato", "Generate agreement")}</Link><Link className={s.button} href={`/admin/workspace/crm/clients/${c.id}/results`}>{financePermitted ? pick(lang, "Comisiones por cobrar", "Commissions receivable") : pick(lang, "Comisiones (requiere permiso)", "Commissions (permission required)")}</Link>{!c.origin_lead_id && canOpenOpportunity && <form action={ensureClientOpportunity}><input type="hidden" name="client_id" value={c.id}/><button className={s.button} type="submit">{pick(lang, "+ Crear lead vinculado", "+ Create linked lead")}</button></form>}<Link className={s.button} href={`/admin/workspace/crm/tasks?view=all&client=${c.id}`}>{pick(lang, "Tareas", "Tasks")}</Link><Link className={s.button} href={`/admin/workspace/crm/activity?client=${c.id}`}>{pick(lang, "Actividad", "Activity")}</Link></>} />
     <OkFlash lang={lang} code={q(p, "ok")} /><ErrorFlash lang={lang} code={q(p, "error")} />
     {client.error ? <Unavailable lang={lang} code={client.error} /> : c && <>
       {!c.origin_lead_id && <p className={s.flash} data-tone="warn" role="status">{pick(lang,
