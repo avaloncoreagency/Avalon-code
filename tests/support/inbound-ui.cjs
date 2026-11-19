@@ -2,6 +2,7 @@ const assert=require('node:assert/strict');
 module.exports=async function inboundUI({db,context,miguel,samuel,origin,evidence}) {
   const owner=miguel.user.id;
   const inbox=page=>page.getByRole('region',{name:/^(Bandeja de solicitudes|Inquiry inbox)$/});
+  const row=(page,name='Inbox Synthetic Verify')=>inbox(page).getByRole('listitem').filter({has:page.getByRole('heading',{name,exact:true})});
   await db.exec('reset role');
   const make=async(company,kind='web_form')=>db.transaction(async tx=>{
     await tx.exec('reset role');
@@ -19,17 +20,18 @@ module.exports=async function inboundUI({db,context,miguel,samuel,origin,evidenc
     await page.goto(origin+'/admin/workspace/crm/inbound');
     await inbox(page).getByRole('combobox').selectOption('');
     await inbox(page).getByRole('searchbox').fill('Inbox Synthetic');
-    await inbox(page).getByRole('button',{name:/^(Buscar|Search)$/}).click();
+    await Promise.all([page.waitForResponse(response=>{const u=new URL(response.url());return u.pathname.endsWith('/crm/api')&&u.searchParams.get('q')==='Inbox Synthetic';}),inbox(page).getByRole('button',{name:/^(Buscar|Search)$/}).click()]);
+    await inbox(page).getByText(/1 (empresas con solicitudes|businesses with inquiries)/).waitFor();
     await inbox(page).getByRole('heading',{name:'Inbox Synthetic Verify',exact:true}).waitFor();
     assert.equal(await inbox(page).getByRole('heading',{name:'Inbox Synthetic Radar',exact:true}).count(),0,'Radar discoveries excluded server-side');
   }
-  await inbox(b).getByRole('button',{name:'Approve review',exact:true}).click();
-  await inbox(b).getByRole('button',{name:'Convert to lead',exact:true}).waitFor();
-  await inbox(a).getByRole('button',{name:'Aprobar revisión',exact:true}).click();
+  await row(b).getByRole('button',{name:'Approve review',exact:true}).click();
+  await row(b).getByRole('button',{name:'Convert to lead',exact:true}).waitFor();
+  await row(a).getByRole('button',{name:'Aprobar revisión',exact:true}).click();
   await inbox(a).getByRole('alert').waitFor();
   assert.match(await inbox(a).getByRole('alert').innerText(),/registro cambió/,'concurrent review does not overwrite');
   assert.equal((await db.query('select status from crm_prospects where id=$1',[record.id])).rows[0].status,'approved');
-  await inbox(b).getByRole('button',{name:'Convert to lead',exact:true}).click();
+  await row(b).getByRole('button',{name:'Convert to lead',exact:true}).click();
   await inbox(b).getByRole('link',{name:'Open opportunity',exact:true}).first().waitFor();
   const converted=(await db.query('select status,lead_id from crm_prospects where id=$1',[record.id])).rows[0];
   assert.equal(converted.status,'converted');assert.ok(converted.lead_id);
@@ -43,11 +45,12 @@ module.exports=async function inboundUI({db,context,miguel,samuel,origin,evidenc
   await b.screenshot({path:evidence+'/inbound-en-1440.png',fullPage:true});
   // Transport loss must preserve the row and never show an optimistic confirmation.
   await receipt((await make('Inbox Synthetic Offline')).id);
-  await inbox(a).getByRole('searchbox').fill('Inbox Synthetic Offline');await inbox(a).getByRole('button',{name:'Buscar',exact:true}).click();
+  await inbox(a).getByRole('searchbox').fill('Inbox Synthetic Offline');await Promise.all([a.waitForResponse(response=>{const u=new URL(response.url());return u.pathname.endsWith('/crm/api')&&u.searchParams.get('q')==='Inbox Synthetic Offline';}),inbox(a).getByRole('button',{name:'Buscar',exact:true}).click()]);
   await inbox(a).getByRole('heading',{name:'Inbox Synthetic Offline',exact:true}).waitFor();
   await a.route('**/crm/api',route=>route.request().method()==='POST'?route.abort():route.continue());
-  await inbox(a).getByRole('button',{name:'Aprobar revisión',exact:true}).click();await inbox(a).getByRole('alert').waitFor();
+  await row(a,'Inbox Synthetic Offline').getByRole('button',{name:'Aprobar revisión',exact:true}).click();await inbox(a).getByRole('alert').waitFor();
   assert.match(await inbox(a).getByRole('alert').innerText(),/No se recibió confirmación/);
-  assert.equal(await inbox(a).getByRole('button',{name:'Convertir a lead',exact:true}).count(),0);
+  assert.equal(await row(a,'Inbox Synthetic Offline').getByRole('button',{name:'Convertir a lead',exact:true}).count(),0);
+  assert.equal((await db.query("select status from crm_prospects where company='Inbox Synthetic Offline'")).rows[0].status,'pending');
   await a.context().close();await b.context().close();
 };
