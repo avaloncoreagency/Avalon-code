@@ -52,7 +52,7 @@ test("unlinked customers have honest status and remain owner-managed without unr
   const page = source("src/app/admin/workspace/crm/clients/[id]/page.tsx");
   const actions = source("src/app/admin/workspace/crm/clients/actions.ts");
   assert.match(page, /!c\.origin_lead_id/);
-  assert.match(page, /No linked sales opportunity/);
+  assert.match(page, /no linked sales opportunity/);
   assert.match(page, /<ClientEditPanel/);
   assert.doesNotMatch(actions, /crm_register_client_with_opportunity|crm_ensure_client_opportunity/);
 });
