@@ -39,6 +39,18 @@ test("quick product wizard uses canonical company UUID and validates HTTPS serve
   assert.match(action, /\.eq\("client_id", confirmedClientId\)/);
 });
 
+test("client can prepare an unbuilt project as a pending-delivery draft", () => {
+  const overview = source("src/components/sales/client-overview.tsx");
+  const action = source("src/app/admin/workspace/project-actions.ts");
+  assert.match(overview, /name="url" type="url" inputMode="url" maxLength=\{500\}/);
+  assert.doesNotMatch(overview, /name="url" type="url" inputMode="url" required/);
+  assert.match(overview, /Deja la URL vacía y guarda el proyecto como borrador/);
+  assert.match(overview, /placeholder=\{pick\(lang, `Website de \$\{name\}`, `\$\{name\} website`\)\}/);
+  assert.match(action, /mode: metadata\.url \? "external_reference" : "pending_delivery"/);
+  assert.match(action, /status: "draft"/);
+  assert.match(action, /client_id: confirmedClientId/);
+});
+
 test("sale form and server action do not silently win another company's lead", () => {
   const sale = source("src/app/admin/workspace/crm/sales/actions.ts");
   const salePage = source("src/app/admin/workspace/crm/sales/new/page.tsx");
