@@ -42,20 +42,20 @@ const NAVY = "0.035 0.067 0.161", INK = "0.118 0.153 0.243", MUTED = "0.42 0.45 
   RULE = "0.88 0.9 0.94", TINT = "0.955 0.965 0.985", WHITE = "1 1 1", GOLD = "0.93 0.74 0.36";
 
 const L = (lang: Lang) => lang === "es" ? {
-  quote: "COTIZACION", proposal: "PROPUESTA COMERCIAL", preparedFor: "PREPARADO PARA", issued: "EMITIDA", valid: "VALIDA HASTA",
-  number: "COTIZACION", version: "VERSION", investment: "INVERSION ESTIMADA", oneTime: "Pago unico", monthly: "Mensualidad", perMonth: "/ mes",
-  summary: "Resumen ejecutivo", objectives: "Objetivos del cliente", problem: "Situacion actual", solution: "Solucion propuesta",
+  quote: "COTIZACIÓN", proposal: "PROPUESTA COMERCIAL", preparedFor: "PREPARADO PARA", issued: "EMITIDA", valid: "VÁLIDA HASTA",
+  number: "COTIZACIÓN", version: "VERSIÓN", investment: "INVERSIÓN ESTIMADA", oneTime: "Pago único", monthly: "Mensualidad", perMonth: "/ mes",
+  summary: "Resumen ejecutivo", objectives: "Objetivos del cliente", problem: "Situación actual", solution: "Solución propuesta",
   scope: "Alcance", deliverables: "Entregables", exclusions: "Exclusiones", dependencies: "Dependencias del cliente",
-  invest: "Inversion", model: "Modelo de cobro", timeline: "Cronograma estimado", support: "Soporte incluido",
-  terms: "Condiciones", notes: "Notas", next: "Vigencia y proximos pasos", concept: "Concepto", type: "Tipo", qty: "Cant.", unit: "Precio", amount: "Importe",
-  total1: "Total pago unico", totalM: "Total mensual", commission: "Comision por resultados", pctToNegotiate: "Porcentaje por acordar",
-  base: "Base de calculo", trigger: "Genera derecho a comision", window: "Ventana de atribucion", days: "dias", evidence: "Evidencia requerida",
-  settlement: "Liquidacion", refunds: "Reembolsos y contracargos", expiry: "Vencimiento", thirdParty: "Costos de terceros (no son ingresos de Avalon)",
-  models: { fixed: "Precio fijo", monthly: "Suscripcion mensual", commission: "Comision por resultados", hybrid: "Modelo hibrido" },
+  invest: "Inversión", model: "Modelo de cobro", timeline: "Cronograma estimado", support: "Soporte incluido",
+  terms: "Condiciones", notes: "Notas", next: "Vigencia y próximos pasos", concept: "Concepto", type: "Tipo", qty: "Cant.", unit: "Precio", amount: "Importe",
+  total1: "Total pago único", totalM: "Total mensual", commission: "Comisión por resultados", pctToNegotiate: "Porcentaje por acordar",
+  pctLabel: "Porcentaje", base: "Base de cálculo", trigger: "Genera derecho a comisión", window: "Ventana de atribución", days: "días", evidence: "Evidencia requerida",
+  settlement: "Liquidación", refunds: "Reembolsos y contracargos", expiry: "Vencimiento", thirdParty: "Costos de terceros (no son ingresos de Avalon)",
+  models: { fixed: "Precio fijo", monthly: "Suscripción mensual", commission: "Comisión por resultados", hybrid: "Modelo híbrido: cada componente se cobra por separado" },
   bases: { gross_revenue: "Ingresos brutos atribuibles efectivamente cobrados", gross_profit: "Utilidad bruta atribuible", other: "Otra base acordada" },
   settle: { weekly: "Semanal", biweekly: "Quincenal", monthly: "Mensual", quarterly: "Trimestral" },
-  nextText: (until: string) => `Esta cotizacion es valida hasta el ${until}. No constituye un contrato ni una factura. Si la propuesta es aceptada, prepararemos un contrato con estas condiciones para su revision y firma.`,
-  contact: "Contacto", footer: "Documento confidencial preparado para su destinatario", page: "Pagina", of: "de",
+  nextText: (until: string) => `Esta cotización es válida hasta el ${until}. No constituye un contrato ni una factura. Si la propuesta es aceptada, prepararemos un contrato con estas condiciones para su revisión y firma.`,
+  contact: "Contacto", footer: "Documento confidencial preparado para su destinatario", page: "Página", of: "de",
 } : {
   quote: "QUOTE", proposal: "COMMERCIAL PROPOSAL", preparedFor: "PREPARED FOR", issued: "ISSUED", valid: "VALID UNTIL",
   number: "QUOTE", version: "VERSION", investment: "ESTIMATED INVESTMENT", oneTime: "One-time", monthly: "Monthly", perMonth: "/ month",
@@ -64,18 +64,18 @@ const L = (lang: Lang) => lang === "es" ? {
   invest: "Investment", model: "Billing model", timeline: "Estimated timeline", support: "Included support",
   terms: "Terms", notes: "Notes", next: "Validity and next steps", concept: "Item", type: "Type", qty: "Qty", unit: "Price", amount: "Amount",
   total1: "One-time total", totalM: "Monthly total", commission: "Performance commission", pctToNegotiate: "Percentage to be agreed",
-  base: "Calculation base", trigger: "Earned when", window: "Attribution window", days: "days", evidence: "Required evidence",
+  pctLabel: "Percentage", base: "Calculation base", trigger: "Earned when", window: "Attribution window", days: "days", evidence: "Required evidence",
   settlement: "Settlement", refunds: "Refunds and chargebacks", expiry: "Ends", thirdParty: "Third-party costs (not Avalon revenue)",
-  models: { fixed: "Fixed price", monthly: "Monthly subscription", commission: "Performance commission", hybrid: "Hybrid model" },
+  models: { fixed: "Fixed price", monthly: "Monthly subscription", commission: "Performance commission", hybrid: "Hybrid model: each component is billed separately" },
   bases: { gross_revenue: "Attributable gross revenue actually collected", gross_profit: "Attributable gross profit", other: "Other agreed base" },
   settle: { weekly: "Weekly", biweekly: "Biweekly", monthly: "Monthly", quarterly: "Quarterly" },
   nextText: (until: string) => `This quote is valid until ${until}. It is not a contract or an invoice. If accepted, we will prepare an agreement with these terms for review and signature.`,
   contact: "Contact", footer: "Confidential document prepared for its recipient", page: "Page", of: "of",
 };
 
-function longDate(iso: string, lang: Lang) {
+function longDate(iso: string, lang: Lang, short = false) {
   const d = new Date(iso + "T12:00:00Z");
-  return d.toLocaleDateString(lang === "es" ? "es-US" : "en-US", { year: "numeric", month: "long", day: "numeric", timeZone: "UTC" });
+  return d.toLocaleDateString(lang === "es" ? "es-US" : "en-US", { year: "numeric", month: short ? "short" : "long", day: "numeric", timeZone: "UTC" });
 }
 
 export function renderQuotePdf(c: QuoteContent, meta: { number: string; version: number }): Uint8Array {
@@ -100,7 +100,7 @@ export function renderQuotePdf(c: QuoteContent, meta: { number: string; version:
   text(cover, M, 338, wrap(c.client.company, 18, W - 2 * M, "F2")[0] ?? "", 18, "F2", WHITE);
   if (c.client.contact) text(cover, M, 318, c.client.contact, 11, "F1", "0.85 0.89 1");
   // Meta grid
-  const meta4: [string, string][] = [[t.number, meta.number], [t.version, "v" + meta.version], [t.issued, longDate(c.issueDate, c.lang)], [t.valid, longDate(c.validUntil, c.lang)]];
+  const meta4: [string, string][] = [[t.number, meta.number], [t.version, "v" + meta.version], [t.issued, longDate(c.issueDate, c.lang, true)], [t.valid, longDate(c.validUntil, c.lang, true)]];
   meta4.forEach(([k, v], i) => {
     const x = M + i * ((W - 2 * M) / 4);
     text(cover, x, 250, k, 8, "F2", MUTED); text(cover, x, 233, v, 11, "F2", INK);
@@ -153,25 +153,25 @@ export function renderQuotePdf(c: QuoteContent, meta: { number: string; version:
   // Investment table
   if (c.lines.length) {
     heading(t.invest);
-    const cols = { concept: M + 10, type: M + 280, qty: M + 380, unit: M + 450, amount: W - M - 10 };
+    const cols = { concept: M + 10, type: M + 262, qty: M + 352, unit: M + 432, amount: W - M - 10 };
     need(26);
     rect(page, M, y - 7, W - 2 * M, 20, NAVY);
     text(page, cols.concept, y, t.concept, 8.5, "F2", WHITE); text(page, cols.type, y, t.type, 8.5, "F2", WHITE);
-    right(page, cols.qty + 24, y, t.qty, 8.5, "F2", WHITE); right(page, cols.unit + 50, y, t.unit, 8.5, "F2", WHITE);
+    right(page, cols.qty, y, t.qty, 8.5, "F2", WHITE); right(page, cols.unit, y, t.unit, 8.5, "F2", WHITE);
     right(page, cols.amount, y, t.amount, 8.5, "F2", WHITE);
     y -= 22;
     c.lines.forEach((l, i) => {
-      const desc = l.description ? wrap(l.description, 8.5, 260) : [];
-      const nameLines = wrap(l.name, 10, 260, "F2");
+      const desc = l.description ? wrap(l.description, 8.5, 240) : [];
+      const nameLines = wrap(l.name, 10, 240, "F2");
       const h = nameLines.length * 13 + desc.length * 11 + 10;
       need(h);
       if (i % 2 === 0) rect(page, M, y - h + 13, W - 2 * M, h, TINT);
       nameLines.forEach((n, j) => text(page, cols.concept, y - j * 13, n, 10, "F2", INK));
       desc.forEach((d, j) => text(page, cols.concept, y - nameLines.length * 13 - j * 11 + 1, d, 8.5, "F1", MUTED));
       text(page, cols.type, y, l.kind === "monthly" ? t.monthly : t.oneTime, 9, "F1", INK);
-      right(page, cols.qty + 24, y, String(l.qty), 9.5);
-      right(page, cols.unit + 50, y, formatUsd(toCents(l.unitPrice), c.lang), 9.5);
-      right(page, cols.amount, y, formatUsd(toCents(l.unitPrice) * l.qty, c.lang) + (l.kind === "monthly" ? " " + t.perMonth : ""), 9.5, "F2");
+      right(page, cols.qty, y, String(l.qty), 9.5);
+      right(page, cols.unit, y, formatUsd(toCents(l.unitPrice), c.lang), 9.5);
+      right(page, cols.amount, y, formatUsd(toCents(l.unitPrice) * l.qty, c.lang) , 9.5, "F2");
       y -= h;
     });
     need(48);
@@ -187,7 +187,7 @@ export function renderQuotePdf(c: QuoteContent, meta: { number: string; version:
     const cm = c.commission;
     need(30);
     text(page, M + 14, y, t.commission, 10.5, "F2", VIOLET); y -= 18;
-    kv("%", cm.status === "proposed" ? cm.pct + "%" : t.pctToNegotiate);
+    kv(t.pctLabel, cm.status === "proposed" ? cm.pct + "%" : t.pctToNegotiate);
     kv(t.base, cm.base === "other" ? cm.baseNote : t.bases[cm.base]);
     kv(t.trigger, cm.trigger);
     if (cm.attributionWindowDays) kv(t.window, cm.attributionWindowDays + " " + t.days);
