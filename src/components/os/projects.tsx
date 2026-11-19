@@ -67,12 +67,12 @@ export async function ProjectsIndex({lang,module,base,projects,noun,createFields
       <input type="hidden" name="module" value={module}/>
       <label className={s.field}><span>{pick(lang,'Nombre del producto','Product name')} *</span><input className={s.input} name="name" required maxLength={120} autoComplete="off"/></label>
       <label className={s.field}><span>{pick(lang,'Descripci\u00f3n','Description')}</span><textarea className={s.textarea} name="description" maxLength={2000} rows={3}/></label>
-      <details className={s.row}><summary>{pick(lang,'Empresa e identificador Higgsfield, si aplica','Company and Higgsfield ID, when applicable')}</summary>
+      {!scopedClient && <details className={s.row}><summary>{pick(lang,'Empresa e identificador Higgsfield, si aplica','Company and Higgsfield ID, when applicable')}</summary>
         <p className={s.meta}>{pick(lang,'Si ya seleccionaste la empresa en la ficha operativa, no repitas su nombre. Si es una empresa nueva, escribe su nombre exacto: Avalon vinculará una ficha coincidente o abrirá un lead nuevo en etapa Nuevo. No se registra una venta.','If you already selected an existing company, leave the name blank. For a new company, enter its exact name: Avalon links an exact unique match or creates a new lead at New stage. This does not record a sale.')}</p>
         <label className={s.field}><span>{pick(lang,'Empresa nueva o por identificar (nombre exacto)','New company or company to match (exact name)')}</span><input className={s.input} name="company_name" maxLength={200} autoComplete="organization" /></label>
         <label className={s.field}><span>{pick(lang,'ID real de sitio/trabajo Higgsfield (opcional)','Real Higgsfield site/job ID (optional)')}</span><input className={s.input} name="higgsfield_ref" maxLength={120} autoComplete="off" placeholder="e.g. site-12345" /></label>
         <p className={s.meta}>{pick(lang,'Para registrar una entrega Higgsfield debes incluir ese ID, una URL HTTPS del proyecto o repositorio en la ficha operativa, y una empresa. La referencia sola no demuestra que el producto esté publicado.','For a Higgsfield delivery provide the ID, an HTTPS project or repository URL in operations, and a company. A reference alone does not prove the product is live.')}</p>
-      </details>
+      </details>}
       <label className={s.field}><span>{pick(lang,"Herramienta que creó el producto","Product creator")}</span>
         <select className={s.select} name="source_tool" defaultValue="manual">
           <option value="manual">{pick(lang,"Registro manual","Manual registration")}</option>
@@ -83,16 +83,16 @@ export async function ProjectsIndex({lang,module,base,projects,noun,createFields
           <option value="other">{pick(lang,"Otra herramienta","Other tool")}</option>
         </select>
       </label>
-      <label className={s.field}><span>{pick(lang,"Cliente confirmado en Client 360° (opcional)","Confirmed CRM client (optional)")}</span>
+      {scopedClient ? <><input type="hidden" name="client_id" value={scopedClient.id}/><p className={s.meta} role="status">{pick(lang,"Se registrará directamente para","This product will be linked directly to")} <strong>{scopedClient.trade_name || scopedClient.legal_name}</strong>. {pick(lang,"Sin crear una venta ni otro cliente.","No sale or duplicate client will be created.")}</p></> : <label className={s.field}><span>{pick(lang,"Cliente confirmado en Client 360° (opcional)","Confirmed CRM client (optional)")}</span>
         <select name="client_id" className={s.select} defaultValue={scopedClient ? scopedClient.id : ""}>
           <option value="">{pick(lang,"Sin vincular / usar lead del CRM","Not linked / use CRM lead")}</option>
           {availableClients.map(c=><option key={c.id} value={c.id}>{c.trade_name||c.legal_name} · {c.client_code}</option>)}
         </select>
-      </label>
-      <p className={s.meta}>{pick(lang,
+      </label>}
+      {!scopedClient && <p className={s.meta}>{pick(lang,
         "Selecciona un cliente confirmado o un lead del CRM. Si eliges ambos, deben ser el mismo negocio según el ID del lead de origen. No registra una venta.",
-        "Select a confirmed client or CRM lead. If both are selected, they must match by originating lead ID. This does not register a sale.")}</p>
-      <OperationsFields lang={lang} companies={choices.data??undefined}/>{createFields}
+        "Select a confirmed client or CRM lead. If both are selected, they must match by originating lead ID. This does not register a sale.")}</p>}
+      <OperationsFields lang={lang} companies={scopedClient ? undefined : choices.data??undefined} hideClientLead={Boolean(scopedClient)}/>{createFields}
       <div className={s.actions}><button className={s.btnPrimary} type="submit" disabled={Boolean(projects.error)}>{pick(lang,'Registrar producto','Register product')}</button></div>
       {projects.error==='schema_pending'&&<p className={s.meta}>{pick(lang,'Disponible cuando se aplique la migraci\u00f3n de m\u00f3dulos.','Available once the module migration is applied.')}</p>}
     </form></Panel></div>
@@ -112,8 +112,8 @@ export function ProjectSettingsForm({lang,project,returnTo}:{lang:Lang;project:P
   </form>;
 }
 
-function OperationsFields({lang,value,companies}:{lang:Lang;value?:unknown;companies?:CompanyRecord[]}) {
+function OperationsFields({lang,value,companies,hideClientLead=false}:{lang:Lang;value?:unknown;companies?:CompanyRecord[];hideClientLead?:boolean}) {
   let data;try {data=operations((value??{}) as Record<string,unknown>);}catch{data=operations({});}
   const fields=[['client_lead_id','Empresa / referencia del CRM','Company / CRM reference'],['responsible','Responsable','Responsible'],['url','URL del proyecto','Project URL'],['repository','Repositorio autorizado','Authorized repository'],['deployment','Plataforma / despliegue','Platform / deployment'],['integrations','Integraciones autorizadas','Authorized integrations'],['important_dates','Fechas importantes','Important dates'],['resources','Archivos y recursos / referencias autorizadas','Files and resources / authorized references'],['tasks','Tareas y seguimiento','Tasks and follow-up']] as const;
-  return <details open><summary>{pick(lang,'Empresa y ficha operativa','Company and operations record')}</summary><p className={s.meta}>{pick(lang,'Vincula el registro existente del CRM. Esto no confirma una venta ni activa integraciones. No incluyas claves ni contrase\u00f1as.','Link the existing CRM record. This does not confirm a sale or activate integrations. Do not include keys or passwords.')}</p>{fields.map(([key,es,en])=><label key={key} className={s.field}><span>{pick(lang,es,en)}</span>{key==='client_lead_id'&&companies?.length?<select className={s.select} name={key} defaultValue={data[key]}><option value="">{pick(lang,'Sin vincular todav\u00eda','Not linked yet')}</option>{companies.map(c=><option value={c.id} key={c.id}>{c.company}{c.contact?` / ${c.contact}`:''} / {c.id.slice(0,8)}</option>)}</select>:key==='tasks'||key==='resources'?<textarea className={s.textarea} name={key} defaultValue={data[key]} maxLength={2000} rows={3}/>:<input className={s.input} name={key} defaultValue={data[key]} maxLength={500} type={key==='url'||key==='repository'?'url':'text'}/>}</label>)}{companies&&<p className={s.meta}>{pick(lang,'Selector: hasta 200 registros activos del CRM. Para otras referencias, edita la ficha operativa del proyecto.','Selector: up to 200 active CRM records. For other references, edit the project operations record.')}</p>}{data.url?<a href={data.url} target="_blank" rel="noopener noreferrer">{pick(lang,'Abrir proyecto','Open project')}</a>:null}{data.repository?<p><a href={data.repository} target="_blank" rel="noopener noreferrer">{pick(lang,'Abrir repositorio','Open repository')}</a></p>:null}</details>;
+  return <details open><summary>{pick(lang,'Empresa y ficha operativa','Company and operations record')}</summary><p className={s.meta}>{pick(lang,'Vincula el registro existente del CRM. Esto no confirma una venta ni activa integraciones. No incluyas claves ni contrase\u00f1as.','Link the existing CRM record. This does not confirm a sale or activate integrations. Do not include keys or passwords.')}</p>{fields.filter(([key])=>!hideClientLead||key!=='client_lead_id').map(([key,es,en])=><label key={key} className={s.field}><span>{pick(lang,es,en)}</span>{key==='client_lead_id'&&companies?.length?<select className={s.select} name={key} defaultValue={data[key]}><option value="">{pick(lang,'Sin vincular todav\u00eda','Not linked yet')}</option>{companies.map(c=><option value={c.id} key={c.id}>{c.company}{c.contact?` / ${c.contact}`:''} / {c.id.slice(0,8)}</option>)}</select>:key==='tasks'||key==='resources'?<textarea className={s.textarea} name={key} defaultValue={data[key]} maxLength={2000} rows={3}/>:<input className={s.input} name={key} defaultValue={data[key]} maxLength={500} type={key==='url'||key==='repository'?'url':'text'}/>}</label>)}{companies&&<p className={s.meta}>{pick(lang,'Selector: hasta 200 registros activos del CRM. Para otras referencias, edita la ficha operativa del proyecto.','Selector: up to 200 active CRM records. For other references, edit the project operations record.')}</p>}{data.url?<a href={data.url} target="_blank" rel="noopener noreferrer">{pick(lang,'Abrir proyecto','Open project')}</a>:null}{data.repository?<p><a href={data.repository} target="_blank" rel="noopener noreferrer">{pick(lang,'Abrir repositorio','Open repository')}</a></p>:null}</details>;
 }
