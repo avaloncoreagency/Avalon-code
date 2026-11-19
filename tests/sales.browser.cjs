@@ -226,7 +226,7 @@ test('Nova Restaurant through the real app: one form, three departments, no dupl
   await page.screenshot({ path: EVIDENCE + '/contracts-editor-desktop.png', fullPage: true });
   await Promise.all([
     page.waitForURL(/\/contracts\?ok=created/, { timeout: 30000 }),
-    page.getByRole('button', { name: /Guardar y ver vista previa/ }).click()
+    page.getByRole('button', { name: /Guardar borrador y abrir PDF/ }).click()
   ]);
   const row = (await db.query("select id, client_id, created_by, status, template_version, snapshot from public.crm_client_agreement_drafts")).rows[0];
   assert.ok(row, 'server action persisted a draft');
@@ -239,8 +239,11 @@ test('Nova Restaurant through the real app: one form, three departments, no dupl
   const previewSection = page.locator('#contract-preview');
   await previewSection.getByRole('heading', { name: 'Vista previa del contrato' }).waitFor();
   await previewSection.locator('iframe[title="PDF de contrato para revisar"]').waitFor();
-  assert.ok(await previewSection.getByRole('link', { name: 'Descargar PDF revisado' }).isVisible(),
-    'download is available only on the explicit review surface');
+  assert.ok(await previewSection.getByRole('button', { name: 'Descargar borrador PDF' }).isDisabled(),
+    'draft download stays disabled until the reviewer acknowledges the preview');
+  await previewSection.getByRole('checkbox', { name: /He abierto la vista previa y revisado el contenido/ }).check();
+  assert.ok(await previewSection.getByRole('link', { name: 'Descargar borrador PDF' }).isVisible(),
+    'review acknowledgement enables an explicit download action');
   const previewPdf = await get(pdfPath + '?view=inline', miguel);
   assert.equal(previewPdf.status, 200, 'authenticated owner can preview immutable PDF');
   assert.match(previewPdf.headers.get('content-disposition') || '', /^inline;/);
@@ -623,19 +626,39 @@ test('Nova Restaurant through the real app: one form, three departments, no dupl
   const orbit = await one("select id, origin_lead_id from crm_clients where legal_name='Orbit Dental Sintético'");
   assert.equal(orbit.origin_lead_id, leadId, 'client keeps its origin lead');
   assert.equal(Number((await one("select count(*) n from os_projects where client_id=$1 and module='crm_creator'", [orbit.id])).n), 1, 'CRM Creator received its project');
-  // Edit the client, log a follow-up, both persist after reload.
+  // Owner edits canonical Client 360 and an existing contact; both survive reload.
   await page.goto(`${origin}/admin/workspace/crm/clients/${orbit.id}`);
-  await page.getByText('Editar datos del cliente').click();
-  await page.getByLabel('Industria').fill('Salud dental');
-  await page.getByRole('button', { name: 'Guardar cambios' }).click();
+  await page.getByRole('link', { name: 'Editar ficha y contactos' }).first().click();
+  await page.locator('#client-edit input[name="industry"]').fill('Salud dental');
+  await page.getByRole('button', { name: 'Guardar datos del cliente' }).click();
   await page.getByText('Cambios guardados.').waitFor();
+  await page.getByText('+ Agregar nuevo contacto').click();
+  const addContactForm = page.locator('#client-edit form').filter({ has: page.getByRole('button', { name: 'Agregar contacto' }) });
+  await addContactForm.locator('input[name="full_name"]').fill('Ana Sintética');
+  await addContactForm.locator('input[name="email"]').fill('ana@example.invalid');
+  await addContactForm.locator('input[name="phone"]').fill('305-555-0123');
+  await addContactForm.getByRole('button', { name: 'Agregar contacto' }).click();
+  await page.getByText('Cambios guardados.').waitFor();
+  const contactPanel = page.locator('#client-edit details').filter({ hasText: 'Ana Sintética' }).first();
+  await contactPanel.locator('summary').click();
+  const editContactForm = contactPanel.locator('form');
+  await editContactForm.locator('input[name="phone"]').fill('305-555-0456');
+  await editContactForm.getByRole('button', { name: 'Guardar contacto' }).click();
+  // The prior save already displayed "Cambios guardados."; wait for the UPDATED contact card, not a stale flash.
+  await page.locator('#client-edit details').filter({ hasText: 'Ana Sintética' }).first().getByText('305-555-0456', { exact: false }).waitFor();
+  assert.equal((await one("select phone from crm_contacts where client_id=$1 and full_name='Ana Sintética'", [orbit.id])).phone, '305-555-0456', 'edited contact persists in canonical CRM');
   await page.locator('textarea[name="body"]').fill('Llamada de kickoff sintética');
   await page.locator('input[name="due_on"]').fill('2026-12-01');
-  await page.getByRole('button', { name: 'Registrar actividad' }).click();
-  await page.getByText('Cambios guardados.').waitFor();
+  await Promise.all([
+    page.waitForURL(url => url.pathname.endsWith('/admin/workspace/crm/clients/' + orbit.id) && url.searchParams.get('ok') === 'saved' && !url.searchParams.has('edit')),
+    page.getByRole('button', { name: 'Registrar actividad' }).click(),
+  ]);
+  assert.equal((await one('select industry from crm_clients where id=$1', [orbit.id])).industry, 'Salud dental', 'client business profile persisted');
+  assert.equal(Number((await one("select count(*) n from crm_activities where client_id=$1 and body='Llamada de kickoff sintética'", [orbit.id])).n), 1, 'client activity persisted before refresh');
   await page.reload();
   const orbitHub = await page.locator('#main').innerText();
-  assert.ok(orbitHub.includes('Salud dental') && orbitHub.includes('Llamada de kickoff sintética'), 'client edit and activity persisted');
+  assert.ok(orbitHub.includes('Salud dental'), 'updated client industry appears in the profile');
+  assert.ok(orbitHub.includes('Llamada de kickoff sintética'), 'saved activity appears in the client history');
   assert.ok(orbitHub.includes('Orbit Dental Sintético — CRM personalizado'), 'project visible from the client');
   // Calendar shows persisted due dates (tasks/deliveries) for everyone.
   await page.goto(origin + '/admin/workspace/crm/calendar?owner=all');
