@@ -15,7 +15,7 @@ type Draft = {id:string;template_version:string;created_at:string;created_by:str
 type CommercialTerms = {billing_model:string|null; commission_pct:number|null; commission_base:string|null;
   commission_approved_by:string|null; attribution_rules:string; cancellation_terms:string; special_conditions:string;
   setup_price:number|null; monthly_fee:number|null; client_ad_budget:number|null; reconciliation:string|null;
-  duration_months:number|null; start_date:string|null; currency:string};
+  duration_months:number|null; start_date:string|null; currency:string; services:string[]};
 const fields = [
   ["agencyName","Legal name of the real contracting individual(s) or registered entity","Nombre legal real de la(s) persona(s) firmante(s) o entidad registrada", "text", ""],
   ["agencyBrand","Brand/project name (not a legal entity) - optional","Nombre comercial o del proyecto (no es entidad legal) - opcional","text","Avalon Core Agency"],
@@ -60,11 +60,21 @@ export default async function ClientContracts({params, searchParams}:{
   const leadId = client.origin_lead_id;
   const [termsResult, contactResult] = await Promise.all([
     leadId ? supabase.from("crm_commercial_terms")
-      .select("billing_model,commission_pct,commission_base,commission_approved_by,attribution_rules,cancellation_terms,special_conditions,setup_price,monthly_fee,client_ad_budget,reconciliation,duration_months,start_date,currency")
+      .select("billing_model,commission_pct,commission_base,commission_approved_by,attribution_rules,cancellation_terms,special_conditions,setup_price,monthly_fee,client_ad_budget,reconciliation,duration_months,start_date,currency,services")
       .eq("lead_id",leadId).eq("kind","agreed").maybeSingle() : Promise.resolve({data:null,error:null}),
     supabase.from("crm_contacts").select("email").eq("client_id",id).eq("is_primary",true).limit(1).maybeSingle(),
   ]);
   const terms = !termsResult.error ? termsResult.data as CommercialTerms|null : null;
+  // Exact curated mapping: never infer unknown services or silently contract for disabled modules.
+  const serviceMap:Record<string,string> = {
+    "desarrollo-web":"Website","tienda-online":"E-commerce",
+    "crm-personalizado":"CRM implementation","marketing-mensual":"Marketing / Ads",
+    "generacion-leads":"Lead Generation","seo-local":"SEO / Google Business",
+    "automatizacion":"Automation","recepcionista-ia":"AI Receptionist",
+    "chatbots":"AI Chatbot",
+  };
+  const selectedServices = new Set((terms?.services || []).map(key => serviceMap[key] || key)
+    .filter(item => SERVICE_OPTIONS.some(option => option === item)));
   const hasApprovedCommission = !!terms?.commission_approved_by && (terms.billing_model==="commission" || terms.billing_model==="hybrid")
     && terms.commission_pct!==null;
   const baseLabel = terms?.commission_base==="gross_profit" ? "gross profit" :
@@ -97,21 +107,6 @@ export default async function ClientContracts({params, searchParams}:{
     {p.error&&<p className={s.flash} data-tone="error" role="alert">{p.error==="schema"
       ? name(lang,"La tabla de contratos todavía no está instalada en este entorno.","Contract drafts table is not installed in this environment.")
       : name(lang,"No se pudo guardar. Revisa todos los campos y vuelve a intentarlo.","Could not save. Check all fields and try again.")}</p>}
-    <section className={s.panel}>
-      <header><h2>{name(lang,"Borradores guardados","Saved drafts")}</h2></header>
-      {draftsResult.error?<p className={s.muted}>{name(lang,"El sistema de borradores todavía no está disponible.","Draft storage is not yet available.")}</p>
-      :drafts.length===0?<p className={s.muted}>{name(lang,"Todavía no hay contratos generados para este cliente.","No agreements generated for this client yet.")}</p>
-      :<div className={s.grid}>{drafts.map(d=><article key={d.id} className={s.card}>
-        <strong>{name(lang,"Contrato maestro","Master Services Agreement")}</strong>
-        <p className={s.muted}>{new Date(d.created_at).toLocaleDateString(lang==="es"?"es-US":"en-US")} · {d.template_version} · DRAFT</p>
-        <Link className={s.button} href={path+"/contracts?agreement="+d.id+"#contract-preview"}>{name(lang,"Vista previa","Preview PDF")}</Link>
-      </article>)}</div>}
-      {!draftsResult.error && (draftsResult.count??0)>PAGE_SIZE && <nav className={s.actions} aria-label={name(lang,"Páginas de contratos","Agreement pages")}>
-        {page>1 && <Link className={s.button} href={path+"/contracts?page="+(page-1)}>{name(lang,"Anterior","Previous")}</Link>}
-        <span className={s.muted}>{name(lang,"Página","Page")} {page} · {draftsResult.count} {name(lang,"borradores","drafts")}</span>
-        {page*PAGE_SIZE<(draftsResult.count??0) && <Link className={s.button} href={path+"/contracts?page="+(page+1)}>{name(lang,"Siguiente","Next")}</Link>}
-      </nav>}
-    </section>
     {selectedAgreement && <section className={s.panel} id="contract-preview" aria-labelledby="contract-preview-title">
       <header><h2 id="contract-preview-title">{name(lang,"Vista previa del contrato","Agreement preview")}</h2></header>
       <p className={s.muted}>{client.legal_name} · {selectedAgreement.template_version} · {name(lang,"Borrador sin firmar. Revísalo completo antes de descargar.","Unsigned draft. Review every page before downloading.")}</p>
@@ -125,6 +120,21 @@ export default async function ClientContracts({params, searchParams}:{
       </div>
       <p className={s.muted}>{name(lang,"Esta vista previa y la descarga se generan desde el MISMO borrador inmutable. Ninguna acción aquí equivale a firma o aprobación legal.","Preview and download use the SAME immutable draft. Neither action is a signature or legal approval.")}</p>
     </section>}
+    <section className={s.panel}>
+      <header><h2>{name(lang,"Borradores guardados","Saved drafts")}</h2></header>
+      {draftsResult.error?<p className={s.muted}>{name(lang,"El sistema de borradores todavía no está disponible.","Draft storage is not yet available.")}</p>
+      :drafts.length===0?<p className={s.muted}>{name(lang,"Todavía no hay contratos generados para este cliente.","No agreements generated for this client yet.")}</p>
+      :<div className={s.grid}>{drafts.map(d=><article key={d.id} className={s.card}>
+        <strong>{name(lang,"Contrato maestro","Master Services Agreement")}</strong>
+        <p className={s.muted}>{new Date(d.created_at).toLocaleDateString(lang==="es"?"es-US":"en-US")} · {d.template_version} · DRAFT</p>
+        <Link className={s.button} href={path+"/contracts?page="+page+"&agreement="+d.id+"#contract-preview"}>{name(lang,"Vista previa","Preview PDF")}</Link>
+      </article>)}</div>}
+      {!draftsResult.error && (draftsResult.count??0)>PAGE_SIZE && <nav className={s.actions} aria-label={name(lang,"Páginas de contratos","Agreement pages")}>
+        {page>1 && <Link className={s.button} href={path+"/contracts?page="+(page-1)}>{name(lang,"Anterior","Previous")}</Link>}
+        <span className={s.muted}>{name(lang,"Página","Page")} {page} · {draftsResult.count} {name(lang,"borradores","drafts")}</span>
+        {page*PAGE_SIZE<(draftsResult.count??0) && <Link className={s.button} href={path+"/contracts?page="+(page+1)}>{name(lang,"Siguiente","Next")}</Link>}
+      </nav>}
+    </section>
     <section className={s.panel} id="new-contract">
       <header><h2>{name(lang,"Generar nuevo contrato","Generate new agreement")}</h2></header>
       <p className={s.muted}>{name(lang,"Se genera una versión inmutable. Para corregirla, crea otro borrador. Todos los campos de términos comerciales se incorporan al Anexo A.","Every saved draft is immutable. To correct it, create a new one. All commercial details appear in Exhibit A.")}</p>
@@ -171,7 +181,7 @@ export default async function ClientContracts({params, searchParams}:{
         <fieldset className={s.fieldset}>
           <legend>{name(lang,"Servicios contratados","Contracted service categories")}</legend>
           <div className={s.grid}>{SERVICE_OPTIONS.map(service=><label key={service} className={s.muted}>
-            <input type="checkbox" name="services" value={service}/> {" "}{service}
+            <input type="checkbox" name="services" value={service} defaultChecked={selectedServices.has(service)}/> {" "}{service}
           </label>)}</div>
         </fieldset>
         <fieldset className={s.fieldset}>
