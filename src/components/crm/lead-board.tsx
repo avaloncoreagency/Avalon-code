@@ -28,6 +28,7 @@ export function LeadBoard({ lang = "es", stages, leads, total, page, busy, curre
   const [draggedId, setDraggedId] = useState<string | null>(null);
   const [targetId, setTargetId] = useState<string | null>(null);
   const columns = groupPipeline(stages, leads);
+  const openStages = stages.filter((stage) => stage.kind === "open");
   const t = (es: string, en: string) => pick(lang, es, en);
 
   function drop(event: DragEvent<HTMLElement>, stageId: string) {
@@ -72,6 +73,9 @@ export function LeadBoard({ lang = "es", stages, leads, total, page, busy, curre
               <div className={s.cards}>
                 {cards.map((lead) => {
                   const followUp = followUpState(lead.follow_up_at);
+                  const stagePosition = openStages.findIndex((stage) => stage.id === String(lead.stage_id));
+                  const previousStage = stagePosition > 0 ? openStages[stagePosition - 1] : null;
+                  const nextStage = stagePosition >= 0 ? openStages[stagePosition + 1] : null;
                   return (
                     <article
                       className={s.card}
@@ -102,8 +106,16 @@ export function LeadBoard({ lang = "es", stages, leads, total, page, busy, curre
                         {" · "}{(priorityText[String(lead.priority)] ? pick(lang, ...priorityText[String(lead.priority)]) : t("Prioridad no indicada", "Priority not set"))}
                       </p>
                       <p className={s.source} title={String(lead.source ?? "")}>{t("Origen", "Source")}: {String(lead.source || t("Sin registrar", "Not recorded"))}</p>
+                      <div className={s.quickStage} aria-label={t(`Mover ${String(lead.company)} por el pipeline`, `Move ${String(lead.company)} through pipeline`)}>
+                        <button type="button" disabled={busy || !previousStage} onClick={() => previousStage && onMove(lead, previousStage.id)} aria-label={t(`Retroceder a ${previousStage?.label ?? "etapa anterior"}`, `Move back to ${previousStage?.label ?? "previous stage"}`)} title={previousStage?.label}>
+                          ← {t("Anterior", "Previous")}
+                        </button>
+                        <button type="button" disabled={busy || !nextStage} onClick={() => nextStage && onMove(lead, nextStage.id)} aria-label={t(`Avanzar a ${nextStage?.label ?? "etapa siguiente"}`, `Advance to ${nextStage?.label ?? "next stage"}`)} title={nextStage?.label}>
+                          {t("Avanzar", "Advance")} →
+                        </button>
+                      </div>
                       <label className={s.change}>
-                        {t("Cambiar etapa", "Change stage")}
+                        {t("Ir a otra etapa", "Jump to another stage")}
                         <select
                           aria-label={t(`Etapa de ${String(lead.company)}`, `Stage for ${String(lead.company)}`)}
                           disabled={busy}
@@ -117,8 +129,13 @@ export function LeadBoard({ lang = "es", stages, leads, total, page, busy, curre
                         <button type="button" disabled={busy} onClick={() => onDetail(lead)}>{t("Ficha", "Details")}</button>
                         <button type="button" disabled={busy} onClick={() => onEdit(lead)}>{t("Editar", "Edit")}</button>
                         {!lead.archived && <Link href={`/admin/workspace/crm/sales/new?lead=${encodeURIComponent(String(lead.id))}`} draggable={false} aria-label={t(`Registrar venta para ${String(lead.company)}`, `Record sale for ${String(lead.company)}`)}>{t("Registrar venta", "Record sale")}</Link>}
-                         <Link href={`/admin/workspace/crm/lead/${String(lead.id)}`} draggable={false}>Deal Review</Link>
-                         <Link href={`/admin/workspace/clients/${String(lead.id)}`} draggable={false}>{t("Proyectos", "Projects")}</Link>
+                        <details className={s.moreActions}>
+                          <summary>{t("Más opciones", "More options")}</summary>
+                          <div className={s.moreLinks}>
+                            <Link href={`/admin/workspace/crm/lead/${String(lead.id)}`} draggable={false}>{t("Revisar oportunidad", "Review deal")}</Link>
+                            <Link href={`/admin/workspace/clients/${String(lead.id)}`} draggable={false}>{t("Proyectos", "Projects")}</Link>
+                          </div>
+                        </details>
                       </div>
                     </article>
                   );
