@@ -12,6 +12,7 @@ function compile(path, dependency = {}) {
   new Function("require","module","exports","process","fetch","AbortSignal","URL","URLSearchParams",js)(
     name => {
       if (name in dependency) return dependency[name];
+      if (name === "./radar-control") return {radarExternalEnabled:()=>true,RADAR_PAUSED_MESSAGE:"Radar pausado por decisión administrativa"};
       if (name === "server-only") return {};
       if (name === "node:crypto") return require("node:crypto");
       throw new Error("Unexpected module import: " + name);
@@ -122,7 +123,7 @@ test("server-only Geoapify provider never needs community Overpass in production
  const exports={};
  const env={VERCEL_ENV:"production",AVALON_GEOAPIFY_PLACES_KEY:"c3da27885e3573e09e550d044bc55e22"};
  new Function("require","exports","process",js)(
-  name=> name==="server-only"?{} : name==="./radar"?radar : name==="./radar-geoapify"?geo : name==="./radar-quota"?quota :
+  name=> name==="./radar-control"?{radarExternalEnabled:()=>true,RADAR_PAUSED_MESSAGE:"Radar pausado por decisión administrativa"}:name==="server-only"?{} : name==="./radar"?radar : name==="./radar-geoapify"?geo : name==="./radar-quota"?quota :
     (()=>{throw Error("Unexpected "+name)})(),
   exports,{env},
  );
@@ -152,7 +153,7 @@ test("live endpoint path sends a key ONLY server-side, limits results, persists 
  const env={VERCEL_ENV:"production",AVALON_GEOAPIFY_PLACES_KEY:"c3da27885e3573e09e550d044bc55e22"};
  const exports={};
  new Function("require","exports","process","fetch","AbortSignal","URLSearchParams",js)(
-  name=>name==="server-only"?{} : name==="./radar"?radar : name==="./radar-geoapify"?geo: name==="./radar-quota"?quota:
+  name=>name==="./radar-control"?{radarExternalEnabled:()=>true,RADAR_PAUSED_MESSAGE:"Radar pausado por decisión administrativa"}:name==="server-only"?{} : name==="./radar"?radar : name==="./radar-geoapify"?geo: name==="./radar-quota"?quota:
     (()=>{throw Error("Unexpected "+name)})(),
   exports,{env},deps.mockFetch,AbortSignal,URLSearchParams,
  );
@@ -177,7 +178,7 @@ function loadSearch(env, mockFetch) {
  }).outputText;
  const exports={};
  new Function("require","exports","process","fetch","AbortSignal","URLSearchParams",js)(
-  name=>name==="server-only"?{} : name==="./radar"?radar : name==="./radar-geoapify"?geo : name==="./radar-quota"?quota :
+  name=>name==="./radar-control"?{radarExternalEnabled:()=>true,RADAR_PAUSED_MESSAGE:"Radar pausado por decisión administrativa"}:name==="server-only"?{} : name==="./radar"?radar : name==="./radar-geoapify"?geo : name==="./radar-quota"?quota :
     (()=>{throw Error("Unexpected "+name)})(),
   exports,{env},mockFetch,AbortSignal,URLSearchParams,
  );
