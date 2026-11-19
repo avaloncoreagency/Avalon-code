@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { Suite } from "@/components/suite/suite";
-import { OpsHeader, Unavailable, ownerName, q, UUID_RE, type Query } from "@/components/sales/ui";
+import { OpsHeader, ownerName, q, UUID_RE, type Query } from "@/components/sales/ui";
 import { requireOwner } from "@/lib/auth/session";
 import { getLang } from "@/lib/i18n-server";
 import { pick, formatDate } from "@/lib/i18n";
@@ -11,6 +11,7 @@ import { QUOTE_TRANSITIONS, NOTE_REQUIRED, REVISABLE, acceptanceBlockers, isQuot
 import { ERROR_TEXT, OK_TEXT, STATUS_LABEL, STATUS_TONE, TRANSITION_UI } from "@/lib/quotes/text";
 import { ReviewBeforeDownload } from "@/components/quotes/review-download";
 import { transitionQuote } from "../actions";
+import { QuoteUnavailable } from "@/components/quotes/unavailable";
 import s from "@/components/sales/sales.module.css";
 import w from "@/components/quotes/quotes.module.css";
 
@@ -30,7 +31,7 @@ export default async function QuoteDetail({ params, searchParams }: { params: Pr
   const p = await searchParams;
   const quoteR = await run<Quote | null>(supabase.from("crm_quotes")
     .select("id,quote_number,title,status,current_version,valid_until,version,lead_id,client_id,sent_at,accepted_at,created_at,crm_leads(company),crm_clients(legal_name)").eq("id", id).maybeSingle());
-  if (quoteR.error) return <Suite active="crm"><div className={s.hud}><Unavailable lang={lang} code={quoteR.error} /></div></Suite>;
+  if (quoteR.error) return <Suite active="crm"><div className={s.hud}><QuoteUnavailable lang={lang} code={quoteR.error} /></div></Suite>;
   const quote = quoteR.data;
   if (!quote) notFound();
   // A prospect registered as a client after the quote was issued is resolved through its opportunity.
@@ -128,7 +129,7 @@ export default async function QuoteDetail({ params, searchParams }: { params: Pr
 
     <section className={s.panel} aria-labelledby="quote-versions">
       <header><h2 id="quote-versions">{pick(lang, "Versiones", "Versions")}</h2></header>
-      {versionsR.error ? <Unavailable lang={lang} code={versionsR.error} /> : <ul className={w.versions}>{versions.map(v => <li key={v.id}>
+      {versionsR.error ? <QuoteUnavailable lang={lang} code={versionsR.error} /> : <ul className={w.versions}>{versions.map(v => <li key={v.id}>
         <span><strong>v{v.version_no}</strong>{v.version_no === quote.current_version ? " · " + pick(lang, "actual", "current") : ""} · {formatDate(lang, v.created_at)} · {ownerName(ownerList, v.created_by)}
           {v.change_note ? <><br /><small>{v.change_note}</small></> : null}</span>
         <span>{money(lang, v.one_time_total)} + {money(lang, v.monthly_total)}/{pick(lang, "mes", "mo")} · <a href={pdf(v.version_no, true)} target="_blank" rel="noopener">{pick(lang, "Ver PDF", "View PDF")}</a></span>
@@ -137,7 +138,7 @@ export default async function QuoteDetail({ params, searchParams }: { params: Pr
 
     <section className={s.panel} aria-labelledby="quote-history">
       <header><h2 id="quote-history">{pick(lang, "Historial", "History")}</h2></header>
-      {eventsR.error ? <Unavailable lang={lang} code={eventsR.error} /> : <ol className={s.timeline}>{(eventsR.data ?? []).map(e => <li key={e.id}>
+      {eventsR.error ? <QuoteUnavailable lang={lang} code={eventsR.error} /> : <ol className={s.timeline}>{(eventsR.data ?? []).map(e => <li key={e.id}>
         <strong>{e.from_status ? pick(lang, ...STATUS_LABEL[e.from_status as QuoteStatus]) + " → " : ""}{pick(lang, ...STATUS_LABEL[e.to_status])}</strong> · v{e.version_no} · {formatDate(lang, e.created_at)} · {ownerName(ownerList, e.actor_id)}
         {e.note && <><br /><small>{e.note}</small></>}
       </li>)}</ol>}

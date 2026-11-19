@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { Suite } from "@/components/suite/suite";
-import { OpsHeader, Unavailable, q, UUID_RE, type Query } from "@/components/sales/ui";
+import { OpsHeader, q, UUID_RE, type Query } from "@/components/sales/ui";
 import { requireOwner } from "@/lib/auth/session";
 import { getLang } from "@/lib/i18n-server";
 import { pick } from "@/lib/i18n";
@@ -10,6 +10,7 @@ import { QuoteWizard, type CatalogItem } from "@/components/quotes/quote-wizard"
 import { REVISABLE, isQuoteContent, type QuoteContent, type QuoteStatus } from "@/lib/quotes/model";
 import { ERROR_TEXT } from "@/lib/quotes/text";
 import { reviseQuote } from "../../actions";
+import { QuoteUnavailable } from "@/components/quotes/unavailable";
 import s from "@/components/sales/sales.module.css";
 
 export const dynamic = "force-dynamic";
@@ -23,7 +24,7 @@ export default async function EditQuote({ params, searchParams }: { params: Prom
   const p = await searchParams;
   const quoteR = await run<{ id: string; quote_number: string; status: QuoteStatus; current_version: number; version: number } | null>(
     supabase.from("crm_quotes").select("id,quote_number,status,current_version,version").eq("id", id).maybeSingle());
-  if (quoteR.error) return <Suite active="crm"><div className={s.hud}><Unavailable lang={lang} code={quoteR.error} /></div></Suite>;
+  if (quoteR.error) return <Suite active="crm"><div className={s.hud}><QuoteUnavailable lang={lang} code={quoteR.error} /></div></Suite>;
   const quote = quoteR.data;
   if (!quote) notFound();
   const [versionR, catalogR] = await Promise.all([
@@ -44,7 +45,7 @@ export default async function EditQuote({ params, searchParams }: { params: Prom
     {error && <p className={s.flash} data-tone="error" role="alert">{pick(lang, ...(ERROR_TEXT[error] ?? ERROR_TEXT.save))}</p>}
     {!REVISABLE.includes(quote.status) ? <p className={s.flash} data-tone="warn" role="alert">{pick(lang, ...ERROR_TEXT.quote_not_revisable)}{" "}
       <Link href={`/admin/workspace/crm/quotes/${id}`}>{pick(lang, "Volver", "Back")}</Link></p>
-      : !content || !isQuoteContent(content) ? <Unavailable lang={lang} code={versionR.error ?? "unavailable"} /> :
+      : !content || !isQuoteContent(content) ? <QuoteUnavailable lang={lang} code={versionR.error ?? "unavailable"} /> :
       <section className={s.panel}><QuoteWizard lang={lang} mode="revise" action={reviseQuote} catalog={catalog} initial={content}
         initialInternal={{ directCosts: String(versionR.data?.internal?.directCosts ?? ""), marginNote: String(versionR.data?.internal?.marginNote ?? ""), confidential: String(versionR.data?.internal?.confidential ?? "") }}
         hidden={{ quote_id: id, expected_version: String(quote.version) }} /></section>}

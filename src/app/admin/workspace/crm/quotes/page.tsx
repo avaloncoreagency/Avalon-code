@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { Suite } from "@/components/suite/suite";
-import { OpsHeader, Unavailable, q, UUID_RE, type Query } from "@/components/sales/ui";
+import { OpsHeader, q, UUID_RE, type Query } from "@/components/sales/ui";
 import { requireOwner } from "@/lib/auth/session";
 import { getLang } from "@/lib/i18n-server";
 import { pick, formatDate } from "@/lib/i18n";
@@ -8,6 +8,7 @@ import { run } from "@/lib/os/data";
 import { money } from "@/lib/sales/domain";
 import { QUOTE_STATUSES, type QuoteStatus } from "@/lib/quotes/model";
 import { STATUS_LABEL, STATUS_TONE } from "@/lib/quotes/text";
+import { QuoteUnavailable } from "@/components/quotes/unavailable";
 import s from "@/components/sales/sales.module.css";
 import w from "@/components/quotes/quotes.module.css";
 
@@ -58,7 +59,7 @@ export default async function QuotesPage({ searchParams }: { searchParams: Promi
       lead={pick(lang, "Cotizaciones y propuestas PDF con versiones inmutables. Una cotización aceptada no es una venta: el siguiente paso es el contrato.", "Quotes and PDF proposals with immutable versions. An accepted quote is not a sale: the next step is the agreement.")}
       actions={<><Link className={`${s.button} ${s.primary}`} href={newHref}>{pick(lang, "+ Nueva cotización", "+ New quote")}</Link>
         <Link className={s.button} href="/admin/workspace/crm/leads">{pick(lang, "Ver pipeline", "View pipeline")}</Link></>} />
-    {summary.error ? (summary.error === "schema_pending" ? <Unavailable lang={lang} code="schema_pending" /> : null) :
+    {summary.error ? null :
       <section className={s.stats} aria-label={pick(lang, "Estado de cotizaciones", "Quote status")}>
         <div className={s.stat}><span>{pick(lang, "En preparación", "In preparation")}</span><strong>{summary.data.draft}</strong><small>{pick(lang, "Borrador, revisión o aprobadas", "Draft, review or approved")}</small></div>
         <div className={s.stat}><span>{pick(lang, "Enviadas vigentes", "Sent and valid")}</span><strong>{summary.data.sent}</strong></div>
@@ -74,7 +75,7 @@ export default async function QuotesPage({ searchParams }: { searchParams: Promi
         </nav>
       </header>
       {(leadId || clientId) && <p className={s.muted}>{pick(lang, "Filtrado por oportunidad o cliente.", "Filtered by opportunity or client.")} <Link href="/admin/workspace/crm/quotes">{pick(lang, "Ver todas", "View all")}</Link></p>}
-      {rows.error ? <Unavailable lang={lang} code={rows.error} /> : rows.data.length === 0 ?
+      {rows.error ? <QuoteUnavailable lang={lang} code={rows.error} /> : rows.data.length === 0 ?
         <p className={s.empty}>{pick(lang, "No hay cotizaciones con este filtro. ", "No quotes for this filter. ")}<Link href={newHref}>{pick(lang, "Crear la primera cotización", "Create the first quote")}</Link></p> :
         <div className={s.tableWrap}><table className={s.table} data-mobile-cards><thead><tr>
           <th>{pick(lang, "Cotización", "Quote")}</th><th>{pick(lang, "Prospecto / cliente", "Prospect / client")}</th><th>{pick(lang, "Estado", "Status")}</th>
