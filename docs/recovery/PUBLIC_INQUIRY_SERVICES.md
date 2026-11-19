@@ -8,6 +8,6 @@ Prueba rojo→verde: `NODE_PATH=tests/qa/node_modules node --test tests/public-i
 
 Estado: SQL implementado y probado aislado; **no integrado en historial de migraciones ni aplicado a un servicio**. Claude revisa contra su esquema vigente antes de convertir en migración incremental. Owner autoriza aplicación por separado y con respaldo. No cerrar #47 hasta verificar SHA + migración aplicada + prueba del entorno autorizado.
 
-Riesgo independiente: consentimiento de `crm_public_inquiry` se verifica en el formulario/acción pública, pero la RPC anónima directa no exige prueba de consentimiento; a diferencia de `crm_growth_funnel_submit`, que exige versión vigente. Requiere decisión de contrato y cambio coordinado, no se modifica de forma silenciosa con este arreglo de tipos.
+Riesgo independiente: el formulario público presenta aviso de privacidad, pero no hay consentimiento versionado exigido en la acción ni en `crm_public_inquiry`; a diferencia de `crm_growth_funnel_submit`, que exige versión vigente. Requiere decisión de contrato y cambio coordinado, no se modifica de forma silenciosa con este arreglo de tipos.
 
 Next action: Claude revisa el SQL candidato y contrato público; Codex aporta prueba aislada; propietarios aprueban cualquier promoción de BD.
