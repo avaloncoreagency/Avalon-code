@@ -1,12 +1,13 @@
 import { createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
-import { getOwnerState, type OwnerState } from "@/lib/auth/access";
+import { getOwnerState, getStaffState, type OwnerState, type StaffState } from "@/lib/auth/access";
 import { hardenSessionCookie } from "./cookies";
 
 export async function updateSession(request: NextRequest) {
   let response = NextResponse.next({ request });
   const path = request.nextUrl.pathname;
   const isApi = path === "/api" || path.startsWith("/api/");
+  const isStaffRoute = path === "/staff" || path.startsWith("/staff/");
   const isPublicAuth = path === "/admin/login" || path === "/admin/auth/callback" || path === "/login" || ["/admin/signup", "/admin/forgot-password", "/admin/reset-password", "/admin/auth/confirm"].includes(path);
   const finish = (result: NextResponse) => {
     response.cookies.getAll().forEach(cookie => result.cookies.set(cookie));
@@ -29,6 +30,7 @@ export async function updateSession(request: NextRequest) {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const key = process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY;
   let owner: OwnerState = { state: "none" };
+  let staff: StaffState = { state: "none" };
   if (url && key) {
     const supabase = createServerClient(url, key, {
       cookies: {
@@ -40,7 +42,10 @@ export async function updateSession(request: NextRequest) {
         },
       },
     });
-    try { owner = await getOwnerState(supabase); } catch { /* Fail closed. */ }
+    try {
+      owner = await getOwnerState(supabase);
+      if (isStaffRoute) staff = await getStaffState(supabase);
+    } catch { /* Fail closed. */ }
   }
   const go = (target: string) => finish(NextResponse.redirect(new URL(target, request.url)));
   if (isPublicAuth) {
@@ -49,6 +54,17 @@ export async function updateSession(request: NextRequest) {
       if (owner.state === "mfa") return go("/admin/mfa");
     }
     return finish(response);
+  }
+  // Staff is completely separate from the owner-only /admin and /api surfaces.
+  // Refresh the same Supabase cookies but independently authorize staff routes.
+  if (isStaffRoute) {
+    if (owner.state === "ok") return go("/admin/dashboard");
+    if (owner.state === "mfa") return go("/admin/mfa");
+    if (staff.state === "mfa")
+      return path === "/staff/mfa" ? finish(response) : go("/staff/mfa");
+    if (staff.state === "ok")
+      return path === "/staff/mfa" ? go("/staff") : finish(response);
+    return go("/admin/login");
   }
   // Second-factor step: only for a verified owner whose session is still AAL1.
   if (path === "/admin/mfa") {
