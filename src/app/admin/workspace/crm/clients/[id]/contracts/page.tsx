@@ -53,6 +53,8 @@ export default async function ClientContracts({params, searchParams}:{
   ]);
   const client=clientResult.data as Client|null; if(!client)notFound();
   const drafts=(draftsResult.data??[]) as Draft[];
+  const selectedAgreement = typeof p.agreement === "string" && UUID_RE.test(p.agreement)
+    ? drafts.find(d => d.id === p.agreement) : undefined;
   const path="/admin/workspace/crm/clients/"+id;
   return <Suite active="crm"><main className={s.hud}>
     <header className={s.header}>
@@ -69,7 +71,7 @@ export default async function ClientContracts({params, searchParams}:{
     </section>
     {(p.ok==="created" || p.ok==="existing")&&<p className={s.flash} data-tone="ok" role="status">
       {p.ok==="existing"?name(lang,"Este borrador ya estaba guardado; no se creó un duplicado.","This exact draft already existed; no duplicate was created."):
-      name(lang,"Borrador creado. Puedes descargarlo abajo.","Draft created. Download it below.")}
+      name(lang,"Borrador guardado. Revísalo antes de descargarlo.","Draft saved. Review it before downloading.")}
     </p>}
     {p.error&&<p className={s.flash} data-tone="error" role="alert">{p.error==="schema"
       ? name(lang,"La tabla de contratos todavía no está instalada en este entorno.","Contract drafts table is not installed in this environment.")
@@ -81,7 +83,7 @@ export default async function ClientContracts({params, searchParams}:{
       :<div className={s.grid}>{drafts.map(d=><article key={d.id} className={s.card}>
         <strong>{name(lang,"Contrato maestro","Master Services Agreement")}</strong>
         <p className={s.muted}>{new Date(d.created_at).toLocaleDateString(lang==="es"?"es-US":"en-US")} · {d.template_version} · DRAFT</p>
-        <Link className={s.button} href={path+"/contracts/"+d.id}>{name(lang,"Descargar PDF","Download PDF")}</Link>
+        <Link className={s.button} href={path+"/contracts?agreement="+d.id+"#contract-preview"}>{name(lang,"Vista previa","Preview PDF")}</Link>
       </article>)}</div>}
       {!draftsResult.error && (draftsResult.count??0)>PAGE_SIZE && <nav className={s.actions} aria-label={name(lang,"Páginas de contratos","Agreement pages")}>
         {page>1 && <Link className={s.button} href={path+"/contracts?page="+(page-1)}>{name(lang,"Anterior","Previous")}</Link>}
@@ -89,7 +91,20 @@ export default async function ClientContracts({params, searchParams}:{
         {page*PAGE_SIZE<(draftsResult.count??0) && <Link className={s.button} href={path+"/contracts?page="+(page+1)}>{name(lang,"Siguiente","Next")}</Link>}
       </nav>}
     </section>
-    <section className={s.panel}>
+    {selectedAgreement && <section className={s.panel} id="contract-preview" aria-labelledby="contract-preview-title">
+      <header><h2 id="contract-preview-title">{name(lang,"Vista previa del contrato","Agreement preview")}</h2></header>
+      <p className={s.muted}>{client.legal_name} · {selectedAgreement.template_version} · {name(lang,"Borrador sin firmar. Revísalo completo antes de descargar.","Unsigned draft. Review every page before downloading.")}</p>
+      <iframe title={name(lang,"PDF de contrato para revisar","Agreement PDF preview")} src={path+"/contracts/"+selectedAgreement.id+"?view=inline"}
+        style={{width:"100%",height:"min(75vh, 800px)",minHeight:420,border:"1px solid #314064",borderRadius:12,background:"#fff"}} />
+      <div className={s.actions}>
+        <a className={s.button+" "+s.primary} href={path+"/contracts/"+selectedAgreement.id}>{name(lang,"Descargar PDF revisado","Download reviewed PDF")}</a>
+        <a className={s.button} href={path+"/contracts/"+selectedAgreement.id+"?view=inline"} target="_blank" rel="noopener noreferrer">
+          {name(lang,"Abrir vista previa en otra pestaña","Open preview in a new tab")}</a>
+        <a className={s.button} href="#new-contract">{name(lang,"Crear otra versión para corregir","Create a corrected version")}</a>
+      </div>
+      <p className={s.muted}>{name(lang,"Esta vista previa y la descarga se generan desde el MISMO borrador inmutable. Ninguna acción aquí equivale a firma o aprobación legal.","Preview and download use the SAME immutable draft. Neither action is a signature or legal approval.")}</p>
+    </section>}
+    <section className={s.panel} id="new-contract">
       <header><h2>{name(lang,"Generar nuevo contrato","Generate new agreement")}</h2></header>
       <p className={s.muted}>{name(lang,"Se genera una versión inmutable. Para corregirla, crea otro borrador. Todos los campos de términos comerciales se incorporan al Anexo A.","Every saved draft is immutable. To correct it, create a new one. All commercial details appear in Exhibit A.")}</p>
       <form action={createClientAgreement} className={s.form}>
@@ -142,7 +157,7 @@ export default async function ClientContracts({params, searchParams}:{
           </label>
         </fieldset>
         <div className={s.actions}><button type="submit" className={s.button+" "+s.primary}>
-          {name(lang,"Guardar borrador y habilitar descarga","Save draft and enable PDF download")}</button></div>
+          {name(lang,"Guardar y ver vista previa","Save and preview PDF")}</button></div>
       </form>
     </section>
   </main></Suite>;
