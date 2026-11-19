@@ -96,4 +96,13 @@ end $$;
 revoke all on function public.crm_ensure_client_opportunity(uuid) from public,anon,authenticated;
 grant execute on function public.crm_ensure_client_opportunity(uuid) to authenticated;
 
+
+-- Read-only capability probe: the UI hides unavailable write controls until rollout.
+create or replace function public.crm_client_opportunity_capability()
+returns boolean language sql stable security invoker set search_path='' as $
+  select coalesce(crm_private.is_owner(),false)
+$;
+revoke all on function public.crm_client_opportunity_capability() from public,anon,authenticated;
+grant execute on function public.crm_client_opportunity_capability() to authenticated;
+
 commit;
