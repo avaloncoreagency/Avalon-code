@@ -147,6 +147,8 @@ export function Crm({ section = "leads", focusLeadId, lang = "es" }: { section?:
       return result;
     } catch (e) {
       setError((e as Error).message);
+      // A refused or conflicting change (e.g. a card moved by the other owner) re-syncs the board with the server.
+      reload();
       const lead = (e as { lead?: { id: string; company: string } }).lead;
       const prospectId = (body as { id?: string } | null)?.id;
       if (lead && prospectId) setExistingLead({ prospectId, id: lead.id, company: lead.company });
@@ -444,7 +446,8 @@ export function Crm({ section = "leads", focusLeadId, lang = "es" }: { section?:
       {section === "leads" && (
         <section className={s.leadFirst} id="crm-create-lead" aria-label={t("Alta manual de leads", "Manual lead creation")}>
           <button type="button" className={s.primaryLeadAction} disabled={!data || loading || busy} onClick={() => edit(null)}>{t("Crear lead", "Create lead")}</button>
-          <span>{t("Registra una oportunidad y organízala en el pipeline.", "Create an opportunity and manage it in the pipeline.")}</span>
+          <span>{t("Registra una oportunidad y organízala en el pipeline.", "Create an opportunity and manage it in the pipeline.")}{" "}
+            <a href="/admin/workspace/crm/desk#quick-add">{t("Formulario avanzado (dirección, ZIP, website, industria y detección de duplicados)", "Advanced form (address, ZIP, website, industry and duplicate check)")}</a></span>
         </section>
       )}
       {section === "leads" && editorForm}

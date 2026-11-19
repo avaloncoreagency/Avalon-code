@@ -84,7 +84,7 @@ export default async function DeskPage({ searchParams }: { searchParams: Promise
             <span>{pick(lang, ...cardText[f])}</span><strong>{counts[i].error ? "—" : counts[i].count ?? 0}</strong></Link>)}
         </div>
         <div className={x.split}>
-          <section className={s.panel} aria-labelledby="qa-title">
+          <section className={s.panel} aria-labelledby="qa-title" id="quick-add">
             <h2 id="qa-title">{pick(lang, "Quick Add · nuevo prospecto", "Quick Add · new prospect")}</h2>
             <QuickAdd lang={lang} owners={ownerList} me={userId} />
           </section>
