@@ -226,7 +226,7 @@ test('Nova Restaurant through the real app: one form, three departments, no dupl
   await page.screenshot({ path: EVIDENCE + '/contracts-editor-desktop.png', fullPage: true });
   await Promise.all([
     page.waitForURL(/\/contracts\?ok=created/, { timeout: 30000 }),
-    page.getByRole('button', { name: /Guardar y ver vista previa/ }).click()
+    page.getByRole('button', { name: /Guardar borrador y abrir PDF/ }).click()
   ]);
   const row = (await db.query("select id, client_id, created_by, status, template_version, snapshot from public.crm_client_agreement_drafts")).rows[0];
   assert.ok(row, 'server action persisted a draft');
@@ -239,8 +239,11 @@ test('Nova Restaurant through the real app: one form, three departments, no dupl
   const previewSection = page.locator('#contract-preview');
   await previewSection.getByRole('heading', { name: 'Vista previa del contrato' }).waitFor();
   await previewSection.locator('iframe[title="PDF de contrato para revisar"]').waitFor();
-  assert.ok(await previewSection.getByRole('link', { name: 'Descargar PDF revisado' }).isVisible(),
-    'download is available only on the explicit review surface');
+  assert.ok(await previewSection.getByRole('button', { name: 'Descargar borrador PDF' }).isDisabled(),
+    'draft download stays disabled until the reviewer acknowledges the preview');
+  await previewSection.getByRole('checkbox', { name: /He abierto la vista previa y revisado el contenido/ }).check();
+  assert.ok(await previewSection.getByRole('link', { name: 'Descargar borrador PDF' }).isVisible(),
+    'review acknowledgement enables an explicit download action');
   const previewPdf = await get(pdfPath + '?view=inline', miguel);
   assert.equal(previewPdf.status, 200, 'authenticated owner can preview immutable PDF');
   assert.match(previewPdf.headers.get('content-disposition') || '', /^inline;/);
@@ -265,7 +268,7 @@ test('Nova Restaurant through the real app: one form, three departments, no dupl
   await fillAgreement(page);
   await Promise.all([
     page.waitForURL(/\/contracts\?ok=existing/, { timeout: 30000 }),
-    page.getByRole('button', { name: /Guardar y ver vista previa/ }).click()
+    page.getByRole('button', { name: /Guardar borrador y abrir PDF/ }).click()
   ]);
   assert.equal(Number((await db.query("select count(*) n from public.crm_client_agreement_drafts")).rows[0].n), 1,
     'double submission created no duplicate contracts');
@@ -276,7 +279,9 @@ test('Nova Restaurant through the real app: one form, three departments, no dupl
   await contractsMobile.getByRole('heading', { name: 'Contratos del cliente' }).waitFor();
   await contractsMobile.getByRole('link', { name: 'Vista previa' }).click();
   await contractsMobile.locator('#contract-preview iframe').waitFor();
-  await contractsMobile.getByRole('link', { name: 'Descargar PDF revisado' }).waitFor();
+  assert.ok(await contractsMobile.getByRole('button', { name: 'Descargar borrador PDF' }).isDisabled(), 'second owner also sees review gate');
+  await contractsMobile.getByRole('checkbox', { name: /He abierto la vista previa y revisado el contenido/ }).check();
+  await contractsMobile.getByRole('link', { name: 'Descargar borrador PDF' }).waitFor();
   await contractsMobile.screenshot({ path: EVIDENCE + '/contracts-mobile-chromium.png', fullPage: true });
   const mobileOverflow = await contractsMobile.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
   assert.ok(mobileOverflow <= 1, 'contract editor has no horizontal overflow at 390px (' + mobileOverflow + 'px)');
