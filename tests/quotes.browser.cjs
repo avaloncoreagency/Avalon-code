@@ -73,7 +73,8 @@ test('Quoting Studio in the real app: wizard, PDF without internal data, states,
   }
   assert.equal((await get('/admin/workspace/crm/quotes/00000000-0000-4000-8000-000000000999', miguel)).status, 404);
   assert.equal((await get('/admin/workspace/crm/quotes/new?lead=not-a-uuid', miguel)).status, 404);
-  assert.equal((await get(`/admin/workspace/crm/quotes/00000000-0000-4000-8000-000000000999/pdf?v=1`)).status, 403, 'PDF requires an owner');
+  for (const who of [undefined, outsider]) // Middleware redirects (307) or the route itself refuses (403): never a PDF.
+    assert.ok([307, 403].includes((await get(`/admin/workspace/crm/quotes/00000000-0000-4000-8000-000000000999/pdf?v=1`, who)).status), 'PDF requires an owner');
 
   if (process.env.CRM_BROWSER !== '1' && process.env.QUOTES_BROWSER !== '1') return;
   const { chromium, devices } = require('playwright');
@@ -171,11 +172,12 @@ test('Quoting Studio in the real app: wizard, PDF without internal data, states,
   await m.locator('input[name="agencyAddress"]').fill('1 Synthetic Way, Miami, FL');
   await m.locator('input[name="agencyEmail"]').fill('agency@example.test');
   await m.locator('input[name="county"]').fill('Miami-Dade');
-  for (const [name, value] of [['acceptance', 'Client approves each deliverable in writing.'], ['revisions', 'Two rounds'], ['term', 'Initial term: 12 months.']]) {
-    const field = m.locator(`[name="${name}"]`);
-    if (!(await field.inputValue())) await field.fill(value);
-  }
-  await Promise.all([m.waitForURL(/ok=(created|existing)/), m.getByRole('button', { name: 'Guardar borrador y abrir PDF' }).click()]);
+  // The owner completes the legal fields a quote does not cover; quote-derived fields stay as imported.
+  const missing = await m.evaluate(() => [...document.querySelectorAll('form [required]')].filter(e => !e.value).map(e => e.getAttribute('name')));
+  assert.deepEqual(missing.filter(n => ['setupFee', 'monthlyFee', 'commission', 'scope', 'services'].includes(n)), [], 'quote-derived fields are prefilled');
+  for (const name of missing) await m.locator(`[name="${name}"]`).fill(name === 'clientEmail' ? 'piloto@example.test' : 'Synthetic owner-entered value ' + name);
+  await Promise.all([m.waitForURL(/ok=(created|existing)|error=/), m.getByRole('button', { name: 'Guardar borrador y abrir PDF' }).click()]);
+  if (/error=/.test(m.url())) { await m.screenshot({ path: `${EVIDENCE}/contract-error.png`, fullPage: true }); assert.fail('contract save failed: ' + m.url() + ' ' + output.slice(-800)); }
   const draft = await one('select d.quote_version_id, v.quote_id from crm_client_agreement_drafts d join crm_quote_versions v on v.id=d.quote_version_id where d.client_id=$1', [client]);
   assert.equal(draft.quote_id, quoteId, 'the agreement references the exact accepted quote revision');
   assert.equal((await one('select count(*)::int n from crm_sales')).n, 0, 'a contract draft creates no sale');

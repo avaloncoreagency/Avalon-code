@@ -194,7 +194,7 @@ export function QuoteWizard({ lang, mode, action, hidden, initial, initialIntern
           : <p className={s.flash} data-tone="ok" role="status">{t("Todo listo. Al guardar se crea una versión inmutable; podrás ver el PDF antes de descargarlo.", "All set. Saving creates an immutable version; you can preview the PDF before downloading it.")}</p>}
         <dl className={w.review}>
           <div><dt>{t("Prospecto", "Prospect")}</dt><dd>{c.client.company || "—"}</dd></div>
-          <div><dt>{t("Modelo", "Model")}</dt><dd>{c.model}</dd></div>
+          <div><dt>{t("Modelo", "Model")}</dt><dd>{{ fixed: t("Precio fijo", "Fixed price"), monthly: t("Suscripción mensual", "Monthly subscription"), commission: t("Comisión por resultados", "Performance commission"), hybrid: t("Híbrido", "Hybrid") }[c.model]}</dd></div>
           <div><dt>{t("Conceptos", "Items")}</dt><dd>{c.lines.length}</dd></div>
           <div><dt>{t("Válida hasta", "Valid until")}</dt><dd>{c.validUntil}</dd></div>
         </dl>
