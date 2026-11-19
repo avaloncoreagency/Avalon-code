@@ -104,3 +104,7 @@
 .moreLinks { display: grid; gap: 8px; padding: 4px 0 8px; }
 .moreLinks a { color: var(--text); text-decoration: underline; text-underline-offset: 3px; }
 @media (max-width: 700px) { .quickStage button { min-height: 44px; font-size: 13px; } }
+
+/* Free navigation while dragging: scroll snapping must not fight edge auto-scroll. */
+.scroll[data-dragging="true"] { scroll-snap-type: none; scroll-behavior: auto; }
+.scroll[data-dragging="true"] .column { scroll-snap-align: none; }
