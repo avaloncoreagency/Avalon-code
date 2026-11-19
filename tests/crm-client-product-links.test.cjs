@@ -23,7 +23,7 @@ test("client overview exposes editing, linking and honest stage without implicit
   assert.match(overview, /href="#client-tools"/);
   assert.match(overview, /href="#identity"/);
   assert.match(overview, /leadStage \|\| pick\(lang, "Sin oportunidad vinculada"/);
-  assert.match(page, /leadStage=\{lead\?\.data\?\.stage_id \?\? null\}/);
+  assert.match(page, /leadStage=\{lead\?\.data\?\.crm_stages\?\.label \?\? lead\?\.data\?\.stage_id \?\? null\}/);
   assert.match(page, /<details open style=\{\{ marginTop: 12 \}\}><summary>\{pick\(lang, "Editar datos del cliente"/);
 });
 
