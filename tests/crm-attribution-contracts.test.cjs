@@ -9,7 +9,11 @@ test("Contract studio previews the same stored agreement before downloading", ()
   assert.match(page,/selectedAgreement/);
   assert.match(page,/view=inline/);
   assert.match(page,/iframe/);
-  assert.match(page,/Descargar PDF revisado/);
+  const review=read("src/app/admin/workspace/crm/clients/[id]/contracts/review-before-download.tsx");
+  assert.match(page,/ReviewBeforeDownload/);
+  assert.match(review,/Descargar borrador PDF/);
+  assert.match(review,/reviewed \? \(/);
+  assert.match(review,/type="button" disabled/);
   assert.match(pdf,/getOwnerSession\(/);
   assert.match(pdf,/snapshot_sha256/);
   assert.match(pdf,/canonicalSnapshot/);
