@@ -72,22 +72,32 @@ export async function loadSaleOperations(db: SupabaseClient, saleId: string) {
     counts:{invoices:invoices.count,payments:payments.count,commissions:commissions.count}};
 }
 
-/** Scope mutable records to the rendered sale before invoking existing database RPCs. */
+/** Operation selection never substitutes for authorization. Every handler passes the same gates below. */
+const operations: Record<string, { table: string | null; execute: (db: SupabaseClient, saleId: string, input: Record<string, unknown>) => Promise<Outcome<unknown>> }> = {
+  invoice: {table:null,execute:(db,saleId,input)=>recordInvoice(db,{...input,sale_id:saleId})},
+  agree: {table:null,execute:(db,saleId,input)=>agreeCommission(db,{...input,sale_id:saleId})},
+  void: {table:"crm_invoices",execute:(db,_saleId,input)=>voidInvoice(db,String(input.id),String(input.reason??""))},
+  verify: {table:"crm_payments",execute:(db,_saleId,input)=>verifyPayment(db,String(input.id),String(input.evidence??""))},
+  reverse: {table:"crm_payments",execute:(db,_saleId,input)=>reversePayment(db,String(input.id),String(input.reason??""))},
+  accrued: {table:"crm_commissions",execute:(db,_saleId,input)=>transitionCommission(db,String(input.id),"accrued",String(input.note??""))},
+  paid: {table:"crm_commissions",execute:(db,_saleId,input)=>transitionCommission(db,String(input.id),"paid",String(input.note??""))},
+  cancelled: {table:"crm_commissions",execute:(db,_saleId,input)=>transitionCommission(db,String(input.id),"cancelled",String(input.note??""))},
+};
+
 export async function runSaleOperation(db: SupabaseClient, saleId: string, operation: string, input: Record<string, unknown>): Promise<Outcome<unknown>> {
-  const sale = await db.from("crm_sales").select("id,client_id").eq("id",saleId).maybeSingle();
-  if (sale.error || !sale.data) return {ok:false,message:coreEngineMessage(sale.error)};
-  const capability = await loadClientLedger(db,sale.data.client_id);
-  if (!capability.ok) return capability;
-  if (operation === "invoice") return recordInvoice(db,{...input,sale_id:saleId});
-  if (operation === "agree") return agreeCommission(db,{...input,sale_id:saleId});
-  const table = operation === "void" ? "crm_invoices" : ["verify","reverse"].includes(operation) ? "crm_payments" : "crm_commissions";
-  const record = await db.from(table).select("id").eq("id",String(input.id ?? "")).eq("sale_id",saleId).maybeSingle();
-  if (record.error || !record.data) return {ok:false,message:coreEngineMessage(record.error)};
-  if (operation === "void") return voidInvoice(db,record.data.id,String(input.reason ?? ""));
-  if (operation === "verify") return verifyPayment(db,record.data.id,String(input.evidence ?? ""));
-  if (operation === "reverse") return reversePayment(db,record.data.id,String(input.reason ?? ""));
-  if (["accrued","paid","cancelled"].includes(operation)) return transitionCommission(db,record.data.id,operation as Exclude<CommissionStatus,"agreed">,String(input.note ?? ""));
-  return {ok:false,message:coreEngineMessage(null)};
+  if(!Object.hasOwn(operations,operation))return {ok:false,message:coreEngineMessage(null)};
+  const handler=operations[operation];
+  const sale=await db.from("crm_sales").select("id,client_id").eq("id",saleId).maybeSingle();
+  if(sale.error||!sale.data)return {ok:false,message:coreEngineMessage(sale.error)};
+  const capability=await loadClientLedger(db,sale.data.client_id);
+  if(!capability.ok)return capability;
+  const scoped={...input};
+  if(handler.table!==null){
+    const record=await db.from(handler.table).select("id").eq("id",String(input.id??"")).eq("sale_id",saleId).maybeSingle();
+    if(record.error||!record.data)return {ok:false,message:coreEngineMessage(record.error)};
+    scoped.id=record.data.id;
+  }
+  return handler.execute(db,sale.data.id,scoped);
 }
 
 /** Contract §A catalog writes reuse the existing table, optimistic version and trigger. */

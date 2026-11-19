@@ -79,3 +79,17 @@ test('old production schema reports unavailable and makes no writes',async()=>{
   const out=await adapter().loadClientLedger(db,'synthetic');
   assert.equal(out.ok,false);assert.equal(out.unavailable,true);
 });
+
+test('every operation requires server finance capability; unknown/prototype names touch nothing',async()=>{
+ for(const op of ['invoice','agree','void','verify','reverse','accrued','paid','cancelled']){
+  const calls=[];const db={from:()=>({select(){return this},eq(){return this},async maybeSingle(){return{data:{id:SALE,client_id:'client'}}}}),rpc:async fn=>{calls.push(fn);return{error:{code:'42501'}}}};
+  assert.equal((await adapter().runSaleOperation(db,SALE,op,{})).ok,false,op);assert.deepEqual(calls,['crm_client_finance_ledger']);
+ }
+ for(const op of ['unknown','toString','constructor','__proto__'])assert.equal((await adapter().runSaleOperation({},SALE,op,{})).ok,false);
+});
+test('every mutable record uses its fixed table and requested sale before RPC',async()=>{
+ for(const [op,table] of [['void','crm_invoices'],['verify','crm_payments'],['reverse','crm_payments'],['accrued','crm_commissions'],['paid','crm_commissions'],['cancelled','crm_commissions']]){
+  const calls=[];const db={rpc:async fn=>{calls.push(fn);return{data:{}}},from:name=>{const filters={};return{select(){return this},eq(k,v){filters[k]=v;return this},async maybeSingle(){if(name==='crm_sales')return{data:{id:SALE,client_id:'client'}};assert.equal(name,table);assert.equal(filters.sale_id,SALE);return{data:null};}}}};
+  assert.equal((await adapter().runSaleOperation(db,SALE,op,{id:'other'})).ok,false,op);assert.deepEqual(calls,['crm_client_finance_ledger']);
+ }
+});
