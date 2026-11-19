@@ -927,5 +927,7 @@ test('Nova Restaurant through the real app: one form, three departments, no dupl
   assert.doesNotMatch(sitemapXml, /admin|login/);
   await visitor.close();
 
+  await require('./support/portfolio-ui.cjs')({db,context,miguel,samuel,origin,evidence:EVIDENCE});
+
   assert.deepEqual(errors.filter(e => e.startsWith('pageerror')), [], 'no client-side errors');
 });

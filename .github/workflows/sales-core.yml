@@ -4,6 +4,11 @@ on:
     paths:
       - 'supabase/migrations/**'
       - 'src/lib/sales/**'
+      - 'src/lib/os/data.ts'
+      - 'src/components/os/projects.tsx'
+      - 'src/components/os/company-portfolio.tsx'
+      - 'tests/portfolio*'
+      - 'tests/support/portfolio-ui.cjs'
       - 'src/lib/crm/**'
       - 'src/components/crm/**'
       - 'src/app/admin/workspace/crm/**'
