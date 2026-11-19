@@ -30,7 +30,6 @@ export function CrmNavigation({ active, lang = "es" }: { active?: string; lang?:
 
 /** Keep the complete workflow one tap away, without six competing top-level tabs. */
 const tools = [
-  ["hunter", "/admin/workspace/crm/hunter", "Radar / Lead Hunter", "Radar / Lead Hunter"],
   ["desk", "/admin/workspace/crm/desk", "Bandeja comercial avanzada", "Advanced sales desk"],
   ["overview", "/admin/workspace/crm/overview", "Resumen y consumo", "Overview and usage"],
   ["new", "/admin/workspace/crm/sales/new", "Registrar venta", "Record sale"],
@@ -41,6 +40,8 @@ const tools = [
   ["activity", "/admin/workspace/crm/activity", "Centro de actividad", "Activity center"],
   ["settings", "/admin/workspace/crm/settings", "Configuración", "Settings"],
   ["ai-usage", "/admin/workspace/crm/ai-usage", "Uso de IA", "AI usage"],
+  // The experimental Radar is deliberately last; lead entry is the primary workflow.
+  ["hunter", "/admin/workspace/crm/hunter", "Radar / Lead Hunter", "Radar / Lead Hunter"],
 ] as const;
 
 export function CrmTools({ lang = "es", active }: { lang?: Lang; active?: string }) {
