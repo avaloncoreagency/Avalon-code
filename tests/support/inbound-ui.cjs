@@ -40,8 +40,11 @@ module.exports=async function inboundUI({db,context,miguel,samuel,origin,evidenc
   assert.equal(Number((await db.query('select count(*) n from crm_leads where id=$1',[converted.lead_id])).rows[0].n),1);
   await inbox(a).getByRole('button',{name:'Actualizar',exact:true}).click();
   await inbox(a).getByRole('link',{name:'Abrir oportunidad',exact:true}).waitFor();
-  assert.ok(await a.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+1));
   await a.screenshot({path:evidence+'/inbound-es-320.png',fullPage:true});
+  assert.ok(await a.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+1),'inbox has no document overflow at 320px');
+  await a.setViewportSize({width:390,height:844});
+  assert.ok(await a.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+1),'inbox has no document overflow at 390px');
+  await a.screenshot({path:evidence+'/inbound-es-390.png',fullPage:true});
   await b.screenshot({path:evidence+'/inbound-en-1440.png',fullPage:true});
   // Transport loss must preserve the row and never show an optimistic confirmation.
   await receipt((await make('Inbox Synthetic Offline')).id);

@@ -3,6 +3,7 @@ import Link from "next/link";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { pick, type Lang } from "@/lib/i18n";
 import s from "@/components/sales/sales.module.css";
+import ui from "./inbound-inbox.module.css";
 
 type Inquiry = { id:string; version:number; company:string; contact:string; email:string|null; phone:string; source:string; industry:string; location:string; opportunity:string; acquired_at:string; status:string; owner_id:string; lead_id:string|null; do_not_contact:boolean; crm_public_inquiries?:{id:string;created_at:string;services:string[];language:string}[] };
 const API = "/admin/workspace/crm/api";
@@ -44,7 +45,7 @@ export function InboundInbox({lang}:{lang:Lang}) {
     }catch{setError(t("No se recibió confirmación. Actualiza antes de reintentar: la operación pudo haberse guardado.","No confirmation was received. Refresh before retrying: the operation may have been saved."));}
     finally{lock.current=false;setBusy(false);}
   }
-  return <section className={s.panel} aria-label={t("Bandeja de solicitudes","Inquiry inbox")} aria-busy={loading||busy}>
+  return <section className={`${s.panel} ${ui.inbox}`} aria-label={t("Bandeja de solicitudes","Inquiry inbox")} aria-busy={loading||busy}>
     <form role="search" className={s.toolbar} onSubmit={event=>{event.preventDefault();setPage(0);setSearch(query);}}>
       <label>{t("Buscar negocio, contacto o correo","Search business, contact or email")}<input name="q" type="search" maxLength={100} value={query} onChange={e=>setQuery(e.target.value)}/></label>
       <label>{t("Revisión","Review")}<select value={status} disabled={busy} onChange={e=>{setStatus(e.target.value);setPage(0);}}><option value="">{t("Todos los estados","All statuses")}</option>{Object.entries(STATES).map(([key,names])=><option key={key} value={key}>{pick(lang,names[0],names[1])}</option>)}</select></label>
