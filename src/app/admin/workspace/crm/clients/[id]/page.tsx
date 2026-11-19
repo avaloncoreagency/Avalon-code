@@ -127,7 +127,7 @@ export default async function Client360({ params, searchParams }: { params: Prom
       <ClientOverview lang={lang} client={c} owner={ownerName(ownerList, c.owner_id)}
         contacts={contacts.error ? null : (contacts.data ?? [])} nextSteps={nextSteps} nextStepsUnavailable={Boolean(tasks.error)}
         latest={timeline.data?.[0] ?? null} latestUnavailable={Boolean(timeline.error)} counts={counts}
-        candidates={candidates} candidateError={Boolean(unassigned.error)} financeAvailable={financeAllowed} />
+        candidates={candidates} candidateError={Boolean(unassigned.error)} financeAvailable={financeAllowed} leadStage={lead?.data?.stage_id ?? null} />
       {finance && finance.currencies.some(f => f.sales > 0) && <section className={s.stats} aria-label={pick(lang, "Situación financiera del cliente", "Client financial summary")}>
         {finance.currencies.filter(f => f.sales > 0).map(f => <div key={f.currency} className={s.stat}>
           <span>{pick(lang, "Contratado", "Contracted")} · {f.currency}{finance.complete ? "" : ` · ${pick(lang, "parcial", "partial")}`}</span>
@@ -177,7 +177,7 @@ export default async function Client360({ params, searchParams }: { params: Prom
               <button className={s.button}>{pick(lang, "Guardar contacto", "Save contact")}</button></form></details>
           <h3>{pick(lang, "Notas", "Notes")}</h3>
           <form action={updateClientNotes} className={s.form}><input type="hidden" name="client_id" value={c.id} /><label className={s.field}><span className={s.srOnly}>{pick(lang, "Notas", "Notes")}</span><textarea name="notes" maxLength={4000} rows={4} defaultValue={c.notes} /></label><button className={s.button}>{pick(lang, "Guardar notas", "Save notes")}</button></form>
-          <details style={{ marginTop: 12 }}><summary>{pick(lang, "Editar datos del cliente", "Edit client details")}</summary>
+          <details open style={{ marginTop: 12 }}><summary>{pick(lang, "Editar datos del cliente", "Edit client details")}</summary>
             <form action={updateClient} className={s.form} style={{ marginTop: 10 }}><input type="hidden" name="client_id" value={c.id} /><input type="hidden" name="version" value={c.version} />
               <div className={s.row}><label className={s.field}>{pick(lang, "Nombre de empresa *", "Company name *")}<input name="legal_name" required maxLength={200} defaultValue={c.legal_name} /></label><label className={s.field}>{pick(lang, "Nombre comercial", "Trade name")}<input name="trade_name" maxLength={200} defaultValue={c.trade_name} /></label></div>
               <div className={s.row}><label className={s.field}>Web<input name="website" type="url" maxLength={500} placeholder="https://" defaultValue={c.website} /></label><label className={s.field}>{pick(lang, "Industria", "Industry")}<input name="industry" maxLength={120} defaultValue={c.industry} /></label></div>
