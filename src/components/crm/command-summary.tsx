@@ -28,7 +28,7 @@ export async function CommandSummary({ supabase, lang, data }: { supabase: Supab
     ? pick(lang, "Sin datos", "Unavailable") : String(result.count);
   return <section aria-label={pick(lang, "Centro de operaciones comercial", "Sales command center")}>
     <div className={s.actions} style={{ marginBottom: 12 }}>
-      <Link className={`${s.button} ${s.primary}`} href="/admin/workspace/crm/hunter">Radar / Lead Hunter</Link>
+      <Link className={`${s.button} ${s.primary}`} href="/admin/workspace/crm/leads#crm-create-lead">{pick(lang, "Crear lead", "Create lead")}</Link>
       <Link className={s.button} href="/admin/workspace/crm/sales/new">{pick(lang, "+ Registrar venta", "+ Record sale")}</Link>
       <Link className={s.button} href="/admin/workspace/crm/clients">{pick(lang, "Abrir Clientes 360°", "Open Clients 360°")}</Link>
     </div>
