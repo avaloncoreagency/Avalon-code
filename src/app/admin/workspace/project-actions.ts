@@ -77,6 +77,17 @@ export async function createProject(form: FormData) {
   if (creativeRef && (!metadata.url && !metadata.repository || !companyName && !metadata.client_lead_id && !confirmedClientId))
     back(base, { error: "invalid" });
 
+  // Reusing the same HTTPS URL for the same client is an edit, not a second product.
+  // A database uniqueness constraint is still needed for strict concurrent idempotency.
+  if (confirmedClientId && metadata.url) {
+    const matched = await supabase.from("os_projects").select("id")
+      .eq("module", moduleKey.value).eq("client_id", confirmedClientId)
+      .eq("settings->operations->>url", metadata.url).neq("status", "archived").limit(2);
+    if (matched.error) back(base, { error: mapDbError(matched.error) });
+    if ((matched.data?.length ?? 0) > 1) back(base, { error: "conflict" });
+    if (matched.data?.length === 1) back(`/admin/workspace/products/${matched.data[0].id}`, { ok: "existing" });
+  }
+
   if (creativeRef) {
     // A stable Higgsfield website/job ID is a replay guard, NOT proof of
     // completed generation. Without a DB unique index it is not a lock.
