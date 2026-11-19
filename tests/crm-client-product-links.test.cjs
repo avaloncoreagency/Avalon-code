@@ -48,11 +48,17 @@ test("sale form and server action do not silently win another company's lead", (
   assert.match(salePage, /lead_id: sourceLead\?\.id \?\? chosenLeadId/);
 });
 
-test("unlinked customers have honest status and remain owner-managed without unreviewed RPCs", () => {
+test("unlinked clients keep an honest status and use only approved owner-gated opportunity RPCs", () => {
   const page = source("src/app/admin/workspace/crm/clients/[id]/page.tsx");
   const actions = source("src/app/admin/workspace/crm/clients/actions.ts");
+  const sql = source("supabase/migrations/20261119143838_crm_client_opportunity_registration.sql");
   assert.match(page, /!c\.origin_lead_id/);
-  assert.match(page, /no linked sales opportunity/);
+  assert.match(page, /Esta ficha no tiene un lead vinculado/);
   assert.match(page, /<ClientEditPanel/);
-  assert.doesNotMatch(actions, /crm_register_client_with_opportunity|crm_ensure_client_opportunity/);
+  assert.match(actions, /ownerForAction\(\)/);
+  assert.match(actions, /crm_register_client_with_opportunity/);
+  assert.match(actions, /crm_ensure_client_opportunity/);
+  assert.match(sql, /auth\.uid\(\)/);
+  assert.match(sql, /crm_private\.is_owner\(\)/);
+  assert.match(sql, /revoke all on function public\.crm_ensure_client_opportunity\(uuid\) from public,anon,authenticated/);
 });
