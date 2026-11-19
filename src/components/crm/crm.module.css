@@ -501,3 +501,12 @@
   .primaryTabs > .tab { grid-column: span 2; padding: 9px 5px; }
   .primaryTabs > .tab:nth-child(n+4) { grid-column: span 3; }
 }
+
+/* Leads workspace: keep the pipeline prominent; advanced filters are optional. */
+.leadToolbar { position: relative; display: flex; align-items: center; flex-wrap: wrap; gap: 8px; }
+.primaryLeadAction { background: var(--gradient, linear-gradient(110deg,#2879e8,#7853e6)) !important; border-color: transparent !important; color: #fff !important; font-weight: 700; }
+.leadFilters { border: 1px solid var(--crm-border); border-radius: 12px; padding: 12px; background: var(--crm-panel-bg); }
+.leadFilters > summary { cursor: pointer; font-weight: 700; padding: 4px; }
+.leadFilters > summary:focus-visible { outline: 2px solid var(--cyan); outline-offset: 3px; }
+.leadFilters > section { margin-top: 12px; }
+@media (max-width: 700px) { .leadToolbar > * { min-height: 44px; } }
