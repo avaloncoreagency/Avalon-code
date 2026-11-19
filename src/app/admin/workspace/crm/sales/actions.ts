@@ -20,6 +20,21 @@ export async function confirmSale(_prev: SaleFormState, form: FormData): Promise
   try { request = parseSaleForm(form); }
   catch (e) { return { error: e instanceof SaleInputError ? e.code : "sale_invalid", values }; }
 
+  // Confirmed sales belong to the selected company. Never mark an unrelated
+  // opportunity as won just because its ID was present in a different form.
+  if (request.client_id) {
+    const linked = await supabase.from("crm_clients").select("id,origin_lead_id")
+      .eq("id", request.client_id).neq("status", "archived").maybeSingle();
+    if (linked.error || !linked.data) {
+      return { error: linked.error ? saleErrorCode(linked.error) : "sale_client_missing", values };
+    }
+    const canonicalLead = linked.data.origin_lead_id as string | null;
+    if (request.lead_id && request.lead_id !== canonicalLead) {
+      return { error: "sale_lead_missing", values };
+    }
+    if (!request.lead_id && canonicalLead) request.lead_id = canonicalLead;
+  }
+
   const { data, error } = await supabase.rpc("crm_confirm_sale", { request });
   const result = error ? null : readConfirmResult(data);
   if (!result) {
