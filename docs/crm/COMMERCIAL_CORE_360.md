@@ -30,7 +30,14 @@ Esta entrega no toca el portal de empleados ni el PR #233 (Samuel). Tampoco toca
 
 ### Avalon Quoting Studio — `CRM → Cotizaciones`
 
-**Migración aditiva** `supabase/migrations/20261119200000_crm_quoting_studio.sql`. Es *review-only* hasta tu aprobación.
+**Migración aditiva** `supabase/migrations/20261119210002_crm_quoting_studio.sql`. **Aplicada en producción el 2026-11-19** con aprobación explícita del propietario (ledger `20261119210002_crm_quoting_studio`, 45 migraciones). Verificado:
+
+- RLS activo en las 3 tablas;
+- `anon` sin acceso y sin escritura directa para `authenticated`;
+- trigger presente;
+- `crm_quote_summary()` leído como propietario dentro de una transacción con rollback (0 cotizaciones; no se escribieron datos de prueba).
+
+Advisors: las mismas 6 funciones `anon` ya clasificadas. Las funciones definer ejecutables por `authenticated` pasan de 48 a 51, que son exactamente las 3 RPC nuevas, todas solo para propietarios.
 
 Tablas nuevas:
 
@@ -98,6 +105,7 @@ Seguridad del PDF:
 
 - Pestaña «Cotizaciones» en la navegación principal del CRM.
 - Botones en la ficha del lead, en Clients 360 y en Ventas.
+- Contador «Cotizaciones» en la visión general de Clients 360.
 - Acción rápida y KPI en el Dashboard: abiertas, enviadas, vencidas y aceptadas sin contrato.
 
 ### Cotización aceptada → Contract Studio
@@ -114,11 +122,11 @@ Seguridad del PDF:
 
 El propietario completa lo legal que la cotización no cubre: parte contratante real, condado, aceptación, revisiones y plazo. Nada se firma ni se crea ninguna venta.
 
-## 3. Implementado pero pendiente de activación
+## 3. Activación y dependencias manuales
 
 | Qué | Dependencia | Acción necesaria | Riesgo |
 |---|---|---|---|
-| Quoting Studio en producción | Aplicar `20261119200000_crm_quoting_studio.sql` (aditiva, 3 tablas, 1 columna nueva, 1 trigger, 5 funciones) | Tu aprobación explícita. Luego `apply_migration` en una transacción, verificación con advisors y prueba con un propietario. | Bajo. Sin la migración, las páginas muestran «pendiente de activación» y el dashboard «Quoting Studio pendiente de activación»; nada se rompe. |
+| Quoting Studio en producción | Migración `20261119210002_crm_quoting_studio.sql` | **Hecho**: aplicada y verificada el 2026-11-19. | — |
 | Precios precargados | Ofertas del catálogo en `approved` | Aprobar precios en Configuración → Catálogo (decisión del propietario). | Ninguno. Mientras tanto se escriben a mano. |
 | Envío por correo | No hay integración de correo | Hoy: descargar PDF y luego «Registrar envío manual». | Ninguno; no se finge un envío. |
 
@@ -177,13 +185,13 @@ El propietario completa lo legal que la cotización no cubre: parte contratante 
 - `npm test` → **685/685**. `tsc --noEmit` limpio. ESLint sin errores (2 avisos previos ajenos). `npm run build` correcto.
 - Pruebas existentes de contratos, atribución y vinculación cliente–oportunidad: verdes.
 
-**No verificado**: Safari en un iPhone físico; el visor PDF embebido de Chromium headless (el PDF se verificó por bytes y con `pdftoppm`); producción, porque la migración no está aplicada.
+**No verificado**: Safari en un iPhone físico; el visor PDF embebido de Chromium headless (el PDF se verificó por bytes y con `pdftoppm`); el flujo completo en producción, porque crear cotizaciones de prueba ahí significaría escribir datos ficticios en producción, y eso está prohibido. Lo hará el primer uso real de un propietario.
 
 Evidencia visual en `docs/crm/commercial-core-360/`: asistente, cotización aceptada, lista, iPhone y las 3 páginas del PDF.
 
 ## 7. Piloto Chino Barber
 
-**Ya se puede**, una vez aplicada la migración:
+**Ya se puede** (migración aplicada):
 
 1. Registrar o revisar al prospecto y su oportunidad.
 2. Crear la cotización: website y CRM como pago único, mantenimiento mensual y comisión por resultados (porcentaje propuesto o «por acordar»).
@@ -194,7 +202,6 @@ Evidencia visual en `docs/crm/commercial-core-360/`: asistente, cotización acep
 
 **Falta o es manual**:
 
-- aplicar la migración;
 - precios reales del catálogo;
 - datos legales reales de la parte contratante (Avalon no está constituida);
 - firma fuera de la plataforma y verificación del contrato;
@@ -204,7 +211,7 @@ Evidencia visual en `docs/crm/commercial-core-360/`: asistente, cotización acep
 
 ## 8. Recomendaciones (por prioridad)
 
-1. **P0 — Aplicar la migración de Quoting Studio** tras tu aprobación. Costo operativo: ninguno.
+1. **P0 — Hecho:** migración del Quoting Studio aplicada y verificada en producción.
 2. **P1 — Integrar #227** (facturas, pagos, comisiones en la interfaz) rebasado sobre esta rama. Completa «Ventas → Facturas y pagos / Comisiones».
 3. **P1 — Aprobar las ofertas del catálogo** para que las cotizaciones se precarguen.
 4. **P2 — Revisar el uso real de `crm_ai_public_control`** y, si ningún flujo público lo necesita, retirar `anon`.

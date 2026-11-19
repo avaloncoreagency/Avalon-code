@@ -54,6 +54,8 @@ export default async function Client360({ params, searchParams }: { params: Prom
     run<null>(supabase.from("crm_tasks").select("id", { count: "exact" }).eq("client_id", id).in("status", OPEN).lt("due_at", now).range(0, 0)),
     run<null>(supabase.from("crm_work_orders").select("id", { count: "exact" }).eq("client_id", id).range(0, 0)),
     run<null>(supabase.from("crm_client_agreement_drafts").select("id", { count: "exact" }).eq("client_id", id).range(0, 0)),
+    // Quotes issued to this client, including those issued to its opportunity before it became a client.
+    run<null>(supabase.from("crm_quotes").select("id", { count: "exact" }).or(leadId ? `client_id.eq.${id},lead_id.eq.${leadId}` : `client_id.eq.${id}`).range(0, 0)),
   ]) : Promise.resolve(null);
   // Client 360° finance (KENJI #98): every sale and every expense is read page by page until the exact server
   // count is reached. A subtotal is never shown as the client's profitability (see src/lib/sales/client-finance.ts).
@@ -102,6 +104,7 @@ export default async function Client360({ params, searchParams }: { params: Prom
     overdueTasks: n(2),
     workOrders: n(3),
     agreements: n(4),
+    quotes: n(5),
     sales: financeAllowed && salesLoaded.complete && !salesLoaded.failed ? salesLoaded.rows.length : null,
     documents: documents.error ? null : documents.count,
     modules: moduleCounts,

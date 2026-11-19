@@ -1,5 +1,6 @@
 -- Avalon OS · Commercial Core 360 · Quoting Studio. ADDITIVE ONLY.
--- REVIEW ONLY until an owner explicitly approves applying it to production.
+-- Applied to production on 2026-11-19 with explicit owner approval (ledger version 20261119210002_crm_quoting_studio);
+-- this file was renamed to match the production ledger.
 --
 --  1. crm_quotes: one commercial quote per opportunity (crm_leads). The client is DERIVED from crm_clients.origin_lead_id,
 --     never accepted from the caller, so a quote cannot be attached to another company.
