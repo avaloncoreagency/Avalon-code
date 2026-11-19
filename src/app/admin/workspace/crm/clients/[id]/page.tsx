@@ -16,7 +16,7 @@ import { label, money } from "@/lib/sales/domain";
 import { ClientWorkspace } from "@/components/sales/client-workspace";
 import { loadAllRows, emptyLoaded, type FinanceSummary } from "@/lib/sales/client-finance";
 import { getCrmCapabilities, loadClientFinance } from "@/lib/sales/client-finance-server";
-import { addClientActivity } from "../actions";
+import { addClientActivity, ensureClientOpportunity } from "../actions";
 import s from "@/components/sales/sales.module.css";
 export const dynamic = "force-dynamic";
 
@@ -118,15 +118,23 @@ export default async function Client360({ params, searchParams }: { params: Prom
   ];
   const nextSteps = openTasks.filter(t => !t.due_at || t.due_at >= now).slice(0, 6);
 
+  // Link or create an opportunity only after an explicit owner action.
+  const linking = c && !c.origin_lead_id
+    ? await run<boolean>(supabase.rpc("crm_client_opportunity_capability"))
+    : null;
+  const canOpenOpportunity = linking?.data === true && !linking.error;
   return <Suite active="crm"><div className={s.hud}>
     <OpsHeader lang={lang} active="clients" eyebrow={`CRM / Clientes / ${c?.client_code ?? ""}`} title={c?.legal_name ?? pick(lang, "Cliente", "Client")}
       lead={c ? [c.trade_name, c.industry, [c.location, c.country].filter(Boolean).join(", "), `${pick(lang, "Fuente", "Source")}: ${c.source}`].filter(Boolean).join(" · ") : undefined}
-      actions={c && <><Link className={`${s.button} ${s.primary}`} href={`/admin/workspace/crm/clients/${c.id}?edit=1#client-edit`}>{pick(lang, "Editar ficha y contactos", "Edit profile and contacts")}</Link><Link className={s.button} href={`/admin/workspace/crm/sales/new?client=${c.id}`}>{pick(lang, "+ Nueva venta", "+ New sale")}</Link><Link className={s.button} href={`/admin/workspace/crm/clients/${c.id}/contracts`}>{pick(lang, "Generar contrato", "Generate agreement")}</Link><Link className={s.button} href={`/admin/workspace/crm/clients/${c.id}/results`}>{financePermitted ? pick(lang, "Comisiones por cobrar", "Commissions receivable") : pick(lang, "Comisiones (requiere permiso)", "Commissions (permission required)")}</Link><Link className={s.button} href={`/admin/workspace/crm/tasks?view=all&client=${c.id}`}>{pick(lang, "Tareas", "Tasks")}</Link><Link className={s.button} href={`/admin/workspace/crm/activity?client=${c.id}`}>{pick(lang, "Actividad", "Activity")}</Link></>} />
+      actions={c && <><Link className={`${s.button} ${s.primary}`} href={`/admin/workspace/crm/clients/${c.id}?edit=1#client-edit`}>{pick(lang, "Editar ficha y contactos", "Edit profile and contacts")}</Link><Link className={s.button} href={`/admin/workspace/crm/sales/new?client=${c.id}`}>{pick(lang, "+ Nueva venta", "+ New sale")}</Link><Link className={s.button} href={`/admin/workspace/crm/clients/${c.id}/contracts`}>{pick(lang, "Generar contrato", "Generate agreement")}</Link><Link className={s.button} href={`/admin/workspace/crm/clients/${c.id}/results`}>{financePermitted ? pick(lang, "Comisiones por cobrar", "Commissions receivable") : pick(lang, "Comisiones (requiere permiso)", "Commissions (permission required)")}</Link>{!c.origin_lead_id && canOpenOpportunity && <form action={ensureClientOpportunity}><input type="hidden" name="client_id" value={c.id}/><button className={s.button} type="submit">{pick(lang, "+ Crear lead vinculado", "+ Create linked lead")}</button></form>}<Link className={s.button} href={`/admin/workspace/crm/tasks?view=all&client=${c.id}`}>{pick(lang, "Tareas", "Tasks")}</Link><Link className={s.button} href={`/admin/workspace/crm/activity?client=${c.id}`}>{pick(lang, "Actividad", "Activity")}</Link></>} />
     <OkFlash lang={lang} code={q(p, "ok")} /><ErrorFlash lang={lang} code={q(p, "error")} />
     {client.error ? <Unavailable lang={lang} code={client.error} /> : c && <>
       {!c.origin_lead_id && <p className={s.flash} data-tone="warn" role="status">{pick(lang,
         "Esta ficha aún no tiene una oportunidad comercial vinculada. La sincronización automática estará disponible cuando se habilite la actualización de base de datos; ninguna venta se ha inventado.",
         "This record has no linked sales opportunity. Automatic linking will become available after the database update; no sale has been fabricated.")}</p>}
+      {!c.origin_lead_id && !canOpenOpportunity && <p className={s.flash} data-tone="warn" role="status">{pick(lang,
+        "Esta ficha no tiene un lead vinculado. Si ya existe una oportunidad, comprueba su identidad antes de asociarla. Ninguna venta se inventa.",
+        "No linked lead exists. Verify an existing opportunity's identity before associating it; no sale is fabricated.")}</p>}
       {caps.source === "unavailable" && <p className={s.flash} data-tone="warn" role="status">{pick(lang, "No se pudo verificar el acceso financiero. Los importes privados permanecen ocultos.", "Finance access could not be verified. Private amounts remain hidden.")}</p>}
       <ClientEditPanel client={c} contacts={contacts.data ?? []} unavailable={Boolean(contacts.error)} lang={lang} open={q(p, "edit") === "1"} />
       <ClientOverview lang={lang} client={c} owner={ownerName(ownerList, c.owner_id)}
