@@ -113,13 +113,18 @@ begin
   if auth.uid() is null or not crm_private.is_owner() or not crm_private.can_view_client_finances() then
     raise exception 'finance_forbidden' using errcode='42501';
   end if;
-  select jsonb_build_object(
-    'count',count(*),
-    'reported_count',count(*) filter (where status='reported'),
-    'eligible',coalesce(sum(commission_due) filter (where status in ('verified','paid')),0)::text,
-    'paid',coalesce(sum(commission_due) filter (where status='paid'),0)::text,
-    'pending',coalesce(sum(commission_due) filter (where status='verified'),0)::text
-  ) into result from public.crm_attributed_conversions where client_id=p_client;
+  -- Group by recorded currency; never mix USD/EUR or silently use the client's latest currency.
+  select jsonb_build_object('currencies',coalesce(jsonb_agg(to_jsonb(t)), '[]'::jsonb))
+  into result from (
+    select currency,
+      count(*)::integer as count,
+      count(*) filter (where status='reported')::integer as reported_count,
+      coalesce(sum(commission_due) filter (where status in ('verified','paid')),0)::text as eligible,
+      coalesce(sum(commission_due) filter (where status='paid'),0)::text as paid,
+      coalesce(sum(commission_due) filter (where status='verified'),0)::text as pending
+    from public.crm_attributed_conversions
+    where client_id=p_client group by currency
+  ) t;
   return result;
 end $$;
 
