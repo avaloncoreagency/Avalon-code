@@ -32,7 +32,12 @@ export default async function QuotesPage({ searchParams }: { searchParams: Promi
     .order("updated_at", { ascending: false }).order("id", { ascending: false });
   if (status) query = query.eq("status", status);
   if (leadId) query = query.eq("lead_id", leadId);
-  if (clientId) query = query.eq("client_id", clientId);
+  if (clientId) {
+    // Quotes issued before the prospect became a client are found through the client's opportunity.
+    const { data: c } = await supabase.from("crm_clients").select("origin_lead_id").eq("id", clientId).maybeSingle();
+    const origin = c?.origin_lead_id && UUID_RE.test(c.origin_lead_id) ? c.origin_lead_id : null;
+    query = origin ? query.or(`client_id.eq.${clientId},lead_id.eq.${origin}`) : query.eq("client_id", clientId);
+  }
   const [rows, summary] = await Promise.all([
     run<Row[]>(query.range(page * PAGE, page * PAGE + PAGE - 1)),
     run<Summary>(supabase.rpc("crm_quote_summary")),

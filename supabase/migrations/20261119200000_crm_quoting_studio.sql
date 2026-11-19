@@ -82,7 +82,10 @@ create index if not exists crm_client_agreement_drafts_quote_version on public.c
 alter table public.crm_quotes enable row level security;
 alter table public.crm_quote_versions enable row level security;
 alter table public.crm_quote_events enable row level security;
-revoke all on public.crm_quotes, public.crm_quote_versions, public.crm_quote_events from public, anon, authenticated;
+revoke all on public.crm_quotes from anon;
+revoke all on public.crm_quote_versions from anon;
+revoke all on public.crm_quote_events from anon;
+revoke all on public.crm_quotes, public.crm_quote_versions, public.crm_quote_events from public, authenticated;
 grant select on public.crm_quotes, public.crm_quote_versions, public.crm_quote_events to authenticated;
 create policy owner_select_quotes on public.crm_quotes for select to authenticated
   using (agency_key = 'avalon' and (select crm_private.is_owner()));
