@@ -268,7 +268,7 @@ test('Nova Restaurant through the real app: one form, three departments, no dupl
   await fillAgreement(page);
   await Promise.all([
     page.waitForURL(/\/contracts\?ok=existing/, { timeout: 30000 }),
-    page.getByRole('button', { name: /Guardar y ver vista previa/ }).click()
+    page.getByRole('button', { name: /Guardar borrador y abrir PDF/ }).click()
   ]);
   assert.equal(Number((await db.query("select count(*) n from public.crm_client_agreement_drafts")).rows[0].n), 1,
     'double submission created no duplicate contracts');
@@ -279,7 +279,9 @@ test('Nova Restaurant through the real app: one form, three departments, no dupl
   await contractsMobile.getByRole('heading', { name: 'Contratos del cliente' }).waitFor();
   await contractsMobile.getByRole('link', { name: 'Vista previa' }).click();
   await contractsMobile.locator('#contract-preview iframe').waitFor();
-  await contractsMobile.getByRole('link', { name: 'Descargar PDF revisado' }).waitFor();
+  assert.ok(await contractsMobile.getByRole('button', { name: 'Descargar borrador PDF' }).isDisabled(), 'second owner also sees review gate');
+  await contractsMobile.getByRole('checkbox', { name: /He abierto la vista previa y revisado el contenido/ }).check();
+  await contractsMobile.getByRole('link', { name: 'Descargar borrador PDF' }).waitFor();
   await contractsMobile.screenshot({ path: EVIDENCE + '/contracts-mobile-chromium.png', fullPage: true });
   const mobileOverflow = await contractsMobile.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
   assert.ok(mobileOverflow <= 1, 'contract editor has no horizontal overflow at 390px (' + mobileOverflow + 'px)');
