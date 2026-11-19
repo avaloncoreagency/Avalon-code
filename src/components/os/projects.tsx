@@ -84,7 +84,7 @@ export async function ProjectsIndex({lang,module,base,projects,noun,createFields
         </select>
       </label>
       {scopedClient ? <><input type="hidden" name="client_id" value={scopedClient.id}/><p className={s.meta} role="status">{pick(lang,"Se registrará directamente para","This product will be linked directly to")} <strong>{scopedClient.trade_name || scopedClient.legal_name}</strong>. {pick(lang,"Sin crear una venta ni otro cliente.","No sale or duplicate client will be created.")}</p></> : <label className={s.field}><span>{pick(lang,"Cliente confirmado en Client 360° (opcional)","Confirmed CRM client (optional)")}</span>
-        <select name="client_id" className={s.select} defaultValue={scopedClient ? scopedClient.id : ""}>
+        <select name="client_id" className={s.select} defaultValue="">
           <option value="">{pick(lang,"Sin vincular / usar lead del CRM","Not linked / use CRM lead")}</option>
           {availableClients.map(c=><option key={c.id} value={c.id}>{c.trade_name||c.legal_name} · {c.client_code}</option>)}
         </select>
