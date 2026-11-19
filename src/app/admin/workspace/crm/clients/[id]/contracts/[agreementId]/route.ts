@@ -7,7 +7,8 @@ import { canonicalSnapshot, isAgreementSnapshot } from "@/lib/contracts/agreemen
 export const dynamic = "force-dynamic";
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
-export async function GET(_request: Request, { params }: { params: Promise<{id:string; agreementId:string}> }) {
+export async function GET(request: Request, { params }: { params: Promise<{id:string; agreementId:string}> }) {
+  const preview = new URL(request.url).searchParams.get("view") === "inline";
   const session = await getOwnerSession();
   if (!session) return NextResponse.json({error:"Unauthorized"},{status:403});
   const {id,agreementId} = await params;
@@ -28,11 +29,12 @@ export async function GET(_request: Request, { params }: { params: Promise<{id:s
   return new NextResponse(new Uint8Array(bytes), {
     headers:{
       "Content-Type":"application/pdf",
-      "Content-Disposition":'attachment; filename="Avalon-Agreement-'+agreementId+'.pdf"',
+      "Content-Disposition":(preview ? 'inline' : 'attachment')+'; filename="Avalon-Agreement-'+agreementId+'.pdf"',
       "Content-Length":String(bytes.length),
       "Cache-Control":"private, no-store",
       "X-Content-Type-Options":"nosniff",
-      "Content-Security-Policy":"default-src 'none'; sandbox",
+      "Content-Security-Policy":preview ? "default-src 'none'; frame-ancestors 'self'" : "default-src 'none'; sandbox",
+      "X-Frame-Options":"SAMEORIGIN",
       "Cross-Origin-Resource-Policy":"same-origin",
     }
   });
