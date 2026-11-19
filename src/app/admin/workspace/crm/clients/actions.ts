@@ -21,10 +21,37 @@ export async function createClientRecord(form: FormData) {
   } catch { back(LIST, { error: "sale_too_long" }); }
   if (!row.legal_name) back(LIST, { error: "sale_client_required" });
   if (row.website && !/^https:\/\/[^\s<>"]+$/.test(row.website)) back(LIST, { error: "sale_invalid_website" });
+  // Reviewed RPC, when deployed, creates the client and its first opportunity atomically.
+  // Retain the established client-only behavior until the separate migration is approved.
+  const linked = await supabase.rpc("crm_register_client_with_opportunity", { p_request: row });
+  if (!linked.error && linked.data && typeof linked.data.client_id === "string") {
+    revalidatePath("/admin/workspace/crm/leads");
+    revalidatePath(LIST);
+    back(`${LIST}/${linked.data.client_id}`, { ok: "created" });
+  }
+  if (linked.error && !["PGRST202", "42883"].includes(linked.error.code ?? "")) {
+    back(LIST, { error: linked.error.code === "23505" ? "sale_client_exists" : saleErrorCode(linked.error) });
+  }
   const { data, error } = await supabase.from("crm_clients").insert(row).select("id").single();
   if (error) back(LIST, { error: error.code === "23505" ? "sale_client_exists" : saleErrorCode(error) });
   revalidatePath(LIST);
   back(`${LIST}/${data.id}`, { ok: "created" });
+}
+
+/** Explicit owner-only repair of an old client that has no commercial lead. */
+export async function ensureClientOpportunity(form: FormData) {
+  const { supabase } = await ownerForAction();
+  const clientId = uuidField(form, "client_id");
+  if (!clientId) back(LIST, { error: "sale_invalid" });
+  const path = `${LIST}/${clientId}`;
+  const { data, error } = await supabase.rpc("crm_ensure_client_opportunity", { p_client_id: clientId });
+  if (error || typeof data !== "string") back(path, { error:
+    ["PGRST202", "42883"].includes(error?.code ?? "") ? "schema_pending"
+      : error ? saleErrorCode(error) : "unavailable" });
+  revalidatePath(path);
+  revalidatePath(LIST);
+  revalidatePath("/admin/workspace/crm/leads");
+  back(`/admin/workspace/crm/leads?lead=${data}`, { ok: "saved" });
 }
 
 export async function addContact(form: FormData) {

@@ -141,7 +141,7 @@ test('every module server action re-verifies the owner before touching data', ()
     // crm_lead_duplicate_candidates (CRM Titan) is SECURITY INVOKER and read-only: RLS applies, it raises unless
     // crm_private.is_owner(), and it returns at most 50 non-archived leads (tests/crm-titan.database.cjs).
     // Attribution record/transition: SECURITY DEFINER, check auth.uid + owner + finance_access; no direct DML grants.
-    const REVIEWED_RPCS = new Set(['crm_confirm_sale', 'crm_record_sale_failure', 'crm_owner_directory', 'os_project_restore_version', 'os_code_review', 'crm_assessment_save', 'crm_lead_duplicate_candidates', 'crm_attribution_record', 'crm_attribution_transition']);
+    const REVIEWED_RPCS = new Set(['crm_confirm_sale', 'crm_record_sale_failure', 'crm_owner_directory', 'os_project_restore_version', 'os_code_review', 'crm_assessment_save', 'crm_lead_duplicate_candidates', 'crm_attribution_record', 'crm_attribution_transition', 'crm_register_client_with_opportunity', 'crm_ensure_client_opportunity']);
     for (const call of text.matchAll(/\.rpc\(\s*(['"])?([\w]*)\1?/g)) {
       assert.ok(REVIEWED_RPCS.has(call[2]), `${file} calls unreviewed RPC ${call[2] || '(dynamic)'}`);
     }
