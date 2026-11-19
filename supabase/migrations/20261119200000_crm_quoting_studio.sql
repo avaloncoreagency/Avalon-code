@@ -286,10 +286,12 @@ create function crm_private.agreement_quote_guard() returns trigger
 language plpgsql security invoker set search_path = '' as $$
 begin
   if new.quote_version_id is null then return new; end if;
-  -- Only the CURRENT revision of an ACCEPTED quote for the SAME client can seed a contract draft.
+  -- Only the CURRENT revision of an ACCEPTED quote for the SAME company (its client, or the client registered later from
+  -- the same opportunity) can seed a contract draft.
   if not exists (
     select 1 from public.crm_quote_versions v join public.crm_quotes q on q.id = v.quote_id
-    where v.id = new.quote_version_id and q.status = 'accepted' and v.version_no = q.current_version and q.client_id = new.client_id) then
+    where v.id = new.quote_version_id and q.status = 'accepted' and v.version_no = q.current_version
+      and exists (select 1 from public.crm_clients c where c.id = new.client_id and (c.id = q.client_id or c.origin_lead_id = q.lead_id))) then
     raise exception 'agreement_quote_not_accepted' using errcode = '23514';
   end if;
   return new;
