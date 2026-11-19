@@ -12,9 +12,19 @@ test('public inquiry: anon creates a pending prospect only, validated, throttled
     await db.exec(fs.readFileSync('supabase/migrations/' + f, 'utf8'));
     if (f.startsWith('20261102053022')) await db.exec(`insert into agency_memberships values('${MIGUEL}','owner');`);
   }
+  // Explicit review-candidate SQL: intentionally excluded from automatic migration replay.
+  await db.exec(fs.readFileSync('docs/sql/public-inquiry-services-review.sql','utf8'));
   await db.exec("reset role; set role anon;");
   const call = async r => (await db.query('select crm_public_inquiry($1::jsonb) r', [JSON.stringify(r)])).rows[0].r;
   const base = { company: 'Nova Sintética', name: 'Ana Prueba', email: 'ana@nova.example.invalid', phone: '+1 305 555 0100', message: 'Necesitamos web y recepcionista IA', services: ['website', 'receptionist', 'hack'] };
+  for (const services of [null, 'website', 1, true, {}, [null], [1], [{}]]) {
+    assert.equal(await call({...base,services}), 'invalid', 'malformed services returns invalid rather than a SQL exception');
+  }
+  await db.exec('begin');
+  const withoutServices={...base,email:'optional@nova.example.invalid'}; delete withoutServices.services;
+  assert.equal(await call(withoutServices),'ok','omitted services stays compatible');
+  assert.equal(await call({...base,email:'empty@nova.example.invalid',services:[]}),'ok','empty selection remains allowed');
+  await db.exec('rollback');
   assert.equal(await call({ ...base, email: 'no-es-correo' }), 'invalid');
   assert.equal(await call({ ...base, message: 'corto' }), 'invalid');
   assert.equal(await call({ ...base, website_url: 'http://spam.example' }), 'ok', 'honeypot answers ok');
