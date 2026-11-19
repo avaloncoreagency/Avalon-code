@@ -172,11 +172,12 @@ export function LeadBoard({ lang = "es", stages, leads, total, page, busy, curre
                       </label>
                       <div className={s.actions}>
                         <button type="button" disabled={busy} onClick={() => onDetail(lead)}>{t("Ficha", "Details")}</button>
-                        <button type="button" disabled={busy} onClick={() => onEdit(lead)}>{t("Editar", "Edit")}</button>
+                        <Link href={`/admin/workspace/crm/lead/${String(lead.id)}?tab=summary&edit=1#lead-edit`} draggable={false}>{t("Editar datos", "Edit profile")}</Link>
                         {!lead.archived && <Link href={`/admin/workspace/crm/sales/new?lead=${encodeURIComponent(String(lead.id))}`} draggable={false} aria-label={t(`Registrar venta para ${String(lead.company)}`, `Record sale for ${String(lead.company)}`)}>{t("Registrar venta", "Record sale")}</Link>}
                         <details className={s.moreActions}>
                           <summary>{t("Más opciones", "More options")}</summary>
                           <div className={s.moreLinks}>
+                            <button type="button" disabled={busy} onClick={() => onEdit(lead)}>{t("Edición rápida", "Quick edit")}</button>
                             <Link href={`/admin/workspace/crm/lead/${String(lead.id)}`} draggable={false}>{t("Revisar oportunidad", "Review deal")}</Link>
                             <Link href={`/admin/workspace/clients/${String(lead.id)}`} draggable={false}>{t("Proyectos", "Projects")}</Link>
                           </div>

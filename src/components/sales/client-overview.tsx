@@ -68,7 +68,7 @@ export function ClientOverview({ lang, client, owner, contacts, nextSteps, nextS
         </div>
         <div className={styles.heroActions}>
           <Link className={styles.primaryAction} href="#client-tools">{pick(lang, "+ Conectar producto", "+ Connect product")}</Link>
-           <Link href="#identity">{pick(lang, "Editar ficha y contactos", "Edit record and contacts")}</Link>
+           <Link href={`${base}?edit=1#client-edit`}>{pick(lang, "Editar ficha y contactos", "Edit record and contacts")}</Link>
            <Link href={`/admin/workspace/crm/sales/new?client=${client.id}`}>{pick(lang, "+ Registrar venta", "+ Record sale")}</Link>
           <Link href={`/admin/workspace/crm/sales?client=${client.id}`}>{pick(lang, "Ver ventas del cliente", "Client sales")}</Link>
           <Link href={`${base}/contracts`}>{pick(lang, "Contratos", "Agreements")}</Link>

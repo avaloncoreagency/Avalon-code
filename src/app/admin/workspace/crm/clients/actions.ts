@@ -21,8 +21,8 @@ export async function createClientRecord(form: FormData) {
   } catch { back(LIST, { error: "sale_too_long" }); }
   if (!row.legal_name) back(LIST, { error: "sale_client_required" });
   if (row.website && !/^https:\/\/[^\s<>"]+$/.test(row.website)) back(LIST, { error: "sale_invalid_website" });
-  // Atomic, audited company+opportunity registration after its reviewed migration is active.
-  // Before rollout, preserve the legacy client-only entry without inventing lead stages.
+  // Use atomic owner-only company+opportunity RPC once its reviewed schema is available.
+  // Until then, legacy client registration remains functional.
   const linked = await supabase.rpc("crm_register_client_with_opportunity", { p_request: row });
   if (!linked.error && linked.data && typeof linked.data.client_id === "string") {
     revalidatePath("/admin/workspace/crm/leads");
@@ -38,9 +38,7 @@ export async function createClientRecord(form: FormData) {
   back(`${LIST}/${data.id}`, { ok: "created" });
 }
 
-/** Owner-confirmed, idempotent fix for an older unlinked Client 360 record.
- * Never creates a sale or guesses identity from names.
- */
+/** Owner-confirmed, idempotent repair for an older unlinked Client 360 record. */
 export async function ensureClientOpportunity(form: FormData) {
   const { supabase } = await ownerForAction();
   const client = uuidField(form, "client_id");
@@ -75,7 +73,36 @@ export async function addContact(form: FormData) {
   const { error } = await supabase.from("crm_contacts").insert(row);
   if (error) back(path, { error: error.code === "23505" ? "duplicate" : saleErrorCode(error) });
   revalidatePath(path);
-  back(path, { ok: "saved" });
+  back(path, { ok: "saved", edit: "1" });
+}
+
+/** Edit an existing contact without replacing the client's identity or primary designation. */
+export async function updateContact(form: FormData) {
+  const { supabase } = await ownerForAction();
+  const clientId = uuidField(form, "client_id");
+  const contactId = uuidField(form, "contact_id");
+  if (!clientId || !contactId) back(LIST, { error: "sale_invalid" });
+  const path = `${LIST}/${clientId}`;
+  const version = Number(field(form, "version"));
+  if (!Number.isSafeInteger(version) || version < 1) back(path, { error: "sale_invalid", edit: "1" });
+  let full_name: string, email: string, phone: string, role: string;
+  try {
+    full_name = text(form, "full_name", 160);
+    email = text(form, "email", 254).toLowerCase();
+    phone = text(form, "phone", 40);
+    role = text(form, "role", 120);
+  } catch { back(path, { error: "sale_too_long", edit: "1" }); }
+  if (!full_name) back(path, { error: "sale_contact_name", edit: "1" });
+  if (email && !EMAIL.test(email)) back(path, { error: "sale_invalid_email", edit: "1" });
+  // Owner RLS, client scope and optimistic version prevent cross-client updates and stale overwrites.
+  const { data, error } = await supabase.from("crm_contacts")
+    .update({ full_name, email: email || null, phone, role })
+    .eq("id", contactId).eq("client_id", clientId).eq("version", version)
+    .select("id").maybeSingle();
+  if (error) back(path, { error: error.code === "23505" ? "duplicate" : saleErrorCode(error), edit: "1" });
+  if (!data) back(path, { error: "conflict", edit: "1" });
+  revalidatePath(path);
+  back(path, { ok: "saved", edit: "1" });
 }
 
 export async function updateClientNotes(form: FormData) {
@@ -104,6 +131,10 @@ export async function updateClient(form: FormData) {
       industry: text(form, "industry", 120), country: text(form, "country", 80), location: text(form, "location", 200),
       source: text(form, "source", 200), status: field(form, "status") };
   } catch { back(path, { error: "sale_too_long" }); }
+  if (form.has("notes")) {
+    try { row.notes = text(form, "notes", 4000); }
+    catch { back(path, { error: "sale_too_long", edit: "1" }); }
+  }
   if (!row.legal_name || !row.source || !STATUSES.includes(row.status) || !Number.isSafeInteger(version)) back(path, { error: "sale_invalid" });
   if (row.website && !/^https:\/\/[^\s<>"]+$/.test(row.website)) back(path, { error: "sale_invalid_website" });
   // Optimistic concurrency: the crm_private.stamp trigger bumps version on every update.
@@ -112,7 +143,7 @@ export async function updateClient(form: FormData) {
   if (!data) back(path, { error: "conflict" });
   revalidatePath(path);
   revalidatePath(LIST);
-  back(path, { ok: "saved" });
+  back(path, { ok: "saved", edit: "1" });
 }
 
 const KINDS = ["note", "call", "email", "whatsapp", "meeting", "task"];

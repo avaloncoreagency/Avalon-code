@@ -21,10 +21,10 @@ test("client overview exposes editing, linking and honest stage without implicit
   const overview = source("src/components/sales/client-overview.tsx");
   const page = source("src/app/admin/workspace/crm/clients/[id]/page.tsx");
   assert.match(overview, /href="#client-tools"/);
-  assert.match(overview, /href="#identity"/);
+  assert.match(overview, /\?edit=1#client-edit/);
   assert.match(overview, /leadStage \|\| pick\(lang, "Sin oportunidad vinculada"/);
   assert.match(page, /leadStage=\{lead\?\.data\?\.crm_stages\?\.label \?\? lead\?\.data\?\.stage_id \?\? null\}/);
-  assert.match(page, /<details open style=\{\{ marginTop: 12 \}\}><summary>\{pick\(lang, "Editar datos del cliente"/);
+  assert.match(page, /<ClientEditPanel/);
 });
 
 
