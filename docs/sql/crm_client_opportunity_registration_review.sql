@@ -65,7 +65,7 @@ returns uuid language plpgsql security definer set search_path='' as $$
 declare
   actor uuid := auth.uid();
   c public.crm_clients;
-  company text;
+  v_company text;
   lead_id uuid;
 begin
   if actor is null or not crm_private.is_owner() then
