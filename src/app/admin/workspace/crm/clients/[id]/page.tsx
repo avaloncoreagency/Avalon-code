@@ -15,7 +15,7 @@ import { label, money } from "@/lib/sales/domain";
 import { ClientWorkspace } from "@/components/sales/client-workspace";
 import { loadAllRows, emptyLoaded, type FinanceSummary } from "@/lib/sales/client-finance";
 import { getCrmCapabilities, loadClientFinance } from "@/lib/sales/client-finance-server";
-import { addClientActivity, addContact, updateClient, updateClientNotes } from "../actions";
+import { addClientActivity, addContact, ensureClientOpportunity, updateClient, updateClientNotes } from "../actions";
 import s from "@/components/sales/sales.module.css";
 export const dynamic = "force-dynamic";
 
@@ -68,7 +68,7 @@ export default async function Client360({ params, searchParams }: { params: Prom
     run<Task[]>(supabase.from("crm_tasks").select("id,title,status,priority,due_at,assignee_id,project_id").eq("client_id", id).order("due_at", { ascending: true, nullsFirst: false }).limit(300)),
     run<Event[]>(supabase.from("crm_timeline").select("id,event_type,module,detail,result,from_state,to_state,actor_id,created_at").eq("client_id", id).order("id", { ascending: false }).limit(40)),
     run<{ user_id: string; email: string }[]>(supabase.rpc("crm_owner_directory")),
-    leadId ? run<{ id: string; company: string; stage_id: string; value: string; source: string; created_at: string } | null>(supabase.from("crm_leads").select("id,company,stage_id,value,source,created_at").eq("id", leadId).maybeSingle()) : Promise.resolve(null),
+    leadId ? run<{ id: string; company: string; stage_id: string; value: string; source: string; created_at: string; crm_stages: {label:string}|null } | null>(supabase.from("crm_leads").select("id,company,stage_id,value,source,created_at,crm_stages(label)").eq("id", leadId).maybeSingle()) : Promise.resolve(null),
     // Activities on the client (FK) and, for history, on its origin lead.
     run<{ id: string; body: string; status: string; kind?: string; due_at: string | null; created_by: string; created_at: string }[]>(supabase.from("crm_activities").select("id,body,status,kind,due_at,created_by,created_at").or(leadId ? `client_id.eq.${id},lead_id.eq.${leadId}` : `client_id.eq.${id}`).order("created_at", { ascending: false }).limit(25)),
     leadId ? run<{ id: string; title: string; starts_at: string; kind: string; status: string }[]>(supabase.from("crm_events").select("id,title,starts_at,kind,status").eq("lead_id", leadId).order("starts_at", { ascending: false }).limit(10)) : Promise.resolve(null),
@@ -117,17 +117,24 @@ export default async function Client360({ params, searchParams }: { params: Prom
   ];
   const nextSteps = openTasks.filter(t => !t.due_at || t.due_at >= now).slice(0, 6);
 
+  const linking = c && !c.origin_lead_id
+    ? await run<boolean>(supabase.rpc("crm_client_opportunity_capability"))
+    : null;
+  const canOpenOpportunity = linking?.data === true && !linking.error;
   return <Suite active="crm"><div className={s.hud}>
     <OpsHeader lang={lang} active="clients" eyebrow={`CRM / Clientes / ${c?.client_code ?? ""}`} title={c?.legal_name ?? pick(lang, "Cliente", "Client")}
       lead={c ? [c.trade_name, c.industry, [c.location, c.country].filter(Boolean).join(", "), `${pick(lang, "Fuente", "Source")}: ${c.source}`].filter(Boolean).join(" · ") : undefined}
-      actions={c && <><Link className={`${s.button} ${s.primary}`} href={`/admin/workspace/crm/sales/new?client=${c.id}`}>{pick(lang, "+ Nueva venta", "+ New sale")}</Link><Link className={s.button} href={`/admin/workspace/crm/clients/${c.id}/contracts`}>{pick(lang, "Generar contrato", "Generate agreement")}</Link><Link className={s.button} href={`/admin/workspace/crm/tasks?view=all&client=${c.id}`}>{pick(lang, "Tareas", "Tasks")}</Link><Link className={s.button} href={`/admin/workspace/crm/activity?client=${c.id}`}>{pick(lang, "Actividad", "Activity")}</Link></>} />
+      actions={c && <><Link className={`${s.button} ${s.primary}`} href={`/admin/workspace/crm/sales/new?client=${c.id}`}>{pick(lang, "+ Nueva venta", "+ New sale")}</Link><Link className={s.button} href={`/admin/workspace/crm/clients/${c.id}/contracts`}>{pick(lang, "Generar contrato", "Generate agreement")}</Link>{!c.origin_lead_id && canOpenOpportunity && <form action={ensureClientOpportunity}><input type="hidden" name="client_id" value={c.id}/><button className={s.button} type="submit">{pick(lang, "+ Crear lead vinculado", "+ Create linked lead")}</button></form>}<Link className={s.button} href={`/admin/workspace/crm/tasks?view=all&client=${c.id}`}>{pick(lang, "Tareas", "Tasks")}</Link><Link className={s.button} href={`/admin/workspace/crm/activity?client=${c.id}`}>{pick(lang, "Actividad", "Activity")}</Link></>} />
     <OkFlash lang={lang} code={q(p, "ok")} /><ErrorFlash lang={lang} code={q(p, "error")} />
     {client.error ? <Unavailable lang={lang} code={client.error} /> : c && <>
+      {!c.origin_lead_id && !canOpenOpportunity && <p className={s.flash} data-tone="warn" role="status">{pick(lang,
+        "Esta ficha aún no tiene una oportunidad comercial vinculada. La sincronización automática estará disponible cuando se habilite la actualización de base de datos; ninguna venta se ha inventado.",
+        "This record has no linked sales opportunity. Automatic linking will become available after the database update; no sale has been fabricated.")}</p>}
       {caps.source === "unavailable" && <p className={s.flash} data-tone="warn" role="status">{pick(lang, "No se pudo verificar el acceso financiero. Los importes privados permanecen ocultos.", "Finance access could not be verified. Private amounts remain hidden.")}</p>}
       <ClientOverview lang={lang} client={c} owner={ownerName(ownerList, c.owner_id)}
         contacts={contacts.error ? null : (contacts.data ?? [])} nextSteps={nextSteps} nextStepsUnavailable={Boolean(tasks.error)}
         latest={timeline.data?.[0] ?? null} latestUnavailable={Boolean(timeline.error)} counts={counts}
-        candidates={candidates} candidateError={Boolean(unassigned.error)} financeAvailable={financeAllowed} leadStage={lead?.data?.stage_id ?? null} />
+        candidates={candidates} candidateError={Boolean(unassigned.error)} financeAvailable={financeAllowed} leadStage={lead?.data?.crm_stages?.label ?? lead?.data?.stage_id ?? null} />
       {finance && finance.currencies.some(f => f.sales > 0) && <section className={s.stats} aria-label={pick(lang, "Situación financiera del cliente", "Client financial summary")}>
         {finance.currencies.filter(f => f.sales > 0).map(f => <div key={f.currency} className={s.stat}>
           <span>{pick(lang, "Contratado", "Contracted")} · {f.currency}{finance.complete ? "" : ` · ${pick(lang, "parcial", "partial")}`}</span>
