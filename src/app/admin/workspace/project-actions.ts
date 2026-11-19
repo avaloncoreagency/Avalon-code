@@ -163,7 +163,7 @@ export async function updateProject(form: FormData) {
   const settings = {
     ...current.data.settings,
     operations: metadata,
-    ...(shouldSyncMode ? { product_control: { ...control, mode: metadata.url ? "external_reference" : "pending_delivery" } } : {}),
+    ...(shouldSyncMode ? { product_control: { ...(control ?? {}), mode: metadata.url ? "external_reference" : "pending_delivery" } } : {}),
   };
   const { data, error, status: http } = await supabase.from("os_projects")
     .update({ name: name.value, description: description.value, status: status.value, settings })
