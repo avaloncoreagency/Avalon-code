@@ -518,7 +518,6 @@ export function Crm({ section = "leads", focusLeadId, lang = "es" }: { section?:
                     </button>
                   </>
                 )}
-                {section === "leads" && <a className={s.link} href="#crm-lead-filters">{t("Filtros", "Filters")}</a>}
                 <button onClick={reload}>{t("Actualizar", "Refresh")}</button>
               </div>
             )}
