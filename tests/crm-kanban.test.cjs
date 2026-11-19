@@ -52,3 +52,15 @@ test("UI reuses existing owner-protected CRM mutations and manual loss reason", 
   assert.match(board, /onMove\(lead, event.target.value\)/);
   assert.match(board, /hasta 50 registros por página/);
 });
+
+test("dragging can auto-scroll to nonadjacent columns without stage-by-stage mutations", () => {
+  const board = fs.readFileSync("src/components/crm/lead-board.tsx", "utf8");
+  const styles = fs.readFileSync("src/components/crm/lead-board.module.css", "utf8");
+  assert.match(board, /ref=\{scrollRef\}/, "scroll container has its own ref");
+  assert.match(board, /window\.addEventListener\("dragover", trackPointer\)/, "drag coordinates tracked globally");
+  assert.match(board, /requestAnimationFrame\(scrollAtEdge\)/, "edge scrolling continues as pointer pauses");
+  assert.match(board, /node\.scrollLeft \+= strength \* 25/, "edge velocity scrolls the board itself");
+  assert.match(board, /data-kanban-stage=\{stage\.id\}/, "every stage can receive a drop");
+  assert.match(board, /onMove\(lead, stageId\)/, "drop targets the chosen stage directly");
+  assert.match(styles, /\.scroll\[data-dragging="true"\] \{ scroll-snap-type: none/, "snap does not fight auto-scroll");
+});
