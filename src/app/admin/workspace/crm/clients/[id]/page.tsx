@@ -17,6 +17,7 @@ import { ClientWorkspace } from "@/components/sales/client-workspace";
 import { loadAllRows, emptyLoaded, type FinanceSummary } from "@/lib/sales/client-finance";
 import { getCrmCapabilities, loadClientFinance } from "@/lib/sales/client-finance-server";
 import { addClientActivity, ensureClientOpportunity } from "../actions";
+import { DELIVERY_LABEL, DELIVERY_TONE, readDelivery } from "@/lib/os/delivery";
 import s from "@/components/sales/sales.module.css";
 export const dynamic = "force-dynamic";
 
@@ -161,7 +162,7 @@ export default async function Client360({ params, searchParams }: { params: Prom
         {projects.error ? <Unavailable lang={lang} code={projects.error} /> : allProjects.length === 0 ? <p className={s.empty}>{pick(lang, "Sin proyectos. Se crean al confirmar una venta.", "No projects. They are created when a sale is confirmed.")}</p> :
         <div className={s.grid}>{allProjects.map(pr => { const svc = isService(pr.module) ? SERVICES[pr.module] : null; const wo = (orders.data ?? []).find(o => o.project_id === pr.id); const pt = (tasks.data ?? []).filter(t => t.project_id === pr.id);
           return <div key={pr.id} className={s.card}><span className={s.eyebrow}>{svc?.name ?? pr.module}</span><h3><Link href={`/admin/workspace/products/${pr.id}`}>{pr.name}</Link></h3>
-            <p className={s.inline}><Tag lang={lang} value={pr.status} />{!pr.client_id && <span className={s.muted}>{pick(lang, "Referencia heredada del lead (por vincular)", "Inherited lead reference (not yet linked)")}</span>}{wo && <Tag lang={lang} value={wo.status} />}{wo && wo.recurrence !== "none" && <Tag lang={lang} value={wo.recurrence} />}</p>
+            <p className={s.inline}><Tag lang={lang} value={pr.status} /><span className={s.tag} data-tone={DELIVERY_TONE[readDelivery(pr.settings).stage]} title={pick(lang, "Etapa de entrega", "Delivery stage")}>{pick(lang, ...DELIVERY_LABEL[readDelivery(pr.settings).stage])}</span>{!pr.client_id && <span className={s.muted}>{pick(lang, "Referencia heredada del lead (por vincular)", "Inherited lead reference (not yet linked)")}</span>}{wo && <Tag lang={lang} value={wo.status} />}{wo && wo.recurrence !== "none" && <Tag lang={lang} value={wo.recurrence} />}</p>
             <p className={s.muted}>{pt.length ? `${pt.filter(t => t.status === "done").length}/${pt.filter(t => t.status !== "cancelled").length} ${pick(lang, "tareas hechas", "tasks done")}` : pick(lang, "Sin tareas vinculadas", "No linked tasks")}{wo?.due_on ? ` · ${pick(lang, "entrega", "due")} ${formatDate(lang, wo.due_on)}` : ""}{wo ? ` · ${ownerName(ownerList, wo.assignee_id)}` : ""}</p>
             <p className={s.actions}><Link href={`/admin/workspace/products/${pr.id}`}>{pick(lang, "HUD del producto (entregables, cambios, QA)", "Product HUD (deliverables, changes, QA)")}</Link>{svc && <Link href={`/admin/workspace/${svc.slug}/${pr.id}`}>{pick(lang, "Abrir en", "Open in")} {svc.name}</Link>}</p>
           </div>; })}</div>}
