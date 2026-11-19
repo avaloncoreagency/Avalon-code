@@ -32,14 +32,27 @@ export default async function NewSalePage({ searchParams }: { searchParams: Prom
       ? run<ClientChoice | null>(supabase.from("crm_clients").select("id,legal_name,client_code").eq("origin_lead_id", leadId).neq("status", "archived").maybeSingle())
       : Promise.resolve({ data: null, error: null, count: null } as const),
   ]);
-  const failed = services.error ?? clients.error ?? leads.error ?? owners.error ?? linkedLead.error ?? linkedClient.error;
   const clientId = q(p, "client");
+  // A Client 360 shortcut carries a canonical customer UUID, not a company-name guess.
+  const selectedClient = clientId && UUID_RE.test(clientId)
+    ? await run<{id:string;legal_name:string;client_code:string;origin_lead_id:string|null}|null>(
+      supabase.from("crm_clients").select("id,legal_name,client_code,origin_lead_id")
+        .eq("id",clientId).neq("status","archived").maybeSingle())
+    : {data:null,error:null,count:null} as const;
+  const failed = services.error ?? clients.error ?? leads.error ?? owners.error ?? linkedLead.error ?? linkedClient.error ?? selectedClient.error;
   const sourceLead = linkedLead.data;
   const sourceClient = linkedClient.data;
-  const clientChoices = sourceClient && !(clients.data ?? []).some(c => c.id === sourceClient.id)
-    ? [sourceClient, ...(clients.data ?? [])] : (clients.data ?? []);
-  const leadChoices = sourceLead && !(leads.data ?? []).some(l => l.id === sourceLead.id)
-    ? [sourceLead, ...(leads.data ?? [])] : (leads.data ?? []);
+  const clientChoices = [sourceClient, selectedClient.data, ...(clients.data ?? [])]
+    .filter((c): c is ClientChoice => Boolean(c))
+    .filter((c,index,rows) => rows.findIndex(other => other.id === c.id) === index);
+  const chosenLeadId = sourceLead?.id ?? selectedClient.data?.origin_lead_id ?? undefined;
+  const originLead = chosenLeadId && !(leads.data ?? []).some(l => l.id === chosenLeadId) && chosenLeadId !== sourceLead?.id
+    ? await run<LeadChoice|null>(supabase.from("crm_leads").select("id,company,contact")
+      .eq("id",chosenLeadId).eq("archived",false).maybeSingle())
+    : null;
+  const leadChoices = [sourceLead, originLead?.data, ...(leads.data ?? [])]
+    .filter((l): l is LeadChoice => Boolean(l))
+    .filter((l,index,rows) => rows.findIndex(other => other.id === l.id) === index);
   return <Suite active="crm"><div className={s.hud}>
     <OpsHeader lang={lang} active="new" crm="sales" eyebrow="CRM / Ventas" title={pick(lang, "Registrar venta", "Record a sale")}
       lead={pick(lang, "Registra la venta una sola vez: Avalon crea o vincula el cliente, genera las órdenes de trabajo, los proyectos por departamento, las tareas iniciales y los avisos.", "Record the sale once: Avalon creates or links the client and generates work orders, departmental projects, starter tasks and notices.")} />
@@ -50,6 +63,6 @@ export default async function NewSalePage({ searchParams }: { searchParams: Prom
       clients={clientChoices.map(c => ({ id: c.id, label: `${c.legal_name} · ${c.client_code}` }))}
       leads={leadChoices.map(l => ({ id: l.id, label: l.contact ? `${l.company} · ${l.contact}` : l.company }))}
       owners={(owners.data ?? []).map(o => ({ id: o.user_id, label: o.email }))}
-      defaults={{ client_id: sourceLead ? sourceClient?.id : clientId && UUID_RE.test(clientId) ? clientId : undefined, lead_id: sourceLead?.id, legal_name: sourceLead?.company }} />}
+      defaults={{ client_id: sourceLead ? sourceClient?.id : selectedClient.data?.id ?? undefined, lead_id: chosenLeadId, legal_name: sourceLead?.company }} />}
   </div></Suite>;
 }
