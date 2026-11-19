@@ -180,10 +180,11 @@ export default async function ClientContracts({params, searchParams}:{
             {kind==="textarea"?<textarea name={key} rows={3} defaultValue={key==="commission" ? commissionDescription :
                 key==="adSpend" && terms?.client_ad_budget!==null && terms?.client_ad_budget!==undefined
                   ? "Client advertising spend: USD "+price(terms.client_ad_budget)+". Paid by client unless separately authorized." :
-                key==="term" && terms?.duration_months
-                  ? "Initial term: "+terms.duration_months+" months. Start date: "+(terms.start_date || "to be agreed")+". Renewal/cancellation subject to signed terms." :
                 key==="specialTerms" ? signedTermsDescription : def} required={key!=="exclusions"&&key!=="specialTerms"} maxLength={3000}/>
-              :<input name={key} type="text" defaultValue={def} required maxLength={800}/>}
+              :<input name={key} type="text" defaultValue={key==="term" && terms?.duration_months
+                ? "Initial term: "+terms.duration_months+" months. Start date: "+(terms.start_date || "to be agreed")+
+                  ". Renewal/cancellation subject to signed terms."
+                : def} required maxLength={800}/>}
           </label>)}
           <label className={s.field}>{name(lang,"Costo de instalación (USD)","One-time setup fee (USD)")}
             <input name="setupFee" type="number" min="0" step="0.01" defaultValue={price(terms?.setup_price)} required/>
