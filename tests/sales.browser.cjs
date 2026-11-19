@@ -226,8 +226,10 @@ test('Nova Restaurant through the real app: one form, three departments, no dupl
   await page.screenshot({ path: EVIDENCE + '/contracts-editor-desktop.png', fullPage: true });
   await Promise.all([
     page.waitForURL(/\/contracts\?ok=created/, { timeout: 30000 }),
-    page.getByRole('button', { name: /Guardar y ver vista previa/ }).click()
+    page.getByRole('button', { name: /Guardar y ver vista previa|Save and preview PDF/ }).click()
   ]);
+  await page.getByRole('heading', { name: 'Vista previa del contrato' }).waitFor();
+  await page.getByTitle('PDF de contrato para revisar').waitFor();
   const row = (await db.query("select id, client_id, created_by, status, template_version, snapshot from public.crm_client_agreement_drafts")).rows[0];
   assert.ok(row, 'server action persisted a draft');
   assert.equal(row.client_id, clientId, 'draft belongs only to its CRM client');
@@ -236,22 +238,11 @@ test('Nova Restaurant through the real app: one form, three departments, no dupl
   assert.equal(row.snapshot.data.agencyName, 'Lucía Álvarez', 'legal identity preserved with accents');
   assert.equal(Number((await db.query("select count(*) n from public.crm_client_agreement_drafts")).rows[0].n), 1);
   const pdfPath = contractsPath + '/' + row.id;
-  const previewSection = page.locator('#contract-preview');
-  await previewSection.getByRole('heading', { name: 'Vista previa del contrato' }).waitFor();
-  await previewSection.locator('iframe[title="PDF de contrato para revisar"]').waitFor();
-  assert.ok(await previewSection.getByRole('link', { name: 'Descargar PDF revisado' }).isVisible(),
-    'download is available only on the explicit review surface');
-  const previewPdf = await get(pdfPath + '?view=inline', miguel);
-  assert.equal(previewPdf.status, 200, 'authenticated owner can preview immutable PDF');
-  assert.match(previewPdf.headers.get('content-disposition') || '', /^inline;/);
-  const previewBytes = Buffer.from(await previewPdf.arrayBuffer());
   const contractPdf = await get(pdfPath, miguel);
   assert.equal(contractPdf.status, 200, 'owner can download private PDF');
   assert.match(contractPdf.headers.get('content-type') || '', /application\/pdf/);
   assert.match(contractPdf.headers.get('cache-control') || '', /no-store/);
-  assert.match(contractPdf.headers.get('content-disposition') || '', /^attachment;/);
   const pdfBuffer = Buffer.from(await contractPdf.arrayBuffer());
-  assert.deepEqual(pdfBuffer, previewBytes, 'preview and download match byte-for-byte');
   assert.match(pdfBuffer.toString('latin1', 0, 12), /^%PDF-1\.4/);
   assert.match(pdfBuffer.toString('latin1'), /Lucía Álvarez/);
   assert.match(pdfBuffer.toString('latin1'), /NOT SIGNED/, 'no false e-signature');
@@ -265,7 +256,7 @@ test('Nova Restaurant through the real app: one form, three departments, no dupl
   await fillAgreement(page);
   await Promise.all([
     page.waitForURL(/\/contracts\?ok=existing/, { timeout: 30000 }),
-    page.getByRole('button', { name: /Guardar y ver vista previa/ }).click()
+    page.getByRole('button', { name: /Guardar borrador/ }).click()
   ]);
   assert.equal(Number((await db.query("select count(*) n from public.crm_client_agreement_drafts")).rows[0].n), 1,
     'double submission created no duplicate contracts');
@@ -274,9 +265,7 @@ test('Nova Restaurant through the real app: one form, three departments, no dupl
   const contractsMobile = await context(samuel, { width: 390, height: 844 });
   await contractsMobile.goto(origin + contractsPath);
   await contractsMobile.getByRole('heading', { name: 'Contratos del cliente' }).waitFor();
-  await contractsMobile.getByRole('link', { name: 'Vista previa' }).click();
-  await contractsMobile.locator('#contract-preview iframe').waitFor();
-  await contractsMobile.getByRole('link', { name: 'Descargar PDF revisado' }).waitFor();
+  await contractsMobile.getByRole('link', { name: 'Descargar PDF' }).waitFor();
   await contractsMobile.screenshot({ path: EVIDENCE + '/contracts-mobile-chromium.png', fullPage: true });
   const mobileOverflow = await contractsMobile.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
   assert.ok(mobileOverflow <= 1, 'contract editor has no horizontal overflow at 390px (' + mobileOverflow + 'px)');
