@@ -108,3 +108,6 @@
 /* Free navigation while dragging: scroll snapping must not fight edge auto-scroll. */
 .scroll[data-dragging="true"] { scroll-snap-type: none; scroll-behavior: auto; }
 .scroll[data-dragging="true"] .column { scroll-snap-align: none; }
+
+.moreLinks button { background:transparent; color:var(--text); border:0; padding:5px 0; text-align:left; cursor:pointer; font:inherit; font-size:12px; text-decoration:underline; text-underline-offset:3px; }
+.moreLinks button:disabled { opacity:.5; cursor:wait; }

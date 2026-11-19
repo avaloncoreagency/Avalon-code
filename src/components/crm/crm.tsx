@@ -418,8 +418,36 @@ export function Crm({ section = "leads", focusLeadId, lang = "es" }: { section?:
         </form>
       </section>
   );
+  const editorForm = editor ? (
+    <RecordForm
+                key={`${editor.entity}-${editor.row?.id ?? "new"}`}
+                lang={lang}
+                entity={editor.entity}
+                row={editor.row}
+                userId={editor.userId}
+                stages={stages}
+                busy={busy}
+                onClose={() => setEditor(null)}
+                onSave={async (values) => {
+                  await mutate({
+                    entity: editor.entity,
+                    id: editor.row?.id,
+                    version: editor.row?.version,
+                    values,
+                  });
+                  setEditor(null);
+                }}
+              />
+  ) : null;
   return (
     <div className={s.wrap}>
+      {section === "leads" && (
+        <section className={s.leadFirst} id="crm-create-lead" aria-label={t("Alta manual de leads", "Manual lead creation")}>
+          <button type="button" className={s.primaryLeadAction} disabled={!data || loading || busy} onClick={() => edit(null)}>{t("Crear lead", "Create lead")}</button>
+          <span>{t("Registra una oportunidad y organízala en el pipeline.", "Create an opportunity and manage it in the pipeline.")}</span>
+        </section>
+      )}
+      {section === "leads" && editorForm}
       <header className={s.head}>
         <div>
           <div className={s.eyebrow}>Avalon OS / CRM</div>
@@ -464,27 +492,7 @@ export function Crm({ section = "leads", focusLeadId, lang = "es" }: { section?:
       )}
       {notice && <p role="status">{notice}</p>}
       {section !== "leads" && filtersPanel}
-            {editor && (
-              <RecordForm
-                key={`${editor.entity}-${editor.row?.id ?? "new"}`}
-                lang={lang}
-                entity={editor.entity}
-                row={editor.row}
-                userId={editor.userId}
-                stages={stages}
-                busy={busy}
-                onClose={() => setEditor(null)}
-                onSave={async (values) => {
-                  await mutate({
-                    entity: editor.entity,
-                    id: editor.row?.id,
-                    version: editor.row?.version,
-                    values,
-                  });
-                  setEditor(null);
-                }}
-              />
-            )}
+       {section !== "leads" && editorForm}
       {loading ? (
         <p role="status">{t("Cargando CRM…", "Loading CRM\u2026")}</p>
       ) : (
@@ -492,7 +500,8 @@ export function Crm({ section = "leads", focusLeadId, lang = "es" }: { section?:
           <>
             {section !== "kpis" && (
               <div className={`${s.actions} ${section === "leads" ? s.leadToolbar : ""}`}>
-                <button className={section === "leads" ? s.primaryLeadAction : undefined} onClick={() => edit(null)}>
+                {section !== "leads" && (
+                <button onClick={() => edit(null)}>
                   {t("Crear", "Create")}{" "}
                   {entity === "leads"
                     ? "lead"
@@ -502,6 +511,7 @@ export function Crm({ section = "leads", focusLeadId, lang = "es" }: { section?:
                         ? t("prospecto", "prospect")
                         : t("registro manual", "manual record")}
                 </button>
+                )}
                 {section === "leads" && (
                   <>
                     <button
