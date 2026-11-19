@@ -2,6 +2,7 @@ import Link from "next/link";
 import type { ModuleKey } from "@/lib/os/domain";
 import { pick, formatDate, type Lang } from "@/lib/i18n";
 import { linkExistingProject } from "@/app/admin/workspace/crm/clients/project-actions";
+import { createProject } from "@/app/admin/workspace/project-actions";
 import styles from "./client-overview.module.css";
 
 type Client = {
@@ -102,6 +103,45 @@ export function ClientOverview({ lang, client, owner, contacts, nextSteps, nextS
         <section className={styles.panel} id="client-tools" aria-labelledby="client-tools-title">
           <div className={styles.panelHead}><h3 id="client-tools-title">{pick(lang, "Conectar un producto", "Connect a product")}</h3><span>{pick(lang, "Vínculos reales por cliente", "Real client links")}</span></div>
            <p>{pick(lang, "Elige la herramienta que construiste, abre Registrar producto y pega su URL HTTPS. La empresa ya irá seleccionada: no necesitas buscarla de nuevo ni registrar una venta.", "Choose the tool you built, open Register product and paste its HTTPS URL. The company will already be selected; no new sale or customer entry is needed.")}</p>
+          <form action={createProject} className={styles.quickAttach} aria-label={pick(lang, "Registrar un producto para este cliente", "Register a product for this client")}>
+            <input type="hidden" name="client_id" value={client.id} />
+            <div className={styles.quickAttachRow}>
+              <label>{pick(lang, "1. Herramienta", "1. Tool")}
+                <select name="module" required defaultValue="website">
+                  <option value="website">Website</option>
+                  <option value="ecommerce">E-commerce</option>
+                  <option value="crm_creator">CRM personalizado</option>
+                  <option value="marketing">{pick(lang, "Marketing / Funnels", "Marketing / Funnels")}</option>
+                </select>
+              </label>
+              <label>{pick(lang, "Nombre del proyecto", "Project name")}
+                <input name="name" required maxLength={120} placeholder={pick(lang, "Ej. Website de Chino Barber", "E.g. Chino Barber website")} />
+              </label>
+            </div>
+            <label>{pick(lang, "2. Pega el enlace HTTPS del producto", "2. Paste the product HTTPS link")}
+              <input name="url" type="url" inputMode="url" required maxLength={500} placeholder="https://..." />
+            </label>
+            <details>
+              <summary>{pick(lang, "Opciones adicionales", "Additional options")}</summary>
+              <div className={styles.quickAttachRow}>
+                <label>{pick(lang, "Creado con", "Built with")}
+                  <select name="source_tool" defaultValue="manual">
+                    <option value="manual">{pick(lang, "Registro manual", "Manual")}</option>
+                    <option value="claude_code">Claude Code</option>
+                    <option value="codex">Codex</option>
+                    <option value="higgsfield">Higgsfield</option>
+                    <option value="chatgpt">ChatGPT</option>
+                    <option value="other">{pick(lang, "Otra herramienta", "Other")}</option>
+                  </select>
+                </label>
+                <label>{pick(lang, "Repositorio HTTPS (opcional)", "HTTPS repository (optional)")}
+                  <input name="repository" type="url" inputMode="url" maxLength={500} placeholder="https://github.com/..." />
+                </label>
+              </div>
+            </details>
+            <button type="submit">{pick(lang, "Guardar y abrir producto", "Save and open product")}</button>
+            <small>{pick(lang, "Registra el enlace del producto; no confirma una venta ni publica un website.", "Registers a product link; it does not confirm a sale or publish a website.")}</small>
+          </form>
           <div className={styles.products}>
             {AREAS.map(area => {
               const nums = area.modules.map(module => counts.modules[module]);
