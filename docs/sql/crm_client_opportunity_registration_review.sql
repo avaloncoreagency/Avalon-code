@@ -10,7 +10,7 @@ declare
   actor uuid := auth.uid();
   name text;
   trade text;
-  company text;
+  v_company text;
   source_name text;
   c_id uuid;
   l_id uuid;
@@ -23,7 +23,7 @@ begin
   end if;
   name := btrim(coalesce(p_request->>'legal_name',''));
   trade := btrim(coalesce(p_request->>'trade_name',''));
-  company := coalesce(nullif(trade,''),name);
+  v_company := coalesce(nullif(trade,''),name);
   source_name := coalesce(nullif(btrim(coalesce(p_request->>'source','')),''),'Registro manual');
   if length(name) not between 1 and 200 or length(trade)>200 or length(source_name)>200 then
     raise exception 'crm_invalid_client' using errcode='22023';
@@ -42,7 +42,7 @@ begin
   end if;
   -- Atomic: a later validation failure rolls back BOTH records.
   insert into public.crm_leads(company,contact,source,owner_id,stage_id)
-    values(company,'',source_name,actor,'new') returning id into l_id;
+    values(v_company,'',source_name,actor,'new') returning id into l_id;
   insert into public.crm_clients
     (legal_name,trade_name,website,industry,country,location,source,notes,owner_id,origin_lead_id)
   values(name,trade,
@@ -78,14 +78,14 @@ begin
   if exists (select 1 from public.crm_sales s where s.client_id=c.id and s.status='confirmed') then
     raise exception 'crm_historic_sale_requires_review' using errcode='23514';
   end if;
-  company := coalesce(nullif(btrim(c.trade_name),''),btrim(c.legal_name));
+  v_company := coalesce(nullif(btrim(c.trade_name),''),btrim(c.legal_name));
   if exists (select 1 from public.crm_leads l where not l.archived
-    and (crm_private.norm(l.company)=crm_private.norm(company)
+    and (crm_private.norm(l.company)=crm_private.norm(v_company)
       or crm_private.norm(l.company)=crm_private.norm(c.legal_name))) then
     raise exception 'crm_existing_lead_review' using errcode='23505';
   end if;
   insert into public.crm_leads(company,contact,source,owner_id,stage_id)
-    values(company,'',coalesce(nullif(btrim(c.source),''),'Registro en Clients 360'),c.owner_id,'new')
+    values(v_company,'',coalesce(nullif(btrim(c.source),''),'Registro en Clients 360'),c.owner_id,'new')
     returning id into lead_id;
   update public.crm_clients set origin_lead_id=lead_id where id=c.id and origin_lead_id is null;
   perform crm_private.log('client.opportunity_linked','crm','crm_clients',c.id,
