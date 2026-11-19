@@ -12,6 +12,10 @@ import s from "@/components/sales/sales.module.css";
 export const dynamic = "force-dynamic";
 type Client = { id:string;legal_name:string; location:string;country:string;origin_lead_id:string|null };
 type Draft = {id:string;template_version:string;created_at:string;created_by:string;status:string};
+type CommercialTerms = {billing_model:string|null; commission_pct:number|null; commission_base:string|null;
+  commission_approved_by:string|null; attribution_rules:string; cancellation_terms:string; special_conditions:string;
+  setup_price:number|null; monthly_fee:number|null; client_ad_budget:number|null; reconciliation:string|null;
+  duration_months:number|null; start_date:string|null; currency:string};
 const fields = [
   ["agencyName","Legal name of the real contracting individual(s) or registered entity","Nombre legal real de la(s) persona(s) firmante(s) o entidad registrada", "text", ""],
   ["agencyBrand","Brand/project name (not a legal entity) - optional","Nombre comercial o del proyecto (no es entidad legal) - opcional","text","Avalon Core Agency"],
@@ -53,6 +57,23 @@ export default async function ClientContracts({params, searchParams}:{
   ]);
   const client=clientResult.data as Client|null; if(!client)notFound();
   const drafts=(draftsResult.data??[]) as Draft[];
+  const leadId = client.origin_lead_id;
+  const [termsResult, contactResult] = await Promise.all([
+    leadId ? supabase.from("crm_commercial_terms")
+      .select("billing_model,commission_pct,commission_base,commission_approved_by,attribution_rules,cancellation_terms,special_conditions,setup_price,monthly_fee,client_ad_budget,reconciliation,duration_months,start_date,currency")
+      .eq("lead_id",leadId).eq("kind","agreed").maybeSingle() : Promise.resolve({data:null,error:null}),
+    supabase.from("crm_contacts").select("email").eq("client_id",id).eq("is_primary",true).limit(1).maybeSingle(),
+  ]);
+  const terms = !termsResult.error ? termsResult.data as CommercialTerms|null : null;
+  const hasApprovedCommission = !!terms?.commission_approved_by && (terms.billing_model==="commission" || terms.billing_model==="hybrid")
+    && terms.commission_pct!==null;
+  const baseLabel = terms?.commission_base==="gross_profit" ? "gross profit" :
+    terms?.commission_base==="gross_revenue" ? "gross revenue" : "other written basis";
+  const commissionDescription = hasApprovedCommission
+    ? `${terms!.commission_pct}% of ${baseLabel}. Attribution: ${terms!.attribution_rules || "NOT AGREED — complete before signing"}. Refunds/cancellations: ${terms!.cancellation_terms || "NOT AGREED — complete before signing"}. Reconciliation: ${terms!.reconciliation || "NOT AGREED"}.`
+    : "None. If a commission is negotiated, define its percentage, eligible collected revenue, attribution evidence, refunds, and settlement schedule before signing.";
+  const signedTermsDescription = terms?.special_conditions || "";
+  const price = (value:number|null|undefined) => value === null || value === undefined ? "0.00" : Number(value).toFixed(2);
   const selectedAgreement = typeof p.agreement === "string" && UUID_RE.test(p.agreement)
     ? drafts.find(d => d.id === p.agreement) : undefined;
   const path="/admin/workspace/crm/clients/"+id;
@@ -109,6 +130,15 @@ export default async function ClientContracts({params, searchParams}:{
       <p className={s.muted}>{name(lang,"Se genera una versión inmutable. Para corregirla, crea otro borrador. Todos los campos de términos comerciales se incorporan al Anexo A.","Every saved draft is immutable. To correct it, create a new one. All commercial details appear in Exhibit A.")}</p>
       <form action={createClientAgreement} className={s.form}>
         <input type="hidden" name="client_id" value={id}/>
+        {terms && <p className={s.flash} data-tone={hasApprovedCommission ? "ok" : "warn"}>
+          {name(lang,"Datos comerciales acordados importados desde el lead. Confirma todos los términos antes de crear el borrador.",
+            "Agreed commercial terms imported from the lead. Review every term before creating a draft.")}
+          {" "}{name(lang,"Modelo:", "Model:")} {terms.billing_model || "—"}
+          {terms.commission_pct!==null && !hasApprovedCommission &&
+            " · "+name(lang,"Comisión no aprobada; no se incorpora automáticamente.","Commission not approved; not automatically imported.")}
+        </p>}
+        {!terms && <p className={s.muted}>{name(lang,"Sin condiciones comerciales acordadas. Completa manualmente los honorarios y la comisión, si aplica.",
+          "No agreed commercial terms. Enter payment and commission details manually if applicable.")}</p>}
         <div className={s.fieldset}>
           <h3>{name(lang,"Identidad y notificaciones","Entities and notices")}</h3>
           <p className={s.muted}><strong>{name(lang,"Cliente guardado en CRM (verifica el nombre legal)","Client recorded in CRM (verify legal name)")}:</strong> {client.legal_name}</p>
@@ -134,7 +164,8 @@ export default async function ClientContracts({params, searchParams}:{
             <input name="effectiveDate" type="date" defaultValue={new Date().toISOString().slice(0,10)} required/>
           </label>
           {fields.slice(0,7).map(([key,en,es,kind,def])=><label className={s.field} key={key}>{name(lang,es,en)}
-            <input name={key} type={kind} defaultValue={key==="clientAddress"?(client.location||"")+(client.country?", "+client.country:""):def} required={key!=="agencyBrand"} maxLength={800}/>
+            <input name={key} type={kind} defaultValue={key==="clientAddress"?(client.location||"")+(client.country?", "+client.country:""):
+              key==="clientEmail" ? (contactResult.data?.email || "") : def} required={key!=="agencyBrand"} maxLength={800}/>
           </label>)}
         </div>
         <fieldset className={s.fieldset}>
@@ -146,14 +177,19 @@ export default async function ClientContracts({params, searchParams}:{
         <fieldset className={s.fieldset}>
           <legend>{name(lang,"Alcance y protección comercial","Scope and commercial safeguards")}</legend>
           {fields.slice(7).map(([key,en,es,kind,def])=><label className={s.field} key={key}>{name(lang,es,en)}
-            {kind==="textarea"?<textarea name={key} rows={3} defaultValue={def} required={key!=="exclusions"&&key!=="specialTerms"} maxLength={3000}/>
+            {kind==="textarea"?<textarea name={key} rows={3} defaultValue={key==="commission" ? commissionDescription :
+                key==="adSpend" && terms?.client_ad_budget!==null && terms?.client_ad_budget!==undefined
+                  ? "Client advertising spend: USD "+price(terms.client_ad_budget)+". Paid by client unless separately authorized." :
+                key==="term" && terms?.duration_months
+                  ? "Initial term: "+terms.duration_months+" months. Start date: "+(terms.start_date || "to be agreed")+". Renewal/cancellation subject to signed terms." :
+                key==="specialTerms" ? signedTermsDescription : def} required={key!=="exclusions"&&key!=="specialTerms"} maxLength={3000}/>
               :<input name={key} type="text" defaultValue={def} required maxLength={800}/>}
           </label>)}
           <label className={s.field}>{name(lang,"Costo de instalación (USD)","One-time setup fee (USD)")}
-            <input name="setupFee" type="number" min="0" step="0.01" defaultValue="0.00" required/>
+            <input name="setupFee" type="number" min="0" step="0.01" defaultValue={price(terms?.setup_price)} required/>
           </label>
           <label className={s.field}>{name(lang,"Honorarios mensuales (USD)","Monthly retainer (USD)")}
-            <input name="monthlyFee" type="number" min="0" step="0.01" defaultValue="0.00" required/>
+            <input name="monthlyFee" type="number" min="0" step="0.01" defaultValue={price(terms?.monthly_fee)} required/>
           </label>
         </fieldset>
         <div className={s.actions}><button type="submit" className={s.button+" "+s.primary}>
