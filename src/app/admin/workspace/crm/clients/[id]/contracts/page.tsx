@@ -7,6 +7,8 @@ import { pick } from "@/lib/i18n";
 import { UUID_RE } from "@/components/sales/ui";
 import { AGREEMENT_VERSION, SERVICE_OPTIONS } from "@/lib/contracts/agreement";
 import { createClientAgreement } from "./actions";
+import { ReviewBeforeDownload } from "./review-before-download";
+import g from "./guide.module.css";
 import s from "@/components/sales/sales.module.css";
 
 export const dynamic = "force-dynamic";
@@ -113,7 +115,7 @@ export default async function ClientContracts({params, searchParams}:{
       <iframe title={name(lang,"PDF de contrato para revisar","Agreement PDF preview")} src={path+"/contracts/"+selectedAgreement.id+"?view=inline"}
         style={{width:"100%",height:"min(75vh, 800px)",minHeight:420,border:"1px solid #314064",borderRadius:12,background:"#fff"}} />
       <div className={s.actions}>
-        <a className={s.button+" "+s.primary} href={path+"/contracts/"+selectedAgreement.id}>{name(lang,"Descargar PDF revisado","Download reviewed PDF")}</a>
+        <ReviewBeforeDownload lang={lang} href={path+"/contracts/"+selectedAgreement.id} />
         <a className={s.button} href={path+"/contracts/"+selectedAgreement.id+"?view=inline"} target="_blank" rel="noopener noreferrer">
           {name(lang,"Abrir vista previa en otra pestaña","Open preview in a new tab")}</a>
         <a className={s.button} href="#new-contract">{name(lang,"Crear otra versión para corregir","Create a corrected version")}</a>
@@ -137,7 +139,13 @@ export default async function ClientContracts({params, searchParams}:{
     </section>
     <section className={s.panel} id="new-contract">
       <header><h2>{name(lang,"Generar nuevo contrato","Generate new agreement")}</h2></header>
-      <p className={s.muted}>{name(lang,"Se genera una versión inmutable. Para corregirla, crea otro borrador. Todos los campos de términos comerciales se incorporan al Anexo A.","Every saved draft is immutable. To correct it, create a new one. All commercial details appear in Exhibit A.")}</p>
+      <p className={s.muted}>{name(lang,"Sigue los pasos, guarda un borrador y REVISA su PDF antes de descargar. Cada borrador queda inmutable; para corregirlo, crea otro. El contrato no se firma automáticamente.","Follow the steps, save a draft, then REVIEW its PDF before downloading. Each draft is immutable; create a new one for corrections. This does not automatically sign an agreement.")}</p>
+      <nav className={g.guide} aria-label={name(lang,"Pasos para preparar el contrato","Agreement preparation steps")}>
+        <a href="#contract-identity"><b>01</b><span>{name(lang,"Quiénes firman","Contracting parties")}</span></a>
+        <a href="#contract-services"><b>02</b><span>{name(lang,"Qué entregamos","Services & scope")}</span></a>
+        <a href="#contract-terms"><b>03</b><span>{name(lang,"Condiciones y precios","Terms & pricing")}</span></a>
+        <a href="#contract-finish"><b>04</b><span>{name(lang,"Guardar y revisar","Save & preview")}</span></a>
+      </nav>
       <form action={createClientAgreement} className={s.form}>
         <input type="hidden" name="client_id" value={id}/>
         {terms && <p className={s.flash} data-tone={hasApprovedCommission ? "ok" : "warn"}>
@@ -149,8 +157,9 @@ export default async function ClientContracts({params, searchParams}:{
         </p>}
         {!terms && <p className={s.muted}>{name(lang,"Sin condiciones comerciales acordadas. Completa manualmente los honorarios y la comisión, si aplica.",
           "No agreed commercial terms. Enter payment and commission details manually if applicable.")}</p>}
-        <div className={s.fieldset}>
-          <h3>{name(lang,"Identidad y notificaciones","Entities and notices")}</h3>
+        <div className={s.fieldset} id="contract-identity">
+          <h3>{name(lang,"Paso 1 — Identidad y notificaciones","Step 1 — Parties & notices")}</h3>
+          <p className={g.hint}>{name(lang,"Completa los nombres legales y correos de quien realmente firmará. Comprueba los datos precargados de Clientes 360.","Enter the legal names and emails of the actual signers. Verify any information prefilled from Clients 360.")}</p>
           <p className={s.muted}><strong>{name(lang,"Cliente guardado en CRM (verifica el nombre legal)","Client recorded in CRM (verify legal name)")}:</strong> {client.legal_name}</p>
           <p className={s.flash} data-tone="warn">
             {name(lang,
@@ -178,14 +187,16 @@ export default async function ClientContracts({params, searchParams}:{
               key==="clientEmail" ? (contactResult.data?.email || "") : def} required={key!=="agencyBrand"} maxLength={800}/>
           </label>)}
         </div>
-        <fieldset className={s.fieldset}>
-          <legend>{name(lang,"Servicios contratados","Contracted service categories")}</legend>
+        <fieldset className={s.fieldset} id="contract-services">
+          <legend>{name(lang,"Paso 2 — Servicios contratados","Step 2 — Contracted services")}</legend>
+          <p className={g.hint}>{name(lang,"Marca únicamente los servicios que acordaron con el cliente. Describe lo incluido, las exclusiones y la aceptación en el paso siguiente.","Select only the services agreed with the client. Specify deliverables, exclusions and acceptance criteria in the next step.")}</p>
           <div className={s.grid}>{SERVICE_OPTIONS.map(service=><label key={service} className={s.muted}>
             <input type="checkbox" name="services" value={service} defaultChecked={selectedServices.has(service)}/> {" "}{service}
           </label>)}</div>
         </fieldset>
-        <fieldset className={s.fieldset}>
-          <legend>{name(lang,"Alcance y protección comercial","Scope and commercial safeguards")}</legend>
+        <fieldset className={s.fieldset} id="contract-terms">
+          <legend>{name(lang,"Paso 3 — Alcance, pagos y condiciones","Step 3 — Scope, payments & terms")}</legend>
+          <p className={g.hint}>{name(lang,"Indica exactamente qué se entrega, fechas, revisiones, gastos de terceros y cuándo se cobran honorarios o comisiones. No aceptes porcentajes ni presupuestos que no estén aprobados.","State the exact deliverables, timeline, revisions, third-party spend and payment or commission triggers. Do not use unapproved percentages or budgets.")}</p>
           {fields.slice(7).map(([key,en,es,kind,def])=><label className={s.field} key={key}>{name(lang,es,en)}
             {kind==="textarea"?<textarea name={key} rows={3} defaultValue={key==="commission" ? commissionDescription :
                 key==="adSpend" && terms?.client_ad_budget!==null && terms?.client_ad_budget!==undefined
@@ -203,8 +214,11 @@ export default async function ClientContracts({params, searchParams}:{
             <input name="monthlyFee" type="number" min="0" step="0.01" defaultValue={price(terms?.monthly_fee)} required/>
           </label>
         </fieldset>
-        <div className={s.actions}><button type="submit" className={s.button+" "+s.primary}>
-          {name(lang,"Guardar y ver vista previa","Save and preview PDF")}</button></div>
+        <div className={g.finish} id="contract-finish">
+          <strong>{name(lang,"Paso 4 — Revisa antes de descargar","Step 4 — Review before downloading")}</strong>
+          <p>{name(lang,"Al guardar, abriremos la vista previa del mismo PDF que podrás descargar después. Verifica nombres, servicios, honorarios, cláusulas y anexos. La revisión legal y la firma son pasos aparte.","After saving, preview the very same PDF that will be available for download. Check names, services, fees, clauses and exhibits. Legal review and signing remain separate steps.")}</p>
+          <button type="submit" className={s.button+" "+s.primary}>{name(lang,"Guardar borrador y abrir PDF","Save draft and open PDF")}</button>
+        </div>
       </form>
     </section>
   </main></Suite>;
