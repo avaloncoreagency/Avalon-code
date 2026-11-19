@@ -101,7 +101,7 @@ export function ClientOverview({ lang, client, owner, contacts, nextSteps, nextS
 
       <div className={styles.layout}>
         <section className={styles.panel} id="client-tools" aria-labelledby="client-tools-title">
-          <div className={styles.panelHead}><h3 id="client-tools-title">{pick(lang, "Conectar un producto", "Connect a product")}</h3><span>{pick(lang, "Vínculos reales por cliente", "Real client links")}</span></div>
+          <div className={styles.panelHead}><h3 id="client-tools-title">{pick(lang, "Ecosistema de herramientas", "Tools ecosystem")}</h3><span>{pick(lang, "Vínculos reales por cliente", "Real client links")}</span></div>
            <p>{pick(lang, "Elige la herramienta que construiste, abre Registrar producto y pega su URL HTTPS. La empresa ya irá seleccionada: no necesitas buscarla de nuevo ni registrar una venta.", "Choose the tool you built, open Register product and paste its HTTPS URL. The company will already be selected; no new sale or customer entry is needed.")}</p>
           <form action={createProject} className={styles.quickAttach} aria-label={pick(lang, "Registrar un producto para este cliente", "Register a product for this client")}>
             <input type="hidden" name="client_id" value={client.id} />
