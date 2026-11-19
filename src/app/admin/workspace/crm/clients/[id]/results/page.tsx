@@ -17,7 +17,8 @@ type Contract = {id:string;verified_at:string|null};
 type Conversion = {id:string;source:string;external_ref:string;gross_collected:string;excluded_amount:string;
   rate_pct:string;commission_due:string;currency:string;status:string;created_at:string;
   verification_ref:string;settlement_ref:string;void_reason:string};
-type Summary = {count:number;reported_count:number;eligible:string;paid:string;pending:string};
+type Summary = {currency:string;count:number;reported_count:number;eligible:string;paid:string;pending:string};
+type SummaryPayload = {currencies:Summary[]};
 const n = (v:number|string,currency="USD") =>
   new Intl.NumberFormat("en-US",{style:"currency",currency}).format(Number(v));
 const statusLabel:Record<string,string> = {
@@ -69,7 +70,7 @@ export default async function ClientResults({params,searchParams}:{
     Date.parse(terms.updated_at) <= Date.parse(signed.verified_at);
   const entries = (rowsResponse.data??[]) as Conversion[];
   const summary = !summaryResponse.error && summaryResponse.data &&
-    typeof summaryResponse.data==="object" ? summaryResponse.data as Summary : null;
+    typeof summaryResponse.data==="object" ? summaryResponse.data as SummaryPayload : null;
   const ledgerReady = !rowsResponse.error && !summaryResponse.error;
   return <Suite active="crm"><main className={s.hud}>
     <header className={s.header}>
@@ -96,12 +97,16 @@ export default async function ClientResults({params,searchParams}:{
     </p></section> : <>
       {summary && <section className={s.panel}>
         <h2>{pick(lang,"Resumen financiero verificable","Verified financial summary")}</h2>
-        <div className={s.grid}>
-          <div className={s.card}><span>{pick(lang,"Comisión elegible verificada","Verified eligible commission")}</span><strong>{n(summary.eligible,terms?.currency||"USD")}</strong></div>
-          <div className={s.card}><span>{pick(lang,"Cobrado por Avalon","Collected by Avalon")}</span><strong>{n(summary.paid,terms?.currency||"USD")}</strong></div>
-          <div className={s.card}><span>{pick(lang,"Pendiente de cobro","Awaiting settlement")}</span><strong>{n(summary.pending,terms?.currency||"USD")}</strong></div>
-          <div className={s.card}><span>{pick(lang,"Conversiones reportadas / total","Reported / total conversions")}</span><strong>{summary.reported_count} / {summary.count}</strong></div>
-        </div>
+        {!summary.currencies.length && <p className={s.muted}>{pick(lang,"No hay conversiones todavía.","No conversions yet.")}</p>}
+        {summary.currencies.map(currency => <div key={currency.currency}>
+          <p className={s.muted}>{currency.currency} · {pick(lang,"Moneda independiente","Separate currency")}</p>
+          <div className={s.grid}>
+            <div className={s.card}><span>{pick(lang,"Comisión elegible verificada","Verified eligible commission")}</span><strong>{n(currency.eligible,currency.currency)}</strong></div>
+            <div className={s.card}><span>{pick(lang,"Cobrado por Avalon","Collected by Avalon")}</span><strong>{n(currency.paid,currency.currency)}</strong></div>
+            <div className={s.card}><span>{pick(lang,"Pendiente de cobro","Awaiting settlement")}</span><strong>{n(currency.pending,currency.currency)}</strong></div>
+            <div className={s.card}><span>{pick(lang,"Conversiones reportadas / total","Reported / total conversions")}</span><strong>{currency.reported_count} / {currency.count}</strong></div>
+          </div>
+        </div>)}
       </section>}
       {q.ok && <p className={s.flash} data-tone="ok">{pick(lang,"Operación registrada; consulta la tabla para verificar el estado.","Operation saved; inspect the row status below.")}</p>}
       {q.error && <p className={s.flash} data-tone="error">{pick(lang,"La operación no se aplicó:", "Operation rejected:")} {q.error}</p>}
