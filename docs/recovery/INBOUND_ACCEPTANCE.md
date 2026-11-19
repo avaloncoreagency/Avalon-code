@@ -13,3 +13,5 @@ Browser E2E preparado dentro de Sales existente: dos sesiones sintéticas, consu
 No SQL remoto, permisos, datos reales, publicación o cambios de precio. Estado: IMPLEMENTED — NOT FULLY VERIFIED hasta CI/Preview. La bandeja no certifica aceptación hosted por Miguel/Samuel ni notificaciones de cada reconsulta después de conversión.
 
 Next action: Codex verifica CI y captura sintética; Claude incorpora enlace a su navegación sin sobrescribir sus cambios. Propietarios revisan antes de integrar/publicar.
+
+Primer E2E nuevo: el seed sintético falló con 42501 `CRM forbidden` porque el formulario público anterior había restaurado correctamente el JWT anónimo; `reset role` no proporciona identidad para los triggers. Se corrige exclusivamente el seed: transacción con subject del owner sintético aprobado. No se relajan permisos, RLS o aserciones de la aplicación. Las acciones de navegador continúan usando las dos sesiones separadas.

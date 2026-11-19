@@ -2,7 +2,11 @@ const assert=require('node:assert/strict');
 module.exports=async function inboundUI({db,context,miguel,samuel,origin,evidence}) {
   const owner=miguel.user.id;
   await db.exec('reset role');
-  const make=async(company,kind='web_form')=>(await db.query(`insert into crm_prospects(company,contact,email,source,owner_id,industry,location,opportunity,acquired_at,source_kind) values($1,'Synthetic Contact',$2,'Website QA',$3,'Other','Synthetic location','Website consultation',now(),$4) returning id,version`,[company,company.replace(/[^a-z]/gi,'').toLowerCase()+'@example.invalid',owner,kind])).rows[0];
+  const make=async(company,kind='web_form')=>db.transaction(async tx=>{
+    await tx.exec('reset role');
+    await tx.query("select set_config('request.jwt.claim.sub',$1,true)",[owner]);
+    return (await tx.query(`insert into crm_prospects(company,contact,email,source,owner_id,industry,location,opportunity,acquired_at,source_kind) values($1,'Synthetic Contact',$2,'Website QA',$3,'Other','Synthetic location','Website consultation',now(),$4) returning id,version`,[company,company.replace(/[^a-z]/gi,'').toLowerCase()+'@example.invalid',owner,kind])).rows[0];
+  });
   // A voluntary inquiry may reuse a business originally found by Radar.
   const record=await make('Inbox Synthetic Verify','licensed');
   const receipt=async id=>db.query("insert into crm_public_inquiries(prospect_id,email_hash,services) values($1,repeat('a',64),array['website'])",[id]);
