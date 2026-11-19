@@ -226,8 +226,10 @@ test('Nova Restaurant through the real app: one form, three departments, no dupl
   await page.screenshot({ path: EVIDENCE + '/contracts-editor-desktop.png', fullPage: true });
   await Promise.all([
     page.waitForURL(/\/contracts\?ok=created/, { timeout: 30000 }),
-    page.getByRole('button', { name: /Guardar borrador/ }).click()
+    page.getByRole('button', { name: /Guardar y ver vista previa|Save and preview PDF/ }).click()
   ]);
+  await page.getByRole('heading', { name: 'Vista previa del contrato' }).waitFor();
+  await page.getByTitle('PDF de contrato para revisar').waitFor();
   const row = (await db.query("select id, client_id, created_by, status, template_version, snapshot from public.crm_client_agreement_drafts")).rows[0];
   assert.ok(row, 'server action persisted a draft');
   assert.equal(row.client_id, clientId, 'draft belongs only to its CRM client');
