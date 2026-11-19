@@ -21,40 +21,10 @@ export async function createClientRecord(form: FormData) {
   } catch { back(LIST, { error: "sale_too_long" }); }
   if (!row.legal_name) back(LIST, { error: "sale_client_required" });
   if (row.website && !/^https:\/\/[^\s<>"]+$/.test(row.website)) back(LIST, { error: "sale_invalid_website" });
-  // Atomic, audited company+opportunity registration after its reviewed migration is active.
-  // Before rollout, preserve the legacy client-only entry without inventing lead stages.
-  const linked = await supabase.rpc("crm_register_client_with_opportunity", { p_request: row });
-  if (!linked.error && linked.data && typeof linked.data.client_id === "string") {
-    revalidatePath("/admin/workspace/crm/leads");
-    revalidatePath(LIST);
-    back(`${LIST}/${linked.data.client_id}`, { ok: "created" });
-  }
-  if (linked.error && !["PGRST202", "42883"].includes(linked.error.code ?? "")) {
-    back(LIST, { error: linked.error.code === "23505" ? "sale_client_exists" : saleErrorCode(linked.error) });
-  }
   const { data, error } = await supabase.from("crm_clients").insert(row).select("id").single();
   if (error) back(LIST, { error: error.code === "23505" ? "sale_client_exists" : saleErrorCode(error) });
   revalidatePath(LIST);
   back(`${LIST}/${data.id}`, { ok: "created" });
-}
-
-/** Owner-confirmed, idempotent fix for an older unlinked Client 360 record.
- * Never creates a sale or guesses identity from names.
- */
-export async function ensureClientOpportunity(form: FormData) {
-  const { supabase } = await ownerForAction();
-  const client = uuidField(form, "client_id");
-  if (!client) back(LIST, { error: "sale_invalid" });
-  const path = `${LIST}/${client}`;
-  const { data, error } = await supabase.rpc("crm_ensure_client_opportunity", { p_client_id: client });
-  if (error || typeof data !== "string") {
-    back(path, { error: error?.code === "PGRST202" || error?.code === "42883"
-      ? "schema_pending" : error ? saleErrorCode(error) : "unavailable" });
-  }
-  revalidatePath(path);
-  revalidatePath(LIST);
-  revalidatePath("/admin/workspace/crm/leads");
-  back(`/admin/workspace/crm/leads?lead=${data}`, { ok: "saved" });
 }
 
 export async function addContact(form: FormData) {

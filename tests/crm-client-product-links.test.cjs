@@ -48,14 +48,11 @@ test("sale form and server action do not silently win another company's lead", (
   assert.match(salePage, /lead_id: sourceLead\?\.id \?\? chosenLeadId/);
 });
 
-test("new client registration and older-client repair use owner-only reviewed RPCs", () => {
-  const action = source("src/app/admin/workspace/crm/clients/actions.ts");
+test("unlinked customers have honest status and remain owner-managed without unreviewed RPCs", () => {
   const page = source("src/app/admin/workspace/crm/clients/[id]/page.tsx");
-  const sql = source("docs/sql/crm_client_opportunity_registration_review.sql");
-  assert.match(action, /crm_register_client_with_opportunity/);
-  assert.match(action, /crm_ensure_client_opportunity/);
-  assert.match(page, /crm_client_opportunity_capability/);
-  assert.match(sql, /security definer/);
-  assert.match(sql, /revoke all on function public.crm_ensure_client_opportunity/);
-  assert.doesNotMatch(sql, /grant execute[^\n]+to anon/);
+  const actions = source("src/app/admin/workspace/crm/clients/actions.ts");
+  assert.match(page, /!c\.origin_lead_id/);
+  assert.match(page, /No linked sales opportunity/);
+  assert.match(page, /<ClientEditPanel/);
+  assert.doesNotMatch(actions, /crm_register_client_with_opportunity|crm_ensure_client_opportunity/);
 });
