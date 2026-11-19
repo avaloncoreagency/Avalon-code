@@ -193,7 +193,7 @@ async function startBridge(db, { users, log = () => {} }) {
             const start = Number(offset || 0);
             headers['content-range'] = `${rows.length ? `${start}-${start + rows.length - 1}` : '*'}/${total}`;
           }
-          if (wantsObject) return rows.length === 1 ? send(200, rows[0], headers) : send(406, { code: 'PGRST116', message: 'JSON object requested, multiple (or no) rows returned' });
+          if (wantsObject) return rows.length === 1 ? send(200, rows[0], headers) : send(406, { code: 'PGRST116', message: 'JSON object requested, multiple (or no) rows returned', details: `The result contains ${rows.length} rows` });
           return send(200, rows, headers);
         }
         if (req.method === 'POST') {
@@ -229,12 +229,21 @@ async function startBridge(db, { users, log = () => {} }) {
             const r = await relation(db, table, inner[1]);
             where += (where ? ' and ' : ' where ') + `exists(select 1 from public.${q(inner[1])} rel where rel.${q(r.remote)} = t.${q(r.local)})`;
           }
-          const ids = (await db.query(`update public.${q(table)} t set ${sets.join(', ')}${where} returning t.id`, values)).rows.map(r => r.id);
+          await db.exec('begin');
+          let ids;
+          try {
+            ids = (await db.query(`update public.${q(table)} t set ${sets.join(', ')}${where} returning t.id`, values)).rows.map(r => r.id);
+            if (wantsObject && ids.length !== 1) {
+              await db.exec('rollback');
+              return send(406, { code: 'PGRST116', message: 'JSON object requested, multiple (or no) rows returned', details: `The result contains ${ids.length} rows` });
+            }
+            await db.exec('commit');
+          } catch (error) { await db.exec('rollback'); throw error; }
           log('update', table, ids.length);
           if (!/return=representation/.test(prefer)) return send(204);
           const cols = await selectList(db, table, url.searchParams.get('select'), 't');
           const rows = (await db.query(`select coalesce(jsonb_agg(to_jsonb(r)), '[]'::jsonb) v from (select ${cols} from public.${q(table)} t where t.id = any($1::uuid[])) r`, [ids])).rows[0].v;
-          if (wantsObject) return rows.length === 1 ? send(200, rows[0]) : send(406, { code: 'PGRST116', message: 'no rows' });
+          if (wantsObject) return rows.length === 1 ? send(200, rows[0]) : send(406, { code: 'PGRST116', message: 'JSON object requested, multiple (or no) rows returned', details: `The result contains ${rows.length} rows` });
           return send(200, rows);
         }
         return send(405, { message: 'method not supported by test bridge' });
