@@ -860,7 +860,7 @@ test('Nova Restaurant through the real app: one form, three departments, no dupl
   const pub = await visitor.newPage();
   pub.on('pageerror', e => errors.push(`pageerror [${pub.url()}]: ${e.message}`));
   await pub.goto(origin + '/');
-  await pub.getByRole('heading', { level: 1, name: 'Tu negocio. Sin límites.' }).waitFor();
+  await pub.getByRole('heading', { level: 1, name: /Más clientes\. Más trabajo\. Más crecimiento\./ }).waitFor();
   await pub.locator('input[name="company"]').fill('Visitante Sintético LLC');
   await pub.getByLabel('Tu nombre').fill('Luis Prueba');
   await pub.getByLabel('Correo').fill('luis@visitante.example.invalid');
@@ -875,7 +875,7 @@ test('Nova Restaurant through the real app: one form, three departments, no dupl
   assert.deepEqual({ ...web }, { status: 'pending', source_kind: 'web_form' }, 'web request waits for human review');
   assert.equal(Number((await one("select count(*) n from crm_leads where company='Visitante Sintético LLC'")).n), 0);
   await pub.goto(origin + '/?lang=en');
-  await pub.getByRole('heading', { level: 1, name: 'Your business. Beyond limits.' }).waitFor();
+  await pub.getByRole('heading', { level: 1, name: /More customers\. More work\. More growth\./ }).waitFor();
   assert.match(await pub.title(), /Websites, CRM & AI for Business/, 'English page has the current English title');
   assert.equal(await pub.locator('link[rel="canonical"]').count(), 0, 'no canonical that would mark the English page as a duplicate of the Spanish one');
   // Search-engine surface: robots.txt keeps the private OS out, sitemap lists only public pages.
