@@ -102,7 +102,7 @@ export function ClientOverview({ lang, client, owner, contacts, nextSteps, nextS
       <div className={styles.layout}>
         <section className={styles.panel} id="client-tools" aria-labelledby="client-tools-title">
           <div className={styles.panelHead}><h3 id="client-tools-title">{pick(lang, "Ecosistema de herramientas", "Tools ecosystem")}</h3><span>{pick(lang, "Vínculos reales por cliente", "Real client links")}</span></div>
-           <p>{pick(lang, "Elige la herramienta que construiste, abre Registrar producto y pega su URL HTTPS. La empresa ya irá seleccionada: no necesitas buscarla de nuevo ni registrar una venta.", "Choose the tool you built, open Register product and paste its HTTPS URL. The company will already be selected; no new sale or customer entry is needed.")}</p>
+           <p>{pick(lang, "Prepara un proyecto aunque todavía no exista su website, CRM o tienda. Cuando esté construido, añade su URL HTTPS desde la ficha del producto. Avalon lo vincula con esta empresa, sin registrar una venta.", "Prepare a project even if its website, CRM or store does not exist yet. Once it is built, add its HTTPS URL in the product record. Avalon links it to this company without recording a sale.")}</p>
           <form action={createProject} className={styles.quickAttach} aria-label={pick(lang, "Registrar un producto para este cliente", "Register a product for this client")}>
             <input type="hidden" name="client_id" value={client.id} />
             <div className={styles.quickAttachRow}>
@@ -115,12 +115,13 @@ export function ClientOverview({ lang, client, owner, contacts, nextSteps, nextS
                 </select>
               </label>
               <label>{pick(lang, "Nombre del proyecto", "Project name")}
-                <input name="name" required maxLength={120} placeholder={pick(lang, "Ej. Website de Chino Barber", "E.g. Chino Barber website")} />
+                <input name="name" required maxLength={120} placeholder={pick(lang, `Website de ${name}`, `${name} website`)} />
               </label>
             </div>
-            <label>{pick(lang, "2. Pega el enlace HTTPS del producto", "2. Paste the product HTTPS link")}
-              <input name="url" type="url" inputMode="url" required maxLength={500} placeholder="https://..." />
+            <label>{pick(lang, "2. URL HTTPS del producto (si ya existe)", "2. Product HTTPS URL (if available)")}
+              <input name="url" type="url" inputMode="url" maxLength={500} placeholder="https://..." />
             </label>
+            <small>{pick(lang, "¿Aún no lo construiste? Deja la URL vacía y guarda el proyecto como borrador. Podrás añadir el enlace desde la configuración del producto.", "Not built yet? Leave the URL empty to save a draft project. You can add the link later in product settings.")}</small>
             <details>
               <summary>{pick(lang, "Opciones adicionales", "Additional options")}</summary>
               <div className={styles.quickAttachRow}>
@@ -139,8 +140,8 @@ export function ClientOverview({ lang, client, owner, contacts, nextSteps, nextS
                 </label>
               </div>
             </details>
-            <button type="submit">{pick(lang, "Guardar y abrir producto", "Save and open product")}</button>
-            <small>{pick(lang, "Registra el enlace del producto; no confirma una venta ni publica un website.", "Registers a product link; it does not confirm a sale or publish a website.")}</small>
+            <button type="submit">{pick(lang, "Guardar y abrir proyecto", "Save and open project")}</button>
+            <small>{pick(lang, "Sin URL queda como borrador pendiente de entrega. No confirma ventas ni publica websites.", "Without a URL, it remains a draft pending delivery. This does not confirm sales or publish websites.")}</small>
           </form>
           <div className={styles.products}>
             {AREAS.map(area => {
