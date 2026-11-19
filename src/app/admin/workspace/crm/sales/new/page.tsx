@@ -63,6 +63,6 @@ export default async function NewSalePage({ searchParams }: { searchParams: Prom
       clients={clientChoices.map(c => ({ id: c.id, label: `${c.legal_name} · ${c.client_code}` }))}
       leads={leadChoices.map(l => ({ id: l.id, label: l.contact ? `${l.company} · ${l.contact}` : l.company }))}
       owners={(owners.data ?? []).map(o => ({ id: o.user_id, label: o.email }))}
-      defaults={{ client_id: sourceLead ? sourceClient?.id : selectedClient.data?.id ?? undefined, lead_id: chosenLeadId, legal_name: sourceLead?.company }} />}
+      defaults={{ client_id: sourceLead ? sourceClient?.id : selectedClient.data?.id ?? undefined, lead_id: sourceLead?.id ?? chosenLeadId, legal_name: sourceLead?.company }} />}
   </div></Suite>;
 }
