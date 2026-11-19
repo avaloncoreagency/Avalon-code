@@ -48,11 +48,13 @@ test("sale form and server action do not silently win another company's lead", (
   assert.match(salePage, /lead_id: sourceLead\?\.id \?\? chosenLeadId/);
 });
 
-test("unlinked customers have honest status and remain owner-managed without unreviewed RPCs", () => {
+test("unlinked customers show honest status until owner-checked linking capability is deployed", () => {
   const page = source("src/app/admin/workspace/crm/clients/[id]/page.tsx");
   const actions = source("src/app/admin/workspace/crm/clients/actions.ts");
   assert.match(page, /!c\.origin_lead_id/);
   assert.match(page, /no linked sales opportunity/);
   assert.match(page, /<ClientEditPanel/);
-  assert.doesNotMatch(actions, /crm_register_client_with_opportunity|crm_ensure_client_opportunity/);
+  assert.match(actions, /crm_register_client_with_opportunity/);
+  assert.match(actions, /crm_ensure_client_opportunity/);
+  assert.match(page, /crm_client_opportunity_capability/);
 });
