@@ -23,7 +23,11 @@ export function diagnoseIncident(incident:Incident,context:Context){
   validateObservations(incident.observations,context);
   const ordered=[...incident.observations].sort((a,b)=>Date.parse(a.observedAt)-Date.parse(b.observedAt));
   const last=ordered.at(-1)!,previous=ordered.at(-2);
-  const sustained=last.code!=='healthy'&&previous?.code===last.code&&Date.parse(last.observedAt)-Date.parse(previous.observedAt)>=1000;
+  // Availability outages may alternate between HTTP 5xx and timeout; both are failure signals.
+  const sustained=Boolean(previous)&&Date.parse(last.observedAt)-Date.parse(previous!.observedAt)>=1000&&
+    (incident.runbook==='availability'
+      ? ['http_5xx','timeout'].includes(last.code)&&['http_5xx','timeout'].includes(previous!.code)
+      : last.code!=='healthy'&&previous!.code===last.code);
   const critical=ordered.some(o=>o.code==='permission_alert');
   const requiresApproval=incident.runbook==='rollback'||critical||ordered.some(o=>o.code==='rollback_requested');
   return {incidentId:incident.id,clientId:incident.clientId,projectId:incident.projectId,runbook:incident.runbook,
@@ -36,10 +40,13 @@ export function diagnoseIncident(incident:Incident,context:Context){
 }
 /** Review contract only: the caller must retrieve authorized evidence, not trust a user-supplied attestation. */
 export function verifyRecovery(incident:Incident,after:Observation[],context:Context){
-  diagnoseIncident(incident,context);validateObservations(after,context);
+  const diagnosis=diagnoseIncident(incident,context);validateObservations(after,context);
   const before=new Set(incident.observations.map(o=>o.id)),originalObservers=new Set(incident.observations.map(o=>o.observerId));
   const lastFailure=Math.max(...incident.observations.map(o=>Date.parse(o.observedAt)));
   const ordered=[...after].sort((a,b)=>Date.parse(a.observedAt)-Date.parse(b.observedAt));
-  const passed=ordered.length>=2&&ordered.every(o=>o.code==='healthy'&&!before.has(o.id)&&!originalObservers.has(o.observerId)&&Date.parse(o.observedAt)>lastFailure)&&Date.parse(ordered.at(-1)!.observedAt)-Date.parse(ordered[0].observedAt)>=1000;
+  // A healthy HTTP probe can attest only availability recovery, never auth, permissions, rollback, form delivery, or deployment integrity.
+  const eligible=incident.runbook==='availability'&&diagnosis.classification==='persistent_failure'&&
+    incident.observations.every(o=>o.code==='http_5xx'||o.code==='timeout');
+  const passed=eligible&&ordered.length>=2&&ordered.every(o=>o.code==='healthy'&&!before.has(o.id)&&!originalObservers.has(o.observerId)&&Date.parse(o.observedAt)>lastFailure)&&Date.parse(ordered.at(-1)!.observedAt)-Date.parse(ordered[0].observedAt)>=1000;
   return {status:passed?'VERIFIED_FOR_OWNER_REVIEW':'UNVERIFIED',incidentId:incident.id,evidenceIds:after.map(o=>o.id),closeAuthorized:false as const};
 }
