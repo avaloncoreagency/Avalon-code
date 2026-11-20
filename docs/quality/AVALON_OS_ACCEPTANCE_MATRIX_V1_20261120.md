@@ -1,4 +1,4 @@
-# Avalon OS — Matriz de aceptación funcional y control QA v1.1
+# Avalon OS — Matriz de aceptación funcional y control QA v1.2
 
 **Fecha:** 2026-11-20 · **Departamento:** Quality Assurance · **Issue de coordinación:** #253 (owner:miguel, module:qa)  
 **Baseline de código verificado:** main @ 207ed3a3dc8fdae5dd949a7361733e441c530519 (merge PR #262).  
@@ -35,9 +35,9 @@
 | Control | Evidencia observada sin mutaciones | Interpretación QA |
 |---|---|---|
 | GitHub | `main@207ed3a3dc8fdae5dd949a7361733e441c530519`; PR documental #276 abierto, draft, fusionable | Baseline coherente; un PR fusionable no es aceptado |
-| GitHub CI | Auth Review en SHA documental `5226f8b` SUCCESS; seguridad estaba `in_progress` al consultar. Sales/CRM SUCCESS en el head probado de #262 (`dc31998`), no en la nueva rama documental | No declarar todos los checks del PR documental verdes sin revisar de nuevo |
+| GitHub CI | Auth Review y Security Checks del SHA documental `2ef0640c` terminaron SUCCESS. Sales/CRM SUCCESS en el head de #262 (`dc31998`); no se ejecutaron como workflows sobre el PR documental | No declarar todos los checks del PR documental verdes sin revisar de nuevo |
 | Vercel producción | Despliegue `dpl_AkU3ZYkBCXr3SAfLZkhU6TKNf5Xk` READY, commit `207ed3a`, target `production` | Confirma build desplegado, **no** acceso correcto de owners ni aceptación humana |
-| Vercel QA #276 | Despliegue `dpl_7enCxVvPwvjNPMQBX5xN34GqF6fx` CANCELED, SHA `5226f8b` | No es Preview validable del candidato; cancelación de build documental no se clasifica como bug de app |
+| Vercel QA #276 | Despliegues `dpl_7enCxVvPwvjNPMQBX5xN34GqF6fx` y `dpl_B1fhGCq7p1iFymZnpmF3yKnbiZPb` CANCELED; en el segundo, el build log confirma `blocked_unsafe_preview_database` en `scripts/ci/vercel-ignore-build.cjs` | No es Preview validable. Guardia de seguridad correcta: detectó referencia de Supabase productivo y omitió Preview. No deshabilitarla para obtener build verde |
 | Supabase | Proyecto `ACTIVE_HEALTHY`; ledger leído con 48 migraciones, últimas `os_product_delivery_guard`, `public_inquiry_services_guard`, `project_bridge_rls_initplan` | Los conteos no prueban igualdad de cuerpos de migración ni funcionamiento del recorrido comercial |
 | Supabase Branching | Dos ramas no predeterminadas históricas. La fila `main` conserva estado `MIGRATIONS_FAILED` con metadata fechada en octubre, pese al proyecto saludable y ledger actual | Señal de metadata a reconciliar, **no** prueba por sí sola de una migración productiva fallida |
 | Supabase Radar | Edge Function v11 `verify_jwt=true`; código del stub HTTP 423 sin acceso a BD/proveedor; tabla de configuración: una fila, cero habilitadas; `cron.job` sin registros `radar` | Hibernación corroborada por código y configuración desplegada. Falta prueba de egress/costo observables por ventana |
@@ -102,7 +102,7 @@ La frase “VERIFICADO-CI / PENDIENTE-MANUAL” significa cobertura automatizada
 
 **Fase 1 — CI automatizada (aprovechar existente):** comprobar Auth Review, Security, CRM isolated, Sales core, módulos e independent QA. Revisar jobs individuales, no solo “Vercel READY”; comprobar que los pasos de navegador ejecutaron de verdad. No agregar tests que ya cubran estos casos.
 
-**Precondición de Fase 2 (bloqueada a fecha del checkpoint):** el despliegue de la rama QA #276 consta como CANCELED y no existe aceptación alojada del commit exacto en una Preview aislada. Seleccionar una Preview aprobada y verificar que su base de datos de pruebas sea distinta de producción; no reutilizar el dominio público para escribir fixtures sintéticos.
+**Precondición de Fase 2 (bloqueada a fecha del checkpoint):** los despliegues de la rama QA #276 constan como CANCELED por la guardia `blocked_unsafe_preview_database`, y no existe aceptación alojada del commit exacto en una Preview aislada. Seleccionar una Preview aprobada y verificar que su base de datos de pruebas sea distinta de producción; no reutilizar el dominio público para escribir fixtures sintéticos.
 
 **Fase 2 — Preview aislada:** staging Supabase distinto de producción; cuentas sintéticas autorizadas y revocables; verificar dos owners y outsider, recargas, transiciones, cotización→contrato→venta→finanzas, productos borrador/URL, errores y RLS. Guardar evidencia interna sin exponer clientes. No realizar cobros reales.
 
@@ -169,7 +169,7 @@ Registrar modelo, versión iOS, versión Safari, fecha, red, idioma, SHA y URL a
 
 ## 10. Entregables preparados y próximas tres acciones
 
-1. **Matriz de 33 casos:** este documento. Conserva y enlaza la matriz de 40 casos históricos sin cambiar sus resultados no ejecutados.
+1. **Matriz de 33 casos:** este documento. Conserva y enlaza la matriz de 40 casos históricos sin cambiar sus resultados no ejecutados. Hoja de ejecución UAT complementaria: `docs/quality/AVALON_OS_UAT_EXECUTION_RUNSHEET_V1_20261120.md` (33/33 criterios asignados a recorridos manuales; ninguno certificado sin ejecución).
 2. **Plan y gates:** fases 0–4, severidad, criterios GO/NO-GO, plantilla de defectos y checklist Safari físico incluidos.
 3. **Sin implementación repetida:** referenciar tests/sales.browser.cjs, tests/quotes.browser.cjs, tests/crm-intelligence.browser.cjs, tests/independent-qa/, tests/react-hydration-backport.test.cjs y tests/radar-hibernation.test.cjs, sin reescribirlos.
 
@@ -186,7 +186,7 @@ Registrar modelo, versión iOS, versión Safari, fecha, red, idioma, SHA y URL a
 - **CI verificada:** Sales run 44746566466 SUCCESS (browser sintético realmente ejecutado), CRM run 44746566481 SUCCESS, otros jobs principales SUCCESS en head dc31998324c7620ea6e83298127cedc3fe16817b. Esto no certifica PRs posteriores.
 - **React #418 y Sales E2E:** corregido/verde en la evidencia actual de CI; reabrir solo con reproducción en nuevo SHA.
 - **Radar:** suspensión verificada en Edge Function/config/cron mediante lectura; medición temporal de egress y facturación aún pendiente, no reactivar.
-- **Entrega:** docs/quality/AVALON_OS_ACCEPTANCE_MATRIX_V1_20261120.md, solo documentación.
+- **Entrega:** docs/quality/AVALON_OS_ACCEPTANCE_MATRIX_V1_20261120.md y docs/quality/AVALON_OS_UAT_EXECUTION_RUNSHEET_V1_20261120.md, solo documentación.
 - **Trabajo no realizado:** no se ejecutó Safari físico, no se autenticó contra Preview, no se modificó código/DB/proveedores, no se creó cliente/venta/factura/pago real.
-- **Estado global:** PENDIENTE DE ACEPTACIÓN / NO-GO para piloto real. Producción READY en main@207ed3a; Preview de documentación #276 CANCELED (no aceptación alojada).
+- **Estado global:** PENDIENTE DE ACEPTACIÓN / NO-GO para piloto real. Producción READY en main@207ed3a; Preview de documentación #276 CANCELED de forma intencional (`blocked_unsafe_preview_database`, no aceptación alojada). Auth Review y Security Checks verdes en 2ef0640c; los siguientes commits documentales requieren su propia revisión.
 - **Next action:** programar sesión humana en Preview aislada, conservar evidencia confidencial y decidir release conforme a §6.
