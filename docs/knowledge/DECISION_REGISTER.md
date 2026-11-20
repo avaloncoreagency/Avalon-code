@@ -1,6 +1,9 @@
 # Registro inicial de decisiones y directrices
 
-**Clasificación:** PUBLICABLE — sin datos privados. **Versión propuesta:** 0.2. **Fecha de revisión documental:** 2026-11-20. **Base contrastada:** `main@207ed3a3dc8fdae5dd949a7361733e441c530519`.
+**ID:** KNI-DEC-REG-001 · **Versión:** v0.3 · **Custodio propuesto:** Knowledge & Innovation.
+**Solidez:** PROPUESTO · **Vigencia:** POR REVISAR · **Aprobación:** BORRADOR · **Clasificación:** PUBLICABLE · **Última revisión:** 2026-11-20.
+
+Los registros individuales distinguen directrices verificadas documentalmente de aprobaciones reales. Base contrastada: `main@207ed3a3dc8fdae5dd949a7361733e441c530519`.
 
 Este es un registro de **directrices y recomendaciones rastreables**, no un acta de aprobación conjunta. Las tres columnas de estado se usan con los valores exactos de [control documental](./DOCUMENT_CONTROL.md). `VERIFICADO` solo significa que la fuente citada fue encontrada y respalda la **existencia de la directriz**; no significa que su implementación esté activa en producción.
 
