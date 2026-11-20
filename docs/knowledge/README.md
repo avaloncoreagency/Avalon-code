@@ -12,7 +12,7 @@ Este directorio organiza **referencias documentales** para PROJECT MANAGER y los
 
 | Grupo | Contenido | Fuente o directorio existente |
 | --- | --- | --- |
-| 00 Control | Índice, glosario, propiedad y estados | Este archivo, [control documental](./DOCUMENT_CONTROL.md), [catálogo de fuentes](./SOURCE_CATALOG.md), [glosario](./GLOSSARY.md) y [plantillas](./TEMPLATES.md) |
+| 00 Control | Índice, glosario, propiedad y estados | Este archivo, [control documental](./DOCUMENT_CONTROL.md), [procedimiento de curación](./CURATION_RUNBOOK.md), [catálogo de fuentes](./SOURCE_CATALOG.md), [glosario](./GLOSSARY.md) y [plantillas](./TEMPLATES.md) |
 | 01 Gobierno | Registro de decisiones, sustituciones y aprobaciones | [Registro inicial](./DECISION_REGISTER.md), GitHub Issues/PR con evidencias |
 | 02 Operaciones | Onboarding, implementación, mantenimiento, entrega | [CRM](../CRM_IMPLEMENTATION.md), [handoffs](../handoff/) |
 | 03 Producto | Criterios de calidad y alcance | [Módulos](../AVALON_OS_MODULES.md), [QA independiente](../independent-qa/) |
@@ -33,6 +33,7 @@ Las ubicaciones enlazadas pueden contener contenido de distinta fecha o vigencia
 - **¿Quién aprobó una decisión?** [Registro de decisiones](./DECISION_REGISTER.md). Sin aprobador explícito, el resultado permanece en borrador.
 - **¿Qué significa lead, cliente, venta, cobro o PR verificado?** [Glosario operativo](./GLOSSARY.md), pendiente de ratificación por los departamentos.
 - **¿Cómo documentamos una operación repetible?** [Plantillas de decisión, SOP, investigación, incidente y handoff](./TEMPLATES.md).
+- **¿Cómo se recibe y acepta un nuevo conocimiento?** [Procedimiento de incorporación con criterios de aceptación](./CURATION_RUNBOOK.md).
 - **¿Cómo se actualiza y archiva la información?** [Protocolo documental](./DOCUMENT_CONTROL.md).
 - **¿Qué investigar sin contratar nada?** [Cartera de innovación](./INNOVATION_BACKLOG.md).
 
