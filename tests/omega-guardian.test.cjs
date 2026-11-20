@@ -23,3 +23,15 @@ test('generic healthy probes cannot attest recovery of authentication, permissio
   const mixed=incident();mixed.observations=[obs(10,'timeout'),obs(12,'http_5xx')];
   assert.equal(verifyRecovery(mixed,after,context).status,'VERIFIED_FOR_OWNER_REVIEW');
 });
+
+test('availability timeout plus HTTP 5xx is a persistent outage, not a transient error',()=>{
+  const i=incident();i.observations=[obs(10,'timeout'),obs(12,'http_5xx')];
+  const diagnosis=diagnoseIncident(i,context);
+  assert.equal(diagnosis.classification,'persistent_failure');
+  assert.equal(diagnosis.level,'L3');
+});
+test('single unconfirmed availability failure cannot pass recovery review',()=>{
+  const i=incident();i.observations=[obs(10)];
+  assert.equal(diagnoseIncident(i,context).classification,'single_observation');
+  assert.equal(verifyRecovery(i,[obs(14,'healthy',reviewer),obs(16,'healthy',reviewer)],context).status,'UNVERIFIED');
+});
