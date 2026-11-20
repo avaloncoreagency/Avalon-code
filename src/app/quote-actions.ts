@@ -1,7 +1,7 @@
 "use server";
 import { headers } from "next/headers";
 import { createClient } from "@/lib/supabase/server";
-import { createIntakeClient } from "@/lib/supabase/intake";
+import { intakeCall } from "@/lib/supabase/intake";
 import { authLimiter, clientIp, hashKey } from "@/lib/security/rate-limit";
 import { verifyHumanToken } from "@/lib/security/turnstile";
 
@@ -50,9 +50,10 @@ export async function requestQuote(prev: QuoteState, form: FormData): Promise<Qu
     services: [...new Set(requested.filter(s => SERVICES.includes(s)))],
   };
   try {
-    // Least-privilege intake role when configured (P0.2); otherwise the current anonymous client.
-    const supabase = createIntakeClient() ?? await createClient();
-    const { data, error } = await supabase.rpc("crm_public_inquiry", { request });
+    // Token-gated wrapper when AVALON_INTAKE_TOKEN is configured (P0.2); otherwise the current direct RPC.
+    const supabase = await createClient();
+    const call = intakeCall("inquiry", request);
+    const { data, error } = await supabase.rpc(call.fn, call.args);
     if (error) return fail("unavailable");
     if (data === "ok") return { status: "ok", attempt };
     return fail(data === "throttled" ? "throttled" : data === "invalid" ? "invalid" : "unavailable");

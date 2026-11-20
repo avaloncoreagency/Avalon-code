@@ -4,7 +4,6 @@ const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const ts = require('typescript');
 const path = require('node:path');
-const crypto = require('node:crypto');
 
 function load(file, mocks = {}) {
   const source = ts.transpileModule(fs.readFileSync(file, 'utf8'), {
@@ -26,7 +25,7 @@ function quoteAction({ human = 'ok', rpc = { data: 'ok', error: null }, allowed 
     'next/headers': { headers: async () => new Headers({ 'x-forwarded-for': '198.51.100.7' }) },
     '@/lib/supabase/server': { createClient: async () => ({ rpc: async (name, args) => { calls.rpc.push([name, args]); return rpc; } }) },
     '@/lib/security/rate-limit': { authLimiter: { hit: () => ({ allowed }) }, clientIp: () => '198.51.100.7', hashKey: (...x) => x.join(':') },
-    '@/lib/supabase/intake': { createIntakeClient: () => null },
+    '@/lib/supabase/intake': load('src/lib/supabase/intake.ts'),
     '@/lib/security/turnstile': { verifyHumanToken: async (token, action) => { calls.human.push([token, action]); return human; } },
   });
   return { requestQuote: mod.requestQuote, calls };
@@ -108,18 +107,13 @@ test('the form starts the challenge only on an explicit click and re-arms it aft
   assert.match(widget, /if \(attempt === 0 \|\| !scriptReady\) return;/, 'no automatic execution on page load');
 });
 
-test('the intake token is a 60-second HS256 JWT for role avalon_intake; disabled without a strong secret', () => {
-  const source = ts.transpileModule(fs.readFileSync('src/lib/supabase/intake.ts', 'utf8'), { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 } }).outputText;
-  const mod = { exports: {} };
-  new Function('require', 'module', 'exports', source)(id => id === 'server-only' ? {} : id === '@supabase/supabase-js' ? { createClient: () => ({}) } : require(id), mod, mod.exports);
-  const secret = 'x'.repeat(40);
-  const token = mod.exports.signIntakeToken(secret, 1_800_000_000);
-  const [h, p, sig] = token.split('.');
-  assert.deepEqual(JSON.parse(Buffer.from(h, 'base64url')), { alg: 'HS256', typ: 'JWT' });
-  assert.deepEqual(JSON.parse(Buffer.from(p, 'base64url')), { role: 'avalon_intake', iss: 'avalon-intake', iat: 1_800_000_000, exp: 1_800_000_060 });
-  assert.equal(sig, crypto.createHmac('sha256', secret).update(`${h}.${p}`).digest('base64url'));
-  assert.equal(mod.exports.intakeMode({}), 'anon');
-  assert.equal(mod.exports.intakeMode({ AVALON_INTAKE_JWT_SECRET: 'short' }), 'anon', 'a weak secret never enables the role path');
-  assert.equal(mod.exports.intakeMode({ AVALON_INTAKE_JWT_SECRET: secret }), 'role');
-  assert.equal(mod.exports.createIntakeClient({}), null);
+test('the intake call is token-gated only when a strong server token exists; the token never leaves the server call', () => {
+  const intake = load('src/lib/supabase/intake.ts');
+  const token = 'x'.repeat(40);
+  assert.deepEqual(intake.intakeCall('inquiry', { a: 1 }, {}), { fn: 'crm_public_inquiry', args: { request: { a: 1 } } });
+  assert.deepEqual(intake.intakeCall('funnel', { a: 1 }, {}), { fn: 'crm_growth_funnel_submit', args: { request: { a: 1 } } });
+  assert.equal(intake.intakeMode({ AVALON_INTAKE_TOKEN: 'short' }), 'direct', 'a weak token never enables the gate');
+  assert.deepEqual(intake.intakeCall('inquiry', { a: 1 }, { AVALON_INTAKE_TOKEN: token }), { fn: 'crm_public_intake', args: { request: { a: 1 }, p_token: token } });
+  assert.deepEqual(intake.intakeCall('funnel', { a: 1 }, { AVALON_INTAKE_TOKEN: ` ${token} ` }), { fn: 'crm_public_funnel_intake', args: { request: { a: 1 }, p_token: token } });
+  assert.doesNotMatch(fs.readFileSync('src/lib/supabase/intake.ts', 'utf8'), /NEXT_PUBLIC_|createHmac|node:crypto/, 'no public env and no token signing');
 });
