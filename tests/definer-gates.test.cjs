@@ -28,3 +28,8 @@ test('Core Engine money RPCs are owner-gated and not anonymous', () => {
     assert.equal(r.anon, false, name);
   }
 });
+
+test('executable SECURITY DEFINER functions pin an empty search_path', () => {
+  const unpinned = audit().filter(r => !r.safeSearchPath).map(r => `${r.name} (${r.file})`);
+  assert.deepEqual(unpinned, [], 'declare SET search_path = \'\' in each public SECURITY DEFINER definition');
+});
