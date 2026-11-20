@@ -569,6 +569,7 @@ test('Nova Restaurant through the real app: one form, three departments, no dupl
   await page.getByText('Guardado correctamente.', { exact: true }).waitFor();
   // Approved five groups (#253): Nuevo / En conversación / Propuesta / Ganado / Perdido over the detailed stages.
   const board = page.getByRole('region', { name: 'Pipeline de oportunidades' });
+  await board.getByRole('region', { name: 'En conversación', exact: true }).waitFor();
   assert.deepEqual(await board.locator('[data-kanban-group] h3').allInnerTexts(), ['Nuevo', 'En conversación', 'Propuesta', 'Ganado', 'Perdido']);
   await page.getByLabel('Grupo de Orbit Dental Sintético').selectOption('proposal');
   await page.waitForTimeout(300);
@@ -776,7 +777,7 @@ test('Nova Restaurant through the real app: one form, three departments, no dupl
   }
   await matrix.goto(origin + '/admin/workspace/crm/leads');
   await matrix.getByRole('region', { name: 'Opportunity pipeline' }).waitFor();
-  await matrix.getByText('Your pipeline, stage by stage').waitFor();
+  await matrix.getByText('Your pipeline in 5 groups').waitFor();
   assert.ok(await matrix.getByRole('region', { name: 'Sales command center' }).isVisible());
   await matrix.screenshot({ path: EVIDENCE + '/command-pipeline-desktop.png', fullPage: true });
   // Real browser UI with synthetic API failures: retain drafts and require explicit discard.
