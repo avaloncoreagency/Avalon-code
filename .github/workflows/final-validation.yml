@@ -1,0 +1,77 @@
+name: Final validation pinned candidate
+on:
+  pull_request:
+    paths:
+      - 'scripts/final-validation/**'
+      - 'tests/final-validation/**'
+      - 'docs/final-validation/**'
+      - '.github/workflows/final-validation.yml'
+permissions:
+  contents: read
+concurrency:
+  group: final-validation-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  candidate:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_PASSWORD: synthetic-ci-only
+          POSTGRES_DB: avalon_qa
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready --health-interval 5s --health-timeout 5s --health-retries 10
+    env:
+      NODE_PATH: ./tests/qa/node_modules
+      NEXT_TELEMETRY_DISABLED: '1'
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with:
+          node-version: '22'
+          cache: npm
+      - name: Reconstruct reviewed source pins without deployments
+        run: node scripts/final-validation/stage.cjs "$RUNNER_TEMP/avalon-candidate"
+      - run: npm ci --no-audit --no-fund && npm ci --prefix tests/qa --ignore-scripts --no-audit --no-fund
+        working-directory: ${{ runner.temp }}/avalon-candidate
+      - run: npm test && npm run typecheck && npm run lint && npm run build
+        working-directory: ${{ runner.temp }}/avalon-candidate
+      - run: node --test --test-concurrency=1 tests/public-inquiry.database.cjs tests/inquiry-history.database.cjs tests/intake-role.database.cjs tests/growth-funnel.database.cjs tests/core-engine.database.cjs tests/sales.database.cjs tests/final-validation/*.test.cjs tests/final-validation/identities.database.cjs
+        working-directory: ${{ runner.temp }}/avalon-candidate
+      - name: Real concurrent database sessions (ephemeral service)
+        run: node tests/final-validation/concurrent-postgres.cjs
+        working-directory: ${{ runner.temp }}/avalon-candidate
+        env:
+          FINAL_VALIDATION_POSTGRES: ephemeral
+          PGHOST: 127.0.0.1
+          PGDATABASE: avalon_qa
+          PGPASSWORD: synthetic-ci-only
+      - run: node tests/qa/node_modules/playwright/cli.js install --with-deps chromium
+        working-directory: ${{ runner.temp }}/avalon-candidate
+      - run: node --test --test-concurrency=1 tests/sales.browser.cjs tests/quotes.browser.cjs tests/prod-schema-compat.browser.cjs tests/growth-funnel.http.cjs
+        working-directory: ${{ runner.temp }}/avalon-candidate
+        env:
+          SALES_BROWSER: '1'
+          QUOTES_BROWSER: '1'
+          EVIDENCE_DIR: evidence/final-validation
+      - name: Mandatory human verification acceptance (known red until Claude fix)
+        if: always()
+        run: node tests/final-validation/intake-boundary.cjs .
+        working-directory: ${{ runner.temp }}/avalon-candidate
+      - name: Mandatory reused role least privilege (known red until reviewed SQL fix)
+        if: always()
+        run: node tests/final-validation/role-reuse.cjs
+        working-directory: ${{ runner.temp }}/avalon-candidate
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        if: always()
+        with:
+          name: final-validation-${{ github.sha }}
+          path: ${{ runner.temp }}/avalon-candidate/evidence/final-validation/
+          if-no-files-found: ignore
