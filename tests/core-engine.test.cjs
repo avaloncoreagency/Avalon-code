@@ -48,3 +48,48 @@ test("database errors map to owner-facing messages without SQL", () => {
   const unknown = coreEngineMessage({ message: 'relation "x" does not exist' });
   assert.doesNotMatch(unknown, /relation|select|crm_/);
 });
+
+test('localized errors never expose raw SQL or arbitrary server messages', () => {
+  for(const lang of ['es','en']) {
+    const out=coreEngineMessage({message:'sensitive SQL password=never_expose',code:'XX000'},lang);
+    assert.doesNotMatch(out,/SQL|password|never_expose/);
+  }
+  assert.match(coreEngineMessage({message:'commission_requires_verified_payment'},'en'),/verified payment/);
+});
+
+function adapter() {
+  const js=ts.transpileModule(fs.readFileSync('src/lib/sales/core-engine-server.ts','utf8'),{compilerOptions:{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2022}}).outputText;
+  const server={exports:{}};
+  new Function('module','exports','require',js)(server,server.exports,id=>id==='server-only'?{}:id==='./core-engine'?mod.exports:{});
+  return server.exports;
+}
+test('sale operation refuses a cross-sale record before a money mutation', async()=>{
+  const calls=[];
+  const db={rpc:async(name)=>{calls.push(name);return{data:{client_id:'client'},error:null};},from:table=>{
+    const conditions={};const chain={select(){return this;},eq(k,v){conditions[k]=v;return this;},async maybeSingle(){
+      if(table==='crm_sales')return {data:{id:SALE,client_id:'client'},error:null};
+      assert.equal(conditions.sale_id,SALE); return {data:null,error:null};
+    }};return chain;
+  }};
+  const out=await adapter().runSaleOperation(db,SALE,'reverse',{id:'payment-from-other-sale',reason:'synthetic correction'});
+  assert.equal(out.ok,false);assert.deepEqual(calls,['crm_client_finance_ledger']);
+});
+test('old production schema reports unavailable and makes no writes',async()=>{
+  const db={rpc:async()=>({data:null,error:{code:'PGRST202'}})};
+  const out=await adapter().loadClientLedger(db,'synthetic');
+  assert.equal(out.ok,false);assert.equal(out.unavailable,true);
+});
+
+test('every operation requires server finance capability; unknown/prototype names touch nothing',async()=>{
+ for(const op of ['invoice','agree','void','verify','reverse','accrued','paid','cancelled']){
+  const calls=[];const db={from:()=>({select(){return this},eq(){return this},async maybeSingle(){return{data:{id:SALE,client_id:'client'}}}}),rpc:async fn=>{calls.push(fn);return{error:{code:'42501'}}}};
+  assert.equal((await adapter().runSaleOperation(db,SALE,op,{})).ok,false,op);assert.deepEqual(calls,['crm_client_finance_ledger']);
+ }
+ for(const op of ['unknown','toString','constructor','__proto__'])assert.equal((await adapter().runSaleOperation({},SALE,op,{})).ok,false);
+});
+test('every mutable record uses its fixed table and requested sale before RPC',async()=>{
+ for(const [op,table] of [['void','crm_invoices'],['verify','crm_payments'],['reverse','crm_payments'],['accrued','crm_commissions'],['paid','crm_commissions'],['cancelled','crm_commissions']]){
+  const calls=[];const db={rpc:async fn=>{calls.push(fn);return{data:{}}},from:name=>{const filters={};return{select(){return this},eq(k,v){filters[k]=v;return this},async maybeSingle(){if(name==='crm_sales')return{data:{id:SALE,client_id:'client'}};assert.equal(name,table);assert.equal(filters.sale_id,SALE);return{data:null};}}}};
+  assert.equal((await adapter().runSaleOperation(db,SALE,op,{id:'other'})).ok,false,op);assert.deepEqual(calls,['crm_client_finance_ledger']);
+ }
+});

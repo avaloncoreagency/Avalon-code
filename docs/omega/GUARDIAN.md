@@ -33,3 +33,7 @@ A single failure means another observation is needed, not a confirmed outage. Tw
 Use an event from an authorized monitor/owner/ticket → retrieve minimal exact-client/product evidence → offline diagnosis → existing request proposal → owner-reviewed repair at approved level → separate verifier → owner closure. No recurring monitor, ChatGPT automation or external AI call created. Incidents share the Orchestrator handoff fields but cannot grant it additional permissions. Log action ID, target version, result and author before escalating; never credentials or arbitrary raw logs. Per-client retention and contractual response times require owner-approved policy; no24/7 SLA is promised.
 
 Rollback: remove additive helper/tests/docs; no production or storage mutation to undo. Next action: Claude/integrator reviews adapter compatibility and trusted receipt source before UI integration; owners approve any future L2 executor separately.
+
+## Reconciliation checkpoint —20Nov2026
+
+Claude merged #255 into main445143fe26f8b954422a458464385d1d562e13cb during this task. This branch merged that exact main without conflicts, preserving his recovery and48 local migration filenames matching the current ledger versions for the three newest records. Prior45-source-file notes above describe the initial5f99 checkpoint, not the current reconciled candidate. No Claude PR was merged by this task. New helpers remain additive; exact-head CI must approve after reconciliation.

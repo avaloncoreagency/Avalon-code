@@ -1,3 +1,4 @@
+import { radarExternalEnabled, RADAR_PAUSED_MESSAGE } from "@/lib/crm/radar-control";
 import { NextRequest, NextResponse } from "next/server";
 import { getOwnerSession } from "@/lib/auth/session";
 import { INDUSTRIES, LICENSED_MAX_RADIUS_M, PUBLIC_MAX_RADIUS_M, type IndustryId } from "@/lib/crm/radar";
@@ -50,6 +51,7 @@ export async function POST(request: NextRequest) {
   }
   const id = String(b.id ?? "");
   if (!UUID.test(id)) return reply({ error: "Campaña inválida" }, 400);
+  if ((b.op === "run" || (b.op === "status" && b.status === "active")) && !radarExternalEnabled()) return reply({error:RADAR_PAUSED_MESSAGE,paused:true},423);
   if (b.op === "status") {
     const status = b.status === "active" ? "active" : "paused";
     const { error } = await db.from("crm_radar_campaigns").update({ status }).eq("id", id);

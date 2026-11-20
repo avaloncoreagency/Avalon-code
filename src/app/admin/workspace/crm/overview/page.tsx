@@ -3,6 +3,7 @@ import { Suite } from "@/components/suite/suite";
 import { CrmOverview } from "@/components/crm/overview";
 import { OpsLinks } from "@/components/sales/ui";
 import { requireOwner } from "@/lib/auth/session";
+import { radarExternalEnabled } from "@/lib/crm/radar-control";
 import { getLang } from "@/lib/i18n-server";
 import { pick } from "@/lib/i18n";
 import { run, countRows } from "@/lib/os/data";
@@ -30,7 +31,7 @@ export default async function CrmPage() {
   const n = (v: number | null) => (v === null ? "—" : String(v));
   return (
     <Suite active="crm">
-      <CrmOverview />
+      <CrmOverview radarEnabled={radarExternalEnabled()} />
       <section className={s.hud} aria-labelledby="crm-ops" style={{ marginTop: 18 }}>
         <header className={s.header}>
           <div><p className={s.eyebrow}>{pick(lang, "Operaciones comerciales", "Commercial operations")}</p>
