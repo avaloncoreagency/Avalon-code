@@ -1,6 +1,9 @@
 # Avalon Knowledge — índice y reglas de consulta
 
-**Estado:** PROPUESTO (gobierno documental); **última revisión:** 2026-11-20. **Responsable propuesto:** Knowledge & Innovation. Este documento no acredita aprobación de los owners ni despliegue.
+**ID:** KNI-INDEX-001 · **Versión:** v0.2 · **Custodio propuesto:** Knowledge & Innovation.
+**Solidez:** PROPUESTO · **Vigencia:** POR REVISAR · **Aprobación:** BORRADOR · **Clasificación:** PUBLICABLE · **Última revisión:** 2026-11-20.
+
+Este documento no acredita aprobación de los owners ni despliegue.
 
 ## Finalidad y límites
 
