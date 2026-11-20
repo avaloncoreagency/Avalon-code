@@ -31,7 +31,7 @@ No single green CI run is sufficient to satisfy these hosted and authorization r
 
 ## Existing CI tripwire
 
-Run `node --test tests/orchestrator-activation-gate.test.cjs` (also included by the existing `npm test` glob). It checks that no application/runtime source imports draft `src/lib/operations/mission-plan` or `department-templates` while their contracts remain untrusted. This small, static check is intentionally narrow: aliases, generated code, indirect calls and full authorization behavior are **not** proven secure by passing it. Changing the import path is not an acceptable workaround. Only replace the tripwire through a reviewed integration PR containing trusted server adapter and negative integration tests.
+Run `node --test tests/orchestrator-activation-gate.test.cjs` (also included by the existing `npm test` glob). The test uses the already-pinned TypeScript parser to inspect source-level static imports, side-effect imports, re-exports, literal `require()` and dynamic `import()` from application/library modules, including relative paths and the configured `@/` alias. Only the two draft compiler/template source files are excluded, not future adapters in the same directory. Synthetic positive/negative cases prevent silent regression of the detector. **Passing this check does not prove security:** computed module paths, other aliases, generated/runtime-loaded code, source maps, external effects and full authorization behavior remain unverified. Changing an import path to avoid the detector is prohibited. Only revise the tripwire through a reviewed integration PR containing a trusted owner-scoped server adapter and negative integration tests.
 
 ## Dependency and ownership sequencing
 
