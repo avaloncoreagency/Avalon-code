@@ -70,3 +70,23 @@ test("real PDF bytes contain clauses, full Latin legal names, valid xref and foo
   assert.ok(streams.length >= 3, "multi-page content streams");
   for (const m of streams) assert.equal(Buffer.byteLength(m[2], "latin1"), Number(m[1]));
 });
+
+
+test("contract PDF preserves multiline terms without question-mark substitutions", () => {
+  const multiline = { ...sample, scope: "First line of scope\nSecond line of scope", commission: "Rate: 10%\nAttribution: approved only" };
+  assert.deepEqual(Array.from(agreement.validateAgreement(multiline)), []);
+  const bytes = Buffer.from(pdf.renderAgreementPdf(agreement.makeAgreementSnapshot(multiline), "test-legal-pdf"));
+  const source = bytes.toString("latin1");
+  assert.match(source, /\\(First line of scope\\) Tj/);
+  assert.match(source, /\\(Second line of scope\\) Tj/);
+  assert.match(source, /\\(Rate: 10%\\) Tj/);
+  assert.match(source, /\\(Attribution: approved only\\) Tj/);
+  assert.doesNotMatch(source, /First line of scope\\?/);
+});
+test("contract validation prevents unsupported characters silently mutating legal text", () => {
+  assert.ok(agreement.validateAgreement({ ...sample, clientName: "Studio 🛠" }).includes("clientName"));
+  assert.ok(agreement.validateAgreement({ ...sample, commission: "Price is €100" }).includes("commission"));
+  assert.ok(agreement.validateAgreement({ ...sample, scope: "Custom 漢字 content" }).includes("scope"));
+  assert.ok(agreement.validateAgreement({ ...sample, agencyName: "Ana\\nLopez" }).includes("agencyName"));
+  assert.equal(agreement.validateAgreement({ ...sample, scope: "Two-line scope\\nSecond line — with ‘quoted’ details…" }).length, 0);
+});
