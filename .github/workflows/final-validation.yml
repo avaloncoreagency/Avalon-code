@@ -65,7 +65,7 @@ jobs:
         if: always()
         run: node tests/final-validation/intake-boundary.cjs .
         working-directory: ${{ runner.temp }}/avalon-candidate
-      - name: Token wrappers: independent negative acceptance
+      - name: "Token wrappers: independent negative acceptance"
         if: always()
         run: node tests/final-validation/token-boundary.cjs
         working-directory: ${{ runner.temp }}/avalon-candidate
