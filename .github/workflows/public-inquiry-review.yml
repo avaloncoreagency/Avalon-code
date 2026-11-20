@@ -1,0 +1,28 @@
+name: Public inquiry review SQL
+on:
+  pull_request:
+    paths:
+      - 'docs/sql/public-inquiry-services-review.sql'
+      - 'tests/public-inquiry.database.cjs'
+      - 'supabase/migrations/**'
+      - '.github/workflows/public-inquiry-review.yml'
+permissions:
+  contents: read
+concurrency:
+  group: public-inquiry-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  negative-inputs:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: tests/qa/package-lock.json
+      - run: npm ci --ignore-scripts --prefix tests/qa --no-audit --no-fund
+      - run: NODE_PATH=tests/qa/node_modules node --test tests/public-inquiry.database.cjs tests/definer-gates.test.cjs
