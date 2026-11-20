@@ -68,6 +68,15 @@ module.exports=async function inboundUI({db,context,miguel,samuel,origin,evidenc
   const log=(await db.query('select from_status,to_status,actor_id from crm_public_inquiry_reviews where inquiry_id=$1 order by created_at',[(await spamRow()).id])).rows;
   assert.deepEqual(log.map(r=>[r.from_status,r.to_status,r.actor_id]),[['pending','possible_spam',samuel.user.id],['possible_spam','legitimate',samuel.user.id]]);
   assert.equal((await db.query("select status from crm_prospects where id=$1",[multi.id])).rows[0].status,'pending','reviewing a message never converts the prospect');
+  // A.4: per-message summary filters (page scope) — reviewed messages leave the "To review" view, nothing is deleted.
+  const filters=inbox(b).getByRole('group',{name:'Filter messages on this page'});
+  await filters.getByRole('button',{name:/^To review \(1\)$/}).click();
+  await list.getByText('Necesito un website con reservas para mi barbería.').waitFor();
+  assert.equal(await list.getByText(/customized SEO services/).count(),0,'reviewed message hidden in the To review view');
+  await filters.getByRole('button',{name:/^Reviewed \(1\)$/}).click();
+  await list.getByText(/customized SEO services/).waitFor();
+  await filters.getByRole('button',{name:/^All \(2\)$/}).click();
+  assert.equal(await list.getByRole('listitem').count(),2,'both messages back in the full view');
   await b.screenshot({path:evidence+'/inbound-messages-en-1440.png',fullPage:true});
   // Transport loss must preserve the row and never show an optimistic confirmation.
   await receipt((await make('Inbox Synthetic Offline')).id);
