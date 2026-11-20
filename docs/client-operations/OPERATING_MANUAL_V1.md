@@ -2,6 +2,8 @@
 
 **Status:** PROPOSED / review only. **Owner:** Client Operations. **Issue:** #271. **Scope:** websites, e-commerce, custom CRM. **Source baseline:** `main@207ed3a3dc8fdae5dd949a7361733e441c530519` (2026-11-20).
 
+See [ACCEPTANCE_GATES_ES.md](./ACCEPTANCE_GATES_ES.md) for an owner-ready Spanish gate/evidence decision sheet and cross-department review. This policy remains a draft until the owners and appropriate departments approve it.
+
 ## Purpose and operating guardrails
 
 Manage a client from first authorized conversation through delivery, acceptance, support and offboarding without confusing commercial progress with technical completion. This is a **human procedure**, not a deployed workflow, executed automation, customer portal, legal agreement or proof that integrations exist. Miguel and Samuel approve financial, contractual, client-data and deployment decisions.
