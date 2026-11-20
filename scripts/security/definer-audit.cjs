@@ -27,7 +27,7 @@ function stripComments(sql) {
 
 function parse() {
   const files = fs.readdirSync(DIR).filter(f => f.endsWith(".sql")).sort();
-  const defs = new Map(); // name -> {file, definer, body}
+  const defs = new Map(); // name -> {file, definer, safeSearchPath, body}
   const grants = new Map(); // name -> {anon:boolean, authenticated:boolean}
   const re = /create\s+(?:or\s+replace\s+)?function\s+public\.([a-z0-9_]+)\s*\(([\s\S]*?)\)\s*(?:returns[\s\S]*?)?\s+as\s+(\$[a-z_]*\$)([\s\S]*?)\3/gi;
   for (const f of files) {
@@ -35,7 +35,7 @@ function parse() {
     let m;
     while ((m = re.exec(sql))) {
       const header = sql.slice(m.index, m.index + m[0].length - m[4].length - 2 * m[3].length);
-      defs.set(m[1], { file: f, definer: /security\s+definer/i.test(header), body: m[4] });
+      defs.set(m[1], { file: f, definer: /security\s+definer/i.test(header), safeSearchPath: /\bset\s+search_path\s*(?:=|to)\s*(?:''|"")/i.test(header), body: m[4] });
       // A fresh CREATE (not OR REPLACE) of a dropped function starts without explicit grants; OR REPLACE keeps them.
       if (!/or\s+replace/i.test(header)) grants.delete(m[1]);
     }
@@ -74,7 +74,7 @@ function audit() {
     if (!d.definer) continue;
     const g = grants.get(name) || { anon: false, authenticated: false };
     if (!g.anon && !g.authenticated) continue;
-    rows.push({ name, file: d.file, anon: g.anon, authenticated: g.authenticated, gate: classify(name, d.body), dynamicSql: /\bexecute\s+(format|')/i.test(d.body) });
+    rows.push({ name, file: d.file, anon: g.anon, authenticated: g.authenticated, safeSearchPath: d.safeSearchPath, gate: classify(name, d.body), dynamicSql: /\bexecute\s+(format|')/i.test(d.body) });
   }
   return rows.sort((a, b) => a.gate.localeCompare(b.gate) || a.name.localeCompare(b.name));
 }
