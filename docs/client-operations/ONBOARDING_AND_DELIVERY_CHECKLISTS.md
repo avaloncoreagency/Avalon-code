@@ -2,6 +2,8 @@
 
 **Status:** PROPOSED. **Refs:** #271, #46, #49, #237. This is a template, not a client record or confirmation of passing checks. Store completed copies **privately**, never commit client-specific content to a public repository.
 
+For explicit GO / NO-GO decisions, evidence requirements, and Spanish owner handoff, see [ACCEPTANCE_GATES_ES.md](./ACCEPTANCE_GATES_ES.md). Keep completed client-specific checklists out of this public repository.
+
 ## 1. Onboarding intake (website / e-commerce / CRM)
 
 ### Business and approvals
