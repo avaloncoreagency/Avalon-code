@@ -40,6 +40,8 @@ export function verifyRecovery(incident:Incident,after:Observation[],context:Con
   const before=new Set(incident.observations.map(o=>o.id)),originalObservers=new Set(incident.observations.map(o=>o.observerId));
   const lastFailure=Math.max(...incident.observations.map(o=>Date.parse(o.observedAt)));
   const ordered=[...after].sort((a,b)=>Date.parse(a.observedAt)-Date.parse(b.observedAt));
-  const passed=ordered.length>=2&&ordered.every(o=>o.code==='healthy'&&!before.has(o.id)&&!originalObservers.has(o.observerId)&&Date.parse(o.observedAt)>lastFailure)&&Date.parse(ordered.at(-1)!.observedAt)-Date.parse(ordered[0].observedAt)>=1000;
+  // A healthy HTTP probe can attest only availability recovery, never auth, permissions, rollback, form delivery, or deployment integrity.
+  const eligible=incident.runbook==='availability'&&incident.observations.every(o=>o.code==='http_5xx'||o.code==='timeout');
+  const passed=eligible&&ordered.length>=2&&ordered.every(o=>o.code==='healthy'&&!before.has(o.id)&&!originalObservers.has(o.observerId)&&Date.parse(o.observedAt)>lastFailure)&&Date.parse(ordered.at(-1)!.observedAt)-Date.parse(ordered[0].observedAt)>=1000;
   return {status:passed?'VERIFIED_FOR_OWNER_REVIEW':'UNVERIFIED',incidentId:incident.id,evidenceIds:after.map(o=>o.id),closeAuthorized:false as const};
 }
