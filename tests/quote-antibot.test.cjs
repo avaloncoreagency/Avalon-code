@@ -117,3 +117,51 @@ test('the intake call is token-gated only when a strong server token exists; the
   assert.deepEqual(intake.intakeCall('funnel', { a: 1 }, { AVALON_INTAKE_TOKEN: ` ${token} ` }), { fn: 'crm_public_funnel_intake', args: { request: { a: 1 }, p_token: token } });
   assert.doesNotMatch(fs.readFileSync('src/lib/supabase/intake.ts', 'utf8'), /NEXT_PUBLIC_|createHmac|node:crypto/, 'no public env and no token signing');
 });
+
+// FV-001 (Codex #295): the funnel must not reach the intake client or RPC unless the server human check passes.
+function funnelAction({ human = 'ok', rpc = { data: 'ok', error: null } } = {}) {
+  const calls = { client: 0, rpc: [], human: [] };
+  const mod = load('src/app/f/[slug]/actions.ts', {
+    'next/headers': { headers: async () => new Headers({ 'x-forwarded-for': '198.51.100.9' }) },
+    '@/lib/supabase/server': { createClient: async () => { calls.client++; return { rpc: async (name, args) => { calls.rpc.push([name, args]); return rpc; } }; } },
+    '@/lib/security/rate-limit': { authLimiter: { hit: () => ({ allowed: true }) }, clientIp: () => '198.51.100.9', hashKey: (...x) => x.join(':') },
+    '@/lib/supabase/intake': load('src/lib/supabase/intake.ts'),
+    '@/lib/growth/funnel': { validSlug: s => /^[a-z0-9-]{3,60}$/.test(s) },
+    '@/lib/security/turnstile': { verifyHumanToken: async (token, action) => { calls.human.push([token, action]); return typeof human === 'function' ? human(token) : human; } },
+  });
+  return { submitFunnel: mod.submitFunnel, calls };
+}
+const funnelForm = (token) => {
+  const f = new FormData();
+  for (const [k, v] of Object.entries({ slug: 'barberia-sintetica', company: 'Barbería Sintética', name: 'Ana Prueba', email: 'ana@barberia.example.invalid',
+    phone: '', message: 'Quiero reservas en línea para mi barbería.', consent: 'yes', consent_version: 'v1', website_url: '' })) f.set(k, v);
+  if (token !== undefined) f.set('cf-turnstile-response', token);
+  return f;
+};
+
+test('FV-001: missing, invalid, expired, replayed or unverifiable funnel challenges never reach the intake client or RPC', async () => {
+  const scenarios = [['missing', undefined, 'invalid', 'human'], ['invalid', 'tok-forged', 'invalid', 'human'], ['expired', 'tok-expired', 'invalid', 'human'],
+    ['replayed', 'tok-replayed', 'invalid', 'human'], ['provider unavailable', 'tok-provider-down', 'unavailable', 'unavailable']];
+  for (const [label, token, verdict, expected] of scenarios) {
+    const { submitFunnel, calls } = funnelAction({ human: verdict });
+    const state = await submitFunnel({ status: 'idle' }, funnelForm(token));
+    assert.equal(state.status, expected, label);
+    assert.equal(calls.client, 0, `${label}: no database client created`);
+    assert.equal(calls.rpc.length, 0, `${label}: no RPC`);
+    assert.equal(calls.human[0][1], 'avalon_funnel', `${label}: funnel-specific action`);
+    assert.equal(state.values.message, 'Quiero reservas en línea para mi barbería.', `${label}: typed values kept`);
+    assert.ok(!JSON.stringify(state).includes(token ?? '\u0000'), `${label}: token never echoed`);
+  }
+});
+
+test('FV-001: a verified funnel submission reaches the intake once and never forwards the token', async () => {
+  const { submitFunnel, calls } = funnelAction();
+  assert.deepEqual(await submitFunnel({ status: 'idle' }, funnelForm('good-token')), { status: 'ok', attempt: 1 });
+  assert.equal(calls.rpc.length, 1);
+  assert.equal(calls.rpc[0][0], 'crm_growth_funnel_submit');
+  assert.ok(!JSON.stringify(calls.rpc[0][1]).includes('good-token'));
+  const ui = fs.readFileSync('src/app/f/[slug]/form.tsx', 'utf8');
+  assert.match(ui, /<HumanVerification key=\{state\.attempt \?\? 0\} siteKey=\{turnstileSiteKey\} language="es" action="avalon_funnel"/);
+  assert.match(ui, /name="cf-turnstile-response" value=\{token\}/);
+  assert.match(fs.readFileSync('src/app/f/[slug]/page.tsx', 'utf8'), /turnstileSiteKey=\{publicTurnstileSiteKey\(\)\}/);
+});

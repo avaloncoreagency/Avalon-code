@@ -15,7 +15,7 @@ export function turnstileStatus(env = process.env): TurnstileStatus {
 }
 
 /** Each widget declares its purpose; a token minted for one action is never accepted for another. */
-export type HumanAction = "avalon_login" | "avalon_quote";
+export type HumanAction = "avalon_login" | "avalon_quote" | "avalon_funnel";
 
 export function verifyLoginHuman(
   token: FormDataEntryValue | null,

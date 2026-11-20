@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { publicFunnel, validSlug, FUNNEL_TEMPLATES } from "@/lib/growth/funnel";
 import { FunnelForm } from "./form";
+import { publicTurnstileSiteKey } from "@/lib/security/turnstile";
 import styles from "../funnel.module.css";
 
 export const dynamic = "force-dynamic";
@@ -40,7 +41,7 @@ export default async function FunnelLanding({ params }: { params: Promise<{ slug
         <section className={styles.formPanel} aria-label="Formulario de contacto">
           <h2>Cuéntanos sobre tu proyecto</h2>
           <p>Un formulario seguro conectado a nuestro CRM.</p>
-          <FunnelForm slug={funnel.slug} cta={funnel.cta} consentVersion={funnel.consentVersion} />
+          <FunnelForm slug={funnel.slug} cta={funnel.cta} consentVersion={funnel.consentVersion} turnstileSiteKey={publicTurnstileSiteKey()} />
         </section>
       </div>
       <footer className={styles.footer}>© {new Date().getFullYear()} Avalon Core Agency · Datos utilizados únicamente para esta solicitud.</footer>

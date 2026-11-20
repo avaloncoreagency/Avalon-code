@@ -11,6 +11,7 @@ Estado: `IMPLEMENTED_IN_BRANCH`. **Nada está activo en producción** hasta comp
 | Turnstile en el servidor | Siteverify con `action = avalon_quote` y hostname exacto. Cloudflare rechaza tokens caducados o reutilizados (`timeout-or-duplicate`). Un token de login no sirve para enviar una cotización | `src/lib/security/turnstile.ts` |
 | Widget | Solo se activa al pulsar «Verificar que soy humano», nunca al abrir la página. Funciona en ES/EN, con teclado y en móvil. Se vuelve a armar tras cada respuesta | `HumanVerification` (`action="avalon_quote"`) |
 | Datos del visitante | Si algo falla, el formulario conserva lo escrito (el token nunca se devuelve) | `QuoteState.values` |
+| Embudos públicos `/f/[slug]` (FV-001, hallazgo de Codex en #295) | Mismo orden: límite por IP → Siteverify con `action = avalon_funnel` → solo entonces cliente de base y RPC. Rechazado o no verificable = cero llamadas a la base; valores conservados; token nunca reenviado. Un token de login o de cotización no sirve aquí | `src/app/f/[slug]/actions.ts`, `form.tsx` |
 | Base de datos (solo revisión) | `anon` pierde `EXECUTE` sobre `crm_public_inquiry` y `crm_growth_funnel_submit` y solo puede llamar a los envoltorios `crm_public_intake` / `crm_public_funnel_intake`, que exigen el token del servidor. La base guarda solo su SHA-256 en `crm_private.intake_tokens`. Sin JWT ni clave privilegiada: es el mismo patrón que `os_bridge_api_*` | `docs/sql/public-intake-role-review.sql`, `src/lib/supabase/intake.ts` |
 
 Sin las claves de Turnstile, el formulario funciona como hoy (estado `disabled`, documentado). Con configuración parcial, falla cerrado y responde «no disponible»; nunca deja pasar.
@@ -48,3 +49,9 @@ Sin las claves de Turnstile, el formulario funciona como hoy (estado `disabled`,
   - la rotación funciona y los hashes no se pueden leer;
   - el token nunca se guarda junto a la solicitud;
   - el rollback restaura el comportamiento actual.
+
+## Hallazgos de Codex (#295)
+
+- **FV-001** (embudo sin verificación humana en el servidor): corregido en esta rama; 5 escenarios negativos en `tests/quote-antibot.test.cjs`.
+- **FV-002** (rol `avalon_intake` reutilizado conserva privilegios) y **FV-003** (compatibilidad HS256): aplicaban al diseño anterior con rol personalizado y JWT (pin `789eb2d`). Desde `5b5942b` el SQL de revisión **no crea ni usa ningún rol ni JWT**; usa envoltorios con token cuyo hash vive en `crm_private.intake_tokens`. Codex debe actualizar los pins para confirmarlo.
+- En producción sigue pendiente: aplicar el SQL (autorización separada + respaldo) y configurar claves Turnstile y `AVALON_INTAKE_TOKEN`. Sin claves Turnstile, la verificación queda en estado `disabled` (brecha documentada de despliegue).
