@@ -17,7 +17,7 @@ Desde el panel de propietarios:
 3. Asignar un cliente concreto con permiso `view` (ver nombre/estado de asignación) o `work` (más creación/edición de expediente propio vinculado a ese cliente).
 4. Revocar cliente o empleado sin borrar historial.
 5. Supervisar expedientes creados por empleados; los otros empleados jamás los ven.
-6. Leer auditoría en `staff_permission_events` (tabla owner-only; la interfaz v1 todavía no presenta el ledger).
+6. Leer los últimos 40 eventos de auditoría de `staff_permission_events` en la interfaz de dirección (solo propietarios). El historial completo permanece en la tabla protegida.
 
 **Límite deliberado:** un cliente asignado **no abre automáticamente** Cliente 360, ventas, ingresos, gastos, tareas, contactos, archivos o documentos. La fila `staff_client_grants.client_name` es un resumen redactado **capturado al asignar**; el nombre puede quedar desactualizado si el cliente cambia en CRM. La exposición granular de campos del expediente canónico es una fase posterior que requiere revisar cada tabla hija, adjuntos, Storage y RLS.
 
@@ -34,6 +34,7 @@ Desde el panel de propietarios:
 - `staff_private_messages` es **distinta** de `office_messages` (que sigue owner-only).
 - Pueden escribir propietarios y empleados activos con permiso `can_message`; el destinatario debe estar en el directorio autorizado y visible.
 - Solo remitente y destinatario pueden leer el contenido. **Ser propietario no permite revisar DMs de otros dos empleados**. Se permite marcar leído por destinatario, no editar/eliminar mensajes.
+- Revocar el permiso `can_message` retira inmediatamente la lectura y el marcado de mensajes para el empleado, no solo la posibilidad de enviarlos. Revocar el acceso general también oculta todos los DMs.
 - Límite de 100 mensajes por remitente y hora; el servidor verifica formato y RLS verifica autorización.
 - El directorio `staff_contacts` contiene un nombre limitado y un UUID; nunca expone la ficha completa o datos de clientes.
 - No hay email, push, proveedores, automatizaciones, adjuntos ni mensajes de grupo en v1.
