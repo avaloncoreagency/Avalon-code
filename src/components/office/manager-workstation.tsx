@@ -8,7 +8,7 @@ const hints: Record<ManagerCode, string> = {
   ren: "Coordinación y bloqueos pendientes",
   shin: "Membresías y solicitudes",
   haru: "Pipeline, ventas y tareas",
-  sora: "Radar: aprobados y convertidos",
+  sora: "Prospectos: aprobados y convertidos",
   kenji: "Órdenes bloqueadas y vencimientos",
 };
 type Status = { busy: boolean; result: ManagerReport | null; error: string | null };

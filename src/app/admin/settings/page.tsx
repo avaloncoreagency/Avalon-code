@@ -18,7 +18,7 @@ export default async function SettingsPage() {
   const [modulesDb, crmDb, salesDb, pipelineDb] = await Promise.all([countRows(supabase, "os_projects"), countRows(supabase, "crm_leads"), countRows(supabase, "crm_sales"), countRows(supabase, "crm_conversions")]);
   // One row per CRM migration, checked against a table it creates (never inferred).
   const crmRows: [string, typeof crmDb, string][] = [
-    ["CRM · Lead Hunter, pipeline, calendario", crmDb, "20261102085430_crm_core.sql"],
+    ["CRM · pipeline, calendario", crmDb, "20261102085430_crm_core.sql"],
     [pick(lang, "Ventas, Clientes 360°, tareas, avisos, actividad", "Sales, 360° clients, tasks, notices, activity"), salesDb, "20261102170000_avalon_sales_core.sql"],
     [pick(lang, "Pipeline de 13 etapas y conversión", "13-stage pipeline and conversion"), pipelineDb, "20261102180000_crm_pipeline_13.sql"],
   ];

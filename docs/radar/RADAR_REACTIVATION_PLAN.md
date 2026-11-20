@@ -65,10 +65,10 @@ No hay datos verificables de facturación de Geoapify en el repositorio, así qu
 |---|---|---|
 | `pg_cron` job `avalon-radar-hourly` | **Eliminado** (`cron.unschedule`, 2026-11-20). Antes existía inactivo | Para reactivar, volver a instalarlo con `scripts/ops/radar-worker-install.sql` (paso 6 del §8) |
 | `crm_radar_worker_config.enabled` | **`false`** (2026-11-20, `scripts/ops/radar-worker-disable.sql`). Historial conservado: 86 prospectos y 57 informes | Reversible: `enabled=true` solo tras el §8 |
-| Edge Function `avalon-radar-worker` v10 | **ACTIVE**, `verify_jwt=false`, exige un token cuyo SHA-256 coincida con la config. Esa versión **no** tiene el interruptor de #250 | Redeplegar la versión con el interruptor, o desactivar la función |
+| Edge Function `avalon-radar-worker` | **v11 = stub de hibernación** (2026-11-20, autorizado por el propietario): responde siempre **423** «en hibernación», no lee la base ni contacta proveedores, y exige JWT (`verify_jwt=true`). La v10 anterior no tenía el interruptor | Para reactivar, desplegar el worker completo del repositorio (`supabase/functions/avalon-radar-worker/`) en el paso 2 del §8 |
 | Variable `AVALON_RADAR_EXTERNAL_ENABLED` en Vercel | Ausente (= apagado) | No añadirla mientras esté suspendido |
 
-Sin cron, con el worker en `enabled=false` y la función protegida por token, no hay ejecuciones automáticas. Queda pendiente redesplegar la Edge Function con el interruptor de #250 (o desactivarla). Hoy no puede ejecutarse por ninguna vía programada.
+Sin cron, con el worker en `enabled=false` y la función protegida por token, no hay ejecuciones automáticas. La Edge Function desplegada es un stub que solo responde 423: Radar no puede ejecutarse ni consumir proveedores por ninguna vía.
 
 ## 5. Problemas funcionales conocidos
 
