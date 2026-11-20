@@ -1,9 +1,8 @@
 // P0.2 — review-only SQL docs/sql/public-intake-role-review.sql on an isolated database. Synthetic data only.
+// Uses only PGlite (the negative-inputs workflow installs tests/qa only); the JWT signer is unit-tested in tests/quote-antibot.test.cjs.
 const { test } = require('node:test');
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
-const crypto = require('node:crypto');
-const ts = require('typescript');
 const { PGlite } = require('@electric-sql/pglite');
 const MIGUEL = '00000000-0000-4000-8000-0000000000a1';
 
@@ -39,18 +38,3 @@ test('after the review SQL, anon cannot call the intake RPC; avalon_intake can, 
   void call;
 });
 
-test('the intake token is a 60-second HS256 JWT for role avalon_intake; disabled without a strong secret', () => {
-  const source = ts.transpileModule(fs.readFileSync('src/lib/supabase/intake.ts', 'utf8'), { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 } }).outputText;
-  const mod = { exports: {} };
-  new Function('require', 'module', 'exports', source)(id => id === 'server-only' ? {} : id === '@supabase/supabase-js' ? { createClient: () => ({}) } : require(id), mod, mod.exports);
-  const secret = 'x'.repeat(40);
-  const token = mod.exports.signIntakeToken(secret, 1_800_000_000);
-  const [h, p, sig] = token.split('.');
-  assert.deepEqual(JSON.parse(Buffer.from(h, 'base64url')), { alg: 'HS256', typ: 'JWT' });
-  assert.deepEqual(JSON.parse(Buffer.from(p, 'base64url')), { role: 'avalon_intake', iss: 'avalon-intake', iat: 1_800_000_000, exp: 1_800_000_060 });
-  assert.equal(sig, crypto.createHmac('sha256', secret).update(`${h}.${p}`).digest('base64url'));
-  assert.equal(mod.exports.intakeMode({}), 'anon');
-  assert.equal(mod.exports.intakeMode({ AVALON_INTAKE_JWT_SECRET: 'short' }), 'anon', 'a weak secret never enables the role path');
-  assert.equal(mod.exports.intakeMode({ AVALON_INTAKE_JWT_SECRET: secret }), 'role');
-  assert.equal(mod.exports.createIntakeClient({}), null);
-});

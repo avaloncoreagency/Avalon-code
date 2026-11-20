@@ -4,6 +4,7 @@ const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const ts = require('typescript');
 const path = require('node:path');
+const crypto = require('node:crypto');
 
 function load(file, mocks = {}) {
   const source = ts.transpileModule(fs.readFileSync(file, 'utf8'), {
@@ -105,4 +106,20 @@ test('the form starts the challenge only on an explicit click and re-arms it aft
   for (const field of ['company', 'name', 'email', 'phone', 'message']) assert.match(ui, new RegExp(`defaultValue=\\{v\\?\\.${field}\\}`));
   const widget = fs.readFileSync('src/components/auth/human-verification.tsx', 'utf8');
   assert.match(widget, /if \(attempt === 0 \|\| !scriptReady\) return;/, 'no automatic execution on page load');
+});
+
+test('the intake token is a 60-second HS256 JWT for role avalon_intake; disabled without a strong secret', () => {
+  const source = ts.transpileModule(fs.readFileSync('src/lib/supabase/intake.ts', 'utf8'), { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 } }).outputText;
+  const mod = { exports: {} };
+  new Function('require', 'module', 'exports', source)(id => id === 'server-only' ? {} : id === '@supabase/supabase-js' ? { createClient: () => ({}) } : require(id), mod, mod.exports);
+  const secret = 'x'.repeat(40);
+  const token = mod.exports.signIntakeToken(secret, 1_800_000_000);
+  const [h, p, sig] = token.split('.');
+  assert.deepEqual(JSON.parse(Buffer.from(h, 'base64url')), { alg: 'HS256', typ: 'JWT' });
+  assert.deepEqual(JSON.parse(Buffer.from(p, 'base64url')), { role: 'avalon_intake', iss: 'avalon-intake', iat: 1_800_000_000, exp: 1_800_000_060 });
+  assert.equal(sig, crypto.createHmac('sha256', secret).update(`${h}.${p}`).digest('base64url'));
+  assert.equal(mod.exports.intakeMode({}), 'anon');
+  assert.equal(mod.exports.intakeMode({ AVALON_INTAKE_JWT_SECRET: 'short' }), 'anon', 'a weak secret never enables the role path');
+  assert.equal(mod.exports.intakeMode({ AVALON_INTAKE_JWT_SECRET: secret }), 'role');
+  assert.equal(mod.exports.createIntakeClient({}), null);
 });
