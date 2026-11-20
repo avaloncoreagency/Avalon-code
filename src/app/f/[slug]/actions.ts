@@ -3,6 +3,7 @@
 import { createHmac } from "node:crypto";
 import { headers } from "next/headers";
 import { createClient } from "@/lib/supabase/server";
+import { createIntakeClient } from "@/lib/supabase/intake";
 import { authLimiter, clientIp, hashKey } from "@/lib/security/rate-limit";
 import { validSlug } from "@/lib/growth/funnel";
 
@@ -42,7 +43,7 @@ export async function submitFunnel(_previous: FunnelSubmitState, form: FormData)
       request.email.length > 254 || request.phone.length > 40 || request.message.length > 2000)
     return { status: "invalid" };
   try {
-    const supabase = await createClient();
+    const supabase = createIntakeClient() ?? await createClient();
     const { data, error } = await supabase.rpc("crm_growth_funnel_submit", { request });
     if (error) return { status: "unavailable" };
     return {

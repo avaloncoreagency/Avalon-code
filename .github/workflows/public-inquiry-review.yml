@@ -3,6 +3,8 @@ on:
   pull_request:
     paths:
       - 'docs/sql/public-inquiry-services-review.sql'
+      - 'docs/sql/public-intake-role-review.sql'
+      - 'tests/intake-role.database.cjs'
       - 'tests/public-inquiry.database.cjs'
       - 'supabase/migrations/**'
       - '.github/workflows/public-inquiry-review.yml'
@@ -25,4 +27,4 @@ jobs:
           cache: npm
           cache-dependency-path: tests/qa/package-lock.json
       - run: npm ci --ignore-scripts --prefix tests/qa --no-audit --no-fund
-      - run: NODE_PATH=tests/qa/node_modules node --test tests/public-inquiry.database.cjs tests/definer-gates.test.cjs
+      - run: NODE_PATH=tests/qa/node_modules node --test tests/public-inquiry.database.cjs tests/intake-role.database.cjs tests/definer-gates.test.cjs

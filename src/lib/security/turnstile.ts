@@ -1,7 +1,7 @@
 import "server-only";
 
 /**
- * Turnstile gate for the owner's password login.
+ * Turnstile gate for the owner's password login and the public quote form.
  * Both env vars absent => controlled legacy rollout (no widget, no gate).
  * Exactly one configured => block login (never treat partial setup as disabled).
  * In production the enabled gate also requires an explicit trusted hostname.
@@ -14,8 +14,23 @@ export function turnstileStatus(env = process.env): TurnstileStatus {
   return site && secret ? "enabled" : "misconfigured";
 }
 
-export async function verifyLoginHuman(
+/** Each widget declares its purpose; a token minted for one action is never accepted for another. */
+export type HumanAction = "avalon_login" | "avalon_quote";
+
+export function verifyLoginHuman(
   token: FormDataEntryValue | null,
+  options: { env?: NodeJS.ProcessEnv; fetcher?: typeof fetch } = {},
+): Promise<"ok" | "invalid" | "unavailable"> {
+  return verifyHumanToken(token, "avalon_login", options);
+}
+
+/**
+ * Server-side Siteverify. Cloudflare itself rejects expired and already-redeemed tokens
+ * ("timeout-or-duplicate"), so a replayed token comes back as success=false => "invalid".
+ */
+export async function verifyHumanToken(
+  token: FormDataEntryValue | null,
+  action: HumanAction,
   options: { env?: NodeJS.ProcessEnv; fetcher?: typeof fetch } = {},
 ): Promise<"ok" | "invalid" | "unavailable"> {
   const env = options.env ?? process.env;
@@ -41,10 +56,15 @@ export async function verifyLoginHuman(
     const body: unknown = await response.json();
     if (!body || typeof body !== "object") return "unavailable";
     const result = body as { success?: unknown; action?: unknown; hostname?: unknown };
-    if (result.success !== true || result.action !== "avalon_login" ||
+    if (result.success !== true || result.action !== action ||
         typeof result.hostname !== "string" || !expectedHostnames.includes(result.hostname.toLowerCase())) return "invalid";
     return "ok";
   } catch {
     return "unavailable";
   }
+}
+
+/** Public site key for a widget, only when the server can actually verify its tokens. */
+export function publicTurnstileSiteKey(env = process.env): string | undefined {
+  return turnstileStatus(env) === "enabled" ? env.TURNSTILE_SITE_KEY!.trim() : undefined;
 }
