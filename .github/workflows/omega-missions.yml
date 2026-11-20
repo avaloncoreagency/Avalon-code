@@ -1,0 +1,33 @@
+name: OMEGA mission contracts
+on:
+  pull_request:
+    paths:
+      - 'src/lib/operations/**'
+      - 'src/lib/agents/**'
+      - 'tests/operations/**'
+      - 'tests/omega-missions.test.cjs'
+      - 'supabase/migrations/**'
+      - '.github/workflows/omega-missions.yml'
+permissions:
+  contents: read
+concurrency:
+  group: omega-missions-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  contracts:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with:
+          node-version: '22'
+          cache: npm
+      - run: npm ci --no-audit --no-fund
+      - run: npm ci --prefix tests/qa --no-audit --no-fund
+      - run: node --test tests/omega-missions.test.cjs
+      - run: node --test tests/operations/mission.database.cjs
+        env:
+          NODE_PATH: ./tests/qa/node_modules
