@@ -1,6 +1,9 @@
 # Catálogo de fuentes documentales — revisión inicial
 
-**Clase:** Inventario documental, no estado operativo. **Edición:** 2026-11-20. **Base inspeccionada:** `main@207ed3a3dc8fdae5dd949a7361733e441c530519` mediante lectura de archivos en GitHub.
+**ID:** KNI-SRC-001 · **Versión:** v0.2 · **Custodio propuesto:** Knowledge & Innovation.
+**Solidez:** PROPUESTO · **Vigencia:** POR REVISAR · **Aprobación:** BORRADOR · **Clasificación:** PUBLICABLE · **Última revisión:** 2026-11-20.
+
+Inventario documental, no estado operativo. Base inspeccionada: `main@207ed3a3dc8fdae5dd949a7361733e441c530519` mediante lectura de archivos en GitHub.
 
 ## Cómo interpretar el catálogo
 
