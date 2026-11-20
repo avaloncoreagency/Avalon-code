@@ -929,6 +929,7 @@ test('Nova Restaurant through the real app: one form, three departments, no dupl
   await visitor.close();
 
   await require('./support/inbound-ui.cjs')({db,context,miguel,samuel,origin,evidence:EVIDENCE});
+  await require('./support/portfolio-ui.cjs')({db,context,miguel,samuel,origin,evidence:EVIDENCE});
 
   assert.deepEqual(errors.filter(e => e.startsWith('pageerror')), [], 'no client-side errors');
 });

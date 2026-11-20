@@ -46,12 +46,15 @@ export type ProjectRow = {
 };
 export const PROJECT_COLUMNS = "id,module,name,description,status,client_id,settings,created_by,created_at,updated_at,version";
 
-export function listProjects(supabase: SupabaseClient, module: ModuleKey, { includeArchived = false, page, clientId }: { includeArchived?: boolean; page?: number; clientId?: string } = {}) {
+export function listProjects(supabase: SupabaseClient, module: ModuleKey, { includeArchived = false, page, clientId, search, status }: { includeArchived?: boolean; page?: number; clientId?: string; search?: string; status?: string } = {}) {
   const safePage = Number.isSafeInteger(page) && (page ?? 0) >= 1 && (page ?? 0) <= 1000 ? page : 1;
   let query = supabase.from("os_projects").select(PROJECT_COLUMNS, { count: "exact" })
     .eq("module", module).order("updated_at", { ascending: false }).order("id");
   if (clientId) query = query.eq("client_id", clientId); // Canonical FK; never infer by name or legacy lead.
-  if (!includeArchived) query = query.neq("status", "archived");
+  const term = (search ?? "").trim().slice(0, 80);
+  if (term) query = query.ilike("name", `%${term.replace(/[\\%_]/g, char => "\\" + char)}%`);
+  if (status && ["draft", "active", "archived"].includes(status)) query = query.eq("status", status);
+  else if (!includeArchived) query = query.neq("status", "archived");
   // Preserve legacy callers' bounded list; product portfolios opt in to pagination.
   if (page === undefined) query = query.limit(100);
   else query = query.range((safePage! - 1) * 50, (safePage! - 1) * 50 + 49);

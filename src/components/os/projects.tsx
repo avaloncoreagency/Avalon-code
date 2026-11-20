@@ -12,14 +12,16 @@ import { createProject, updateProject } from '@/app/admin/workspace/project-acti
 import { DbNotice, Empty, Panel, statusLabel } from './ui';
 import s from './os.module.css';
 
-export async function ProjectsIndex({lang,module,base,projects,noun,createFields,showArchived,page=1,prefillClientId}:{
-  lang:Lang;module:ModuleKey;base:string;projects:Loaded<ProjectRow[]>;noun:{es:string;en:string};createFields?:ReactNode;showArchived:boolean;page?:number;prefillClientId?:string;
+export async function ProjectsIndex({lang,module,base,projects,noun,createFields,showArchived,page=1,prefillClientId,searchQuery="",stateFilter=""}:{
+  lang:Lang;module:ModuleKey;base:string;projects:Loaded<ProjectRow[]>;noun:{es:string;en:string};createFields?:ReactNode;showArchived:boolean;page?:number;prefillClientId?:string;searchQuery?:string;stateFilter?:string;
 }) {
   const {supabase}=await requireOwner();
   const scopedClientId = isUuid(prefillClientId) ? prefillClientId : undefined;
-  const listHref = (archived: boolean, nextPage = 1) => {
+  const listHref = (archived: boolean, nextPage = 1, clearFilters = false) => {
     const params = new URLSearchParams();
     if (scopedClientId) params.set('client', scopedClientId);
+    if (!clearFilters && searchQuery) params.set('q',searchQuery);
+    if (!clearFilters && stateFilter) params.set('status',stateFilter);
     if (archived) params.set('archived', '1');
     if (nextPage > 1) params.set('page', String(nextPage));
     return `${base}${params.size ? `?${params}` : ''}`;
@@ -48,18 +50,26 @@ export async function ProjectsIndex({lang,module,base,projects,noun,createFields
     ...(confirmed?.data??[]).map(c=>({id:c.id,company:c.trade_name||c.legal_name,kind:'client' as const})),
   ];
   return <div>
+    <form method="get" className={s.actions} role="search" aria-label={pick(lang,'Buscar productos en todo el módulo','Search products across this module')}>
+      {scopedClientId&&<input type="hidden" name="client" value={scopedClientId}/>}
+      {showArchived&&<input type="hidden" name="archived" value="1"/>}
+      <label className={s.field}><span>{pick(lang,'Nombre del producto · búsqueda global','Product name · global search')}</span><input className={s.input} name="q" type="search" maxLength={80} defaultValue={searchQuery}/></label>
+      <label className={s.field}><span>{pick(lang,'Estado interno','Internal status')}</span><select className={s.select} name="status" defaultValue={stateFilter}><option value="">{pick(lang,'Todos los estados visibles','All visible statuses')}</option><option value="draft">{pick(lang,'Borradores','Drafts')}</option><option value="active">{pick(lang,'Activos en Avalon','Active in Avalon')}</option><option value="archived">{pick(lang,'Archivados','Archived')}</option></select></label>
+      <button type="submit" className={s.btnPrimary}>{pick(lang,'Buscar','Search')}</button>
+      {(searchQuery||stateFilter)&&<Link href={listHref(showArchived,1,true)}>{pick(lang,'Limpiar filtros','Clear filters')}</Link>}
+    </form>
     {scopedClientId && <p className={s.meta} role="status">
       {pick(lang,'Filtrando productos vinculados a','Showing products linked to')} {' '}
       <strong>{scopedClient ? scopedClient.trade_name||scopedClient.legal_name : scopedClientId.slice(0,8)}</strong>
       {' · '}<Link href={`/admin/workspace/crm/clients/${scopedClientId}`}>{pick(lang,'Volver a Clientes 360°','Back to Client 360°')}</Link>
       {' · '}<Link href={base}>{pick(lang,'Ver todos los clientes','View all clients')}</Link>
     </p>}
-    {projects.error?<DbNotice lang={lang} error={projects.error}/>:!projects.data.length?<Empty title={pick(lang,`A\u00fan no hay ${noun.es}`,`No ${noun.en} yet`)} body={pick(lang,'Registra un producto creado fuera de Avalon y vincúlalo al cliente del CRM.','Register a product built outside Avalon and link it to its CRM company.')}/>:<CompanyPortfolio lang={lang} module={module} groups={groupCompanies(projects.data,companyNames)}/>}
+    {projects.error?<DbNotice lang={lang} error={projects.error}/>:!projects.data.length?<Empty title={pick(lang,`No hay ${noun.es} en esta vista`,`No ${noun.en} in this view`)} body={pick(lang,'Registra un producto creado fuera de Avalon y vincúlalo al cliente del CRM.','Register a product built outside Avalon and link it to its CRM company.')}/>:<CompanyPortfolio lang={lang} module={module} groups={groupCompanies(projects.data,companyNames)}/>}
     {(linked?.error||confirmed?.error)&&<p className={s.meta}>{pick(lang,'No se pudieron leer los nombres del CRM. Las referencias se conservan, sin agrupar empresas por nombre.','CRM names could not be read. References are preserved; companies are not grouped by name.')}</p>}
     <div className={s.actions} style={{marginTop:12}}>
-      <Link href={listHref(!showArchived)}>{showArchived?pick(lang,'Ocultar archivados','Hide archived'):pick(lang,'Mostrar archivados','Show archived')}</Link>
+      {!stateFilter&&<Link href={listHref(!showArchived)}>{showArchived?pick(lang,'Ocultar archivados','Hide archived'):pick(lang,'Mostrar archivados','Show archived')}</Link>}
       {!projects.error&&<span className={s.meta}>{pick(lang,'Página','Page')} {page}
-        {projects.count!==null?` · ${projects.count} ${pick(lang,'productos totales','total products')}`:''}</span>}
+        {projects.count!==null?` · ${projects.count} ${pick(lang,'productos coincidentes','matching products')}`:''}</span>}
       {page>1&&<Link href={listHref(showArchived,page-1)}>{pick(lang,'Anterior','Previous')}</Link>}
       {!projects.error && (projects.count??0)>page*50&&<Link href={listHref(showArchived,page+1)}>{pick(lang,'Siguiente','Next')}</Link>}
     </div>
