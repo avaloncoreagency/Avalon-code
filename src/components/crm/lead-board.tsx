@@ -1,13 +1,14 @@
 "use client";
 
-import { useEffect, useRef, useState, type DragEvent } from "react";
+import { useCallback, useEffect, useLayoutEffect, useRef, useState, type KeyboardEvent, type PointerEvent as ReactPointerEvent } from "react";
 import Link from "next/link";
 import type { Row, Stage } from "@/lib/crm/domain";
-import { followUpState } from "@/lib/crm/kanban";
-import { PIPELINE_GROUPS, groupOfStage, groupPipelineFive, moveTarget, neighbourGroup, type PipelineGroup } from "@/lib/crm/pipeline-groups";
-import { pick, formatDate, type Lang } from "@/lib/i18n";
+import { PIPELINE_GROUPS, displayedGroup, groupOfStage, moveRequirement, type PipelineGroup, type PipelineGroupId } from "@/lib/crm/pipeline-groups";
+import { pick, type Lang } from "@/lib/i18n";
 import s from "./lead-board.module.css";
 
+/** Result of a move as reported by the server; `code` carries business-rule refusals (e.g. won_requires_contract). */
+export type MoveError = Error & { code?: string };
 type Props = {
   lang?: Lang;
   stages: Stage[];
@@ -18,209 +19,341 @@ type Props = {
   currentOwnerId: string;
   onEdit: (lead: Row) => void;
   onDetail: (lead: Row) => void;
-  onMove: (lead: Row, stageId: string) => void;
+  /** Persists a group change (versioned update). Rejects with MoveError when the server refuses or the save fails. */
+  onMove: (lead: Row, groupId: PipelineGroupId, extra?: { lossReason?: string }) => Promise<void>;
 };
 
-const currency = (value: number, lang: Lang) =>
-  new Intl.NumberFormat(lang === "es" ? "es-US" : "en-US", { style: "currency", currency: "USD", maximumFractionDigits: 0 }).format(value);
-const priorityText: Record<string, [string, string]> = { high: ["Alta", "High"], normal: ["Normal", "Normal"], low: ["Baja", "Low"] };
+type Drag = { id: string; pointerId: number; touch: boolean; startX: number; startY: number; x: number; y: number;
+  dx: number; dy: number; width: number; active: boolean; timer: number | null };
+const TOUCH_HOLD_MS = 220, MOUSE_SLOP = 5, TOUCH_SLOP = 8;
 
-export function LeadBoard({ lang = "es", stages, leads, total, page, busy, currentOwnerId, onEdit, onDetail, onMove }: Props) {
-  const [draggedId, setDraggedId] = useState<string | null>(null);
-  const [targetId, setTargetId] = useState<string | null>(null);
-  const scrollRef = useRef<HTMLDivElement>(null);
-  const dragPointer = useRef<{ x: number; y: number } | null>(null);
-  const { columns, unmapped } = groupPipelineFive(leads);
+export function LeadBoard({ lang = "es", leads, total, page, busy, onDetail, onMove }: Props) {
   const t = (es: string, en: string) => pick(lang, es, en);
   const groupLabel = (group: PipelineGroup) => pick(lang, ...group.label);
-  const stageLabel = (id: unknown) => stages.find((stage) => stage.id === String(id ?? ""))?.label ?? String(id ?? "");
-  /** Moving into a group writes its canonical stage; a lead already in that group keeps its detailed stage. */
-  const moveToGroup = (lead: Row, groupId: string) => {
-    const stageId = moveTarget(lead, groupId, stages);
-    if (stageId) onMove(lead, stageId);
-  };
+  const [pending, setPending] = useState<Map<string, PipelineGroupId>>(new Map());
+  const [drag, setDrag] = useState<Drag | null>(null);
+  const [target, setTarget] = useState<PipelineGroupId | null>(null);
+  const [keyboard, setKeyboard] = useState<{ id: string; group: PipelineGroupId } | null>(null);
+  const [lostAsk, setLostAsk] = useState<Row | null>(null);
+  const [wonBlocked, setWonBlocked] = useState<Row | null>(null);
+  const [notice, setNotice] = useState("");
+  const [announce, setAnnounce] = useState("");
+  const dragRef = useRef<Drag | null>(null);
+  const suppressClick = useRef(false);
+  const scrollRef = useRef<HTMLDivElement>(null);
+  const reasonRef = useRef<HTMLTextAreaElement>(null);
+  const labelOf = (id: PipelineGroupId) => groupLabel(PIPELINE_GROUPS.find(g => g.id === id)!);
+  const nameOf = (lead: Row) => String(lead.contact || lead.company || t("Sin nombre", "Unnamed"));
 
-  // Native drag-and-drop does not scroll overflow containers when a card reaches
-  // an offscreen column. A frame loop keeps scrolling even when dragover pauses.
+  // Optimistic placements end once the server data shows the lead in that group (or the lead left the page).
   useEffect(() => {
-    if (!draggedId) return;
-    let frame = 0;
-    const trackPointer = (event: globalThis.DragEvent) => {
-      dragPointer.current = { x: event.clientX, y: event.clientY };
+    setPending(current => {
+      if (current.size === 0) return current;
+      const next = new Map(current);
+      for (const [id, group] of current) {
+        const lead = leads.find(l => String(l.id) === id);
+        if (!lead || groupOfStage(lead.stage_id)?.id === group) next.delete(id);
+      }
+      return next.size === current.size ? current : next;
+    });
+  }, [leads]);
+
+  const place = (id: string, group: PipelineGroupId | null) => setPending(current => {
+    const next = new Map(current);
+    if (group) next.set(id, group); else next.delete(id);
+    return next;
+  });
+
+  const save = useCallback(async (lead: Row, group: PipelineGroupId, lossReason?: string) => {
+    const id = String(lead.id);
+    place(id, group);
+    setNotice("");
+    try {
+      await onMove(lead, group, lossReason ? { lossReason } : undefined);
+      setAnnounce(t(`${nameOf(lead)} movido a ${labelOf(group)}.`, `${nameOf(lead)} moved to ${labelOf(group)}.`));
+    } catch (error) {
+      place(id, null); // revert to the previous column
+      const code = (error as MoveError).code;
+      if (code === "won_requires_contract") setWonBlocked(lead);
+      else setNotice(code === "stale"
+        ? t("Otro propietario cambió esta oportunidad. Se recargó el tablero; vuelve a intentarlo.", "Another owner changed this opportunity. The board was reloaded; try again.")
+        : t(`No se guardó el cambio de ${nameOf(lead)}: ${(error as Error).message}. La tarjeta volvió a su grupo.`, `The move of ${nameOf(lead)} was not saved: ${(error as Error).message}. The card returned to its group.`));
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [onMove, lang]);
+
+  /** Single entry point for drag, keyboard and touch moves. Lost asks for the required reason first. */
+  const commit = useCallback((lead: Row, group: PipelineGroupId) => {
+    const id = String(lead.id);
+    if (pending.has(id) || displayedGroup(lead, pending) === group) return; // one in-flight move per card
+    if (moveRequirement(group) === "loss_reason") { place(id, group); setLostAsk(lead); return; }
+    void save(lead, group);
+  }, [pending, save]);
+
+  useLayoutEffect(() => { if (lostAsk) reasonRef.current?.focus(); }, [lostAsk]);
+
+  // ---- Pointer drag (mouse, pen and touch; Safari/iPhone uses a short press-and-hold) --------------------------
+  const finish = useCallback((dropped: boolean) => {
+    const current = dragRef.current;
+    dragRef.current = null;
+    if (current?.timer) window.clearTimeout(current.timer);
+    setDrag(null);
+    setTarget(null);
+    if (!current?.active) return;
+    suppressClick.current = true; // the click that follows a drag must not open the record
+    window.setTimeout(() => { suppressClick.current = false; }, 0);
+    if (!dropped) return;
+    const column = document.elementFromPoint(current.x, current.y)?.closest<HTMLElement>("[data-kanban-group]");
+    const group = column?.dataset.kanbanGroup as PipelineGroupId | undefined;
+    const lead = leads.find(l => String(l.id) === current.id);
+    if (lead && group && PIPELINE_GROUPS.some(g => g.id === group)) commit(lead, group);
+  }, [leads, commit]);
+
+  // Window listeners are attached ONCE (not when a drag starts): an early pointercancel/up — e.g. a swipe the browser
+  // turns into a scroll — must always reach us, or a stale gesture would block the next touch. Handlers read the latest
+  // closures through a ref and ignore pointers that are not the tracked one.
+  const handlers = useRef<{ move: (e: PointerEvent) => void; up: (e: PointerEvent) => void; cancel: (e: PointerEvent) => void; key: (e: globalThis.KeyboardEvent) => void } | null>(null);
+  handlers.current = {
+    move: event => {
+      const current = dragRef.current;
+      if (!current || event.pointerId !== current.pointerId) return;
+      current.x = event.clientX; current.y = event.clientY;
+      const distance = Math.hypot(current.x - current.startX, current.y - current.startY);
+      if (!current.active) {
+        if (current.touch) { if (distance > TOUCH_SLOP) finish(false); return; } // a swipe is a scroll, not a drag
+        if (distance < MOUSE_SLOP) return;
+        current.active = true;
+      }
+      const column = document.elementFromPoint(current.x, current.y)?.closest<HTMLElement>("[data-kanban-group]");
+      setTarget((column?.dataset.kanbanGroup as PipelineGroupId | undefined) ?? null);
+      setDrag({ ...current });
+    },
+    up: event => { if (dragRef.current && event.pointerId === dragRef.current.pointerId) finish(true); },
+    cancel: event => { if (dragRef.current && event.pointerId === dragRef.current.pointerId) finish(false); },
+    key: event => { if (event.key === "Escape" && dragRef.current) finish(false); },
+  };
+  useEffect(() => {
+    const move = (e: PointerEvent) => handlers.current?.move(e), up = (e: PointerEvent) => handlers.current?.up(e);
+    const cancel = (e: PointerEvent) => handlers.current?.cancel(e), key = (e: globalThis.KeyboardEvent) => handlers.current?.key(e);
+    window.addEventListener("pointermove", move);
+    window.addEventListener("pointerup", up);
+    window.addEventListener("pointercancel", cancel);
+    window.addEventListener("keydown", key);
+    return () => {
+      window.removeEventListener("pointermove", move);
+      window.removeEventListener("pointerup", up);
+      window.removeEventListener("pointercancel", cancel);
+      window.removeEventListener("keydown", key);
     };
-    const scrollAtEdge = () => {
-      const node = scrollRef.current;
-      const pointer = dragPointer.current;
-      if (node && pointer) {
-        const rect = node.getBoundingClientRect();
-        if (pointer.y >= rect.top - 40 && pointer.y <= rect.bottom + 40) {
-          const edge = Math.min(110, rect.width * 0.22);
-          const leftDistance = pointer.x - rect.left;
-          const rightDistance = rect.right - pointer.x;
-          const strength = leftDistance >= 0 && leftDistance < edge
-            ? -Math.pow(1 - leftDistance / edge, 2)
-            : rightDistance >= 0 && rightDistance < edge
-              ? Math.pow(1 - rightDistance / edge, 2)
-              : 0;
-          if (strength) {
-            node.scrollLeft += strength * 25;
-            // Scrolling changes the column beneath a stationary drag pointer.
-            const column = document.elementFromPoint(pointer.x, pointer.y)?.closest<HTMLElement>("[data-kanban-group]");
-            if (column && node.contains(column)) setTargetId((current) => current === column.dataset.kanbanGroup ? current : column.dataset.kanbanGroup ?? null);
-          }
+  }, []);
+
+  // While a touch drag is active the page must not scroll. The non-passive listener is attached PERMANENTLY to the board:
+  // Safari and Chrome decide at touchstart whether a region has blocking touch listeners, so adding it mid-gesture is ignored.
+  useEffect(() => {
+    const node = scrollRef.current;
+    if (!node) return;
+    const blockScroll = (event: TouchEvent) => { if (dragRef.current?.active) event.preventDefault(); };
+    node.addEventListener("touchmove", blockScroll, { passive: false });
+    return () => node.removeEventListener("touchmove", blockScroll);
+  }, []);
+
+  // Edge auto-scroll so a card can reach an offscreen column (board horizontally, page vertically).
+  const active = Boolean(drag?.active);
+  useEffect(() => {
+    if (!active) return;
+    let frame = 0;
+    const step = () => {
+      const current = dragRef.current, node = scrollRef.current;
+      if (current?.active && node) {
+        const rect = node.getBoundingClientRect(), edge = Math.min(80, rect.width * 0.18);
+        const left = current.x - rect.left, right = rect.right - current.x;
+        const strength = left >= 0 && left < edge ? -Math.pow(1 - left / edge, 2) : right >= 0 && right < edge ? Math.pow(1 - right / edge, 2) : 0;
+        if (strength) node.scrollLeft += strength * 18;
+        if (current.y < 48) window.scrollBy(0, -12); else if (current.y > window.innerHeight - 48) window.scrollBy(0, 12);
+        if (strength) {
+          const column = document.elementFromPoint(current.x, current.y)?.closest<HTMLElement>("[data-kanban-group]");
+          setTarget((column?.dataset.kanbanGroup as PipelineGroupId | undefined) ?? null);
         }
       }
-      frame = requestAnimationFrame(scrollAtEdge);
+      frame = requestAnimationFrame(step);
     };
-    window.addEventListener("dragover", trackPointer);
-    frame = requestAnimationFrame(scrollAtEdge);
-    return () => {
-      window.removeEventListener("dragover", trackPointer);
-      cancelAnimationFrame(frame);
-      dragPointer.current = null;
-    };
-  }, [draggedId]);
+    frame = requestAnimationFrame(step);
+    return () => cancelAnimationFrame(frame);
+  }, [active]);
 
-  function drop(event: DragEvent<HTMLElement>, groupId: string) {
-    event.preventDefault();
-    const id = event.dataTransfer.getData("application/x-avalon-lead") || draggedId;
-    setDraggedId(null);
-    setTargetId(null);
-    dragPointer.current = null;
-    if (busy || !id) return;
-    const lead = leads.find((item) => String(item.id) === id);
-    if (lead) moveToGroup(lead, groupId);
+  function pointerDown(event: ReactPointerEvent<HTMLElement>, lead: Row) {
+    if (busy || event.button !== 0 || dragRef.current || pending.has(String(lead.id))) return;
+    const rect = event.currentTarget.getBoundingClientRect();
+    const touch = event.pointerType === "touch";
+    const next: Drag = { id: String(lead.id), pointerId: event.pointerId, touch, startX: event.clientX, startY: event.clientY,
+      x: event.clientX, y: event.clientY, dx: event.clientX - rect.left, dy: event.clientY - rect.top, width: rect.width, active: false, timer: null };
+    if (touch) next.timer = window.setTimeout(() => {
+      const current = dragRef.current;
+      if (!current || current.id !== next.id) return;
+      current.active = true;
+      current.timer = null;
+      if (navigator.vibrate) navigator.vibrate(8);
+      setDrag({ ...current });
+    }, TOUCH_HOLD_MS);
+    dragRef.current = next;
+    setDrag(next);
   }
 
+  // ---- Keyboard alternative: Space picks up, ←/→ choose a group, Space/Enter drops, Escape cancels -----------
+  function keyDown(event: KeyboardEvent<HTMLElement>, lead: Row) {
+    const id = String(lead.id);
+    const order = PIPELINE_GROUPS.map(g => g.id);
+    if (keyboard?.id === id) {
+      if (event.key === "ArrowRight" || event.key === "ArrowLeft") {
+        event.preventDefault();
+        const index = Math.max(0, order.indexOf(keyboard.group)) + (event.key === "ArrowRight" ? 1 : -1);
+        const group = order[Math.min(order.length - 1, Math.max(0, index))];
+        setKeyboard({ id, group });
+        setAnnounce(t(`Destino: ${labelOf(group)}`, `Target: ${labelOf(group)}`));
+      } else if (event.key === " " || event.key === "Enter") {
+        event.preventDefault();
+        setKeyboard(null);
+        commit(lead, keyboard.group);
+      } else if (event.key === "Escape") {
+        event.preventDefault();
+        setKeyboard(null);
+        setAnnounce(t("Movimiento cancelado.", "Move cancelled."));
+      }
+      return;
+    }
+    if (event.key === "Enter") { event.preventDefault(); onDetail(lead); }
+    else if (event.key === " " && !busy && !pending.has(id)) {
+      event.preventDefault();
+      const group = displayedGroup(lead, pending) ?? "new";
+      setKeyboard({ id, group });
+      setAnnounce(t(`${nameOf(lead)} seleccionado. Usa flechas izquierda y derecha para elegir grupo, Espacio para soltar, Escape para cancelar.`,
+        `${nameOf(lead)} picked up. Use left and right arrows to choose a group, Space to drop, Escape to cancel.`));
+    }
+  }
+
+  const columns = PIPELINE_GROUPS.map(group => ({ group, cards: leads.filter(lead => displayedGroup(lead, pending) === group.id) }));
+  const unmapped = leads.filter(lead => displayedGroup(lead, pending) === null);
+  const dragged = drag?.active ? leads.find(l => String(l.id) === drag.id) : undefined;
+
   function card(lead: Row) {
-    const followUp = followUpState(lead.follow_up_at);
-    const group = groupOfStage(lead.stage_id);
-    const previousGroup = neighbourGroup(lead, -1);
-    const nextGroup = neighbourGroup(lead, 1);
-    const company = String(lead.company || t("Empresa sin nombre", "Unnamed business"));
+    const id = String(lead.id);
+    const contact = String(lead.contact ?? "").trim();
+    const company = String(lead.company ?? "").trim();
+    const first = contact || company || t("Sin nombre", "Unnamed");
+    const second = contact ? company : "";
     return (
       <article
+        key={id}
         className={s.card}
-        key={String(lead.id)}
-        draggable={!busy}
-        onDragStart={(event) => {
-          const id = String(lead.id);
-          event.dataTransfer.effectAllowed = "move";
-          event.dataTransfer.setData("application/x-avalon-lead", id);
-          setDraggedId(id);
-        }}
-        onDragEnd={() => { setDraggedId(null); setTargetId(null); dragPointer.current = null; }}
+        role="button"
+        tabIndex={0}
+        aria-roledescription={t("tarjeta arrastrable", "draggable card")}
+        aria-describedby="lead-board-help"
+        aria-label={[first, second].filter(Boolean).join(" · ")}
+        aria-pressed={keyboard?.id === id ? true : undefined}
+        data-lead-id={id}
+        data-dragging={drag?.active && drag.id === id ? "true" : undefined}
+        data-saving={pending.has(id) && !lostAsk ? "true" : undefined}
+        data-picked={keyboard?.id === id ? "true" : undefined}
+        onPointerDown={event => pointerDown(event, lead)}
+        onClick={() => { if (suppressClick.current || drag?.active) return; onDetail(lead); }}
+        onKeyDown={event => keyDown(event, lead)}
+        onContextMenu={event => { if (dragRef.current) event.preventDefault(); }}
       >
-        <div className={s.cardTitle}>
-          {/* Primary action: the lead's own interactive record (notes, files, history) — not Clients 360. */}
-          <button type="button" className={s.openRecord} disabled={busy} onClick={() => onDetail(lead)} draggable={false}
-            aria-label={t(`Abrir ficha de ${company}`, `Open record for ${company}`)}>
-            <strong>{company}</strong>
-          </button>
-          {lead.priority === "high" && <span title={t("Prioridad definida en CRM", "Priority set in CRM")}>{t("Prioridad alta", "High priority")}</span>}
-        </div>
-        <p className={s.stageDetail}>{t("Etapa", "Stage")}: {stageLabel(lead.stage_id)}</p>
-        <p className={s.contact}>{lead.contact ? String(lead.contact) : t("Contacto por completar", "Contact details missing")}</p>
-        <p className={s.value}>{Number(lead.value) > 0 ? currency(Number(lead.value), lang) : t("Valor por estimar", "Value not estimated")}</p>
-        <p className={s.next} data-overdue={followUp === "overdue" ? "true" : undefined}>
-          {followUp === "overdue" ? t("Seguimiento vencido", "Overdue follow-up") :
-            followUp === "today" ? t("Seguimiento hoy", "Follow-up today") :
-            followUp === "scheduled" ? t("Próximo seguimiento", "Next follow-up") : t("Sin seguimiento programado", "No follow-up scheduled")}
-          {followUp !== "missing" && <small>{formatDate(lang, String(lead.follow_up_at))}</small>}
-        </p>
-        <p className={s.meta}>
-          {lead.owner_id === currentOwnerId ? t("Responsable: tú", "Owner: you") : lead.owner_id ? t("Responsable: otro propietario", "Owner: another owner") : t("Sin responsable", "Unassigned")}
-          {" · "}{(priorityText[String(lead.priority)] ? pick(lang, ...priorityText[String(lead.priority)]) : t("Prioridad no indicada", "Priority not set"))}
-        </p>
-        <p className={s.source} title={String(lead.source ?? "")}>{t("Origen", "Source")}: {String(lead.source || t("Sin registrar", "Not recorded"))}</p>
-        <div className={s.quickStage} aria-label={t(`Mover ${company} por el pipeline`, `Move ${company} through pipeline`)}>
-          <button type="button" disabled={busy || !previousGroup} onClick={() => previousGroup && moveToGroup(lead, previousGroup.id)} aria-label={t(`Retroceder a ${previousGroup ? groupLabel(previousGroup) : "grupo anterior"}`, `Move back to ${previousGroup ? groupLabel(previousGroup) : "previous group"}`)} title={previousGroup ? groupLabel(previousGroup) : undefined}>
-            ← {t("Anterior", "Previous")}
-          </button>
-          <button type="button" disabled={busy || !nextGroup} onClick={() => nextGroup && moveToGroup(lead, nextGroup.id)} aria-label={t(`Avanzar a ${nextGroup ? groupLabel(nextGroup) : "grupo siguiente"}`, `Advance to ${nextGroup ? groupLabel(nextGroup) : "next group"}`)} title={nextGroup ? groupLabel(nextGroup) : undefined}>
-            {t("Avanzar", "Advance")} →
-          </button>
-        </div>
-        <label className={s.change}>
-          {t("Cambiar grupo", "Change group")}
-          <select
-            aria-label={t(`Grupo de ${company}`, `Group for ${company}`)}
-            disabled={busy}
-            value={group?.id ?? ""}
-            onChange={(event) => moveToGroup(lead, event.target.value)}
-          >
-            {!group && <option value="" disabled>{t(`Por revisar (${stageLabel(lead.stage_id)})`, `To review (${stageLabel(lead.stage_id)})`)}</option>}
-            {PIPELINE_GROUPS.map((option) => <option key={option.id} value={option.id}>{groupLabel(option)}</option>)}
-          </select>
-        </label>
-        <div className={s.actions}>
-          <button type="button" disabled={busy} onClick={() => onDetail(lead)}>{t("Ficha", "Details")}</button>
-          <Link href={`/admin/workspace/crm/lead/${String(lead.id)}?tab=summary&edit=1#lead-edit`} draggable={false}>{t("Editar datos", "Edit profile")}</Link>
-          {!lead.archived && <Link href={`/admin/workspace/crm/sales/new?lead=${encodeURIComponent(String(lead.id))}`} draggable={false} aria-label={t(`Registrar venta para ${company}`, `Record sale for ${company}`)}>{t("Registrar venta", "Record sale")}</Link>}
-          <details className={s.moreActions}>
-            <summary>{t("Más opciones", "More options")}</summary>
-            <div className={s.moreLinks}>
-              <button type="button" disabled={busy} onClick={() => onEdit(lead)}>{t("Edición rápida", "Quick edit")}</button>
-              <Link href={`/admin/workspace/crm/lead/${String(lead.id)}`} draggable={false}>{t("Revisar oportunidad", "Review deal")}</Link>
-              <Link href={`/admin/workspace/clients/${String(lead.id)}`} draggable={false}>{t("Proyectos", "Projects")}</Link>
-            </div>
-          </details>
-        </div>
+        <strong title={first}>{first}</strong>
+        {second && <span title={second}>{second}</span>}
       </article>
     );
   }
 
+  const highlighted = (group: PipelineGroupId) => (drag?.active && target === group) || keyboard?.group === group;
+
   return (
     <section aria-label={t("Pipeline de oportunidades", "Opportunity pipeline")} className={s.wrap}>
       <div className={s.intro}>
-        <div>
-          <h2>{t("Tu pipeline en 5 grupos", "Your pipeline in 5 groups")}</h2>
-          <p>{t(`${total} oportunidades con estos filtros · mostrando ${leads.length} en la página ${page + 1}.`, `${total} opportunities with these filters · showing ${leads.length} on page ${page + 1}.`)}</p>
-        </div>
-        <p>{t("Toca el nombre de la empresa para abrir su ficha con notas, archivos e historial. Arrastra la tarjeta o usa Cambiar grupo; la etapa detallada se conserva.", "Tap the company name to open its record with notes, files and history. Drag the card or use Change group; the detailed stage is kept.")}</p>
+        <h2>{t("Pipeline", "Pipeline")}</h2>
+        <p>{t(`${total} oportunidades · ${leads.length} en la página ${page + 1}`, `${total} opportunities · ${leads.length} on page ${page + 1}`)}</p>
       </div>
-      <div ref={scrollRef} className={s.scroll} data-dragging={draggedId ? "true" : undefined} role="region" tabIndex={0} aria-label={t("Columnas del pipeline; desplázate horizontalmente para ver todos los grupos", "Pipeline columns; scroll horizontally to see all groups")}>
+      <p id="lead-board-help" className={s.srOnly}>{t("Toca o pulsa Intro para abrir la ficha. Arrastra la tarjeta (en móvil, mantén pulsado) o pulsa Espacio y usa las flechas para cambiar de grupo.",
+        "Tap or press Enter to open the record. Drag the card (on mobile, press and hold) or press Space and use the arrows to change group.")}</p>
+      <p className={s.srOnly} aria-live="polite">{announce}</p>
+      {notice && <p className={s.notice} role="alert">{notice}</p>}
+      <div ref={scrollRef} className={s.scroll} data-dragging={drag?.active ? "true" : undefined} role="region" tabIndex={-1}
+        aria-label={t("Columnas del pipeline", "Pipeline columns")}>
         <div className={s.board}>
-          {columns.map(({ group, leads: cards, estimatedValue }) => (
-            <section
-              className={s.column}
-              key={group.id}
-              data-kanban-group={group.id}
-              data-drop-target={targetId === group.id ? "true" : undefined}
-              aria-label={groupLabel(group)}
-              onDragOver={(event) => { if (!busy) { event.preventDefault(); event.dataTransfer.dropEffect = "move"; } }}
-              onDragEnter={(event) => { if (!busy && draggedId) { event.preventDefault(); setTargetId(group.id); } }}
-              onDragLeave={(event) => { if (!event.currentTarget.contains(event.relatedTarget as Node)) setTargetId(null); }}
-              onDrop={(event) => drop(event, group.id)}
-            >
+          {columns.map(({ group, cards }) => (
+            <section key={group.id} className={s.column} data-kanban-group={group.id} data-drop-target={highlighted(group.id) ? "true" : undefined} aria-label={groupLabel(group)}>
               <header className={s.columnHead}>
-                <div className={s.stageTitle}>
-                  <h3>{groupLabel(group)}</h3>
-                  <span aria-label={cards.length + t(" oportunidades en esta página", " opportunities on this page")}>{cards.length}</span>
-                </div>
-                <small>{estimatedValue > 0 ? currency(estimatedValue, lang) + t(" estimados en esta página", " estimated on this page") : t("Sin valor estimado en esta página", "No estimated value on this page")}</small>
+                <h3>{groupLabel(group)}</h3>
+                <span aria-label={cards.length + t(" en esta página", " on this page")}>{cards.length}</span>
               </header>
               <div className={s.cards}>
-                {cards.map((lead) => card(lead))}
-                {cards.length === 0 && <p className={s.empty}>{t("Sin oportunidades en este grupo en la página actual.", "No opportunities in this group on the current page.")}</p>}
+                {cards.map(card)}
+                {cards.length === 0 && <p className={s.empty}>{t("Suelta aquí", "Drop here")}</p>}
               </div>
             </section>
           ))}
           {unmapped.length > 0 && (
             <section className={s.column} data-unmapped="true" aria-label={t("Etapas por revisar", "Stages to review")}>
               <header className={s.columnHead}>
-                <div className={s.stageTitle}>
-                  <h3>{t("Etapas por revisar", "Stages to review")}</h3>
-                  <span aria-label={unmapped.length + t(" oportunidades en esta página", " opportunities on this page")}>{unmapped.length}</span>
-                </div>
-                <small>{t("Estas etapas personalizadas no pertenecen a ningún grupo. No se ocultan ni se marcan como ganadas: muévelas a un grupo cuando las revises.", "These custom stages belong to no group. They are not hidden or marked won: move them to a group once reviewed.")}</small>
+                <h3>{t("Por revisar", "To review")}</h3>
+                <span>{unmapped.length}</span>
               </header>
-              <div className={s.cards}>{unmapped.map((lead) => card(lead))}</div>
+              <p className={s.hint}>{t("Etapas personalizadas sin grupo. Arrástralas a un grupo al revisarlas.", "Custom stages with no group. Drag them into a group once reviewed.")}</p>
+              <div className={s.cards}>{unmapped.map(card)}</div>
             </section>
           )}
         </div>
       </div>
-      <p className={s.footnote}>{t("Los importes son estimaciones, no ingresos cobrados. El tablero agrupa hasta 50 registros por página (los conteos son de esta página); usa Anterior/Siguiente para consultar el resto. Cerrar un lead no crea un cliente automáticamente.", "Amounts are estimates, not collected revenue. The board groups up to 50 records per page (counts are for this page); use Previous/Next for the rest. Closing a lead does not automatically create a client.")}</p>
+      {dragged && drag && (
+        <div className={s.ghost} aria-hidden="true" style={{ width: drag.width, transform: `translate3d(${drag.x - drag.dx}px, ${drag.y - drag.dy}px, 0)` }}>
+          <strong>{String(dragged.contact || dragged.company || "")}</strong>
+          {dragged.contact && dragged.company ? <span>{String(dragged.company)}</span> : null}
+        </div>
+      )}
+      <p className={s.footnote}>{t("Hasta 50 registros por página; los conteos son de esta página. Cerrar una oportunidad no crea un cliente ni una venta automáticamente.",
+        "Up to 50 records per page; counts are for this page. Closing an opportunity never creates a client or a sale automatically.")}</p>
+
+      {lostAsk && (
+        <div className={s.scrim} onClick={event => { if (event.target === event.currentTarget) { place(String(lostAsk.id), null); setLostAsk(null); } }}>
+          <form className={s.dialog} role="dialog" aria-modal="true" aria-labelledby="lost-title"
+            onSubmit={event => {
+              event.preventDefault();
+              const reason = (reasonRef.current?.value ?? "").trim();
+              if (!reason) return;
+              const lead = lostAsk;
+              setLostAsk(null);
+              void save(lead, "lost", reason.slice(0, 1000));
+            }}
+            onKeyDown={event => { if (event.key === "Escape") { place(String(lostAsk.id), null); setLostAsk(null); } }}>
+            <h3 id="lost-title">{t(`Mover ${nameOf(lostAsk)} a Perdido`, `Move ${nameOf(lostAsk)} to Lost`)}</h3>
+            <label>{t("Motivo de pérdida (obligatorio)", "Loss reason (required)")}
+              <textarea ref={reasonRef} required maxLength={1000} rows={3} defaultValue={String(lostAsk.loss_reason ?? "")} />
+            </label>
+            <p className={s.hint}>{t("El historial y los datos comerciales se conservan. Podrás recuperarla arrastrándola a otro grupo.", "History and commercial data are kept. You can recover it by dragging it to another group.")}</p>
+            <div className={s.dialogActions}>
+              <button type="button" onClick={() => { place(String(lostAsk.id), null); setLostAsk(null); }}>{t("Cancelar", "Cancel")}</button>
+              <button type="submit" data-primary="true">{t("Mover a Perdido", "Move to Lost")}</button>
+            </div>
+          </form>
+        </div>
+      )}
+
+      {wonBlocked && (
+        <div className={s.scrim} onClick={event => { if (event.target === event.currentTarget) setWonBlocked(null); }}>
+          <div className={s.dialog} role="alertdialog" aria-modal="true" aria-labelledby="won-title" aria-describedby="won-body"
+            onKeyDown={event => { if (event.key === "Escape") setWonBlocked(null); }}>
+            <h3 id="won-title">{t(`${nameOf(wonBlocked)} aún no puede marcarse como Ganado`, `${nameOf(wonBlocked)} cannot be marked Won yet`)}</h3>
+            <p id="won-body">{t("Regla comercial: Ganado requiere un contrato firmado y verificado. Al confirmar una venta real con ese contrato, la oportunidad pasa a Ganado automáticamente. La tarjeta volvió a su grupo; no se creó ninguna venta.",
+              "Business rule: Won requires a signed, verified contract. Confirming a real sale with that contract moves the opportunity to Won automatically. The card returned to its group; no sale was created.")}</p>
+            <div className={s.dialogActions}>
+              <button type="button" onClick={() => setWonBlocked(null)} autoFocus>{t("Cerrar", "Close")}</button>
+              <Link href={`/admin/workspace/crm/lead/${String(wonBlocked.id)}`}>{t("Contratos en la ficha", "Contracts in the record")}</Link>
+              <Link data-primary="true" href={`/admin/workspace/crm/sales/new?lead=${encodeURIComponent(String(wonBlocked.id))}`}>{t("Registrar venta", "Record sale")}</Link>
+            </div>
+          </div>
+        </div>
+      )}
     </section>
   );
 }

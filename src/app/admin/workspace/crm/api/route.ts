@@ -20,6 +20,12 @@ const json = (data: unknown, status = 200) =>
   });
 function failure(error: unknown) {
   const code = (error as { code?: string })?.code;
+  const message = String((error as { message?: string })?.message ?? "");
+  // Business-rule refusals get a stable code so the pipeline can explain them and revert the card precisely.
+  if (message.includes("won_requires_verified_contract"))
+    return json({ code: "won_requires_contract", error: "Para marcar como Ganado se necesita un contrato firmado y verificado. Regístralo (o registra la venta) desde la ficha." }, 409);
+  if (message.includes("Motivo de pérdida requerido"))
+    return json({ code: "loss_reason_required", error: "Indica el motivo de pérdida para mover la oportunidad a Perdido." }, 400);
   if (["23505", "23P01"].includes(code ?? ""))
     return json(
       {
@@ -78,6 +84,18 @@ export async function GET(request: NextRequest) {
       return error
         ? failure(error)
         : json({ rows: data, stages, userId: member.userId });
+    }
+    if (entity === "stage_history") {
+      // Read-only stage trail of one lead (newest first): lets the board restore a lost lead to its last working stage.
+      const lead = p.get("lead");
+      if (!lead || !uuid.test(lead)) return json({ error: "Lead inválido" }, 400);
+      const { data, error } = await client
+        .from("crm_lead_stage_history")
+        .select("from_stage,to_stage,changed_at")
+        .eq("lead_id", lead)
+        .order("changed_at", { ascending: false })
+        .limit(50);
+      return error ? failure(error) : json({ rows: data, stages, userId: member.userId });
     }
     if (entity !== "kpis" && !Object.hasOwn(tables, entity))
       return json({ error: "Sección inválida" }, 400);
@@ -326,6 +344,7 @@ export async function POST(request: NextRequest) {
       if (!data)
         return json(
           {
+            code: "stale",
             error:
               "El registro cambió o ya no está disponible. Recarga antes de editar.",
           },

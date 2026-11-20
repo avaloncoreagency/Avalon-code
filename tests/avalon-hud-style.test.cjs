@@ -27,7 +27,8 @@ test("CRM no longer uses the inherited gold active-tab palette", () => {
 test("semantic states and user-assigned event colors remain distinct", () => {
   assert.match(ops, /data-tone="danger"/);
   assert.match(ops, /data-tone="warn"/);
-  assert.match(kanban, /data-overdue="true"/);
+  // Kanban v2: follow-up badges moved off the card; the board keeps a distinct, non-dimming drop-target state.
+  assert.match(kanban, /\.column\[data-drop-target="true"\]/);
   assert.ok(crm.includes("var(--gradient)"));
 });
 test("CRM and operations navigation retain keyboard and mobile affordances", () => {

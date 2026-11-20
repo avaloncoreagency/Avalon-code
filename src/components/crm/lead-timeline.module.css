@@ -70,3 +70,8 @@
 .attachmentLinks { grid-column:1 / -1; display:flex; gap:8px; }
 .attachmentLinks a { display:inline-flex; align-items:center; justify-content:center; min-height:42px; flex:1 1 120px; padding:6px 10px; border:1px solid #416892; border-radius:9px; color:#e0f3ff; text-decoration:none; }
 .attachmentLinks a:focus-visible { outline:3px solid #22d3ee; outline-offset:2px; }
+
+.recordLinks { display:flex; flex-wrap:wrap; gap:6px; margin:0 0 10px; }
+.recordLinks a { display:inline-flex; align-items:center; min-height:36px; padding:0 10px; border-radius:8px; font-size:12.5px; color:inherit; text-decoration:none; border:1px solid var(--line-strong, rgba(140,140,140,.4)); }
+.recordLinks a:focus-visible { outline:2px solid var(--cyan, currentColor); outline-offset:2px; }
+@media (max-width:700px) { .recordLinks a { min-height:44px; } }

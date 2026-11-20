@@ -14,6 +14,7 @@ import { RecordForm } from "./record-form";
 import { CrmNavigation, CrmTools } from "./navigation";
 import { TitanRadar } from "./titan-radar";
 import { LeadBoard } from "./lead-board";
+import { groupOfStage, moveTarget, restoreTarget } from "@/lib/crm/pipeline-groups";
 import { LeadTimeline } from "./lead-timeline";
 import s from "./crm.module.css";
 export const crmSections = sections;
@@ -60,7 +61,7 @@ async function request(body: unknown) {
   const result = await r.json();
   if (!r.ok) {
     // A duplicate lead is reported with the lead itself, so the UI can offer to open or link it.
-    throw Object.assign(new Error(result.error ?? "No se pudo guardar"), { lead: result.code === "lead_exists" ? result.lead : undefined });
+    throw Object.assign(new Error(result.error ?? "No se pudo guardar"), { code: typeof result.code === "string" ? result.code : undefined, lead: result.code === "lead_exists" ? result.lead : undefined });
   }
   return result;
 }
@@ -108,6 +109,10 @@ export function Crm({ section = "leads", focusLeadId, lang = "es", radarEnabled 
     [],
   );
   const reload = useCallback(() => setRevision((n) => n + 1), []);
+  // A refresh of the SAME view (e.g. after a pipeline move) keeps the current data on screen instead of unmounting the
+  // board, so optimistic cards, revert notices and confirmation dialogs survive the re-read.
+  const viewKey = JSON.stringify([section, entity, focusedLead ? null : filters, currentPage, focusedLead ?? null]);
+  const [dataKey, setDataKey] = useState("");
   useEffect(() => {
     const controller = new AbortController();
     setLoading(true);
@@ -123,6 +128,7 @@ export function Crm({ section = "leads", focusLeadId, lang = "es", radarEnabled 
         const d = await r.json();
         if (!r.ok) throw new Error(d.error ?? "No disponible");
         setData(d);
+        setDataKey(viewKey);
       })
       .catch((e) => {
         if (e.name !== "AbortError") {
@@ -134,7 +140,7 @@ export function Crm({ section = "leads", focusLeadId, lang = "es", radarEnabled 
         if (!controller.signal.aborted) setLoading(false);
       });
     return () => controller.abort();
-  }, [entity, section, filters, currentPage, focusedLead, revision]);
+  }, [entity, section, filters, currentPage, focusedLead, revision, viewKey]);
   async function mutate(body: unknown) {
     setBusy(true);
     setError("");
@@ -496,7 +502,7 @@ export function Crm({ section = "leads", focusLeadId, lang = "es", radarEnabled 
       {notice && <p role="status">{notice}</p>}
       {section !== "leads" && filtersPanel}
        {section !== "leads" && editorForm}
-      {loading ? (
+      {loading && dataKey !== viewKey ? (
         <p role="status">{t("Cargando CRM…", "Loading CRM\u2026")}</p>
       ) : (
         data && (
@@ -565,20 +571,27 @@ export function Crm({ section = "leads", focusLeadId, lang = "es", radarEnabled 
                   currentOwnerId={data.userId}
                   onEdit={(lead) => edit(lead)}
                   onDetail={setDetail}
-                  onMove={(lead, targetId) => {
-                    const target = stages.find((stage) => stage.id === targetId);
-                    if (!target || lead.stage_id === targetId) return;
-                    if (target.kind === "lost") {
-                      // Preserve the existing loss-reason validation workflow.
-                      edit({ ...lead, stage_id: targetId });
-                      return;
+                  onMove={async (lead, groupId, extra) => {
+                    // Lost/Won → another group restores the last detailed stage it worked in (history), else canonical.
+                    const closed = ["won", "lost"].includes(groupOfStage(lead.stage_id)?.id ?? "");
+                    let history: { to_stage?: unknown }[] = [];
+                    if (closed) {
+                      const r = await fetch(`${endpoint}?entity=stage_history&lead=${encodeURIComponent(String(lead.id))}`, { cache: "no-store" });
+                      if (r.ok) history = ((await r.json()).rows ?? []) as { to_stage?: unknown }[];
                     }
-                    action({
-                      entity: "leads",
-                      id: lead.id,
-                      version: lead.version,
-                      values: { ...lead, stage_id: targetId },
-                    });
+                    const stageId = closed ? restoreTarget(lead, groupId, stages, history) : moveTarget(lead, groupId, stages);
+                    if (!stageId) return;
+                    try {
+                      await request({
+                        entity: "leads",
+                        id: lead.id,
+                        version: lead.version,
+                        values: { ...lead, stage_id: stageId, ...(extra?.lossReason ? { loss_reason: extra.lossReason } : {}) },
+                      });
+                    } finally {
+                      // Success or refusal: re-read the server state (the board keeps its optimistic card until then).
+                      reload();
+                    }
                   }}
                 />
               ))}

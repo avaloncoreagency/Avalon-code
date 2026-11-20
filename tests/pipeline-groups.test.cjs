@@ -55,3 +55,26 @@ test("arrows move between open groups only; closed or unmapped cards need an exp
   assert.equal(g.neighbourGroup({ stage_id: "won" }, -1), null);
   assert.equal(g.neighbourGroup({ stage_id: "vip-custom" }, 1), null);
 });
+
+test("Kanban v2: Lost needs a reason, Won is server-gated; a recovered lead returns to its last working stage", () => {
+  assert.equal(g.moveRequirement("lost"), "loss_reason");
+  assert.equal(g.moveRequirement("won"), "won_gate");
+  assert.equal(g.moveRequirement("conversation"), null);
+  const lost = { id: "x", stage_id: "lost" };
+  const history = [{ to_stage: "lost" }, { to_stage: "negotiation" }, { to_stage: "proposal" }, { to_stage: "meeting" }];
+  assert.equal(g.restoreTarget(lost, "proposal", STAGES, history), "negotiation", "back to the exact detailed stage it had in Propuesta");
+  assert.equal(g.restoreTarget(lost, "conversation", STAGES, history), "meeting");
+  assert.equal(g.restoreTarget(lost, "new", STAGES, history), "new", "no history in that group → canonical stage");
+  assert.equal(g.restoreTarget(lost, "lost", STAGES, history), null, "already there");
+  assert.equal(g.restoreTarget({ id: "w", stage_id: "won" }, "proposal", STAGES, [{ to_stage: "ghost-stage" }]), "proposal", "unknown stages are ignored");
+  assert.equal(g.moveTarget({ stage_id: "negotiation" }, "won", STAGES), "won", "Propuesta → Ganado is attempted; the DB contract gate decides");
+  assert.equal(g.moveTarget({ stage_id: "negotiation" }, "lost", STAGES), "lost");
+  assert.equal(g.moveTarget({ stage_id: "won" }, "lost", STAGES), "lost", "closed columns accept cards in both directions");
+});
+
+test("Kanban v2: the optimistic group wins while a move is pending, then the server stage", () => {
+  const pending = new Map([["a", "won"]]);
+  assert.equal(g.displayedGroup({ id: "a", stage_id: "proposal" }, pending), "won");
+  assert.equal(g.displayedGroup({ id: "b", stage_id: "proposal" }, pending), "proposal");
+  assert.equal(g.displayedGroup({ id: "c", stage_id: "vip-custom" }, pending), null, "custom stage stays in To review");
+});

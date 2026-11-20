@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { groupOfStage } from "@/lib/crm/pipeline-groups";
 import { notFound } from "next/navigation";
 import { Suite } from "@/components/suite/suite";
 import { OpsHeader, OkFlash, ErrorFlash, Tag, Unavailable, ownerName, q, UUID_RE, type Query } from "@/components/sales/ui";
@@ -193,7 +194,7 @@ export default async function Client360({ params, searchParams }: { params: Prom
           </dl>
           {contacts.error ? <Unavailable lang={lang} code={contacts.error} /> : <ul className={s.list} style={{ marginTop: 12 }}>{(contacts.data ?? []).map(ct => <li key={ct.id}><strong>{ct.full_name}{ct.is_primary ? ` · ${pick(lang, "principal", "primary")}` : ""}</strong><span className={s.muted}>{[ct.role, ct.email, ct.phone].filter(Boolean).join(" · ") || "—"}</span></li>)}</ul>}
           {lead?.data && <><h3>{pick(lang, "Lead y oportunidad de origen", "Origin lead and opportunity")}</h3>
-            <p className={s.muted}><Link href={`/admin/workspace/crm/lead/${lead.data.id}`}>{lead.data.company}</Link> · {lead.data.stage_id} · {lead.data.source} · {formatDate(lang, lead.data.created_at)}</p>
+            <p className={s.muted}><Link href={`/admin/workspace/crm/lead/${lead.data.id}`}>{lead.data.company}</Link> · <span data-pipeline-group={groupOfStage(lead.data.stage_id)?.id ?? "review"}>{(() => { const g = groupOfStage(lead.data.stage_id); return g ? pick(lang, ...g.label) : pick(lang, "Por revisar", "To review"); })()}</span> ({lead.data.crm_stages?.label ?? lead.data.stage_id}) · {lead.data.source} · {formatDate(lang, lead.data.created_at)}</p>
             {(meetings?.data ?? []).length > 0 && <><h3>{pick(lang, "Reuniones y seguimientos", "Meetings and follow-ups")}</h3><ul className={s.list}>{meetings!.data!.map(m => <li key={m.id}><strong>{m.title}</strong><small className={s.muted}>{formatDate(lang, m.starts_at, true)} · {m.kind} · {m.status}</small></li>)}</ul></>}
           </>}
         </section>
