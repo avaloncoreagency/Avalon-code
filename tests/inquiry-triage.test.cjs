@@ -45,7 +45,10 @@ test("inquiry triage is pure, bounded and never labels based on identity, email 
 
 test("the owner inbox displays a review-only advisory without changing a status", () => {
   const ui = fs.readFileSync("src/components/crm/inbound-inbox.tsx", "utf8");
-  assert.match(ui, /inquiryTriageReason\(row\.opportunity\)/);
+  // Applied to EVERY stored message (P0.1), and to the first message while history is not migrated.
+  assert.match(ui, /const reason=inquiryTriageReason\(text\)/);
+  assert.match(ui, /triageText\(m\.message\)/);
+  assert.match(ui, /messages===null&&triageText\(row\.opportunity\)/);
   assert.match(ui, /Posible mensaje promocional/);
   assert.match(ui, /Clasificación orientativa/);
   assert.match(ui, /row\.status/);
