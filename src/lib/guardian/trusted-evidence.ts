@@ -55,8 +55,9 @@ function authentic(r: SignedObservation, incident: Incident, context: Context, t
 export function preflightSignedRecovery(incident: Incident, failures: SignedObservation[], after: SignedObservation[],
   context: Context, targetId: string, registeredSources: ReceiptSource) {
   const denied = { status: 'UNVERIFIED' as const, closeAuthorized: false as const, replayLedgerVerified: false as const };
-  if (!UUID.test(targetId) || !registeredSources || !(registeredSources instanceof Map) ||
-      !Array.isArray(failures) || !Array.isArray(after) || failures.length !== incident?.observations?.length ||
+  if (typeof targetId !== 'string' || !UUID.test(targetId) || !context || !incident ||
+      !Array.isArray(incident.observations) || !registeredSources || !(registeredSources instanceof Map) ||
+      !Array.isArray(failures) || !Array.isArray(after) || failures.length !== incident.observations.length ||
       failures.length < 2 || failures.length > 5 || after.length < 2 || after.length > 5) return denied;
   const original = new Map(incident.observations.map(o => [o.id, o]));
   if (original.size !== failures.length) return denied;
