@@ -42,3 +42,11 @@ test("inquiry triage is pure, bounded and never labels based on identity, email 
     assert.equal(triage(value), null);
   assert.equal(triage("A".repeat(100000)), null);
 });
+
+test("the owner inbox displays a review-only advisory without changing a status", () => {
+  const ui = fs.readFileSync("src/components/crm/inbound-inbox.tsx", "utf8");
+  assert.match(ui, /inquiryTriageReason\(row\.opportunity\)/);
+  assert.match(ui, /Posible mensaje promocional/);
+  assert.match(ui, /Clasificación orientativa/);
+  assert.match(ui, /row\.status/);
+});
