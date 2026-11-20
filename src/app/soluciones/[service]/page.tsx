@@ -2,6 +2,7 @@
 import type { Metadata, Viewport } from "next";
 import { notFound } from "next/navigation";
 import { QuoteForm } from "@/components/public/quote-form";
+import { publicTurnstileSiteKey } from "@/lib/security/turnstile";
 import { COPY, SERVICE_ORDER, type Lang, type ServiceKey } from "@/components/public/landing/copy";
 import { Icon } from "@/components/public/landing/icons";
 import { Reveal } from "@/components/public/landing/interactive";
@@ -123,7 +124,7 @@ export default async function ServicePage({ params, searchParams }: Props) {
           <img className={s.contactBg} src={MEDIA.closing.src} alt="" width={1920} height={1080} loading="lazy" decoding="async" />
           <div className={s.contactGrid}>
             <div><p className={s.eyebrow}>{t.contact.eyebrow}</p><h2 id="h-quote" className={s.h2}>{t.contact.title}</h2><p className={s.lead}>{t.contact.lead}</p></div>
-            <div className={s.formCard}><QuoteForm lang={lang} initialServices={[service]} /></div>
+            <div className={s.formCard}><QuoteForm lang={lang} initialServices={[service]} turnstileSiteKey={publicTurnstileSiteKey()} /></div>
           </div>
         </div></div>
       </section>
