@@ -1,6 +1,9 @@
 # Glosario operativo de Avalon
 
-**Estado:** PROPUESTO, para revisión por los departamentos. **Fecha:** 2026-11-20. Una definición aquí aclara vocabulario; **no** cambia estados del CRM, lógica de ventas, contrato ni permisos. Consultar el esquema y el procedimiento vigente antes de automatizar.
+**ID:** KNI-GLO-001 · **Versión:** v0.2 · **Custodio propuesto:** Knowledge & Innovation.
+**Solidez:** PROPUESTO · **Vigencia:** POR REVISAR · **Aprobación:** BORRADOR · **Clasificación:** PUBLICABLE · **Última revisión:** 2026-11-20.
+
+Estas definiciones requieren revisión departamental y **no** cambian estados del CRM, lógica de ventas, contratos ni permisos. Consultar el esquema y el procedimiento vigente antes de automatizar.
 
 ## Ciclo comercial
 
