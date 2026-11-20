@@ -53,6 +53,10 @@ El código y los documentos de este repositorio son visibles públicamente. En e
 
 Los hallazgos de pruebas deben identificar entorno, fecha, SHA y evidencia. No inferir `READY` por la existencia de una URL, ni `VERIFICADO` a partir de un prompt o texto de un PR. Una migración presente en GitHub no prueba que esté aplicada remotamente.
 
+## Procedimiento de incorporación y pruebas de aceptación
+
+El paso a paso, los controles de privacidad y los escenarios sintéticos de aceptación se detallan en [CURATION_RUNBOOK.md](./CURATION_RUNBOOK.md). La aprobación corporativa y la implementación siguen siendo acciones separadas.
+
 ## Formato de handoff para PROJECT MANAGER
 
 ```text
