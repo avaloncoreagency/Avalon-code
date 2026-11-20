@@ -64,7 +64,7 @@ export default async function CalendarPage({ searchParams }: { searchParams: Pro
       <CrmNavigation active="calendar" lang={lang} />
       <SharedCalendar events={calendarEvents.data ?? []} banners={dayBanners.data ?? []}
         owners={owners.data ?? []} clients={linkedClients.data ?? []} leads={linkedLeads.data ?? []}
-        userId={userId} initialDate={focusDate} initialView={calendarView} lang={lang}
+        userId={userId} initialToday={dayInZone(new Date().toISOString(),AVALON_TIME_ZONE)} initialDate={focusDate} initialView={calendarView} lang={lang}
         dataError={calendarEvents.error || dayBanners.error ? pick(lang,
           "El calendario compartido requiere la migración de base de datos de este módulo. Los registros operativos siguen disponibles abajo.",
           "The shared calendar needs its database migration. Operations due dates remain below.") : undefined} />

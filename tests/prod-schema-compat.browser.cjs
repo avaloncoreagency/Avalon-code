@@ -10,12 +10,13 @@ const fs = require('node:fs');
 const { PGlite } = require('@electric-sql/pglite');
 const { startBridge } = require('./support/rest-bridge.cjs');
 
-// Reconciled with the Supabase production migration ledger (read-only schema_migrations) on 2026-11-19.
-// Production has 45 recorded migrations; the last one is crm_quoting_studio (20261119210002, applied 2026-11-19 with
-// owner approval; the local file carries the same version). Earlier local filenames differ from the remote ledger in
+// Reconciled with the Supabase production migration ledger (read-only schema_migrations) on 2026-11-20.
+// Production has 48 recorded migrations; the last three (os_product_delivery_guard 20261120130331,
+// public_inquiry_services_guard 20261120130354, project_bridge_rls_initplan 20261120130358) were applied 2026-11-20 with
+// owner authorization; the local files carry the same versions. Earlier local filenames differ from the remote ledger in
 // timestamps; the first 45 replayed source files are the baseline. Verify the remote ledger before moving this marker.
-const PRODUCTION_LAST_LOCAL_MIGRATION = '20261119210002_crm_quoting_studio.sql';
-const PRODUCTION_MIGRATIONS = 45;
+const PRODUCTION_LAST_LOCAL_MIGRATION = '20261120130358_project_bridge_rls_initplan.sql';
+const PRODUCTION_MIGRATIONS = 48;
 const ROUTES = ['/admin/dashboard', '/admin/profile', '/admin/settings', '/admin/search', '/admin/security',
   '/admin/workspace/crm', '/admin/workspace/crm/desk', '/admin/workspace/crm/hunter', '/admin/workspace/crm/leads', '/admin/workspace/crm/activity',
   '/admin/workspace/crm/calendar', '/admin/workspace/crm/clients', '/admin/workspace/crm/notifications', '/admin/workspace/crm/sales', '/admin/workspace/crm/sales/new',
@@ -61,13 +62,13 @@ test('new code on the production schema: no private page crashes before migratio
   const port = reservation.address().port;
   await new Promise(r => reservation.close(r));
   const origin = `http://localhost:${port}`;
-  const child = spawn(process.execPath, [require.resolve('next/dist/bin/next'), 'start', '-p', String(port)], {
+  const child = spawn(process.execPath, [require.resolve('next/dist/bin/next'), 'start', '--hostname', '127.0.0.1', '-p', String(port)], {
     env: { ...process.env, APP_ORIGIN: origin, NEXT_PUBLIC_SUPABASE_URL: bridge.url, NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: 'synthetic-key' },
     stdio: ['ignore', 'pipe', 'pipe'],
   });
   let output = '';
   child.stdout.on('data', c => (output += c)); child.stderr.on('data', c => (output += c));
-  t.after(async () => { child.kill(); await new Promise(r => child.once('exit', r)); });
+  t.after(()=>require('./support/stop-child.cjs')(child));
   for (let i = 0; i < 150; i++) {
     try { if ((await fetch(origin + '/login')).status < 500) break; } catch {}
     if (i === 149) assert.fail(output);

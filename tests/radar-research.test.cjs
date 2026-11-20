@@ -13,7 +13,7 @@ function compile(path, deps = {}) {
   assert.deepEqual(bad.map(x => ts.flattenDiagnosticMessageText(x.messageText, "\n")), [], "TypeScript syntax");
   const mod = { exports: {} };
   new Function("module", "exports", "require", compiled.outputText)(mod, mod.exports,
-    id => id in deps ? deps[id] : require(id));
+    id => id === "./radar-control" ? {radarExternalEnabled:()=>true} : id in deps ? deps[id] : require(id));
   return mod.exports;
 }
 const safety = compile("src/lib/crm/radar-website-safety.ts");

@@ -4,6 +4,7 @@ import { revalidatePath } from 'next/cache';
 import { ownerForAction, back, field, uuidField } from '@/lib/os/actions';
 import { mapDbError } from '@/lib/os/data';
 import { applyProductAction, clientId, isService, SERVICES } from '@/lib/os/client-hud';
+import { nextDelivery, readDelivery } from '@/lib/os/delivery';
 
 export async function saveProductOperation(form: FormData) {
   const { supabase, userId } = await ownerForAction();
@@ -46,4 +47,37 @@ export async function saveCompanyNote(form: FormData) {
   revalidatePath(path);
   revalidatePath('/admin/workspace/crm');
   back(path,{ok:'saved'});
+}
+
+/** Product delivery lifecycle (8.2). The database trigger re-validates every transition, actor and evidence. */
+export async function transitionDelivery(form: FormData) {
+  const { supabase, userId } = await ownerForAction();
+  const id = uuidField(form,'id');
+  if (!id) back('/admin/dashboard',{error:'invalid'});
+  const path = `/admin/workspace/products/${id}`;
+  const version = Number(field(form,'version'));
+  if (!Number.isSafeInteger(version) || version < 1) back(path,{delivery_error:'invalid'});
+  const { data: project, error } = await supabase.from('os_projects').select('id,module,settings,status,version,client_id').eq('id',id).maybeSingle();
+  if (error) back(path,{delivery_error:mapDbError(error)});
+  if (!project || !isService(project.module)) back('/admin/dashboard',{error:'not_found'});
+  if (project.status === 'archived') back(path,{delivery_error:'archived'});
+  if (project.version !== version) back(path,{delivery_error:'conflict'});
+  const settings = (project.settings ?? {}) as Record<string,unknown>;
+  const op = settings.operations && typeof settings.operations === 'object' ? settings.operations as Record<string,unknown> : {};
+  let delivery;
+  try {
+    delivery = nextDelivery(readDelivery(settings), {
+      to: field(form,'to'), note: field(form,'note'), evidenceUrl: field(form,'evidence_url'),
+      productUrl: typeof op.url === 'string' ? op.url : '', actor: userId, now: new Date().toISOString(),
+    });
+  } catch (e) { back(path,{delivery_error: e instanceof Error && e.message.startsWith('delivery_') ? e.message : 'invalid'}); }
+  const saved = await supabase.from('os_projects').update({settings:{...settings, delivery}}).eq('id',id).eq('version',version).select('id').maybeSingle();
+  if (saved.error) {
+    const code = (saved.error.message ?? '').match(/delivery_[a-z_]+/)?.[0];
+    back(path,{delivery_error: code ?? mapDbError(saved.error)});
+  }
+  if (!saved.data) back(path,{delivery_error:'conflict'});
+  revalidatePath(path);
+  if (project.client_id) revalidatePath(`/admin/workspace/crm/clients/${project.client_id}`);
+  back(path,{delivery_ok:delivery.stage});
 }

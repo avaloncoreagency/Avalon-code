@@ -160,7 +160,7 @@ test("CRM root redirects to Leads while historical overview remains a secondary 
   const overview = fs.readFileSync("src/components/crm/overview.tsx", "utf8");
   assert.match(homepage, /redirect\("\/admin\/workspace\/crm\/leads"\)/);
   const overviewPage = fs.readFileSync("src/app/admin/workspace/crm/overview/page.tsx", "utf8");
-  assert.match(overviewPage, /<CrmOverview\s*\/>/);
+  assert.match(overviewPage, /<CrmOverview radarEnabled=\{radarExternalEnabled\(\)\} \/>/);
   assert.match(overview, /Uso de tokens y costos/);
   assert.match(overview, /Urgentes/);
   assert.match(overview, /Normales/);

@@ -79,12 +79,13 @@ export default async function DeskPage({ searchParams }: { searchParams: Promise
           title={pick(lang, "Mesa comercial", "Sales desk")}
           lead={pick(lang, "Registrar, diagnosticar, calificar y dar seguimiento a prospectos de Avalon. Miguel y Samuel ven los mismos leads; cada cambio queda con autor.", "Register, diagnose, score and follow up Avalon prospects. Miguel and Samuel see the same leads; every change keeps its author.")} />
         {schemaPending && <p className={s.flash} data-tone="warn" role="alert">{intelErrorText(lang, "schema_pending")}</p>}
+        <p><Link className={s.button} href="/admin/workspace/crm/inbound">{pick(lang, "Solicitudes del website · revisar bandeja", "Website inquiries · review inbox")}</Link></p>
         <div className={s.stats}>
           {counted.map((f, i) => <Link key={f} href={listHref(f)} className={x.kpiLink} aria-current={filter === f ? "page" : undefined}>
             <span>{pick(lang, ...cardText[f])}</span><strong>{counts[i].error ? "—" : counts[i].count ?? 0}</strong></Link>)}
         </div>
         <div className={x.split}>
-          <section className={s.panel} aria-labelledby="qa-title">
+          <section className={s.panel} aria-labelledby="qa-title" id="quick-add">
             <h2 id="qa-title">{pick(lang, "Quick Add · nuevo prospecto", "Quick Add · new prospect")}</h2>
             <QuickAdd lang={lang} owners={ownerList} me={userId} />
           </section>

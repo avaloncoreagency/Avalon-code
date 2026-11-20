@@ -47,6 +47,13 @@ const distanceKm = (a: [number, number], b: [number, number]) => {
 
 /** Avalon Titan Radar: real map, honest search state, evidence-based tiers, human approval. */
 export function TitanRadar({ onChanged }: { onChanged?: () => void }) {
+  const [externalEnabled, setExternalEnabled] = useState(false);
+  useEffect(() => {
+    const controller = new AbortController();
+    fetch("/admin/workspace/crm/radar/control",{signal:controller.signal,cache:"no-store"})
+      .then(r=>r.ok?r.json():null).then(d=>setExternalEnabled(d?.externalEnabled === true)).catch(()=>{});
+    return ()=>controller.abort();
+  },[]);
   const mapEl = useRef<HTMLDivElement>(null);
   const map = useRef<LeafletMap | null>(null);
   const layer = useRef<LayerGroup | null>(null);
@@ -107,6 +114,7 @@ export function TitanRadar({ onChanged }: { onChanged?: () => void }) {
   }, []);
   useEffect(() => { void loadCampaigns(); }, [loadCampaigns]);
   async function campaign(payload: Record<string, unknown>, ok: string) {
+    if (!externalEnabled && (payload.op === "run" || payload.status === "active")) return;
     if (busy) return;
     setBusy(true); setError(""); setNotice("");
     try {
@@ -147,6 +155,7 @@ export function TitanRadar({ onChanged }: { onChanged?: () => void }) {
   // Only request tiles when an HTTPS basemap provider was explicitly approved.
   // Volunteer OSM servers previously returned policy-blocked images, sometimes with HTTP 200.
   useEffect(() => {
+    if (!externalEnabled) return;
     let cancelled = false;
     let sizeTimer = 0;
     let tileTimer = 0;
@@ -200,7 +209,7 @@ export function TitanRadar({ onChanged }: { onChanged?: () => void }) {
       m?.stop(); m?.off(); m?.remove();
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [externalEnabled]);
 
   // Search radius ring.
   useEffect(() => {
@@ -244,6 +253,7 @@ export function TitanRadar({ onChanged }: { onChanged?: () => void }) {
 
   async function geocode(e: FormEvent) {
     e.preventDefault();
+    if (!externalEnabled) return;
     setError(""); setGeoResults([]);
     try {
       const res = await fetch("/admin/workspace/crm/radar/geocode?q=" + encodeURIComponent(query), { cache: "no-store" });
@@ -289,7 +299,7 @@ export function TitanRadar({ onChanged }: { onChanged?: () => void }) {
   }
 
   async function search() {
-    if (searching) return;
+    if (!externalEnabled || searching) return;
     setSearching(true); setError(""); setNotice("");
     try {
       const params = new URLSearchParams({ lat: String(center[0]), lon: String(center[1]), radius, unit, label, industries: industries.join(","), kind: searchKind });
@@ -342,6 +352,7 @@ export function TitanRadar({ onChanged }: { onChanged?: () => void }) {
         <ol className={s.steps} aria-label="Recorrido">{["Explorar", "Investigar", "Calificar", "Pipeline"].map((step, i) => <li key={step} data-done={i < (current ? (current.status === "converted" ? 4 : effective(current) !== null && !currentPreliminary ? 3 : 1) : lastSearch ? 1 : 0)}>{step}</li>)}</ol>
       </header>
 
+      {!externalEnabled && <p role="status">Radar pausado por decisión administrativa. Puedes consultar los registros guardados. Reactivación: configuración autorizada del servidor.</p>}
       <form className={s.searchBar} onSubmit={geocode} role="search">
         <label className={s.srOnly} htmlFor="radar-place">Ciudad, dirección o código postal</label>
         <input id="radar-place" value={query} onChange={e => setQuery(e.target.value)} placeholder="Ciudad, dirección o código postal" maxLength={120} />
@@ -359,7 +370,7 @@ export function TitanRadar({ onChanged }: { onChanged?: () => void }) {
           <select aria-label="Unidad" value={unit} onChange={e => setUnit(e.target.value as "mi" | "km")}><option value="mi">mi</option><option value="km">km</option></select>
         </div>
         <button type="button" className={s.ghost} aria-expanded={showFilters} onClick={() => setShowFilters(v => !v)}>Filtros{industries.length ? ` (${industries.length})` : ""}</button>
-        <button type="button" className={s.search} onClick={search} disabled={searching || radiusM < 100} aria-busy={searching}>{searching ? "Buscando…" : "Buscar negocios"}</button>
+        <button type="button" className={s.search} onClick={search} disabled={!externalEnabled || searching || radiusM < 100} aria-busy={searching}>{searching ? "Buscando…" : "Buscar negocios"}</button>
       </div>
       {radiusM > PUBLIC_MAX_RADIUS_M && <p className={s.hint}>Geoapify Free permite búsquedas de hasta 5 km en Avalon para controlar créditos. Para radios mayores se necesita otro proveedor autorizado. Selecciona 1 o 3 millas, o indica hasta 5 km.</p>}
       {showFilters && <fieldset className={s.filters}><legend>Industrias (opcional · sin filtros busca todas)</legend>
@@ -387,7 +398,7 @@ export function TitanRadar({ onChanged }: { onChanged?: () => void }) {
       </p>}
       {notice && <div className={s.ok} role="status">{notice}{createdLeadId && <>{" "}<Link href={`/admin/workspace/crm/leads?lead=${createdLeadId}`}>Abrir tarjeta en pipeline</Link></>}</div>}
 
-      <RadarAutoResearch revision={lastSearch?.at ?? ""} onChanged={() => { void load(); onChanged?.(); }} />
+      {externalEnabled && <RadarAutoResearch revision={lastSearch?.at ?? ""} onChanged={() => { void load(); onChanged?.(); }} />}
 
       <details className={s.ratingGuide} id="radar-calificacion">
         <summary>
@@ -473,8 +484,8 @@ export function TitanRadar({ onChanged }: { onChanged?: () => void }) {
             <small>{c.place_label || "Zona guardada"} · {(c.radius_m / 1609.344).toFixed(1)} mi · {c.categories.length ? c.categories.map(x => INDUSTRIES[x as IndustryId]?.name ?? x).join(", ") : "todas las industrias"} · {c.frequency}</small>
             <small>Estado: {c.status === "active" ? "Activa" : "Pausada"} · Última ejecución: {last ? `${new Date(last.started_at).toLocaleString()} · ${last.found} encontrados / ${last.inserted} nuevos` : "nunca"}</small>
             <div className={s.actions}>
-              <button type="button" className={s.search} disabled={busy} onClick={() => campaign({ op: "run", id: c.id }, "Campaña ejecutada:")}>Ejecutar ahora</button>
-              <button type="button" disabled={busy} onClick={() => campaign({ op: "status", id: c.id, status: c.status === "active" ? "paused" : "active" }, c.status === "active" ? "Campaña pausada." : "Campaña activada.")}>{c.status === "active" ? "Pausar" : "Activar"}</button>
+              <button type="button" className={s.search} disabled={busy || !externalEnabled} onClick={() => campaign({ op: "run", id: c.id }, "Campaña ejecutada:")}>Ejecutar ahora</button>
+              <button type="button" disabled={busy || (!externalEnabled && c.status !== "active")} onClick={() => campaign({ op: "status", id: c.id, status: c.status === "active" ? "paused" : "active" }, c.status === "active" ? "Campaña pausada." : "Campaña activada.")}>{c.status === "active" ? "Pausar" : "Activar"}</button>
             </div>
           </li>;
         })}</ul>}

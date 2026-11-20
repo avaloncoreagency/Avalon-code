@@ -41,3 +41,7 @@ Official mechanisms reviewed20Nov2026: https://developers.openai.com/api/docs/gu
 `node --test tests/omega-missions.test.cjs` and `NODE_PATH=./tests/qa/node_modules node --test tests/operations/mission.database.cjs`. The latter creates a disposable disk-backed PGlite DB, applies existing migrations, compiles three diagnostic steps, uses existing startMission, checks no business writes, replay-once, owner2 reads after DB reopen, outsider denial and kill switch. This is **local PostgreSQL-compatible/synthetic**, not hosted Supabase or two real account logins. No browser surface was changed. CI workflow is path-scoped, contents:read,10min cap, no secrets/schedule, outdated-run cancellation.
 
 Rollback: remove additive planner/templates/tests/workflow; no business records or remote resource changes to undo. Next action: engine owner reviews compatibility and extended metadata/approval/cancellation gaps before any app adapter or live activation.
+
+## Reconciliation checkpoint —20Nov2026
+
+Claude merged #255 into main445143fe26f8b954422a458464385d1d562e13cb during this task. This branch merged that exact main without conflicts, preserving his recovery and48 local migration filenames matching the current ledger versions for the three newest records. Prior45-source-file notes above describe the initial5f99 checkpoint, not the current reconciled candidate. No Claude PR was merged by this task. New helpers remain additive; exact-head CI must approve after reconciliation.

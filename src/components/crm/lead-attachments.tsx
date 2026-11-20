@@ -2,7 +2,7 @@
 
 import { useRouter } from "next/navigation";
 import { useState, type FormEvent } from "react";
-import { formatDate, type Lang } from "@/lib/i18n";
+import { type Lang } from "@/lib/i18n";
 import s from "@/components/sales/sales.module.css";
 import styles from "./lead-attachments.module.css";
 
@@ -14,6 +14,7 @@ export type LeadAttachment = {
   note: string | null;
   created_by: string;
   created_at: string;
+  created_at_label?: string;
 };
 
 const BASE = "/admin/workspace/crm/pipeline/files";
@@ -140,7 +141,7 @@ export function LeadAttachments({ leadId, clientId, lang, files, total, unavaila
                   : <span className={styles.icon} aria-hidden="true">{file.mime === "application/pdf" ? "📄" : "📎"}</span>}
                 <div className={styles.info}>
                   <strong className={styles.filename}>{file.filename}</strong>
-                  <small>{kind} · {sizeText(Number(file.size_bytes))} · {formatDate(lang, file.created_at)}</small>
+                  <small>{kind} · {sizeText(Number(file.size_bytes))} · {file.created_at_label ?? file.created_at.slice(0,10)}</small>
                   {file.note && <span className={styles.note}>{file.note}</span>}
                 </div>
                 <div className={styles.actions}>

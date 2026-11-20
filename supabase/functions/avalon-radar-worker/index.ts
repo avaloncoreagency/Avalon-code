@@ -190,6 +190,10 @@ Deno.serve(async (request: Request) => {
   const supplied = await hashToken(token);
   if (!sameHash(supplied, config.token_sha256)) return json({ error: "unauthorized" }, 401);
 
+  // Administrative pause is independent of scheduler enabled state; existing data/config remain untouched.
+  if (Deno.env.get("AVALON_RADAR_EXTERNAL_ENABLED") !== "true")
+    return json({ok:true,paused:true,message:"Radar pausado por decisión administrativa"});
+
   let dryRun = false;
   let networkProbe = false;
   try {

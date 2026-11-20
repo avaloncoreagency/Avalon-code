@@ -25,14 +25,14 @@ export function CompanyPortfolio({ groups, module, lang }: { groups: CompanyGrou
         "Each product has its own record for access, files, versions, checks and issues. Companies are linked by CRM ID.")}</p>
     </div></header>
     <div className={s.stats}>
-      <div className={s.stat}>{pick(lang,"Productos registrados","Registered products")}<strong>{groups.reduce((n,g)=>n+g.projects.length,0)}</strong></div>
-      <div className={s.stat}>{pick(lang,"Empresas vinculadas","Linked companies")}<strong>{groups.filter(g=>g.linked).length}</strong></div>
-      <div className={s.stat}>{pick(lang,"Proyectos internos activos","Active internal projects")}<strong>{groups.reduce((n,g)=>n+g.active,0)}</strong></div>
+      <div className={s.stat}>{pick(lang,"Productos en esta página","Products on this page")}<strong>{groups.reduce((n,g)=>n+g.projects.length,0)}</strong></div>
+      <div className={s.stat}>{pick(lang,"Empresas vinculadas en esta página","Linked companies on this page")}<strong>{groups.filter(g=>g.linked).length}</strong></div>
+      <div className={s.stat}>{pick(lang,"Activos en esta página","Active on this page")}<strong>{groups.reduce((n,g)=>n+g.active,0)}</strong></div>
     </div>
     <div className={s.toolbar}>
-      <label className={s.field}>{pick(lang,"Buscar empresa o producto","Search company or product")}
+      <label className={s.field}>{pick(lang,"Filtrar esta página por empresa o producto","Filter this page by company or product")}
         <input type="search" value={query} onChange={e=>setQuery(e.target.value)}/></label>
-      <label className={s.field}>{pick(lang,"Estado de Avalon","Avalon status")}
+      <label className={s.field}>{pick(lang,"Filtrar estado en esta página","Filter status on this page")}
         <select value={status} onChange={e=>setStatus(e.target.value)}>
           <option value="all">{pick(lang,"Todos","All")}</option>
           <option value="draft">{pick(lang,"Borradores","Drafts")}</option>
