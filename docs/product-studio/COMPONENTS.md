@@ -1,5 +1,5 @@
 # Registro propuesto de componentes APS v1
-**Importante:** este catálogo es un **backlog de componentes candidatos**, NO un inventario de funcionalidades implementadas. Cada candidato requiere cotejo contra el repositorio y PRs vigentes antes de construirlo.
+**Importante:** este catálogo es un **backlog de componentes candidatos**, NO una afirmación de que faltan todos ni un inventario de funcionalidades verificadas. La auditoría de código del [inventario](INVENTORY.md) identifica referencias existentes (portafolio, formularios, Website Studio, UI, pipeline y entrega) que deben evaluarse **antes** de construir, extraer o reemplazar componentes. Fuente presente no equivale a QA realizado.
 
 | ID | Candidato | Productos | Prioridad | Estado |
 | --- | --- | --- | --- | --- |
