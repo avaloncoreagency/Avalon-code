@@ -10,19 +10,19 @@ No se incluyen documentos privados de clientes, contratos firmados, datos person
 
 | ID | Archivo / función | Referencia temporal dentro del archivo | Uso recomendado ahora | Vigencia editorial |
 | --- | --- | --- | --- | --- |
-| SRC-001 | [Cooperación Dev Bridge](../dev-bridge/COOPERATION.md): reglas para ramas, SHA y handoffs | Contiene instrucciones de inicio de sesión y verificación en vivo | Consultar **antes** de coordinar trabajos, comprobando PR/Issue actual | POR REVISAR por evento |
+| SRC-001 | [Cooperación Dev Bridge](../dev-bridge/COOPERATION.md): reglas para ramas, SHA y handoffs | Contiene instrucciones de inicio de sesión y verificación en vivo | Consultar **antes** de coordinar trabajos, comprobando PR/Issue actual | POR REVISAR |
 | SRC-002 | [Contexto de agentes](../dev-bridge/AI_CONTEXT.md): instrucciones de arranque | No se confirmó un sello de actualización posterior | Consultar junto con COOPERATION y verificar SHA | POR REVISAR |
 | SRC-003 | [Estado del proyecto](../../PROJECT_STATE.md): checkpoint | 2026-11-07 | Referencia histórica, no resumir como estado actual | HISTÓRICO |
 | SRC-004 | [Estado de ejecución](../AVALON_EXECUTION_STATUS.md): reporte de una rama antigua | 2026-11-02; el encabezado dice “single source of truth” | **No** tomar ese encabezado como autoridad actual | HISTÓRICO |
 | SRC-005 | [Estado v1](../AVALON_V1_STATUS.md): evaluación antigua de readiness | 2026-11-11 | Útil para rastrear hipótesis y bloqueos de aquella fecha | HISTÓRICO |
 | SRC-006 | [Coordinación Claude → ChatGPT](../handoff/CHATGPT_COORDINATION.md) | 2026-11-11 | Handoff histórico, sus PR, flags y estados requieren revalidación | HISTÓRICO |
 | SRC-007 | [Progreso OMEGA](../AVALON_OMEGA_PROGRESS.md) | 2026-11-07 | Evidencias históricas, no estado de los motores en vivo | HISTÓRICO |
-| SRC-008 | [CRM implementación](../CRM_IMPLEMENTATION.md) | 2026-11-01/02; declara partes del plan como históricas | Consultar arquitectura, no inferir migraciones o pruebas actuales | MIXTO / POR REVISAR |
+| SRC-008 | [CRM implementación](../CRM_IMPLEMENTATION.md) | 2026-11-01/02; declara partes del plan como históricas | Consultar arquitectura, no inferir migraciones o pruebas actuales | POR REVISAR |
 | SRC-009 | [Sales Core](../SALES_CORE.md) | Referencias de rama y base de comienzos de noviembre | Especificación histórica, comprobar RPC y migraciones en `main` | POR REVISAR |
 | SRC-010 | [Product Control](../PRODUCT_CONTROL_RELEASE.md) | PR #175 y hallazgo documentado 2026-11-13 | Reutilizar sus límites conceptuales y verificar integración actual | POR REVISAR |
 | SRC-011 | [Communications Hub](../COMMUNICATIONS_HUB.md) | Trabajo fechado 2026-11-12 | Arquitectura histórica; **no** activar proveedores | POR REVISAR |
 | SRC-012 | [Respuesta a incidentes](../security/RESPUESTA_A_INCIDENTES.md) | No se validó en esta revisión aprobación formal vigente | Procedimiento de referencia; validar con CLOUD & SECURITY | POR REVISAR |
-| SRC-013 | [Radar hibernación](../radar/RADAR_REACTIVATION_PLAN.md) | Reporte 2026-11-20 y [PR #262](https://github.com/avaloncoreagency/Avalon-code/pull/262) fusionado | Documento técnico sobre suspensión; el estado **remoto** necesita comprobación separada | DOCUMENTADO / REMOTO DESCONOCIDO |
+| SRC-013 | [Radar hibernación](../radar/RADAR_REACTIVATION_PLAN.md) | Reporte 2026-11-20 y [PR #262](https://github.com/avaloncoreagency/Avalon-code/pull/262) fusionado | Documento técnico sobre suspensión; el estado **remoto** necesita comprobación separada | POR REVISAR |
 
 ## Conflictos y vacíos que requieren atención
 
