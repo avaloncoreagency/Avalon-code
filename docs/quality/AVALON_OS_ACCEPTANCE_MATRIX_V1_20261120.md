@@ -1,4 +1,4 @@
-# Avalon OS — Matriz de aceptación funcional y control QA v1
+# Avalon OS — Matriz de aceptación funcional y control QA v1.1
 
 **Fecha:** 2026-11-20 · **Departamento:** Quality Assurance · **Issue de coordinación:** #253 (owner:miguel, module:qa)  
 **Baseline de código verificado:** main @ 207ed3a3dc8fdae5dd949a7361733e441c530519 (merge PR #262).  
@@ -25,16 +25,31 @@
 | E-02 | En PR #262 head dc31998324c7620ea6e83298127cedc3fe16817b, Sales core CI run 44746566466 terminó SUCCESS; el job de navegador ejecutó tests/rest-bridge.http.cjs + tests/sales.browser.cjs, npm test y build. | VERIFICADO: CI Chromium sintético | https://github.com/avaloncoreagency/Avalon-code/actions/runs/44746566466 |
 | E-03 | En el mismo head, CRM isolated CI run 44746566481 terminó SUCCESS e incluye tests CRM, quotes y product-delivery. Auth, seguridad y módulos también reportan SUCCESS. | VERIFICADO: workflows, no sesión humana | https://github.com/avaloncoreagency/Avalon-code/actions/runs/44746566481 |
 | E-04 | PR #254 está fusionado a través de #255 y cubre QA independiente y límites multicliente; Issue #253 sigue abierto. | VERIFICADO: entrega integrada, aceptación final pendiente | https://github.com/avaloncoreagency/Avalon-code/pull/254 ; https://github.com/avaloncoreagency/Avalon-code/issues/253 |
-| E-05 | PR #262 está fusionado. Su documentación reporta worker Radar v11 de hibernación (423), JWT obligatorio y cron inactivo. | VERIFICADO: integración; estado remoto solo reportado por autor, requiere verificación operacional independiente | https://github.com/avaloncoreagency/Avalon-code/pull/262 |
+| E-05 | PR #262 está fusionado. Auditoría read-only independiente confirma Edge Function v11 activa, JWT obligatorio, cuerpo desplegado responde HTTP 423 y no hace llamadas a BD/proveedores; 0 de 1 configuraciones habilitadas; `cron.job` no devuelve programaciones Radar. | VERIFICADO-REMOTO-CONFIG; **no** certifica costo histórico/cero egress continuo | https://github.com/avaloncoreagency/Avalon-code/pull/262 |
 | E-06 | El registro existente de 40 casos indica expresamente SPECIFIED / NOT EXECUTED como matriz integral; los reportes antiguos reflejan SHAs anteriores. | VERIFICADO: no elevar estados históricos a PASS | docs/commercial-foundation/QA_ACCEPTANCE.md |
 | E-07 | No se ha presentado evidencia de Safari real en iPhone ni de aceptación hospedada por los dos owners sobre el mismo SHA. | PENDIENTE de ejecutar | docs/independent-qa/MULTICLIENT_RUNBOOK.md |
 | E-08 | PR #259 ya propone gates automatizados de preparación/aislamiento, por lo que no deben implementarse nuevamente en esta rama. | VERIFICADO: trabajo paralelo existente, aún pendiente de evaluación | https://github.com/avaloncoreagency/Avalon-code/pull/259 |
+
+### 2.1 Checkpoint remoto independiente — 20 noviembre 2026
+
+| Control | Evidencia observada sin mutaciones | Interpretación QA |
+|---|---|---|
+| GitHub | `main@207ed3a3dc8fdae5dd949a7361733e441c530519`; PR documental #276 abierto, draft, fusionable | Baseline coherente; un PR fusionable no es aceptado |
+| GitHub CI | Auth Review en SHA documental `5226f8b` SUCCESS; seguridad estaba `in_progress` al consultar. Sales/CRM SUCCESS en el head probado de #262 (`dc31998`), no en la nueva rama documental | No declarar todos los checks del PR documental verdes sin revisar de nuevo |
+| Vercel producción | Despliegue `dpl_AkU3ZYkBCXr3SAfLZkhU6TKNf5Xk` READY, commit `207ed3a`, target `production` | Confirma build desplegado, **no** acceso correcto de owners ni aceptación humana |
+| Vercel QA #276 | Despliegue `dpl_7enCxVvPwvjNPMQBX5xN34GqF6fx` CANCELED, SHA `5226f8b` | No es Preview validable del candidato; cancelación de build documental no se clasifica como bug de app |
+| Supabase | Proyecto `ACTIVE_HEALTHY`; ledger leído con 48 migraciones, últimas `os_product_delivery_guard`, `public_inquiry_services_guard`, `project_bridge_rls_initplan` | Los conteos no prueban igualdad de cuerpos de migración ni funcionamiento del recorrido comercial |
+| Supabase Branching | Dos ramas no predeterminadas históricas. La fila `main` conserva estado `MIGRATIONS_FAILED` con metadata fechada en octubre, pese al proyecto saludable y ledger actual | Señal de metadata a reconciliar, **no** prueba por sí sola de una migración productiva fallida |
+| Supabase Radar | Edge Function v11 `verify_jwt=true`; código del stub HTTP 423 sin acceso a BD/proveedor; tabla de configuración: una fila, cero habilitadas; `cron.job` sin registros `radar` | Hibernación corroborada por código y configuración desplegada. Falta prueba de egress/costo observables por ventana |
+
+**Advertencia:** no se ha ejecutado una sesión autenticada en Preview, iPhone físico, pago real ni restauración; cualquier PASS manual continúa prohibido. Para pruebas sintéticas futuras usar una Preview enlazada a Supabase aislado y comprobar sus SHAs/ledger antes de iniciar.
 
 **Criterio para React #418 / Sales E2E:** no registrar estos incidentes históricos como “actualmente abiertos” basándose en un reporte viejo. Crear un nuevo defecto solo si el build/Preview en SHA exacto vuelve a producir #418, pageerror, pérdida de UI o un fallo reproducible, con artefacto/log y navegador identificados.
 
 ## 3. Taxonomía de estados QA
 
 - **VERIFICADO-CI:** una prueba o job identificable terminó correctamente en un commit exacto; no demuestra sesión real ni Safari.
+- **VERIFICADO-REMOTO-CONFIG:** configuraciones/código remoto inspeccionados en lectura; no garantiza uso, egress, costos ni comportamiento continuo.
 - **PENDIENTE-MANUAL:** falta escenario en Preview con usuario autorizado y comprobación de persistencia.
 - **PENDIENTE-REMOTO:** el repositorio contiene la implementación pero falta contraste con el proveedor operativo.
 - **BLOQUEADO:** requisito esencial fallido o sin acceso seguro al entorno necesario.
@@ -73,7 +88,7 @@
 | A-26 | Móvil P1 | Formulario, adjuntos, cámara/archivos y vista previa/descarga PDF accesibles en iPhone; sin tap targets superpuestos. | Capturas Chromium sintéticas | PENDIENTE-MANUAL |
 | A-27 | Formularios P1 | Campos inválidos, duplicados, caída de red y sesión expirada muestran error claro ES/EN y conservan entrada no guardada. | unit/browser existing; manual red | PENDIENTE-MANUAL |
 | A-28 | Historial P1 | Fallo parcial en consultas no se presenta como historial completo; paginación informa límite; foco vuelve al botón de origen. | PR #255 / independent QA | VERIFICADO-CI / PENDIENTE-MANUAL |
-| A-29 | Radar P0 | No hay entrada activa, botón de búsqueda o salida a proveedores; el worker hibernado y cron se validan por evidencia remota, sin reactivar. | radar-hibernation.test; PR #262 | PENDIENTE-REMOTO |
+| A-29 | Radar P0 | No hay entrada activa, botón de búsqueda o salida a proveedores; el worker hibernado y cron se validan por evidencia remota, sin reactivar. | PR #262; inspección independiente de v11, config deshabilitada y cron sin tareas | VERIFICADO-REMOTO-CONFIG / PENDIENTE-E2E |
 | A-30 | Radar P1 | Registros históricos conservados y accesibles solo según permisos; no se consumen nuevos créditos por ruta suspendida. | PR #262 / plan reactivación | PENDIENTE-REMOTO |
 | A-31 | Chino Barber P0 | En Preview aislada crear oportunidad sintética y recorrer toda la cadena sin usar contactos, pagos ni credenciales reales. | PILOT_CHINO_BARBER_CHECKLIST | PENDIENTE-MANUAL |
 | A-32 | Chino Barber P0 | Website todavía inexistente debe quedar en Borrador; no inventar URL, venta, firma, aprobación o pago. | product-delivery tests | PENDIENTE-MANUAL |
@@ -86,6 +101,8 @@ La frase “VERIFICADO-CI / PENDIENTE-MANUAL” significa cobertura automatizada
 **Fase 0 — Inventario y baseline (QA, lectura):** fijar SHA, branch, entorno, migraciones y PRs activos; levantar referencias actuales. Aceptación: no se usa historial como si fuese CI del candidato nuevo.
 
 **Fase 1 — CI automatizada (aprovechar existente):** comprobar Auth Review, Security, CRM isolated, Sales core, módulos e independent QA. Revisar jobs individuales, no solo “Vercel READY”; comprobar que los pasos de navegador ejecutaron de verdad. No agregar tests que ya cubran estos casos.
+
+**Precondición de Fase 2 (bloqueada a fecha del checkpoint):** el despliegue de la rama QA #276 consta como CANCELED y no existe aceptación alojada del commit exacto en una Preview aislada. Seleccionar una Preview aprobada y verificar que su base de datos de pruebas sea distinta de producción; no reutilizar el dominio público para escribir fixtures sintéticos.
 
 **Fase 2 — Preview aislada:** staging Supabase distinto de producción; cuentas sintéticas autorizadas y revocables; verificar dos owners y outsider, recargas, transiciones, cotización→contrato→venta→finanzas, productos borrador/URL, errores y RLS. Guardar evidencia interna sin exponer clientes. No realizar cobros reales.
 
@@ -139,7 +156,7 @@ Registrar modelo, versión iOS, versión Safari, fecha, red, idioma, SHA y URL a
 **Riesgos activos:**
 1. CI verde sintética NO demuestra Preview con Supabase correctamente aislado, dos sesiones humanas, continuidad remota o Safari real.
 2. La app es CRM interno de una agencia; no se ha certificado como SaaS con login de clientes finales.
-3. El Radar podría quedar mal configurado remotamente pese a que el repo contiene suspensión; validar función/scheduler/egress en proveedor antes de afirmar cero consumo.
+3. El Radar sí está suspendido en código y configuración remota inspectada (worker v11 HTTP 423, JWT, config off, cron sin tareas), pero **zero-egress/cero costo** todavía requiere telemetría y conciliación de uso por un período definido.
 4. Precios de servicios, términos de comisión, identidad legal del proveedor y firma todavía requieren decisión humana para cualquier venta real.
 5. PR #259 implementa gates complementarios: revisar/aceptar sin crear un segundo sistema de release. PR #233 corresponde al portal de empleados; fuera de alcance.
 
@@ -168,8 +185,8 @@ Registrar modelo, versión iOS, versión Safari, fecha, red, idioma, SHA y URL a
 - **Baseline validado:** main@207ed3a3dc8fdae5dd949a7361733e441c530519; PRs #255, #262, #254 fusionados.
 - **CI verificada:** Sales run 44746566466 SUCCESS (browser sintético realmente ejecutado), CRM run 44746566481 SUCCESS, otros jobs principales SUCCESS en head dc31998324c7620ea6e83298127cedc3fe16817b. Esto no certifica PRs posteriores.
 - **React #418 y Sales E2E:** corregido/verde en la evidencia actual de CI; reabrir solo con reproducción en nuevo SHA.
-- **Radar:** suspensión integrada; verificación remota de zero-egress aún solicitada, no reactivar.
+- **Radar:** suspensión verificada en Edge Function/config/cron mediante lectura; medición temporal de egress y facturación aún pendiente, no reactivar.
 - **Entrega:** docs/quality/AVALON_OS_ACCEPTANCE_MATRIX_V1_20261120.md, solo documentación.
 - **Trabajo no realizado:** no se ejecutó Safari físico, no se autenticó contra Preview, no se modificó código/DB/proveedores, no se creó cliente/venta/factura/pago real.
-- **Estado global:** PENDIENTE DE ACEPTACIÓN / NO-GO para piloto real.
+- **Estado global:** PENDIENTE DE ACEPTACIÓN / NO-GO para piloto real. Producción READY en main@207ed3a; Preview de documentación #276 CANCELED (no aceptación alojada).
 - **Next action:** programar sesión humana en Preview aislada, conservar evidencia confidencial y decidir release conforme a §6.
