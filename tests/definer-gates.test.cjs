@@ -1,6 +1,6 @@
 // Static guard over supabase/migrations: every SECURITY DEFINER function that anon/authenticated can execute must be
 // owner-gated, token-gated or an explicitly reviewed public endpoint. Mirrors the Supabase Security Advisor findings
-// 0028/0029 (production: 6 anon, 38 authenticated, 39 unique) without connecting to any database.
+// 0028/0029 conceptually; this test reads migration files, not live deployed permissions.
 const { test } = require('node:test');
 const assert = require('node:assert/strict');
 const { audit, PUBLIC_ALLOWLIST } = require('../scripts/security/definer-audit.cjs');
