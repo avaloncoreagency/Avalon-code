@@ -2,6 +2,7 @@
 import Link from "next/link";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { pick, type Lang } from "@/lib/i18n";
+import { inquiryTriageReason } from "@/lib/crm/inquiry-triage";
 import s from "@/components/sales/sales.module.css";
 import ui from "./inbound-inbox.module.css";
 
@@ -59,7 +60,15 @@ export function InboundInbox({lang}:{lang:Lang}) {
     <p role="status">{loading?t("Consultando solicitudes…","Loading inquiries…"):count===null?t("Recuento no disponible","Count unavailable"):t(`${count} empresas con solicitudes · página ${page+1}`,`${count} businesses with inquiries · page ${page+1}`)}</p>
     {!loading&&!error&&rows.length===0&&<p className={s.empty}>{t("No hay solicitudes en esta vista.","No inquiries in this view.")}</p>}
     {!loading&&<ul className={s.list}>{rows.map(row=><li key={row.id}>
-      <h2>{row.company}</h2><p>{Object.hasOwn(STATES,row.status)?STATES[row.status as keyof typeof STATES][lang === "es" ? 0 : 1]:row.status}</p>
+      <h2>{row.company}</h2>
+      {inquiryTriageReason(row.opportunity) && <p className={s.flash} data-tone="warning" role="note">
+        <strong>{t("Posible mensaje promocional — revisar antes de aprobar.","Possible promotional inquiry — review before approval.")}</strong>{" "}
+        {inquiryTriageReason(row.opportunity) === "indexing_solicitation"
+          ? t("Parece ofrecer inclusión en un índice de búsqueda; no es una cotización solicitada.", "Appears to offer search-index listing; this is not a requested quote.")
+          : t("Parece ofrecer servicios comerciales a Avalon en lugar de solicitar nuestros servicios.", "Appears to pitch services to Avalon rather than request our services.")}
+        {" "}{t("Clasificación orientativa: solo Miguel o Samuel pueden decidir.", "Advisory only: Miguel or Samuel makes the decision.")}
+      </p>}
+      <p>{Object.hasOwn(STATES,row.status)?STATES[row.status as keyof typeof STATES][lang === "es" ? 0 : 1]:row.status}</p>
       <p>{row.contact} · {row.email||"—"} · {row.phone||"—"}</p><p>{row.industry} · {row.location}</p>
       <p>{row.opportunity}</p><p>{t("Solicitudes recibidas","Received inquiries")}: {row.crm_public_inquiries?.length ?? "—"} · {t("Servicios solicitados","Requested services")}: {[...new Set((row.crm_public_inquiries??[]).flatMap(x=>x.services))].join(", ")||"—"}</p><p className={s.muted}>{t("Fuente","Source")}: {row.source} · {row.acquired_at.slice(0,10)} · v{row.version}</p>
       {row.do_not_contact?<p>{t("No contactar: revisión bloqueada.","Do not contact: review blocked.")}</p>:row.status==="converted"?row.lead_id&&<Link href={`/admin/workspace/crm/lead/${row.lead_id}`}>{t("Abrir oportunidad","Open opportunity")}</Link>:<div className={s.actions}>
