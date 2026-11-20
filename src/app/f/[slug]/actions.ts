@@ -32,14 +32,6 @@ export async function submitFunnel(previous: FunnelSubmitState, form: FormData):
   if (!validSlug(slug)) return fail("invalid");
   const requestHeaders = await headers();
   const incomingIp = clientIp(requestHeaders);
-  if (!authLimiter.hit(hashKey("growth-funnel:" + slug, incomingIp), { limit: 5, windowMs: 60 * 60 * 1000 }).allowed)
-    return fail("throttled");
-  // FV-001: server-side human check BEFORE any database client or RPC. Funnel-specific action, so a login or quote
-  // token is never accepted here. Disabled (no keys) is the documented rollout gap; partial configuration fails closed.
-  const human = await verifyHumanToken(form.get("cf-turnstile-response"), "avalon_funnel");
-  if (human === "invalid") return fail("human");
-  if (human === "unavailable") return fail("unavailable");
-
   const request = {
     slug,
     company: field("company", 200),
@@ -56,9 +48,17 @@ export async function submitFunnel(previous: FunnelSubmitState, form: FormData):
     // fingerprint is sent (an unkeyed IPv4 hash could be reversed), and only the per-e-mail/per-funnel limits apply.
     fingerprint: deviceFingerprint(incomingIp),
   };
+  // Local validation first (Codex #295): no consent or oversized fields never reach Cloudflare, the limiter or the DB.
   if (!request.consent || request.company.length > 200 || request.name.length > 160 ||
       request.email.length > 254 || request.phone.length > 40 || request.message.length > 2000)
     return fail("invalid");
+  if (!authLimiter.hit(hashKey("growth-funnel:" + slug, incomingIp), { limit: 5, windowMs: 60 * 60 * 1000 }).allowed)
+    return fail("throttled");
+  // FV-001: server-side human check BEFORE any database client or RPC. Funnel-specific action, so a login or quote
+  // token is never accepted here. Disabled (no keys) is the documented rollout gap; partial configuration fails closed.
+  const human = await verifyHumanToken(form.get("cf-turnstile-response"), "avalon_funnel");
+  if (human === "invalid") return fail("human");
+  if (human === "unavailable") return fail("unavailable");
   try {
     const supabase = await createClient();
     const call = intakeCall("funnel", request);
