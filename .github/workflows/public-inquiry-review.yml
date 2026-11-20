@@ -7,6 +7,8 @@ on:
       - 'docs/sql/public-intake-role-review.sql'
       - 'tests/intake-role.database.cjs'
       - 'tests/public-inquiry.database.cjs'
+      - 'tests/fv2-*.database.cjs'
+      - 'tests/helpers/**'
       - 'supabase/migrations/**'
       - '.github/workflows/public-inquiry-review.yml'
 permissions:
@@ -17,7 +19,7 @@ concurrency:
 jobs:
   negative-inputs:
     runs-on: ubuntu-24.04
-    timeout-minutes: 10
+    timeout-minutes: 20
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
         with:
@@ -28,4 +30,4 @@ jobs:
           cache: npm
           cache-dependency-path: tests/qa/package-lock.json
       - run: npm ci --ignore-scripts --prefix tests/qa --no-audit --no-fund
-      - run: NODE_PATH=tests/qa/node_modules node --test --test-concurrency=1 tests/public-inquiry.database.cjs tests/inquiry-history.database.cjs tests/intake-role.database.cjs tests/definer-gates.test.cjs
+      - run: NODE_PATH=tests/qa/node_modules node --test --test-concurrency=1 tests/public-inquiry.database.cjs tests/inquiry-history.database.cjs tests/intake-role.database.cjs tests/definer-gates.test.cjs tests/fv2-intake-matrix.database.cjs tests/fv2-migrations.database.cjs tests/fv2-commercial-chain.database.cjs tests/fv2-capacity.database.cjs
