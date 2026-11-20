@@ -104,9 +104,9 @@ Offboarding: owner-authorized export/retention, domain and credentials transfer/
 - **Quality gates:** failure stops the next irreversible step. Unverified means **UNKNOWN**, never `passed`.
 - **Cost gates:** no paid tools, new accounts, external outreach, production changes, automations or credits without owner approval.
 
-## Pilot: appointment-based local business (Chino Barber)
+## Pilot: appointment-based local business (anonymized reference)
 
-**VERIFIED from owner's brief:** The website has not yet been created. No website URL, approved scope, signed agreement, approved pricing, actual client status or delivery dates are established by this SOP.
+**VERIFIED from the pilot brief:** The website has not yet been created. No website URL, approved scope, signed agreement, approved pricing, actual client status or delivery dates are established by this SOP.
 
 **P0 decision only:** confirm whether this is a synthetic example, qualified prospect or legally contracted customer; check potential existing test record under authorized owner session without creating/deleting/changing it. Do not infer lead stage or a sale from a `crm_clients` profile.
 
