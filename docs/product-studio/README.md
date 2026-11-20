@@ -13,7 +13,9 @@
 1. [MANUAL.md](MANUAL.md): arquitectura, etapas, visual, móvil, rendimiento, SEO, seguridad, operación y entrega.
 2. [BRIEFS.md](BRIEFS.md): plantilla universal y anexos por producto, cambios y aceptación.
 3. [QUALITY.md](QUALITY.md): matriz de pruebas y evidencia; prioridades y criterios de salida.
-4. [COMPONENTS.md](COMPONENTS.md): inventario propuesto de componentes reutilizables y reglas de adopción.
+4. [COMPONENTS.md](COMPONENTS.md): catálogo candidato de componentes y reglas de adopción.
+5. [INVENTORY.md](INVENTORY.md): evidencia de funcionalidades existentes en código y pruebas disponibles, sin declarar QA ejecutado.
+6. [BACKLOG.md](BACKLOG.md): tareas priorizadas, dueños propuestos, dependencias y criterios de aceptación.
 
 ## Principios
 - Mobile-first, iPhone como dispositivo crítico de aceptación, sin afirmar QA real sin evidencia.
