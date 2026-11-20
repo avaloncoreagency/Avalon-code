@@ -1,6 +1,9 @@
 # Procedimiento de incorporación y mantenimiento de conocimiento
 
-**Estado:** PROPUESTO · **Versión:** 0.1 · **Fecha de preparación:** 2026-11-20 · **Custodio propuesto:** Knowledge & Innovation.
+**ID:** KNI-SOP-001 · **Versión:** v0.2 · **Custodio propuesto:** Knowledge & Innovation.
+**Solidez:** PROPUESTO · **Vigencia:** POR REVISAR · **Aprobación:** BORRADOR · **Clasificación:** PUBLICABLE · **Última revisión:** 2026-11-20.
+
+El procedimiento no habilita agentes, gastos, integraciones, aprobaciones automáticas ni cambios productivos.
 
 **Objetivo:** hacer que PROJECT MANAGER encuentre una respuesta respaldada por su fuente original, sin duplicar información ni confundir decisiones de propietarios, planes históricos y resultados de implementación. Este procedimiento no habilita ningún agente, gasto, integración o cambio de producción.
 
