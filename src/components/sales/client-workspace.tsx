@@ -59,12 +59,16 @@ export async function ClientWorkspace({ supabase, clientId, lang, sales, finance
       {financeAllowed && !ledgerAvailable && <div className={s.stats}>
         {!finance && <p role="alert" className={s.notice}>{pick(lang,"Resumen financiero no disponible: no se muestran importes parciales.","Financial summary unavailable: partial amounts are hidden.")}</p>}
         {finance && notice && <p role="status" className={s.notice} data-finance="partial">{notice}</p>}
+        {finance && !sourceFailed && <p className={s.muted}>{pick(lang,
+          "Saldo registrado: cobros de ventas confirmadas menos gastos asentados en este expediente. No incluye todos los costos indirectos, impuestos ni conciliación bancaria; no equivale a beneficio neto ni a flujo de caja. El recurrente contratado no verifica suscripciones activas.",
+          "Recorded balance: confirmed-sale collections less expenses in this dossier. It excludes some indirect costs, taxes and bank reconciliation; it is not net profit or cash flow. Contracted recurring amounts do not verify active subscriptions."
+        )}</p>}
         {finance && !sourceFailed && finance.currencies.map(f=><div key={f.currency} className={s.stat}>
-          <span>{f.profitCents !== null ? pick(lang,"Rentabilidad registrada","Recorded profitability") : pick(lang,"Subtotal parcial (datos incompletos)","Partial subtotal (incomplete data)")} · {f.currency}</span>
+          <span>{f.profitCents !== null ? pick(lang,"Saldo cobrado menos gastos registrados","Collections less recorded expenses") : pick(lang,"Subtotal parcial (datos incompletos)","Partial subtotal (incomplete data)")} · {f.currency}</span>
           <strong>{money(lang,unit(f.profitCents ?? f.subtotalProfitCents),f.currency)}</strong>
           <small>{pick(lang,"Cobrado","Collected")}: {money(lang,unit(f.collectedCents),f.currency)}</small>
           <small>{pick(lang,"Gastos","Expenses")}: {money(lang,unit(f.expensesCents),f.currency)}</small>
-          <small>{pick(lang,"Contratado","Contracted")}: {money(lang,unit(f.contractedCents),f.currency)} · MRR {money(lang,unit(f.recurringCents),f.currency)}</small>
+          <small>{pick(lang,"Contratado","Contracted")}: {money(lang,unit(f.contractedCents),f.currency)} · {pick(lang,"Recurrente contratado/mes (no MRR activo)","Contracted recurring/mo (not active MRR)")} {money(lang,unit(f.recurringCents),f.currency)}</small>
         </div>)}
         {finance?.empty && <p className={s.muted}>{pick(lang,"Sin movimientos financieros registrados.","No recorded financial transactions.")}</p>}
       </div>}
