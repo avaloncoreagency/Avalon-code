@@ -151,9 +151,11 @@ export async function GET(request: NextRequest) {
       });
     }
     const page = Math.max(0, Math.min(10000, Number(p.get("page")) || 0));
+    const inbound = entity === "prospects" && p.get("inbound") === "true";
+    // Receipt membership, not discovery source: a website inquiry may reuse an existing Radar prospect.
     let query = client
       .from(tables[entity as Entity])
-      .select("*", { count: "exact" });
+      .select(inbound ? "*,crm_public_inquiries!inner(id,created_at,services,language)" : "*", { count: "exact" });
     if (p.get("id")) {
       if (!uuid.test(p.get("id")!)) return json({ error: "ID inválido" }, 400);
       query = query.eq("id", p.get("id"));
@@ -172,6 +174,15 @@ export async function GET(request: NextRequest) {
         query = query.or(
           `company.ilike.%${q}%,contact.ilike.%${q}%,email.ilike.%${q}%`,
         );
+    }
+    if (entity === "prospects") {
+      const kind = p.get("source_kind"), status = p.get("status");
+      if (kind && !["manual", "osm", "overture", "licensed", "web_form"].includes(kind))
+        return json({ error: "Origen inválido" }, 400);
+      if (status && !["pending", "approved", "rejected", "converted"].includes(status))
+        return json({ error: "Estado inválido" }, 400);
+      if (kind) query = query.eq("source_kind", kind);
+      if (status) query = query.eq("status", status);
     }
     if (entity === "prospects")
       for (const key of ["industry", "location", "opportunity"])

@@ -78,7 +78,7 @@ async function selectList(db, table, select, alias, depth = 0) {
   const items = splitTop(select || '*');
   const parts = [];
   for (const item of items) {
-    const embed = item.match(/^([a-z_]+)\((.*)\)$/);
+    const embed = item.match(/^([a-z_]+)(?:!inner)?\((.*)\)$/);
     if (!embed) { parts.push(item === '*' ? `${alias}.*` : `${column(item, alias)} as ${q(item.split(/->>?/).pop())}`); continue; }
     if (depth > 0) throw Object.assign(new Error('nested embeds not supported'), { code: 'PGRST100' });
     const [, rel, cols] = embed;
@@ -176,7 +176,14 @@ async function startBridge(db, { users, log = () => {} }) {
         q(table);
         if (req.method === 'GET' || req.method === 'HEAD') {
           const cols = await selectList(db, table, url.searchParams.get('select'), 't');
-          const where = filters(url, 't', param);
+          let where = filters(url, 't', param);
+          // Emulate explicit PostgREST !inner membership using the actual FK and current RLS role.
+          for (const item of splitTop(url.searchParams.get('select') || '*')) {
+            const inner = item.match(/^([a-z_]+)!inner\(/);
+            if (!inner) continue;
+            const r = await relation(db, table, inner[1]);
+            where += (where ? ' and ' : ' where ') + `exists(select 1 from public.${q(inner[1])} rel where rel.${q(r.remote)} = t.${q(r.local)})`;
+          }
           const limit = url.searchParams.get('limit'), offset = url.searchParams.get('offset');
           const page = `${limit && /^\d+$/.test(limit) ? ` limit ${limit}` : ''}${offset && /^\d+$/.test(offset) ? ` offset ${offset}` : ''}`;
           const rows = (await db.query(`select coalesce(jsonb_agg(to_jsonb(r)), '[]'::jsonb) v from (select ${cols} from public.${q(table)} t${where}${orderBy(url, 't')}${page}) r`, values)).rows[0].v;
@@ -186,7 +193,7 @@ async function startBridge(db, { users, log = () => {} }) {
             const start = Number(offset || 0);
             headers['content-range'] = `${rows.length ? `${start}-${start + rows.length - 1}` : '*'}/${total}`;
           }
-          if (wantsObject) return rows.length === 1 ? send(200, rows[0], headers) : send(406, { code: 'PGRST116', message: 'JSON object requested, multiple (or no) rows returned' });
+          if (wantsObject) return rows.length === 1 ? send(200, rows[0], headers) : send(406, { code: 'PGRST116', message: 'JSON object requested, multiple (or no) rows returned', details: `The result contains ${rows.length} rows` });
           return send(200, rows, headers);
         }
         if (req.method === 'POST') {
@@ -214,13 +221,29 @@ async function startBridge(db, { users, log = () => {} }) {
           const keys = Object.keys(body);
           const vals = await Promise.all(keys.map(k => value(table, k, body[k])));
           const sets = keys.map((k, i) => `${q(k)} = ${param(vals[i])}`);
-          const where = filters(url, 't', param);
-          const ids = (await db.query(`update public.${q(table)} t set ${sets.join(', ')}${where} returning t.id`, values)).rows.map(r => r.id);
+          let where = filters(url, 't', param);
+          // Emulate explicit PostgREST !inner membership using the actual FK and current RLS role.
+          for (const item of splitTop(url.searchParams.get('select') || '*')) {
+            const inner = item.match(/^([a-z_]+)!inner\(/);
+            if (!inner) continue;
+            const r = await relation(db, table, inner[1]);
+            where += (where ? ' and ' : ' where ') + `exists(select 1 from public.${q(inner[1])} rel where rel.${q(r.remote)} = t.${q(r.local)})`;
+          }
+          await db.exec('begin');
+          let ids;
+          try {
+            ids = (await db.query(`update public.${q(table)} t set ${sets.join(', ')}${where} returning t.id`, values)).rows.map(r => r.id);
+            if (wantsObject && ids.length !== 1) {
+              await db.exec('rollback');
+              return send(406, { code: 'PGRST116', message: 'JSON object requested, multiple (or no) rows returned', details: `The result contains ${ids.length} rows` });
+            }
+            await db.exec('commit');
+          } catch (error) { await db.exec('rollback'); throw error; }
           log('update', table, ids.length);
           if (!/return=representation/.test(prefer)) return send(204);
           const cols = await selectList(db, table, url.searchParams.get('select'), 't');
           const rows = (await db.query(`select coalesce(jsonb_agg(to_jsonb(r)), '[]'::jsonb) v from (select ${cols} from public.${q(table)} t where t.id = any($1::uuid[])) r`, [ids])).rows[0].v;
-          if (wantsObject) return rows.length === 1 ? send(200, rows[0]) : send(406, { code: 'PGRST116', message: 'no rows' });
+          if (wantsObject) return rows.length === 1 ? send(200, rows[0]) : send(406, { code: 'PGRST116', message: 'JSON object requested, multiple (or no) rows returned', details: `The result contains ${rows.length} rows` });
           return send(200, rows);
         }
         return send(405, { message: 'method not supported by test bridge' });

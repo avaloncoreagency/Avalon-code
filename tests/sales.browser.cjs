@@ -27,7 +27,7 @@ const COMMUNICATION_PRODUCT_ROUTES = [
   '/admin/workspace/ai-receptionist',
 ];
 const ROUTES = [
-  '/admin/dashboard', '/admin/workspace/crm',
+  '/admin/dashboard', '/admin/workspace/crm', '/admin/workspace/crm/inbound',
   '/admin/workspace/crm/calendar', '/admin/workspace/crm/settings',
   '/admin/workspace/crm/sales', '/admin/workspace/crm/sales/new',
   '/admin/workspace/crm/clients', '/admin/workspace/crm/tasks',
@@ -926,6 +926,8 @@ test('Nova Restaurant through the real app: one form, three departments, no dupl
   assert.match(sitemapXml, /hreflang="en" href="https:\/\/avaloncoreagency\.com\/\?lang=en"/, 'hreflang declared in the sitemap with full URLs');
   assert.doesNotMatch(sitemapXml, /admin|login/);
   await visitor.close();
+
+  await require('./support/inbound-ui.cjs')({db,context,miguel,samuel,origin,evidence:EVIDENCE});
 
   assert.deepEqual(errors.filter(e => e.startsWith('pageerror')), [], 'no client-side errors');
 });
