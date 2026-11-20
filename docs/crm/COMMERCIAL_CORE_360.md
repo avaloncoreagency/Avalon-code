@@ -149,7 +149,7 @@ El propietario completa lo legal que la cotización no cubre: parte contratante 
   - `crm_public_inquiry` y `crm_growth_funnel_submit`: formularios públicos intencionales, con validación, honeypot y límite de frecuencia.
   - `crm_growth_funnel_view`: solo lectura de funnels activos sin cliente; valida el slug.
   - `os_bridge_api_open_import` y `os_bridge_api_import_status`: requieren un token con hash SHA-256, scope, expiración y no revocado. `open_import` también limita por hora.
-  - `crm_ai_public_control`: solo lectura de interruptores (kill switch, IA activa). Bajo riesgo; no tiene llamadas desde `src/`, así que puede evaluarse quitarle `anon` en un PR aparte, tras confirmar que ningún widget público lo usa.
+  - `crm_ai_public_control`: solo lectura de 4 interruptores (kill switch, automático, IA activa, suspendidos). **Debe seguir siendo público**: `scripts/ai-engine/operate.cjs` (GitHub Actions) lo lee con la clave publicable para respetar el kill switch de Avalon y, si no responde, se detiene (fail-closed). Revocar `anon` apagaría el motor de IA. Decisión del 2026-11-19: se mantiene, documentado en R-17.
   - **No se revocó nada a ciegas.**
 - **48 funciones definer ejecutables por `authenticated`**: siguen el modelo de R-18. `tests/definer-gates.test.cjs` exige que cada una esté protegida por owner, token o lista blanca. Las 3 RPC nuevas pasan esa prueba.
 - **`pg_net` en `public`** (R-19): `extrelocatable=false`. No se mueve sin un proceso soportado.
@@ -214,6 +214,6 @@ Evidencia visual en `docs/crm/commercial-core-360/`: asistente, cotización acep
 1. **P0 — Hecho:** migración del Quoting Studio aplicada y verificada en producción.
 2. **P1 — Integrar #227** (facturas, pagos, comisiones en la interfaz) rebasado sobre esta rama. Completa «Ventas → Facturas y pagos / Comisiones».
 3. **P1 — Aprobar las ofertas del catálogo** para que las cotizaciones se precarguen.
-4. **P2 — Revisar el uso real de `crm_ai_public_control`** y, si ningún flujo público lo necesita, retirar `anon`.
+4. **P2 — Hecho:** revisado `crm_ai_public_control`; el acceso `anon` es necesario para el kill switch de GitHub Actions y se mantiene.
 5. **P2 — Sección compacta de créditos IA (#205)** en el Dashboard, solo con fuentes verificables.
 6. **P3 — Integración de correo** (cuando se apruebe un proveedor) para enviar el PDF y registrar el envío automáticamente.

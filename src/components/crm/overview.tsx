@@ -37,7 +37,7 @@ function isNumber(value: unknown): value is number {
   return typeof value === "number" && Number.isFinite(value) && value >= 0;
 }
 
-export function CrmOverview() {
+export function CrmOverview({ radarEnabled = false }: { radarEnabled?: boolean } = {}) {
   const [data, setData] = useState<OverviewData | null>(null);
   const [error, setError] = useState("");
   const [revision, setRevision] = useState(0);
@@ -91,7 +91,7 @@ export function CrmOverview() {
         <Link className={s.link} href="/admin/dashboard">← Dashboard principal</Link>
       </header>
       <CrmNavigation />
-      <CrmTools active="overview" />
+      <CrmTools active="overview" radar={radarEnabled} />
 
       <section className={s.panel} aria-labelledby="usage-heading">
         <h2 id="usage-heading">Centro de consumo de IA · Uso de tokens y costos</h2>

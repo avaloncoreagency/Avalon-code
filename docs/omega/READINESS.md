@@ -10,3 +10,7 @@ Base main5f99d05, 20 November 2026. No production, staff, financial or hydration
 - Claude branch8f8c390 includes recovery of #227/#249–252/#254, product delivery, pipeline and React418 changes. Do not merge those again from Codex or edit those paths. Samuel#233 remains excluded. No claims of acceptance based on Vercel READY.
 
 Next action: Claude/integrator reconciles exact candidate source/schema/deployment receipts. Codex supplies independent negative gates and synthetic tests; owners accept hosted operation only after the evidence is complete.
+
+## Reconciliation checkpoint —20Nov2026
+
+Claude merged #255 into main445143fe26f8b954422a458464385d1d562e13cb during this task. This branch merged that exact main without conflicts, preserving his recovery and48 local migration filenames matching the current ledger versions for the three newest records. Prior45-source-file notes above describe the initial5f99 checkpoint, not the current reconciled candidate. No Claude PR was merged by this task. New helpers remain additive; exact-head CI must approve after reconciliation.

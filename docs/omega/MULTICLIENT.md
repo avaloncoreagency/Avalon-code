@@ -44,3 +44,7 @@ Owner-approved discovery: service menu, booking process, audience, service area,
 Use an `.invalid` synthetic barber identity in the isolated environment. Test form validation, duplicate/replay handling, outsider denial, owner2 reads after fresh login, conflict without overwrite, mobile320/390 and desktop1440, ES/EN, public document privacy and rollback/restore. Record engine/device honestly; Safari/iPhone needs actual execution. Acceptance requires independent QA evidence, human sign-off, exact release SHA and authorized deployment; then a separate support runbook. Existing #254/Claude pilot checklists remain canonical for implementation details.
 
 Next action: owners confirm Vercel plan/resource ownership and approve isolated hosted acceptance; Claude supplies current schema/deployment correspondence. Do not activate real-client pilot before those gates pass.
+
+## Reconciliation checkpoint —20Nov2026
+
+Claude merged #255 into main445143fe26f8b954422a458464385d1d562e13cb during this task. This branch merged that exact main without conflicts, preserving his recovery and48 local migration filenames matching the current ledger versions for the three newest records. Prior45-source-file notes above describe the initial5f99 checkpoint, not the current reconciled candidate. No Claude PR was merged by this task. New helpers remain additive; exact-head CI must approve after reconciliation.

@@ -49,7 +49,8 @@ test("UI reuses existing owner-protected CRM mutations and manual loss reason", 
   assert.match(crm, /target.kind === "lost"/);
   assert.match(crm, /version: lead.version/);
   assert.match(board, /application\/x-avalon-lead/);
-  assert.match(board, /onMove\(lead, event.target.value\)/);
+  assert.match(board, /moveToGroup\(lead, event.target.value\)/);
+  assert.match(board, /const stageId = moveTarget\(lead, groupId, stages\);\n    if \(stageId\) onMove\(lead, stageId\);/, "group moves go through the same versioned onMove");
   assert.match(board, /hasta 50 registros por página/);
 });
 
@@ -60,7 +61,7 @@ test("dragging can auto-scroll to nonadjacent columns without stage-by-stage mut
   assert.match(board, /window\.addEventListener\("dragover", trackPointer\)/, "drag coordinates tracked globally");
   assert.match(board, /requestAnimationFrame\(scrollAtEdge\)/, "edge scrolling continues as pointer pauses");
   assert.match(board, /node\.scrollLeft \+= strength \* 25/, "edge velocity scrolls the board itself");
-  assert.match(board, /data-kanban-stage=\{stage\.id\}/, "every stage can receive a drop");
-  assert.match(board, /onMove\(lead, stageId\)/, "drop targets the chosen stage directly");
+  assert.match(board, /data-kanban-group=\{group\.id\}/, "every group can receive a drop");
+  assert.match(board, /if \(lead\) moveToGroup\(lead, groupId\)/, "drop targets the chosen group directly");
   assert.match(styles, /\.scroll\[data-dragging="true"\] \{ scroll-snap-type: none/, "snap does not fight auto-scroll");
 });

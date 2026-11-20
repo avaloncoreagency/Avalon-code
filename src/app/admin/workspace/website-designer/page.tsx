@@ -18,13 +18,16 @@ export default async function WebsiteDesignerPage({ searchParams }: { searchPara
   const page=Number.isSafeInteger(pageRaw) && pageRaw>=1 && pageRaw<=1000?pageRaw:1;
   const clientParam = param(params, "client");
   const scopedClientId = isUuid(clientParam) ? clientParam : undefined;
-  const projects = await listProjects(supabase, "website", { includeArchived: showArchived, page, clientId: scopedClientId });
+  const searchQuery = (param(params, "q") ?? "").trim().slice(0,80);
+  const requestedStatus = param(params,"status") ?? "";
+  const stateFilter = ["draft","active","archived"].includes(requestedStatus) ? requestedStatus : "";
+  const projects = await listProjects(supabase, "website", { includeArchived: showArchived, page, clientId: scopedClientId, search: searchQuery, status: stateFilter });
   return (
     <Suite active="website-designer">
       <PageHeader eyebrow="Website Designer" title={pick(lang, "Mis Websites", "My Websites")}
         description={pick(lang, "Registra websites creados con Claude, Codex u otras herramientas. Abre su URL, conserva versiones y anota errores sin generar websites aquí.", "Register websites built with Claude, Codex or other tools. Open their URL, save versions and track issues without generating websites here.")} />
       <Flash lang={lang} ok={param(params, "ok")} error={param(params, "error")} />
-      <ProjectsIndex lang={lang} module="website" base="/admin/workspace/website-designer" projects={projects} noun={{ es: "proyectos web", en: "web projects" }} showArchived={showArchived} page={page} prefillClientId={scopedClientId} />
+      <ProjectsIndex lang={lang} module="website" base="/admin/workspace/website-designer" projects={projects} noun={{ es: "proyectos web", en: "web projects" }} showArchived={showArchived} page={page} prefillClientId={scopedClientId} searchQuery={searchQuery} stateFilter={stateFilter} />
     </Suite>
   );
 }

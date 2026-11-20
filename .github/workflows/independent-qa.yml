@@ -1,0 +1,51 @@
+name: Independent commercial QA
+on:
+  pull_request:
+    paths:
+      - 'tests/independent-qa/**'
+      - 'scripts/independent-qa/**'
+      - '.github/workflows/independent-qa.yml'
+      - 'supabase/migrations/**'
+      - 'src/lib/quotes/**'
+      - 'src/lib/sales/**'
+      - 'src/app/admin/workspace/crm/pipeline/**'
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: independent-qa-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  isolated:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    env:
+      NEXT_TELEMETRY_DISABLED: '1'
+      NODE_PATH: ./tests/qa/node_modules
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with:
+          node-version: '22'
+          cache: npm
+      - run: npm ci --no-audit --no-fund
+      - run: npm ci --prefix tests/qa --no-audit --no-fund
+      - run: npm run typecheck
+      - run: npm run lint
+      - run: npm test
+      - run: node --test --test-concurrency=1 tests/independent-qa/*.cjs tests/quotes.database.cjs tests/core-engine.database.cjs tests/sales.database.cjs tests/pipeline-board.database.cjs
+      - run: npm run build
+      - run: node tests/qa/node_modules/playwright/cli.js install --with-deps chromium
+      - run: node --test --test-concurrency=1 tests/sales.browser.cjs tests/quotes.browser.cjs
+        env:
+          SALES_BROWSER: '1'
+          QUOTES_BROWSER: '1'
+          EVIDENCE_DIR: evidence/independent-qa
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        if: always()
+        with:
+          name: independent-qa-${{ github.sha }}
+          path: evidence/independent-qa/
+          if-no-files-found: ignore

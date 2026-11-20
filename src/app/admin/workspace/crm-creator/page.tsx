@@ -18,13 +18,16 @@ export default async function CrmCreatorPage({ searchParams }: { searchParams: S
   const page=Number.isSafeInteger(pageRaw) && pageRaw>=1 && pageRaw<=1000?pageRaw:1;
   const clientParam = param(params, "client");
   const scopedClientId = isUuid(clientParam) ? clientParam : undefined;
-  const projects = await listProjects(supabase, "crm_creator", { includeArchived: showArchived, page, clientId: scopedClientId });
+  const searchQuery = (param(params, "q") ?? "").trim().slice(0,80);
+  const requestedStatus = param(params,"status") ?? "";
+  const stateFilter = ["draft","active","archived"].includes(requestedStatus) ? requestedStatus : "";
+  const projects = await listProjects(supabase, "crm_creator", { includeArchived: showArchived, page, clientId: scopedClientId, search: searchQuery, status: stateFilter });
   return (
     <Suite active="crm-creator">
       <PageHeader eyebrow="CRM Creator" title={pick(lang, "Mis CRMs", "My Client CRMs")}
         description={pick(lang, "Registra CRMs externos creados con Claude o Codex. Abre su acceso autorizado, conserva entregas y lleva sus incidencias; no los construimos aquí.", "Register client CRMs built with Claude or Codex. Open authorized access, retain deliveries and track issues; they are not built here.")} />
       <Flash lang={lang} ok={param(params, "ok")} error={param(params, "error")} />
-      <ProjectsIndex lang={lang} module="crm_creator" base="/admin/workspace/crm-creator" projects={projects} noun={{ es: "diseños de CRM", en: "CRM designs" }} showArchived={showArchived} page={page} prefillClientId={scopedClientId}
+      <ProjectsIndex lang={lang} module="crm_creator" base="/admin/workspace/crm-creator" projects={projects} noun={{ es: "diseños de CRM", en: "CRM designs" }} showArchived={showArchived} page={page} prefillClientId={scopedClientId} searchQuery={searchQuery} stateFilter={stateFilter}
  />
     </Suite>
   );

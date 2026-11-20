@@ -48,7 +48,7 @@ function actionHarness({denied=false,version=3,status='active',conflict=false}={
   const actions=load('src/app/admin/workspace/products/actions.ts',{
     'next/cache':{revalidatePath:()=>{}},
     '@/lib/os/actions':{ownerForAction:async()=>{if(denied)throw Error('unauthorized');return{supabase:client,userId:B}},back:(p,q)=>{throw Error(`${p}:${q.error||q.ok}`)},field:(f,k)=>typeof f.get(k)==='string'?f.get(k):'',uuidField:(f,k)=>d.validId(f.get(k))?f.get(k):null},
-    '@/lib/os/data':{mapDbError:()=> 'unavailable'},'@/lib/os/client-hud':d,
+    '@/lib/os/data':{mapDbError:()=> 'unavailable'},'@/lib/os/client-hud':d,'@/lib/os/delivery':load('src/lib/os/delivery.ts'),
   });
   const form=new FormData();Object.entries({id:A,version:'3',operation:'request',...req}).forEach(([k,v])=>form.set(k,v));
   return {actions,form,calls,writes};
@@ -57,6 +57,15 @@ test('server action verifies owner before reading or writing',async()=>{const h=
 test('server action rejects stale versions before updating',async()=>{const h=actionHarness({version:4});await assert.rejects(h.actions.saveProductOperation(h.form),/conflict/);assert.equal(h.writes.length,0);});
 test('server action enforces archived read-only',async()=>{const h=actionHarness({status:'archived'});await assert.rejects(h.actions.saveProductOperation(h.form),/denied/);assert.equal(h.writes.length,0);});
 test('server action uses project ID, module and optimistic version filters',async()=>{const h=actionHarness();await assert.rejects(h.actions.saveProductOperation(h.form),/:saved$/);assert.equal(h.writes.length,1);assert.ok(h.calls.some(v=>Array.isArray(v)&&v[0]==='version'&&v[1]===3));assert.ok(h.calls.some(v=>Array.isArray(v)&&v[0]==='module'&&v[1]==='website'));assert.equal(h.writes[0].settings.client_hud.requests[0].created_by,B);});
+test('delivery action: owner-stamped transition with version filter; invalid jumps never write',async()=>{
+  const h=actionHarness();const f=new FormData();Object.entries({id:A,version:'3',to:'in_development',note:''}).forEach(([k,v])=>f.set(k,v));
+  await assert.rejects(h.actions.transitionDelivery(f),/products/);
+  assert.equal(h.writes.length,1);assert.equal(h.writes[0].settings.delivery.stage,'in_development');
+  assert.equal(h.writes[0].settings.delivery.history[0].by,B);assert.ok(h.calls.some(v=>Array.isArray(v)&&v[0]==='version'&&v[1]===3));
+  const j=actionHarness();const g=new FormData();Object.entries({id:A,version:'3',to:'live_verified',note:'Publicado ya'}).forEach(([k,v])=>g.set(k,v));
+  await assert.rejects(j.actions.transitionDelivery(g),/undefined$/);assert.equal(j.writes.length,0,'draft cannot jump to live');
+  const k=actionHarness({status:'archived'});await assert.rejects(k.actions.transitionDelivery(f),/undefined$/);assert.equal(k.writes.length,0);
+});
 test('concurrent update is reported, never claimed saved',async()=>{const h=actionHarness({conflict:true});await assert.rejects(h.actions.saveProductOperation(h.form),/conflict/);});
 
 // Product Control: richer issues preserve all legacy schema:1 records without a migration.

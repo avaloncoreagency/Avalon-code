@@ -14,9 +14,10 @@ test("Leads displays the pipeline before advanced filters, with create-lead tool
 });
 
 test("Lead cards offer quick stage movement without bypassing closure rules", () => {
-  assert.match(board, /stages\.filter\(\(stage\) => stage\.kind === "open"\)/);
-  assert.match(board, /previousStage && onMove\(lead, previousStage\.id\)/);
-  assert.match(board, /nextStage && onMove\(lead, nextStage\.id\)/);
-  assert.match(board, /stages\.map\(\(option\) =>/);
+  // Approved five groups (#253): arrows move between OPEN groups only; closing stays an explicit choice.
+  assert.match(board, /neighbourGroup\(lead, -1\)/);
+  assert.match(board, /previousGroup && moveToGroup\(lead, previousGroup\.id\)/);
+  assert.match(board, /nextGroup && moveToGroup\(lead, nextGroup\.id\)/);
+  assert.match(board, /PIPELINE_GROUPS\.map\(\(option\) =>/);
   assert.match(crm, /target\.kind === "lost"/);
 });

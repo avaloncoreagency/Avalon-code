@@ -30,7 +30,7 @@ export default async function DashboardPage() {
   const horizon = new Date(Date.now() + 14 * 86_400_000).toISOString().slice(0, 10);
 
   const nowIso = new Date().toISOString();
-  const [projects, pagesPublished, productsActive, upcoming, audit, crmLeads, salesMetrics, activeClients, openOrders, overdueTasks, chatbotCount, receptionCount, quoteSummary] = await Promise.all([
+  const [projects, pagesPublished, productsActive, upcoming, audit, crmLeads, salesMetrics, activeClients, openOrders, overdueTasks, chatbotCount, receptionCount, quoteSummary, aiUsage] = await Promise.all([
     run<{ id: string; module: string; name: string; status: string }[]>(supabase.from("os_projects").select("id,module,name,status").neq("status", "archived").order("updated_at", { ascending: false }).limit(500)),
     countRows(supabase, "os_website_pages", [["eq", "status", "published"]]),
     countRows(supabase, "os_store_products", [["eq", "status", "active"]]),
@@ -44,6 +44,8 @@ export default async function DashboardPage() {
     countRows(supabase, "os_projects", [["eq", "module", "chatbots"], ["neq", "status", "archived"]]),
     countRows(supabase, "os_projects", [["eq", "module", "receptionist"], ["neq", "status", "archived"]]),
     run<{ draft: number; sent: number; overdue: number; accepted_without_contract: number }>(supabase.rpc("crm_quote_summary")),
+    // AI credits (10.3): only owner-entered records exist today; no provider API is connected, so nothing is fetched or guessed.
+    run<UsageRow[]>(supabase.from("crm_usage").select("provider,amount,unit,period_start,period_end,limit_value,threshold,source,mode,created_by,updated_at").order("period_end", { ascending: false }).limit(60)),
   ]);
   const quotes = quoteSummary.error ? null : quoteSummary.data;
   const salesReady = salesMetrics.error === null;
@@ -106,6 +108,26 @@ export default async function DashboardPage() {
         <Link className={s.kpi} role="listitem" href="/admin/workspace/crm/tasks?view=overdue"><span>{pick(lang, "Órdenes de trabajo abiertas", "Open work orders")}</span><strong>{n(openOrders.count)}</strong><small style={overdueTasks.count ? { color: "var(--danger)" } : undefined}>{pick(lang, `${n(overdueTasks.count)} tarea(s) vencida(s)`, `${n(overdueTasks.count)} overdue task(s)`)}</small></Link>
       </div>
 
+      <div className={s.sectionTitle}><h2>{pick(lang, "Créditos de IA", "AI credits")}</h2><span><Link href="/admin/workspace/crm/ai-usage">{pick(lang, "Registrar consumo →", "Record usage →")}</Link></span></div>
+      {aiUsage.error ? <p className={s.kpi}>{pick(lang, "No se pudo leer el registro de consumo.", "Usage records could not be read.")}</p> : (() => {
+        const latest = latestUsage(aiUsage.data);
+        return <div className={s.kpis} role="list" aria-label={pick(lang, "Créditos de IA por proveedor", "AI credits by provider")}>
+          {(["Claude", "Higgsfield", "Codex"] as const).map(provider => {
+            const rows = latest.filter(r => r.provider === provider);
+            return <Link key={provider} className={s.kpi} role="listitem" href="/admin/workspace/crm/ai-usage">
+              <span>{provider === "Codex" ? "ChatGPT / Codex (OpenAI)" : provider === "Claude" ? pick(lang, "Claude (cuentas personales)", "Claude (personal accounts)") : pick(lang, "Higgsfield (compartido)", "Higgsfield (shared)")}</span>
+              {rows.length === 0 ? <><strong>—</strong><small>{pick(lang, "Sin registro. Sin API autorizada: se registra manualmente.", "No record. No authorized API: recorded manually.")}</small></> : rows.map(r => {
+                const pct = r.limit_value ? Math.round((Number(r.amount) / Number(r.limit_value)) * 100) : null;
+                return <div key={r.unit}>
+                  <strong style={pct !== null && pct >= Number(r.threshold) ? { color: "var(--danger)" } : undefined}>{Number(r.amount).toLocaleString(lang === "es" ? "es-US" : "en-US")}{r.limit_value ? ` / ${Number(r.limit_value).toLocaleString(lang === "es" ? "es-US" : "en-US")}` : ""} {r.unit}{pct !== null ? ` · ${pct}%` : ""}</strong>
+                  <small>{pick(lang, "Registro manual", "Manual record")} · {r.source} · {pick(lang, "actualizado", "updated")} {formatDate(lang, r.updated_at)} · {pick(lang, "periodo hasta", "period to")} {formatDate(lang, r.period_end)}</small>
+                </div>;
+              })}
+            </Link>;
+          })}
+        </div>;
+      })()}
+
       <div className={s.sectionTitle}><h2>{pick(lang, "Módulos", "Modules")}</h2><span>{schemaReady ? pick(lang, "Base de datos activa", "Database active") : pick(lang, "Migración de módulos pendiente de aprobación", "Module migration pending approval")}</span></div>
       <ModuleCards lang={lang} stats={stats} />
 
@@ -166,4 +188,11 @@ export default async function DashboardPage() {
       </div>
     </Suite>
   );
+}
+
+type UsageRow = { provider: "Codex" | "Claude" | "Higgsfield"; amount: string; unit: string; period_start: string; period_end: string; limit_value: string | null; threshold: string; source: string; mode: string; created_by: string; updated_at: string };
+/** Most recent record per provider and unit; older periods stay in the usage page. */
+function latestUsage(rows: UsageRow[]): UsageRow[] {
+  const seen = new Set<string>();
+  return rows.filter(r => { const k = r.provider + "|" + r.unit; if (seen.has(k)) return false; seen.add(k); return true; });
 }
