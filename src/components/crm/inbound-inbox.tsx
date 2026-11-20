@@ -11,6 +11,9 @@ type Message = { id:string; prospect_id:string; created_at:string; services:stri
 const API = "/admin/workspace/crm/api";
 const REVIEW = {pending:["Por revisar","To review"],legitimate:["Consulta legítima","Legitimate inquiry"],possible_spam:["Posible spam","Possible spam"],duplicate:["Repetido","Repeated"],discarded:["Descartado por propietario","Discarded by owner"]} as const;
 type ReviewStatus = keyof typeof REVIEW;
+const FOCUS = {"":["Todos","All"],pending:["Por revisar","To review"],possible_spam:["Posible spam","Possible spam"],duplicate:["Repetidos","Repeated"],reviewed:["Revisados","Reviewed"]} as const;
+type Focus = keyof typeof FOCUS;
+const inFocus=(focus:Focus,review:string)=>focus===""||(focus==="reviewed"?review==="legitimate"||review==="discarded":review===focus);
 const STATES = {pending:["Pendiente","Pending"],approved:["Aprobado","Approved"],rejected:["Descartado","Discarded"],converted:["En pipeline","In pipeline"]} as const;
 export function InboundInbox({lang}:{lang:Lang}) {
   const t=(es:string,en:string)=>pick(lang,es,en);
@@ -21,7 +24,7 @@ export function InboundInbox({lang}:{lang:Lang}) {
   const lock=useRef(false);
   const [duplicate,setDuplicate]=useState<{id:string;company:string;prospect:string}|null>(null);
   // Every stored message per prospect (P0.1). null = the database does not record message history yet.
-  const [messages,setMessages]=useState<Message[]|null>(null);
+  const [messages,setMessages]=useState<Message[]|null>(null),[focus,setFocus]=useState<Focus>("");
   const reload=useCallback(()=>setRevision(x=>x+1),[]);
   useEffect(()=>{
     const controller=new AbortController();setLoading(true);setError("");
@@ -84,7 +87,7 @@ export function InboundInbox({lang}:{lang:Lang}) {
   return <section className={`${s.panel} ${ui.inbox}`} aria-label={t("Bandeja de solicitudes","Inquiry inbox")} aria-busy={loading||busy}>
     <form role="search" className={s.toolbar} onSubmit={event=>{event.preventDefault();setPage(0);setSearch(query);}}>
       <label>{t("Buscar negocio, contacto o correo","Search business, contact or email")}<input name="q" type="search" maxLength={100} value={query} onChange={e=>setQuery(e.target.value)}/></label>
-      <label>{t("Revisión","Review")}<select value={status} disabled={busy} onChange={e=>{setStatus(e.target.value);setPage(0);}}><option value="">{t("Todos los estados","All statuses")}</option>{Object.entries(STATES).map(([key,names])=><option key={key} value={key}>{pick(lang,names[0],names[1])}</option>)}</select></label>
+      <label>{t("Estado de la empresa","Business status")}<select value={status} disabled={busy} onChange={e=>{setStatus(e.target.value);setPage(0);}}><option value="">{t("Todos los estados","All statuses")}</option>{Object.entries(STATES).map(([key,names])=><option key={key} value={key}>{pick(lang,names[0],names[1])}</option>)}</select></label>
       <button className={s.button} disabled={busy}>{t("Buscar","Search")}</button>
       <button className={s.button} type="button" disabled={busy||loading} onClick={reload}>{t("Actualizar","Refresh")}</button>
     </form>
@@ -93,8 +96,12 @@ export function InboundInbox({lang}:{lang:Lang}) {
     {lead&&<Link className={s.button} href={`/admin/workspace/crm/lead/${lead}`}>{t("Abrir oportunidad","Open opportunity")}</Link>}
     {duplicate&&<div role="status"><p>{t("Posible lead existente","Possible existing lead")}: {duplicate.company}</p><Link href={`/admin/workspace/crm/lead/${duplicate.id}`}>{t("Revisar ficha","Review record")}</Link><button type="button" className={s.button} disabled={busy} onClick={()=>{const row=rows.find(x=>x.id===duplicate.prospect);if(row)void act(row,"link_existing");}}>{t("Vincular al lead existente","Link to existing lead")}</button></div>}
     <p role="status">{loading?t("Consultando solicitudes…","Loading inquiries…"):count===null?t("Recuento no disponible","Count unavailable"):t(`${count} empresas con solicitudes · página ${page+1}`,`${count} businesses with inquiries · page ${page+1}`)}</p>
+    {!loading&&messages!==null&&<div className={ui.summary} role="group" aria-label={t("Filtrar mensajes de esta página","Filter messages on this page")}>
+      {(Object.keys(FOCUS) as Focus[]).map(key=><button key={key||"all"} type="button" className={s.button} aria-pressed={focus===key} onClick={()=>setFocus(key)}>
+        {pick(lang,FOCUS[key][0],FOCUS[key][1])} ({messages.filter(m=>inFocus(key,m.review_status)).length})</button>)}
+    </div>}
     {!loading&&!error&&rows.length===0&&<p className={s.empty}>{t("No hay solicitudes en esta vista.","No inquiries in this view.")}</p>}
-    {!loading&&<ul className={s.list}>{rows.map(row=><li key={row.id}>
+    {!loading&&<ul className={s.list}>{rows.filter(row=>messages===null||focus===""||messages.some(m=>m.prospect_id===row.id&&inFocus(focus,m.review_status))).map(row=><li key={row.id}>
       <h2>{row.company}</h2>
       {messages===null&&triageText(row.opportunity)}
       <p>{Object.hasOwn(STATES,row.status)?STATES[row.status as keyof typeof STATES][lang === "es" ? 0 : 1]:row.status}</p>
@@ -103,7 +110,7 @@ export function InboundInbox({lang}:{lang:Lang}) {
       {messages===null
         ?<p className={s.muted}>{t("El historial completo de mensajes aún no está activo en esta base de datos: se muestra el primer mensaje registrado.","Full message history is not active in this database yet: showing the first recorded message.")}</p>
         :<ol className={ui.messages} aria-label={t(`Mensajes de ${row.company}`,`Messages from ${row.company}`)}>
-          {messages.filter(m=>m.prospect_id===row.id).map(m=><li key={m.id} data-review={m.review_status}>
+          {messages.filter(m=>m.prospect_id===row.id&&inFocus(focus,m.review_status)).map(m=><li key={m.id} data-review={m.review_status}>
             <p className={s.muted}><time dateTime={m.created_at}>{new Date(m.created_at).toLocaleString(lang==="es"?"es":"en",{dateStyle:"medium",timeStyle:"short"})}</time> · {m.services.join(", ")||t("Sin servicio marcado","No service selected")} · {Object.hasOwn(REVIEW,m.review_status)?reviewLabel(m.review_status as ReviewStatus):m.review_status}</p>
             {triageText(m.message)}
             <p className={ui.body}>{m.message??t("Mensaje no registrado: llegó antes de que existiera el historial.","Message not recorded: received before history existed.")}</p>
