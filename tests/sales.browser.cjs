@@ -567,14 +567,19 @@ test('Nova Restaurant through the real app: one form, three departments, no dupl
   await page.getByLabel('Origen / fuente *', { exact: true }).fill('web');
   await page.getByRole('button', { name: 'Guardar', exact: true }).click();
   await page.getByText('Guardado correctamente.', { exact: true }).waitFor();
-  await page.getByLabel('Etapa de Orbit Dental Sintético').selectOption('proposal');
+  // Approved five groups (#253): Nuevo / En conversación / Propuesta / Ganado / Perdido over the detailed stages.
+  const board = page.getByRole('region', { name: 'Pipeline de oportunidades' });
+  assert.deepEqual(await board.locator('[data-kanban-group] h3').allInnerTexts(), ['Nuevo', 'En conversación', 'Propuesta', 'Ganado', 'Perdido']);
+  await page.getByLabel('Grupo de Orbit Dental Sintético').selectOption('proposal');
   await page.waitForTimeout(300);
   await page.reload();
-  assert.equal(await page.getByLabel('Etapa de Orbit Dental Sintético').inputValue(), 'proposal', 'stage move persisted');
+  assert.equal(await page.getByLabel('Grupo de Orbit Dental Sintético').inputValue(), 'proposal', 'group move persisted');
   const leadId = (await one("select id from crm_leads where company='Orbit Dental Sintético'")).id;
   // ── Pipedrive-style board: drag between stages, card history, note, file ──
-  const card = page.locator('article', { has: page.getByLabel('Etapa de Orbit Dental Sintético') });
-  const target = page.getByRole('region', { name: 'Negociación', exact: true });
+  assert.equal((await one("select stage_id from crm_leads where id=$1", [leadId])).stage_id, 'proposal', 'group writes the canonical stage');
+  const card = page.locator('article', { has: page.getByLabel('Grupo de Orbit Dental Sintético') });
+  await card.getByText('Etapa: Propuesta enviada').waitFor();
+  const target = page.getByRole('region', { name: 'En conversación', exact: true });
   // HTML5 drag events fired on the real handlers: independent of pointer geometry and the sticky top bar.
   const dt = await page.evaluateHandle(() => new DataTransfer());
   await card.dispatchEvent('dragstart', { dataTransfer: dt });
@@ -584,10 +589,14 @@ test('Nova Restaurant through the real app: one form, three departments, no dupl
   await card.dispatchEvent('dragend', { dataTransfer: dt });
   await page.waitForTimeout(500);
   await page.reload();
-  assert.equal(await page.getByLabel('Etapa de Orbit Dental Sintético').inputValue(), 'negotiation', 'drag & drop moved the lead');
-  await card.getByRole('button', { name: 'Ficha', exact: true }).click();
+  assert.equal(await page.getByLabel('Grupo de Orbit Dental Sintético').inputValue(), 'conversation', 'drag & drop moved the lead');
+  assert.equal((await one("select stage_id from crm_leads where id=$1", [leadId])).stage_id, 'contacted');
+  // The company name is the card's primary action: it opens the LEAD record, not Clients 360.
+  await card.getByRole('button', { name: 'Abrir ficha de Orbit Dental Sintético' }).click();
   let drawer = page.getByRole('dialog', { name: 'Historial de Orbit Dental Sintético' });
-  await drawer.getByText(/Movido de .* a Negociación/).first().waitFor();
+  await drawer.getByText(/Movido de Propuesta enviada a Contactado/).first().waitFor();
+  assert.match(await drawer.locator('li', { hasText: 'Movido de Propuesta enviada a Contactado' }).first().innerText(), /miguel/, 'stage event names the real actor');
+  assert.doesNotMatch(await drawer.innerText(), /· Sistema/, 'no actor is invented as System');
   await drawer.getByLabel('Nota').fill('Cliente pidió propuesta revisada (sintético)');
   await drawer.getByRole('button', { name: 'Guardar nota' }).click();
   await drawer.getByText('Cliente pidió propuesta revisada (sintético)').waitFor();
@@ -608,7 +617,7 @@ test('Nova Restaurant through the real app: one form, three departments, no dupl
   await drawer.getByRole('button', { name: 'Cerrar historial' }).click();
   await page.screenshot({ path: `${EVIDENCE}/pipeline-board.png`, fullPage: false });
   await card.screenshot({ path: `${EVIDENCE}/pipeline-card.png` });
-  await page.getByLabel('Etapa de Orbit Dental Sintético').selectOption('proposal');
+  await page.getByLabel('Grupo de Orbit Dental Sintético').selectOption('proposal');
   await page.waitForTimeout(300);
   await page.goto(`${origin}/admin/workspace/crm/sales/new?lead=${leadId}`);
   await page.getByLabel('Cliente nuevo').check();

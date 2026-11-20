@@ -111,3 +111,12 @@
 
 .moreLinks button { background:transparent; color:var(--text); border:0; padding:5px 0; text-align:left; cursor:pointer; font:inherit; font-size:12px; text-decoration:underline; text-underline-offset:3px; }
 .moreLinks button:disabled { opacity:.5; cursor:wait; }
+
+/* Five approved groups (#253): the company name is the card's primary action (opens the lead record). */
+.openRecord { all: unset; cursor: pointer; border-radius: 6px; min-height: 24px; display: inline-flex; align-items: center; }
+.openRecord strong { font-size: 13px; line-height: 1.4; color: var(--text); text-decoration: underline; text-decoration-color: rgba(100, 215, 245,.45); text-underline-offset: 3px; }
+.openRecord:focus-visible { outline: 2px solid var(--cyan, currentColor); outline-offset: 2px; }
+.openRecord:disabled { cursor: not-allowed; opacity: .6; }
+.stageDetail { margin: 0; font-size: 11px; color: var(--text-muted); }
+.column[data-unmapped="true"] { border-top-color: var(--warning, #f5c26b); }
+@media (max-width: 700px) { .openRecord { min-height: 44px; } }
