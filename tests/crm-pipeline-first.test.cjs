@@ -13,11 +13,10 @@ test("Leads displays the pipeline before advanced filters, with create-lead tool
   assert.match(crm, /<details className=\{s\.leadFilters\}/);
 });
 
-test("Lead cards offer quick stage movement without bypassing closure rules", () => {
-  // Approved five groups (#253): arrows move between OPEN groups only; closing stays an explicit choice.
-  assert.match(board, /neighbourGroup\(lead, -1\)/);
-  assert.match(board, /previousGroup && moveToGroup\(lead, previousGroup\.id\)/);
-  assert.match(board, /nextGroup && moveToGroup\(lead, nextGroup\.id\)/);
-  assert.match(board, /PIPELINE_GROUPS\.map\(\(option\) =>/);
-  assert.match(crm, /target\.kind === "lost"/);
+test("Lead cards are two lines and move by drag or keyboard without bypassing closure rules", () => {
+  // Kanban v2: no buttons on cards; Space + arrows is the keyboard alternative; Lost asks for a reason; Won is gated.
+  assert.match(board, /<strong title=\{first\}>\{first\}<\/strong>\n\s*\{second && <span title=\{second\}>\{second\}<\/span>\}/);
+  assert.doesNotMatch(board, /<button[^>]*>[^<]*(Anterior|Avanzar|Ficha|Más opciones)/);
+  assert.match(board, /event\.key === "ArrowRight" \|\| event\.key === "ArrowLeft"/);
+  assert.match(board, /code === "won_requires_contract"\) setWonBlocked\(lead\)/);
 });

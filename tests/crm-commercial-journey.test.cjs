@@ -28,9 +28,11 @@ test("Radar's exact lead deep-link reaches one owner-scoped pipeline card", () =
 });
 
 test("both Kanban and table move a real lead to the prelinked sale form", () => {
-  assert.match(board, /sales\/new\?lead=\$\{encodeURIComponent\(String\(lead\.id\)\)\}/);
+  const record = read("src/components/crm/lead-timeline.tsx"); // Kanban v2: card tap opens the record, which links the sale
+  assert.match(record, /sales\/new\?lead=\$\{encodeURIComponent\(String\(lead\.id\)\)\}/);
   assert.match(crm, /sales\/new\?lead=\$\{encodeURIComponent\(String\(row\.id\)\)\}/);
-  assert.match(board, /Registrar venta para/, "the action is accessible by company");
+  assert.match(record, /Registrar venta para/, "the action is accessible by company");
+  assert.match(board, /sales\/new\?lead=\$\{encodeURIComponent\(String\(wonBlocked\.id\)\)\}/, "a refused Won drop offers the real sale flow");
   assert.match(newSale, /requireOwner\(\)/);
   assert.match(newSale, /\.eq\("id", leadId\)\.eq\("archived", false\)\.maybeSingle\(\)/);
   assert.match(newSale, /leadChoices/, "older lead beyond the 300-item selector remains selectable");

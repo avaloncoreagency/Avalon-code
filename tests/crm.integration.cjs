@@ -506,17 +506,25 @@ test(
       await page
         .getByText("Guardado correctamente.", { exact: true })
         .waitFor();
-      // Five approved groups (#253): "En conversación" writes its canonical stage "contacted".
-      await page
-        .getByLabel("Grupo de Synthetic Browser")
-        .selectOption("conversation");
-      await page.waitForTimeout(200);
-      await page.reload();
-      await page.getByLabel("Grupo de Synthetic Browser").waitFor();
-      assert.equal(
-        await page.getByLabel("Grupo de Synthetic Browser").inputValue(),
-        "conversation",
-      );
+      // Five approved groups (#253), Kanban v2: a real pointer drag into "En conversación" writes "contacted".
+      {
+        const card = page.locator('article[data-lead-id]', { hasText: "Synthetic Browser" });
+        await card.evaluate((el) => el.scrollIntoView({ block: "center", inline: "nearest" }));
+        const from = await card.boundingBox();
+        const to = await page.locator('[data-kanban-group="conversation"]').boundingBox();
+        const sx = from.x + from.width / 2, sy = from.y + from.height / 2, tx = to.x + to.width / 2;
+        await page.mouse.move(sx, sy);
+        await page.mouse.down();
+        for (let i = 1; i <= 8; i++) await page.mouse.move(sx + (tx - sx) * i / 8, sy);
+        await page.mouse.up();
+        await page.locator('[data-kanban-group="conversation"] article', { hasText: "Synthetic Browser" }).waitFor();
+        for (let i = 0; i < 50; i++) {
+          if ((await db.query("select stage_id from crm_leads where company = 'Synthetic Browser'")).rows[0].stage_id === "contacted") break;
+          await page.waitForTimeout(100);
+        }
+        await page.reload();
+        await page.locator('[data-kanban-group="conversation"] article', { hasText: "Synthetic Browser" }).waitFor();
+      }
       assert.equal(
         (await db.query("select stage_id from crm_leads where company = 'Synthetic Browser'")).rows[0].stage_id,
         "contacted",

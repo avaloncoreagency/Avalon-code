@@ -81,7 +81,7 @@ test("generated product registration stays owner-only and uses existing project 
   const action=fs.readFileSync("src/app/admin/workspace/project-actions.ts","utf8");
   const form=fs.readFileSync("src/components/os/projects.tsx","utf8");
   const company=fs.readFileSync("src/app/admin/workspace/clients/[id]/page.tsx","utf8");
-  const pipeline=fs.readFileSync("src/components/crm/lead-board.tsx","utf8");
+  const pipeline=fs.readFileSync("src/components/crm/lead-timeline.tsx","utf8"); // Clients 360 link lives in the record
   assert.match(action, /ownerForAction\(\)/);
   assert.match(action, /resolveOrCreateProductLead\(/);
   assert.match(action, /settings->creative->>external_ref/);
