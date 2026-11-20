@@ -37,3 +37,9 @@ Rollback: remove additive helper/tests/docs; no production or storage mutation t
 ## Reconciliation checkpoint —20Nov2026
 
 Claude merged #255 into main445143fe26f8b954422a458464385d1d562e13cb during this task. This branch merged that exact main without conflicts, preserving his recovery and48 local migration filenames matching the current ledger versions for the three newest records. Prior45-source-file notes above describe the initial5f99 checkpoint, not the current reconciled candidate. No Claude PR was merged by this task. New helpers remain additive; exact-head CI must approve after reconciliation.
+
+## Independent review patch — #263 (20 Nov 2026)
+
+Recovery verification is intentionally **runbook-specific**. Generic HTTP `healthy` receipts can only produce `VERIFIED_FOR_OWNER_REVIEW` for an `availability` incident whose original observations exclusively contain `http_5xx` or `timeout`. An availability incident containing `permission_alert`, `rollback_requested`, `auth_denied`, deployment, form or already-healthy outcomes remains `UNVERIFIED`. Other runbooks (authentication, rollback, contact_form, deployment, recurring_error) always require their own reviewed domain checks and cannot be cleared by HTTP probes alone. This does not create a domain-specific verifier; these cases remain blocked until one is approved.
+
+The existing independent-observer, unique-receipt, time, tenant/project checks remain intact; input receipts are still caller-supplied and not authenticated in this offline helper. `closeAuthorized` remains false. No infrastructure actions, endpoint, token or remote test was added. Regression cases cover unauthorized evidence as well as mixed HTTP failure types. The PR is a stacked review candidate against #261, not a production release.
