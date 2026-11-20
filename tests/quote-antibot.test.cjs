@@ -165,3 +165,14 @@ test('FV-001: a verified funnel submission reaches the intake once and never for
   assert.match(ui, /name="cf-turnstile-response" value=\{token\}/);
   assert.match(fs.readFileSync('src/app/f/[slug]/page.tsx', 'utf8'), /turnstileSiteKey=\{publicTurnstileSiteKey\(\)\}/);
 });
+
+test('Codex #295: invalid funnel input (no consent, oversized) is rejected before Cloudflare, the limiter or the DB', async () => {
+  for (const extra of [{ consent: 'no' }, { company: 'X'.repeat(201) }, { message: 'm'.repeat(2001) }]) {
+    const { submitFunnel, calls } = funnelAction({ human: 'ok' });
+    const f = funnelForm('tok-valid');
+    for (const [k, v] of Object.entries(extra)) f.set(k, v);
+    const state = await submitFunnel({ status: 'idle' }, f);
+    assert.equal(state.status, 'invalid', JSON.stringify(Object.keys(extra)));
+    assert.deepEqual([calls.human.length, calls.client, calls.rpc.length], [0, 0, 0]);
+  }
+});
