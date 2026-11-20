@@ -67,7 +67,7 @@ test('Nova Restaurant through the real app: one form, three departments, no dupl
   await new Promise(r => reservation.close(r));
   const origin = `http://localhost:${port}`;
   const child = spawn(process.execPath, [require.resolve('next/dist/bin/next'), 'start', '--hostname', '127.0.0.1', '-p', String(port)], {
-    env: { ...process.env, APP_ORIGIN: origin, NEXT_PUBLIC_SUPABASE_URL: bridge.url, NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: 'synthetic-key' },
+    env: { ...process.env, AVALON_RADAR_EXTERNAL_ENABLED: "true", APP_ORIGIN: origin, NEXT_PUBLIC_SUPABASE_URL: bridge.url, NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: 'synthetic-key' },
     stdio: ['ignore', 'pipe', 'pipe'],
   });
   let output = '';
