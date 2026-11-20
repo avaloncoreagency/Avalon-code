@@ -1,3 +1,4 @@
+import { radarExternalEnabled, RADAR_PAUSED_MESSAGE } from "./radar-control";
 import "server-only";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { buildAreaQuery, toIngest, type RadarArea } from "./radar";
@@ -28,6 +29,7 @@ export async function radarQuota(db: SupabaseClient): Promise<QuotaState | null>
 export function radarEndpoint():
   | { url: string; licensed: boolean; provider: "geoapify" | "overpass" }
   | { error: string } {
+  if (!radarExternalEnabled()) return {error:RADAR_PAUSED_MESSAGE};
   const geoapifyKey = process.env.AVALON_GEOAPIFY_PLACES_KEY?.trim();
   if (geoapifyKey) {
     if (!validGeoapifyKey(geoapifyKey))
@@ -68,6 +70,7 @@ export function failureCode(cause: unknown): RadarFailureCode {
 
 export async function searchAndIngest(db: SupabaseClient, area: RadarArea, runKey: string, campaignId: string | null = null, limit?: number,
   kind: RadarQueryKind = campaignId ? "campaign" : "map"): Promise<SearchOutcome> {
+  if (!radarExternalEnabled()) return {ok:false,status:423,error:RADAR_PAUSED_MESSAGE,blocked:"provider"};
   // A run that already exists is replayed from our own record: the provider is NOT queried again (no credits spent).
   const known = await db.from("crm_radar_runs").select("id,found,inserted,updated,status").eq("idempotency_key", runKey).maybeSingle();
   // A recorded failure is not replayed as an empty success, and it is not retried automatically with the same key.

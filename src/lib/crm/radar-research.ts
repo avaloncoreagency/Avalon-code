@@ -1,3 +1,4 @@
+import { radarExternalEnabled, RADAR_PAUSED_MESSAGE } from "./radar-control";
 import {
   ResearchBlocked,
   checkRobots,
@@ -235,6 +236,7 @@ export function analyzeWebsitePages(company: string, input: FetchedPage[], check
 }
 
 export async function investigateOfficialWebsite(website: string, company: string): Promise<ResearchReport> {
+  if (!radarExternalEnabled()) throw new ResearchBlocked("invalid_url",RADAR_PAUSED_MESSAGE);
   const url = websiteUrl(website);
   if (!url) throw new ResearchBlocked("invalid_url", "Indica una web pública válida; solo se permite HTTPS y dominios de Internet.");
   const now = new Date().toISOString();
