@@ -11,7 +11,7 @@ test("Client 360 finance fallback describes its measured balance, not net profit
   assert.match(ui, /no equivale a beneficio neto ni a flujo de caja/);
   assert.match(ui, /not net profit or cash flow/);
   assert.doesNotMatch(ui, /Rentabilidad registrada|Recorded profitability/);
-  assert.match(ui, /finance\.complete/);
+  assert.match(ui, /finance && notice &&/);
   assert.match(ui, /f\.profitCents !== null/);
   assert.match(ui, /Subtotal parcial \(datos incompletos\)/);
   assert.match(ui, /!sourceFailed/);
