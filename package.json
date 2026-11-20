@@ -6,6 +6,7 @@
     "dev": "next dev",
     "prebuild": "node scripts/patch-react-hydration-replay.cjs",
     "build": "next build",
+    "postbuild": "node scripts/verify-react-418-bundle.cjs",
     "start": "next start",
     "lint": "eslint .",
     "typecheck": "tsc --noEmit",

@@ -75,10 +75,31 @@ function run(root = process.cwd(), log = console.log) {
   if (!results.some(r => r.file.startsWith("react-dom/react-dom-client.production")))
     throw new Error("[react-418-backport] next/dist/compiled/react-dom client build not found");
   log(`[react-418-backport] ${results.map(r => `${r.file}: ${r.status}`).join("; ")}`);
+  invalidateStaleBuildCache(root, log);
   return results;
 }
 
-module.exports = { patchSource, run, MARKER };
+/**
+ * Webpack treats node_modules as immutable (cache keyed by package version), so a persistent build cache created
+ * before this backport keeps serving the UNPATCHED react-dom even though the file on disk is fixed. Vercel and local
+ * builds restore .next/cache, so drop the webpack cache once, then remember that it was rebuilt with the backport.
+ */
+const CACHE_STAMP = "avalon-react-418-backport-v1";
+function invalidateStaleBuildCache(root, log) {
+  const cache = path.join(root, ".next", "cache");
+  const stamp = path.join(cache, CACHE_STAMP);
+  if (fs.existsSync(stamp)) return false;
+  const webpack = path.join(cache, "webpack");
+  if (fs.existsSync(webpack)) {
+    fs.rmSync(webpack, { recursive: true, force: true });
+    log("[react-418-backport] removed stale .next/cache/webpack built before the backport");
+  }
+  fs.mkdirSync(cache, { recursive: true });
+  fs.writeFileSync(stamp, "react-dom replay hydration cursor backport applied\n");
+  return true;
+}
+
+module.exports = { patchSource, run, MARKER, invalidateStaleBuildCache, CACHE_STAMP };
 
 if (require.main === module) {
   try { run(); } catch (error) { console.error(String(error && error.message || error)); process.exit(1); }

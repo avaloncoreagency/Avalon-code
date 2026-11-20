@@ -2,7 +2,8 @@ const test = require("node:test");
 const assert = require("node:assert/strict");
 const fs = require("node:fs");
 const path = require("node:path");
-const { patchSource, MARKER } = require("../scripts/patch-react-hydration-replay.cjs");
+const os = require("node:os");
+const { patchSource, MARKER, invalidateStaleBuildCache, CACHE_STAMP } = require("../scripts/patch-react-hydration-replay.cjs");
 
 // Minimal copy of the vendored React 19.2.0-canary-0bdb9206-20250818 shape (production build).
 const INTERNALS = "var hydrationParentFiber = null, nextHydratableInstance = null, isHydrating = !1;\nfunction popToNextHostParent(fiber) {}\n";
@@ -65,4 +66,35 @@ test("package scripts apply the backport before every build and after every inst
   const pkg = JSON.parse(fs.readFileSync(path.join(__dirname, "..", "package.json"), "utf8"));
   assert.equal(pkg.scripts.prebuild, "node scripts/patch-react-hydration-replay.cjs");
   assert.equal(pkg.scripts.postinstall, "node scripts/patch-react-hydration-replay.cjs");
+  assert.equal(pkg.scripts.postbuild, "node scripts/verify-react-418-bundle.cjs", "a bundle without the fix fails the build");
+});
+
+test("a webpack cache built before the backport is dropped once, so the patched react-dom is really compiled", () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), "r418-"));
+  const webpack = path.join(root, ".next", "cache", "webpack");
+  fs.mkdirSync(path.join(webpack, "client-production"), { recursive: true });
+  fs.writeFileSync(path.join(webpack, "client-production", "0.pack"), "stale unpatched react-dom");
+  fs.mkdirSync(path.join(root, ".next", "cache", "images"), { recursive: true });
+  assert.equal(invalidateStaleBuildCache(root, () => {}), true);
+  assert.equal(fs.existsSync(webpack), false, "stale webpack cache removed");
+  assert.equal(fs.existsSync(path.join(root, ".next", "cache", "images")), true, "other caches untouched");
+  assert.ok(fs.existsSync(path.join(root, ".next", "cache", CACHE_STAMP)));
+  fs.mkdirSync(webpack, { recursive: true });
+  assert.equal(invalidateStaleBuildCache(root, () => {}), false, "after the stamp, later caches are reused");
+  assert.equal(fs.existsSync(webpack), true);
+  fs.rmSync(root, { recursive: true, force: true });
+});
+
+test("post-build verifier rejects an App Router bundle without the fix and accepts the patched shape", () => {
+  const { spawnSync } = require("node:child_process");
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), "r418b-"));
+  const chunks = path.join(root, ".next", "static", "chunks");
+  fs.mkdirSync(chunks, { recursive: true });
+  const base = 'var v="19.2.0-canary-0bdb9206-20250818";function rD(e){var n=Error(i(418,"HTML"))}Minified React error #';
+  fs.writeFileSync(path.join(chunks, "react.js"), base + "case 5:al(n);default:o0(t,n)");
+  const run = () => spawnSync(process.execPath, [path.join(__dirname, "..", "scripts", "verify-react-418-bundle.cjs")], { cwd: root, encoding: "utf8" });
+  assert.equal(run().status, 1);
+  fs.writeFileSync(path.join(chunks, "react.js"), base + "case 5:al(n),n===rP&&(rL?(rM(n),5===n.tag&&null!=n.stateNode&&(rN=n.stateNode)):(rM(n),rL=!0));default:o0(t,n)");
+  assert.equal(run().status, 0);
+  fs.rmSync(root, { recursive: true, force: true });
 });
