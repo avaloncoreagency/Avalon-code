@@ -4,12 +4,15 @@ const fs = require('node:fs');
 const path = require('node:path');
 const ts = require('typescript');
 function action(root, options = {}) {
+  const intakeSource = ts.transpileModule(fs.readFileSync(path.join(root, 'src/lib/supabase/intake.ts'), 'utf8'), { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 } }).outputText;
+  const intakeModule = { exports: {} };
+  new Function('require','module','exports',intakeSource)(id => { if(id === 'server-only') return {}; throw Error('Unreviewed intake dependency: '+id); }, intakeModule, intakeModule.exports);
   const calls = { human: 0, rpc: 0, intake: 0 };
   const client = { rpc: async () => { calls.rpc++; return options.networkFailure ? { data: null, error: { code: 'synthetic' } } : { data: 'ok', error: null }; } };
   const mocks = {
     'next/headers': { headers: async () => new Headers() },
     '@/lib/supabase/server': { createClient: async () => client },
-    '@/lib/supabase/intake': { createIntakeClient: () => { calls.intake++; return client; } },
+    '@/lib/supabase/intake': { intakeCall: (kind, request) => { calls.intake++; return intakeModule.exports.intakeCall(kind, request, { AVALON_INTAKE_TOKEN: 'synthetic-review-only-token-00000000000000' }); } },
     '@/lib/security/rate-limit': { authLimiter: { hit: () => ({ allowed: true }) }, clientIp: () => '198.51.100.40', hashKey: () => 'synthetic' },
     '@/lib/growth/funnel': { validSlug: () => true },
     '@/lib/security/turnstile': { verifyHumanToken: async () => { calls.human++; return options.human || 'invalid'; } },

@@ -65,9 +65,9 @@ jobs:
         if: always()
         run: node tests/final-validation/intake-boundary.cjs .
         working-directory: ${{ runner.temp }}/avalon-candidate
-      - name: Mandatory reused role least privilege (known red until reviewed SQL fix)
+      - name: Token wrappers: independent negative acceptance
         if: always()
-        run: node tests/final-validation/role-reuse.cjs
+        run: node tests/final-validation/token-boundary.cjs
         working-directory: ${{ runner.temp }}/avalon-candidate
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         if: always()

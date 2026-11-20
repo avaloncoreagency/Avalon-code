@@ -7,6 +7,8 @@ const env = { PATH: process.env.PATH, PGHOST: '127.0.0.1', PGPORT: process.env.P
 function sql(text) { const r = cp.spawnSync('psql', ['-XAt', '-v', 'ON_ERROR_STOP=1'], { input: text, env, encoding: 'utf8' }); if (r.status) throw Error(r.stderr); return r.stdout.trim(); }
 sql(fs.readFileSync('tests/sql/00_supabase_stub.sql', 'utf8'));
 for (const f of fs.readdirSync('supabase/migrations').filter(f => f.endsWith('.sql')).sort()) sql(fs.readFileSync('supabase/migrations/' + f, 'utf8'));
+// The real function intentionally returns unavailable without an agency owner. Seed ONLY this disposable fixture.
+sql("insert into auth.users(id) values('00000000-0000-4000-8000-000000000001'); insert into agency_memberships(user_id,role) values('00000000-0000-4000-8000-000000000001','owner');");
 const request = message => JSON.stringify({ company: 'Concurrent Synthetic', name: 'QA Synthetic', email: 'concurrent@example.invalid', message, services: ['website'], language: 'es' });
 const literal = s => "'" + s.replaceAll("'", "''") + "'";
 function session(message) {
