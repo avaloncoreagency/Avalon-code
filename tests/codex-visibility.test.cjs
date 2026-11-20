@@ -21,7 +21,9 @@ test("Avalon OS presents the existing Codex-backed tools with current names", ()
   }
   assert.ok(suite.includes('href="/admin/dev-bridge"'), "Dev Bridge stays in the owner sidebar");
   const tools = source("src/components/crm/navigation.tsx");
-  assert.ok(tools.includes("/admin/workspace/crm/hunter"), "Radar remains reachable from secondary CRM tools");
+  // Radar is hibernated (owner directive 2026-11-20): listed only when the server-side switch is explicitly enabled.
+  assert.match(tools, /radarExternalEnabled\(\) \? \[radarTool\] : \[\]/, "Radar appears only behind the server switch");
+  assert.ok(tools.includes("/admin/workspace/crm/inbound"), "website inquiries are reachable from secondary CRM tools");
 });
 
 test("Dev Bridge defaults to the actual deployed main branch", () => {
