@@ -71,6 +71,14 @@ test("staff portal: owner-granted clients, isolated personal dossiers, private D
  assert.equal(await n("staff_client_grants"),0,"revoke takes effect at the data layer");
  assert.equal(await n("staff_casefiles"),1,"linked dossier hidden after revocation, unlinked remains private");
  await as(MIGUEL);
+ // Disabling just the message permission must immediately hide existing DMs
+ // and prevent new sends, even while the employee can still use casefiles.
+ await db.query("update staff_portal_access set can_message=false where user_id=$1",[EMP1]);
+ await as(EMP1);
+ assert.equal(await n("staff_private_messages"),0,"messaging permission revoked: no message content exposed");
+ assert.equal(await n("staff_casefiles"),1,"casefile permission unaffected by message revocation");
+ await assert.rejects(db.query("insert into staff_private_messages(recipient_id,body) values($1,'blocked')",[EMP2]),/row-level security|policy|permission denied/i);
+ await as(MIGUEL);
  await db.query("update staff_portal_access set active=false where user_id=$1",[EMP1]);
  await as(EMP1);
  assert.equal(await n("staff_casefiles"),0,"deactivated employee loses ALL case access");
