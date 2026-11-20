@@ -66,10 +66,14 @@ function run(root = process.cwd(), log = console.log) {
   for (const flavour of ["react-dom", "react-dom-experimental"]) {
     for (const file of FILES) {
       const target = path.join(dir, "dist", "compiled", flavour, "cjs", file);
-      if (!fs.existsSync(target)) continue;
-      const { status, source } = patchSource(fs.readFileSync(target, "utf8"), `${flavour}/${file}`);
-      if (status === "patched") fs.writeFileSync(target, source);
-      results.push({ file: `${flavour}/${file}`, status });
+      // One descriptor for read and write: no window between checking the file and changing it.
+      let fd;
+      try { fd = fs.openSync(target, "r+"); } catch (error) { if (error && error.code === "ENOENT") continue; throw error; }
+      try {
+        const { status, source } = patchSource(fs.readFileSync(fd, "utf8"), `${flavour}/${file}`);
+        if (status === "patched") { fs.ftruncateSync(fd, 0); fs.writeSync(fd, source, 0, "utf8"); }
+        results.push({ file: `${flavour}/${file}`, status });
+      } finally { fs.closeSync(fd); }
     }
   }
   if (!results.some(r => r.file.startsWith("react-dom/react-dom-client.production")))
@@ -88,14 +92,12 @@ const CACHE_STAMP = "avalon-react-418-backport-v1";
 function invalidateStaleBuildCache(root, log) {
   const cache = path.join(root, ".next", "cache");
   const stamp = path.join(cache, CACHE_STAMP);
-  if (fs.existsSync(stamp)) return false;
-  const webpack = path.join(cache, "webpack");
-  if (fs.existsSync(webpack)) {
-    fs.rmSync(webpack, { recursive: true, force: true });
-    log("[react-418-backport] removed stale .next/cache/webpack built before the backport");
-  }
   fs.mkdirSync(cache, { recursive: true });
-  fs.writeFileSync(stamp, "react-dom replay hydration cursor backport applied\n");
+  // Atomic create ("wx"): only the first build after the backport claims the stamp and drops the old cache.
+  try { fs.writeFileSync(stamp, "react-dom replay hydration cursor backport applied\n", { flag: "wx" }); }
+  catch (error) { if (error && error.code === "EEXIST") return false; throw error; }
+  fs.rmSync(path.join(cache, "webpack"), { recursive: true, force: true });
+  log("[react-418-backport] dropped any .next/cache/webpack built before the backport");
   return true;
 }
 
