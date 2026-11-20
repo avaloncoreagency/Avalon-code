@@ -56,3 +56,10 @@ test('non-availability runbooks stay unverified even with authentic signed HTTP 
 test('synthetic keys or source registry are never exported in preflight response',()=>{
  const r=evaluate(base());assert.doesNotMatch(JSON.stringify(r),/signingKey|keyVersion|signature|00000000/);
 });
+
+test('malformed incident and context inputs fail closed',()=>{
+ const b=base();
+ assert.equal(preflightSignedRecovery(null,b.old,b.next,context,targetId,monitors()).status,'UNVERIFIED');
+ assert.equal(preflightSignedRecovery({...b.i,observations:null},b.old,b.next,context,targetId,monitors()).status,'UNVERIFIED');
+ assert.equal(preflightSignedRecovery(b.i,b.old,b.next,null,targetId,monitors()).status,'UNVERIFIED');
+});
