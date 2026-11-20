@@ -12,6 +12,7 @@ type Client = { id:string; legal_name:string };
 type Contact = { user_id:string; display_name:string };
 type Casefile = { id:string; user_id:string; title:string; contact_name:string; notes:string; status:string; updated_at:string };
 type Message = { id:string;sender_id:string;recipient_id:string;body:string;created_at:string;read_at:string|null };
+type AuditEvent = { id:number;actor_id:string;user_id:string;action:string;client_id:string|null;recorded_at:string };
 const statuses: Record<string,string> = {
  invalid:"Los datos no son válidos.",denied:"No tienes autorización para esta operación.",
  failed:"No se pudo confirmar el cambio.", "directory-failed":"Acceso actualizado, pero falló la libreta de contactos.",
@@ -24,7 +25,7 @@ export default async function StaffAdministration({searchParams}:{
  searchParams:Promise<{status?:string}>;
 }) {
  const {supabase,userId} = await requireOwner();
- const [roster,access,grants,clients,casefiles,contacts,messages] = await Promise.all([
+ const [roster,access,grants,clients,casefiles,contacts,messages,audit] = await Promise.all([
    supabase.rpc("office_directory"),
    supabase.from("staff_portal_access").select("user_id,active,can_create_casefiles,can_message"),
    supabase.from("staff_client_grants").select("user_id,client_id,client_name,access_level,active")
@@ -36,13 +37,16 @@ export default async function StaffAdministration({searchParams}:{
    supabase.from("staff_contacts").select("user_id,display_name").eq("is_listed",true).order("display_name"),
    supabase.from("staff_private_messages").select("id,sender_id,recipient_id,body,created_at,read_at")
      .order("created_at",{ascending:false}).limit(100),
+   supabase.from("staff_permission_events").select("id,actor_id,user_id,action,client_id,recorded_at")
+     .order("recorded_at",{ascending:false}).limit(40),
  ]);
  const {status} = await searchParams;
- const ready = ![roster,access,grants,clients,casefiles,contacts,messages].some(x=>x.error);
+ const ready = ![roster,access,grants,clients,casefiles,contacts,messages,audit].some(x=>x.error);
  const members = ((roster.data ?? []) as StaffMember[]).filter(m=>m.role==="operator");
  const a = (access.data ?? []) as Access[], g = (grants.data ?? []) as Grant[];
  const options=(clients.data ?? []) as Client[], f=(casefiles.data ?? []) as Casefile[];
  const contactsList=(contacts.data ?? []) as Contact[], mail=(messages.data ?? []) as Message[];
+ const events=(audit.data ?? []) as AuditEvent[];
  const display = new Map(((roster.data ?? []) as StaffMember[]).map(m=>[m.user_id,m.display_name||m.email]));
  const names = new Map(contactsList.map(m=>[m.user_id,m.display_name]));
  return <Suite active="staff"><div className={s.hud}>
@@ -103,6 +107,18 @@ export default async function StaffAdministration({searchParams}:{
           <button className={s.button} type="submit">Revocar acceso</button>
         </form>
       </li>)}</ul>
+    </section>
+    <section className={s.panel} aria-labelledby="staff-permission-audit">
+      <h2 id="staff-permission-audit">Historial de permisos</h2>
+      <p className={s.muted}>Últimos 40 cambios registrados por la base de datos. Solo los propietarios tienen acceso.</p>
+      {events.length === 0 && <p>Todavía no hay cambios de permisos registrados.</p>}
+      <ol className={s.list}>{events.map(event => <li key={event.id}>
+        <strong>{event.action.replaceAll("_"," ")}</strong>
+        {" · "}{display.get(event.user_id) ?? "Miembro"}
+        {" · por "}{display.get(event.actor_id) ?? "Propietario"}
+        {event.client_id && <>{" · Cliente: "}{options.find(c=>c.id===event.client_id)?.legal_name ?? "Identificador archivado"}</>}
+        {" · "}<time dateTime={event.recorded_at}>{new Date(event.recorded_at).toLocaleString("es")}</time>
+      </li>)}</ol>
     </section>
     <section className={s.panel} aria-labelledby="staff-cases"><h2 id="staff-cases">Expedientes privados del personal</h2>
       <p className={s.muted}>Los propietarios pueden supervisar expedientes; entre empleados, cada expediente sigue siendo privado.</p>
