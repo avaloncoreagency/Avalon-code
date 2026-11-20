@@ -12,7 +12,7 @@ Este directorio organiza **referencias documentales** para PROJECT MANAGER y los
 
 | Grupo | Contenido | Fuente o directorio existente |
 | --- | --- | --- |
-| 00 Control | Índice, glosario, propiedad y estados | Este archivo y [control documental](./DOCUMENT_CONTROL.md) |
+| 00 Control | Índice, glosario, propiedad y estados | Este archivo, [control documental](./DOCUMENT_CONTROL.md), [catálogo de fuentes](./SOURCE_CATALOG.md) y [plantillas](./TEMPLATES.md) |
 | 01 Gobierno | Registro de decisiones, sustituciones y aprobaciones | [Registro inicial](./DECISION_REGISTER.md), GitHub Issues/PR con evidencias |
 | 02 Operaciones | Onboarding, implementación, mantenimiento, entrega | [CRM](../CRM_IMPLEMENTATION.md), [handoffs](../handoff/) |
 | 03 Producto | Criterios de calidad y alcance | [Módulos](../AVALON_OS_MODULES.md), [QA independiente](../independent-qa/) |
@@ -26,6 +26,16 @@ Este directorio organiza **referencias documentales** para PROJECT MANAGER y los
 | 90 Historia | Material sustituido, referencias de tiempo y decisiones revocadas | [PROJECT_STATE](../../PROJECT_STATE.md) (histórico), [coordinación 2026-11-11](../handoff/CHATGPT_COORDINATION.md) (histórico) |
 
 Las ubicaciones enlazadas pueden contener contenido de distinta fecha o vigencia; **la existencia de un archivo no verifica su actualidad**. No trasladar indiscriminadamente documentos a una carpeta `historical/`: conservar los enlaces, señalar fecha y revisar con el owner.
+
+## Acceso rápido para PROJECT MANAGER
+
+- **¿Dónde está la fuente y de qué fecha es?** [Catálogo de fuentes](./SOURCE_CATALOG.md), con distinción explícita entre archivos históricos y conocimiento por revisar.
+- **¿Quién aprobó una decisión?** [Registro de decisiones](./DECISION_REGISTER.md). Sin aprobador explícito, el resultado permanece en borrador.
+- **¿Cómo documentamos una operación repetible?** [Plantillas de decisión, SOP, investigación, incidente y handoff](./TEMPLATES.md).
+- **¿Cómo se actualiza y archiva la información?** [Protocolo documental](./DOCUMENT_CONTROL.md).
+- **¿Qué investigar sin contratar nada?** [Cartera de innovación](./INNOVATION_BACKLOG.md).
+
+Un elemento del catálogo puede estar **VERIFICADO como archivo existente** y **DESCONOCIDO como estado de producción**. La información actual depende de la comprobación del sistema y de su fecha, no del título del documento.
 
 ## Cómo contestar una pregunta operativa
 
