@@ -90,11 +90,23 @@ export function validateAgreement(input: AgreementData): string[] {
     if (value.length > max || /[\u0000-\u0008\u000B\u000C\u000E-\u001F]/.test(value)) errors.push(key);
   }
   if (input.agencyBrand?.length > 120) errors.push("agencyBrand");
-  // PDF currently uses WinAnsiEncoding. Do not silently replace non-Latin legal identities.
-  for (const k of ["agencyName", "clientName"] as const) {
-    if (typeof input[k] === "string" && /[^\x20-\x7e\xa0-\xff]/.test(
-      input[k].normalize("NFC").replace(/[\u2018\u2019]/g, "'").replace(/[\u2010-\u2015]/g, "-")))
-      errors.push(k);
+  // PDF uses WinAnsi. Reject unsupported user text before saving a legal draft;
+  // otherwise PDF fallback would silently alter names, scope or commission terms.
+  // Allow only typographic substitutions explicitly supported by the renderer.
+  const pdfCompatible = (value: string) => !/[^\x20-\x7e\xa0-\xff\r\n\t]/.test(
+    value.normalize("NFC")
+      .replace(/[\u2018\u2019]/g, "'")
+      .replace(/[\u201c\u201d]/g, '"')
+      .replace(/[\u2010-\u2015]/g, "-")
+      .replace(/\u2026/g, "...")
+      .replace(/\u2022/g, "-")
+  );
+  for (const [key, value] of Object.entries(input)) {
+    if (typeof value === "string" && !pdfCompatible(value)) errors.push(key);
+  }
+  // Cover-page identities must remain on a single line.
+  for (const key of ["agencyName", "clientName"] as const) {
+    if (typeof input[key] === "string" && /[\r\n\t]/.test(input[key])) errors.push(key);
   }
   return [...new Set(errors)];
 }
