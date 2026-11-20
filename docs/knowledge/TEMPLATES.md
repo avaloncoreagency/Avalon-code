@@ -1,6 +1,9 @@
 # Plantillas reutilizables de Knowledge & Innovation
 
-**Estado:** PROPUESTO. Estas plantillas son **documentación**, no órdenes ejecutables, contratos aprobados ni sustitutos de revisión por propietarios. Rellenar únicamente con datos autorizados en el sistema de clasificación correspondiente. **No introducir información confidencial en un repositorio público.**
+**ID:** KNI-TPL-001 · **Versión:** v0.2 · **Custodio propuesto:** Knowledge & Innovation.
+**Solidez:** PROPUESTO · **Vigencia:** POR REVISAR · **Aprobación:** BORRADOR · **Clasificación:** PUBLICABLE · **Última revisión:** 2026-11-20.
+
+Estas plantillas son **documentación**, no órdenes ejecutables, contratos aprobados ni sustitutos de revisión por propietarios. Rellenar únicamente con datos autorizados en el sistema de clasificación correspondiente. **No introducir información confidencial en un repositorio público.**
 
 ## 1. Registro de decisión (KDEC / ADR)
 
