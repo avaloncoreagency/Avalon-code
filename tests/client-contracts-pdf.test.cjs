@@ -77,16 +77,20 @@ test("contract PDF preserves multiline terms without question-mark substitutions
   assert.deepEqual(Array.from(agreement.validateAgreement(multiline)), []);
   const bytes = Buffer.from(pdf.renderAgreementPdf(agreement.makeAgreementSnapshot(multiline), "test-legal-pdf"));
   const source = bytes.toString("latin1");
-  assert.match(source, /\\(First line of scope\\) Tj/);
-  assert.match(source, /\\(Second line of scope\\) Tj/);
-  assert.match(source, /\\(Rate: 10%\\) Tj/);
-  assert.match(source, /\\(Attribution: approved only\\) Tj/);
-  assert.doesNotMatch(source, /First line of scope\\?/);
+  assert.ok(source.includes("(First line of scope) Tj"));
+  assert.ok(source.includes("(Second line of scope) Tj"));
+  assert.ok(source.includes("(Rate: 10%) Tj"));
+  assert.ok(source.includes("(Attribution: approved only) Tj"));
+  assert.doesNotMatch(source, /First line of scope\?/);
 });
+
 test("contract validation prevents unsupported characters silently mutating legal text", () => {
   assert.ok(agreement.validateAgreement({ ...sample, clientName: "Studio 🛠" }).includes("clientName"));
   assert.ok(agreement.validateAgreement({ ...sample, commission: "Price is €100" }).includes("commission"));
   assert.ok(agreement.validateAgreement({ ...sample, scope: "Custom 漢字 content" }).includes("scope"));
-  assert.ok(agreement.validateAgreement({ ...sample, agencyName: "Ana\\nLopez" }).includes("agencyName"));
-  assert.equal(agreement.validateAgreement({ ...sample, scope: "Two-line scope\\nSecond line — with ‘quoted’ details…" }).length, 0);
+  assert.ok(agreement.validateAgreement({ ...sample, agencyName: "Ana\nLopez" }).includes("agencyName"));
+  const supported = { ...sample, scope: "Two-line scope\nSecond line — with ‘quoted’ details…" };
+  assert.equal(agreement.validateAgreement(supported).length, 0);
+  const output = Buffer.from(pdf.renderAgreementPdf(agreement.makeAgreementSnapshot(supported), "test-typography")).toString("latin1");
+  assert.ok(output.includes("(Second line - with 'quoted' details...) Tj"));
 });
