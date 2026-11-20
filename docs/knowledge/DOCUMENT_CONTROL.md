@@ -1,6 +1,9 @@
 # Control documental — protocolo propuesto
 
-**Estado:** PROPUESTO; **fecha:** 2026-11-20; **audiencia:** PROJECT MANAGER y responsables departamentales. No constituye aprobación formal de política.
+**ID:** KNI-GOV-001 · **Versión:** v0.2 · **Custodio propuesto:** Knowledge & Innovation.
+**Solidez:** PROPUESTO · **Vigencia:** POR REVISAR · **Aprobación:** BORRADOR · **Clasificación:** PUBLICABLE · **Última revisión:** 2026-11-20.
+
+No constituye aprobación formal de política.
 
 ## Tres dimensiones que nunca se mezclan
 
