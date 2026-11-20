@@ -447,7 +447,7 @@ export function Crm({ section = "leads", focusLeadId, lang = "es" }: { section?:
         <section className={s.leadFirst} id="crm-create-lead" aria-label={t("Alta manual de leads", "Manual lead creation")}>
           <button type="button" className={s.primaryLeadAction} disabled={!data || loading || busy} onClick={() => edit(null)}>{t("Crear lead", "Create lead")}</button>
           <span>{t("Registra una oportunidad y organízala en el pipeline.", "Create an opportunity and manage it in the pipeline.")}{" "}
-            <a href="/admin/workspace/crm/desk#quick-add">{t("Formulario avanzado (dirección, ZIP, website, industria y detección de duplicados)", "Advanced form (address, ZIP, website, industry and duplicate check)")}</a></span>
+            <Link href="/admin/workspace/crm/desk#quick-add">{t("Formulario avanzado (dirección, ZIP, website, industria y detección de duplicados)", "Advanced form (address, ZIP, website, industry and duplicate check)")}</Link></span>
         </section>
       )}
       {section === "leads" && editorForm}
