@@ -48,12 +48,17 @@ const tools = [
 /** Radar is hibernated: it is only offered when the server-side switch is explicitly enabled (see RADAR_REACTIVATION_PLAN.md). */
 const radarTool = ["hunter", "/admin/workspace/crm/hunter", "Radar / Lead Hunter", "Radar / Lead Hunter"] as const;
 
-export function CrmTools({ lang = "es", active }: { lang?: Lang; active?: string }) {
+/**
+ * `radar` must come from the server when this renders inside a client component: the switch is a server-only
+ * variable, so evaluating it in the browser would always read "off" and mismatch the server HTML.
+ */
+export function CrmTools({ lang = "es", active, radar }: { lang?: Lang; active?: string; radar?: boolean }) {
+  const showRadar = radar ?? radarExternalEnabled();
   return (
     <details className={s.tools}>
       <summary>{pick(lang, "Más herramientas del CRM", "More CRM tools")}</summary>
       <nav className={s.toolLinks} aria-label={pick(lang, "Herramientas secundarias del CRM", "Secondary CRM tools")}>
-        {[...tools, ...(radarExternalEnabled() ? [radarTool] : [])].map(([key, href, es, en]) => (
+        {[...tools, ...(showRadar ? [radarTool] : [])].map(([key, href, es, en]) => (
           <Link key={key} href={href} aria-current={active === key ? "page" : undefined}>{pick(lang, es, en)}</Link>
         ))}
       </nav>

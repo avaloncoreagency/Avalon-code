@@ -45,7 +45,7 @@ export default async function CrmSectionPage({
     ? query.lead : undefined;
   return (
     <Suite active="crm">
-      <Crm section={section as CrmSection} focusLeadId={focusLeadId} lang={lang} />
+      <Crm section={section as CrmSection} focusLeadId={focusLeadId} lang={lang} radarEnabled={radarExternalEnabled()} />
       {section === "leads" && !focusLeadId && <LeadWorkbench />}
     </Suite>
   );

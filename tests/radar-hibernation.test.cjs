@@ -9,7 +9,13 @@ const read = f => fs.readFileSync(f, "utf8");
 test("CRM navigation only lists Radar when the server switch is on; website inquiries are listed instead", () => {
   const nav = read("src/components/crm/navigation.tsx");
   assert.doesNotMatch(nav.slice(nav.indexOf("const tools"), nav.indexOf("] as const;")), /\/crm\/hunter/, "Radar is not a regular tool");
-  assert.match(nav, /radarExternalEnabled\(\) \? \[radarTool\] : \[\]/);
+  assert.match(nav, /const showRadar = radar \?\? radarExternalEnabled\(\);/);
+  assert.match(nav, /showRadar \? \[radarTool\] : \[\]/);
+  // Client components cannot read the server-only switch: they must receive it evaluated on the server.
+  const crm = fs.readFileSync("src/components/crm/crm.tsx", "utf8");
+  assert.match(crm, /<CrmTools active=\{section\} lang=\{lang\} radar=\{radarEnabled\} \/>/);
+  assert.match(fs.readFileSync("src/app/admin/workspace/crm/[section]/page.tsx", "utf8"), /radarEnabled=\{radarExternalEnabled\(\)\}/);
+  assert.match(fs.readFileSync("src/components/crm/overview.tsx", "utf8"), /<CrmTools active="overview" radar=\{radarEnabled\} \/>/);
   assert.match(nav, /\/admin\/workspace\/crm\/inbound/);
 });
 

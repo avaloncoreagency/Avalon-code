@@ -72,7 +72,7 @@ function Metric({ label, value }: { label: string; value: string }) {
     </div>
   );
 }
-export function Crm({ section = "leads", focusLeadId, lang = "es" }: { section?: CrmSection; focusLeadId?: string; lang?: Lang }) {
+export function Crm({ section = "leads", focusLeadId, lang = "es", radarEnabled = false }: { section?: CrmSection; focusLeadId?: string; lang?: Lang; radarEnabled?: boolean }) {
   const t = (es: string, en: string) => pick(lang, es, en);
   const entity: Entity =
     section === "calendar"
@@ -469,7 +469,7 @@ export function Crm({ section = "leads", focusLeadId, lang = "es" }: { section?:
         </div>
       </header>
       <CrmNavigation active={section} lang={lang} />
-      <CrmTools active={section} lang={lang} />
+      <CrmTools active={section} lang={lang} radar={radarEnabled} />
       {focusedLead && <p className={s.notice} role="status">Oportunidad enlazada por ID exacto. <Link href="/admin/workspace/crm/leads">Ver todo el pipeline</Link></p>}
       {section === "hunter" && <TitanRadar onChanged={reload} />}
       <p className={s.muted}>
