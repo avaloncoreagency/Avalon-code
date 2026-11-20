@@ -61,7 +61,7 @@ export const MANAGER_JOBS: Record<ManagerCode, ManagerJob> = {
       "Revisar el flujo lead → venta → cliente con los registros existentes; no se creó ninguna venta.",
   },
   sora: {
-    title: "SORA · Prospectos del Radar",
+    title: "SORA · Prospectos y solicitudes",
     specs: [
       { key: "approved", label: "Prospectos aprobados", table: "crm_prospects", filters: [{ column: "status", op: "eq", value: "approved" }] },
       { key: "converted", label: "Prospectos convertidos", table: "crm_prospects", filters: [{ column: "status", op: "eq", value: "converted" }] },

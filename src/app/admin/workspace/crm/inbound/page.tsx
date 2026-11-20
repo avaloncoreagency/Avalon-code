@@ -11,7 +11,7 @@ export default async function InboundPage() {
   const lang = await getLang();
   return <Suite active="crm"><section className={s.hud}>
     <OpsHeader active="inbound" lang={lang} eyebrow="CRM · Inbound" title={pick(lang,"Solicitudes comerciales","Inbound inquiries")}
-      lead={pick(lang,"Consultas voluntarias del website. Revisarlas no ejecuta Radar ni crea clientes o ventas.","Voluntary website inquiries. Reviewing them does not run Radar or create clients or sales.")} />
+      lead={pick(lang,"Consultas voluntarias del website. Revisarlas no crea clientes ni ventas por sí solo.","Voluntary website inquiries. Reviewing them does not create clients or sales by itself.")} />
     <InboundInbox lang={lang}/>
   </section></Suite>;
 }

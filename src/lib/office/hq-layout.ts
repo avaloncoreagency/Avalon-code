@@ -13,7 +13,7 @@ const ROLES: Record<ManagerKey, string> = {
   ren: "Dirección de operaciones · coordina misiones",
   shin: "Seguridad · revisión de privilegios y RLS",
   haru: "CRM · seguimientos y tareas internas",
-  sora: "Radar · cola de oportunidades con evidencia",
+  sora: "Prospectos · cola de oportunidades con evidencia",
   kenji: "Calidad · datos, consumo y costes",
 };
 const MANAGERS: ManagerKey[] = ["ren", "shin", "haru", "sora", "kenji"];

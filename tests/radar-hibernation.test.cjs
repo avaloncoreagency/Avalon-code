@@ -48,3 +48,20 @@ test("every provider-facing entrypoint is behind the same switch (single flag, n
   for (const f of ["src/lib/crm/radar-control.ts", ...files]) for (const m of read(f).matchAll(/process\.env\.([A-Z_]*RADAR[A-Z_]*ENABLED[A-Z_]*)|env\.([A-Z_]*RADAR[A-Z_]*ENABLED)/g)) flags.add(m[1] || m[2]);
   assert.deepEqual([...flags], ["AVALON_RADAR_EXTERNAL_ENABLED"]);
 });
+
+test("no visible Radar copy remains in the daily UI (Office, settings, inbox); only the direct-URL suspension notice", () => {
+  for (const file of ["src/lib/office/manager-work.ts", "src/lib/office/hq-layout.ts", "src/components/office/manager-workstation.tsx",
+    "src/app/admin/settings/page.tsx", "src/app/admin/workspace/crm/inbound/page.tsx", "src/components/crm/command-summary.tsx",
+    "src/components/crm/intel/quick-add.tsx", "src/components/suite/modules.ts"]) {
+    const visible = fs.readFileSync(file, "utf8").split("\n").filter(line => !/^\s*(\/\/|\*|\/\*)/.test(line)).join("\n");
+    assert.doesNotMatch(visible, /"[^"]*\b(Radar|Lead Hunter)\b[^"]*"/, `${file} shows Radar to users`);
+  }
+});
+
+test("the deployed worker is a hibernation stub; the full worker stays in the repository", () => {
+  const plan = fs.readFileSync("docs/radar/RADAR_REACTIVATION_PLAN.md", "utf8");
+  assert.match(plan, /v11/);
+  assert.match(plan, /423/);
+  for (const file of ["index.ts", "radar-research.ts", "radar-website-safety.ts"])
+    assert.ok(fs.existsSync("supabase/functions/avalon-radar-worker/" + file), file + " preserved");
+});
