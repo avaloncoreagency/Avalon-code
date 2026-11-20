@@ -9,7 +9,7 @@ type ChallengeStatus = "idle" | "verifying" | "verified" | "retry";
 type TurnstileApi = {
   render: (container: HTMLElement, options: {
     sitekey: string;
-    action: "avalon_login" | "avalon_quote";
+    action: "avalon_login" | "avalon_quote" | "avalon_funnel";
     theme: "dark";
     size: "flexible";
     execution: "execute";
@@ -45,7 +45,7 @@ export function HumanVerification({
   language: Lang;
   onToken: (token: string) => void;
   /** Must match the server's verifyHumanToken(action). */
-  action?: "avalon_login" | "avalon_quote";
+  action?: "avalon_login" | "avalon_quote" | "avalon_funnel";
 }) {
   const [scriptReady, setScriptReady] = useState(false);
   const [scriptFailed, setScriptFailed] = useState(false);
@@ -155,7 +155,7 @@ export function HumanVerification({
         {scriptFailed
           ? (es ? "Cloudflare no pudo cargar. Recarga la página e inténtalo de nuevo." : "Cloudflare could not load. Refresh and try again.")
           : status === "verified"
-            ? (action === "avalon_quote"
+            ? (action !== "avalon_login"
               ? (es ? "Listo. Ya puedes enviar tu solicitud." : "Done. You can now send your request.")
               : (es ? "Listo. Ya puedes iniciar sesión." : "Done. You can now sign in."))
             : status === "retry"
