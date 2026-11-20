@@ -1,6 +1,9 @@
 # Cartera de innovación — evaluación documental
 
-**Estado:** PROPUESTO; **revisión:** 2026-11-20. Las prioridades no autorizan implementación, proveedor, gasto, llamadas IA, cron ni cambios remotos. La puntuación de impacto es cualitativa: no se inventan ahorros, precios ni ROI.
+**ID:** KNI-IDEAS-001 · **Versión:** v0.2 · **Custodio propuesto:** Knowledge & Innovation.
+**Solidez:** PROPUESTO · **Vigencia:** POR REVISAR · **Aprobación:** BORRADOR · **Clasificación:** PUBLICABLE · **Última revisión:** 2026-11-20.
+
+Las prioridades no autorizan implementación, proveedor, gasto, llamadas IA, cron ni cambios remotos. La puntuación de impacto es cualitativa: no se inventan ahorros, precios ni ROI.
 
 ## Criterios
 
