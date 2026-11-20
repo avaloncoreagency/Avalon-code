@@ -894,6 +894,7 @@ test('Nova Restaurant through the real app: one form, three departments, no dupl
   assert.ok((await one("select read_at from office_messages")).read_at, 'opening the conversation marks it read');
 
   // ── Public website: quote request → pending Lead Hunter prospect only ──
+  await require('./support/core-engine-ui.cjs')({db,context,miguel,samuel,origin,evidence:EVIDENCE,clientId,attachmentClientId:orbit.id});
   const visitor = await browser.newContext({ viewport: { width: 320, height: 720 } });
   const pub = await visitor.newPage();
   pub.on('pageerror', e => errors.push(`pageerror [${pub.url()}]: ${e.message}`));

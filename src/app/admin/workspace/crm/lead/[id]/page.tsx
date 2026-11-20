@@ -207,7 +207,7 @@ export default async function LeadPage({ params, searchParams }: { params: Promi
               </form>
             </section>
           </div>
-          <LeadAttachments leadId={id} lang={lang} files={files.data ?? []} unavailable={!!files.error} />
+          <LeadAttachments leadId={id} lang={lang} files={(files.data ?? []).map(file=>({...file,created_at_label:formatDate(lang,file.created_at)}))} unavailable={!!files.error} />
         </>}
 
         {tab === "recs" && <section className={s.panel} aria-labelledby="recs-title">

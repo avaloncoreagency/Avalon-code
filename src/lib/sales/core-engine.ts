@@ -120,11 +120,32 @@ const MESSAGES: Record<string, string> = {
   client_not_found: "Cliente no encontrado.",
 };
 
-export function coreEngineMessage(error: { message?: string; code?: string; details?: string } | null | undefined): string {
+export function coreEngineMessage(error: { message?: string; code?: string; details?: string } | null | undefined, lang: "es" | "en" = "es"): string {
+  if (lang === "en") return coreEngineEnglish(error);
+  const exact = Object.values(MESSAGES).find(message => message === error?.message);
+  if (exact) return exact;
   const text = `${error?.message ?? ""} ${error?.details ?? ""}`;
   if (/crm_payments_sale_reference_unique/.test(text)) return "Esa referencia de pago ya está registrada en esta venta.";
   if (/crm_commissions_one_open/.test(text)) return "Ya existe una comisión abierta para ese beneficiario en esta venta.";
   for (const [code, message] of Object.entries(MESSAGES)) if (new RegExp(`\\b${code}\\b`).test(text)) return message;
   if (error?.code === "42501") return MESSAGES.crm_forbidden;
   return "No se pudo completar la operación. Inténtalo de nuevo; no se registró nada a medias.";
+}
+
+
+function coreEngineEnglish(error: { message?: string; code?: string; details?: string } | null | undefined) {
+  const spanish = coreEngineMessage(error);
+  const translations: Record<string, string> = {
+    [MESSAGES.crm_forbidden]: "Only an authorized owner can perform this action.",
+    [MESSAGES.finance_forbidden]: "Your account does not have access to client finances.",
+    [MESSAGES.offer_requires_price]: "Set a price before approving the offer.",
+    [MESSAGES.invoice_exceeds_sale_total]: "Invoicing would exceed the contracted total.",
+    [MESSAGES.invoice_number_taken]: "This invoice number is already used for another sale or amount.",
+    [MESSAGES.invoice_has_payments]: "Reverse the recorded payments before voiding this invoice.",
+    [MESSAGES.commission_requires_verified_payment]: "A verified payment is required before accruing this commission.",
+    [MESSAGES.payment_evidence_required]: "Provide evidence, such as a receipt reference, to verify this payment.",
+    [MESSAGES.commission_invalid_transition]: "This status transition is not allowed.",
+    [MESSAGES.commission_payout_reference_required]: "Enter the reference of the commission payment already made.",
+  };
+  return translations[spanish] ?? "The operation could not be completed. Review the required fields, permissions and current record, then retry.";
 }

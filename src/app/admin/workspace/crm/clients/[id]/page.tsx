@@ -12,13 +12,15 @@ import { checkClientProjectLink } from "@/lib/crm/client-project-link";
 import { ClientOverview, type ClientCounts, type LinkableProduct } from "@/components/sales/client-overview";
 import { ClientEditPanel } from "@/components/sales/client-edit-panel";
 import { LeadAttachments, type LeadAttachment } from "@/components/crm/lead-attachments";
-import { label, money } from "@/lib/sales/domain";
+import { money } from "@/lib/sales/domain";
 import { ClientWorkspace } from "@/components/sales/client-workspace";
 import { loadAllRows, emptyLoaded, type FinanceSummary } from "@/lib/sales/client-finance";
 import { getCrmCapabilities, loadClientFinance } from "@/lib/sales/client-finance-server";
 import { addClientActivity, ensureClientOpportunity } from "../actions";
 import { DELIVERY_LABEL, DELIVERY_TONE, readDelivery } from "@/lib/os/delivery";
 import s from "@/components/sales/sales.module.css";
+import { loadClientLedger } from "@/lib/sales/core-engine-server";
+import { LedgerPanel } from "@/components/sales/core-panels";
 export const dynamic = "force-dynamic";
 
 type Client = { id: string; client_code: string; legal_name: string; trade_name: string; website: string; industry: string; country: string; location: string; source: string; notes: string; owner_id: string; origin_lead_id: string | null; status: string; created_at: string; version: number };
@@ -86,6 +88,7 @@ export default async function Client360({ params, searchParams }: { params: Prom
   // Totals: exact SQL aggregate when available; otherwise the fully paged rows (partial data is labelled partial).
   // A denied finance RPC is authoritative even if the user previously passed a capability check.
   const financeAllowed = financePermitted && financeResult?.allowed === true;
+  const ledger = financeAllowed ? await loadClientLedger(supabase,id) : null;
   const finance: FinanceSummary | null = financeAllowed && financeResult?.allowed === true ? financeResult.summary : null;
   const sales = salesLoaded.rows;
   const ownerList = owners.data ?? [];
@@ -145,7 +148,9 @@ export default async function Client360({ params, searchParams }: { params: Prom
         contacts={contacts.error ? null : (contacts.data ?? [])} nextSteps={nextSteps} nextStepsUnavailable={Boolean(tasks.error)}
         latest={timeline.data?.[0] ?? null} latestUnavailable={Boolean(timeline.error)} counts={counts}
         candidates={candidates} candidateError={Boolean(unassigned.error)} financeAvailable={financeAllowed} leadStage={lead?.data?.crm_stages?.label ?? lead?.data?.stage_id ?? null} />
-      {finance && finance.currencies.some(f => f.sales > 0) && <section className={s.stats} aria-label={pick(lang, "Situación financiera del cliente", "Client financial summary")}>
+      {ledger?.ok && <LedgerPanel ledger={ledger.data} lang={lang}/>}
+      {(!ledger || ("unavailable" in ledger)) && finance && finance.currencies.some(f => f.sales > 0) && <section className={s.stats} aria-label={pick(lang, "Situación financiera del cliente", "Client financial summary")}>
+
         {finance.currencies.filter(f => f.sales > 0).map(f => <div key={f.currency} className={s.stat}>
           <span>{pick(lang, "Contratado", "Contracted")} · {f.currency}{finance.complete ? "" : ` · ${pick(lang, "parcial", "partial")}`}</span>
           <strong>{money(lang, f.contractedCents / 100, f.currency)}</strong>
@@ -154,7 +159,7 @@ export default async function Client360({ params, searchParams }: { params: Prom
       </section>}
 
       <ClientWorkspace supabase={supabase} clientId={c.id} lang={lang} sales={sales.slice(0, SALES_SHOWN)}
-        financeAllowed={financeAllowed} finance={finance}
+        financeAllowed={financeAllowed} finance={finance} ledgerAvailable={ledger?.ok === true}
         />
       {alerts.length > 0 && <section className={s.panel} aria-labelledby="alerts"><h2 id="alerts">{pick(lang, "Alertas", "Alerts")}</h2><ul className={s.list}>{alerts.map(a => <li key={a.key} className={s.notice} data-severity="urgent"><Link href={a.href}>{a.text}</Link></li>)}</ul></section>}
 
@@ -169,7 +174,7 @@ export default async function Client360({ params, searchParams }: { params: Prom
         {!projects.error && projects.count !== null && projects.count > (projects.data?.length ?? 0) && <p className={s.muted}>{pick(lang, `Se muestran los ${projects.data?.length ?? 0} proyectos más recientes de ${projects.count}. Puedes ver todos por departamento desde el ecosistema de herramientas.`, `Showing the ${projects.data?.length ?? 0} most recent of ${projects.count} projects. Open the filtered module portfolio to browse the rest.`)}</p>}
       </section>
 
-      <LeadAttachments clientId={c.id} lang={lang} files={documents.data ?? []}
+      <LeadAttachments clientId={c.id} lang={lang} files={(documents.data ?? []).map(file=>({...file,created_at_label:formatDate(lang,file.created_at)}))}
         total={documents.count} unavailable={Boolean(documents.error)} />
       <div className={s.columns}>
         <section className={s.panel} aria-labelledby="sales"><header><h2 id="sales">{pick(lang, "Ventas y servicios", "Sales and services")}</h2></header>

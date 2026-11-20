@@ -61,13 +61,13 @@ test('new code on the production schema: no private page crashes before migratio
   const port = reservation.address().port;
   await new Promise(r => reservation.close(r));
   const origin = `http://localhost:${port}`;
-  const child = spawn(process.execPath, [require.resolve('next/dist/bin/next'), 'start', '-p', String(port)], {
+  const child = spawn(process.execPath, [require.resolve('next/dist/bin/next'), 'start', '--hostname', '127.0.0.1', '-p', String(port)], {
     env: { ...process.env, APP_ORIGIN: origin, NEXT_PUBLIC_SUPABASE_URL: bridge.url, NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: 'synthetic-key' },
     stdio: ['ignore', 'pipe', 'pipe'],
   });
   let output = '';
   child.stdout.on('data', c => (output += c)); child.stderr.on('data', c => (output += c));
-  t.after(async () => { child.kill(); await new Promise(r => child.once('exit', r)); });
+  t.after(()=>require('./support/stop-child.cjs')(child));
   for (let i = 0; i < 150; i++) {
     try { if ((await fetch(origin + '/login')).status < 500) break; } catch {}
     if (i === 149) assert.fail(output);
