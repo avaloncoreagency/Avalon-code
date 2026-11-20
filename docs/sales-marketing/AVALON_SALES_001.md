@@ -89,17 +89,22 @@ Hi [Name], I'm [Sender] with Avalon Core Agency. I noticed [genuine, verified de
 Cadencia **propuesta** únicamente para contactos permitidos: día 0 primer contacto, día hábil 3 un seguimiento que aporte evidencia, día hábil 10 último seguimiento; luego cerrar secuencia sin automatización. Si hay respuesta, acordar próxima fecha; ante rechazo o opt-out, **detener inmediatamente**. Antes de iniciar cualquier campaña/canal: revisión LEGAL & COMPLIANCE de CAN-SPAM, TCPA/Florida y reglas de plataforma. Ninguna plantilla constituye asesoría legal.
 
 ## 8. Contrato CRM, estados y atribución
-- El pipeline **canónico tiene 13 etapas**. Este playbook no modifica su esquema ni inserta etapas nuevas. Una vista ejecutiva de reporting podrá agrupar `investigación/contacto/calificación/reunión/propuesta/negociación/ganado` **solo después de mapear los IDs/estados reales**.
+- El pipeline **canónico tiene 13 etapas** y la implementación actual de presentación ya las agrupa en **cinco columnas**. No inventar un segundo pipeline ni reemplazar el agrupamiento existente. Fuente de código: `src/lib/crm/pipeline-groups.ts` en `main@207ed3a3dc8fdae5dd949a7361733e441c530519`.
+- **Nuevo:** `new`, `researched`, `contact-pending`; **En conversación:** `contacted`, `replied`, `qualified`, `meeting`, `diagnosed`, `nurture`; **Propuesta:** `proposal`, `negotiation`; **Ganado:** `won`; **Perdido:** `lost`. Estos son identificadores de etapas de producto, no eventos de contacto.
+- El agrupamiento es visual y paginado: los conteos de una página Kanban no son un total global auditado. Un stage personalizado no reconocido queda para revisión, no se elimina; mover dentro del mismo grupo preserva la etapa detallada. El cierre ganado conserva su validación contractual y no debe dispararse por un simple contacto.
+- El score comercial 0–10 aquí propuesto es **diferente** de `scoreProspect()` del Hunter, que evalúa **completitud de registro** en escala 0–100 (`src/lib/crm/domain.ts`). No presentar esa puntuación de integridad como probabilidad de venta ni sobrescribirla.
 - En `crm_leads`, la prospección de clientes de Avalon corresponde a la audiencia **agency_b2b**. Los consumidores B2C para trabajos de contratistas son **otra audiencia y otro flujo**; no deben entrar en el lead router B2B.
 - No crear `crm_clients` por cada prospecto si eso duplica la identidad comercial. Comprobar vínculo canónico con lead, cliente, venta y proyecto; no inventar ventas.
 - `won` solo tras las condiciones de contrato/firma y confirmación de venta definidas por el backend. `crm_sales.total` representa contratado; `crm_payments` representa cobrado, no deben mezclarse.
 - Cada oportunidad necesita owner interno, fuente y fecha, observación y confianza, historial de interacciones, permiso/supresión, siguiente acción y vencimiento. Si un campo no existe, registrarlo como **PENDIENTE DE PRODUCTO**, nunca prometer que ya funciona.
+- `crm_activities` admite actividad `pending` o `completed` y fecha `due_at`; **una nota completada no prueba por sí sola que hubo un contacto externo**. `crm_events` separa `scheduled`, `completed` y `cancelled`. Por tanto, verificar semánticamente la actividad antes de contabilizar un contacto o una reunión.
+- La opción `crm_leads.follow_up_at` y tareas internas deben indicar próxima acción del owner; **ninguna genera autorización para email, llamada, SMS o DM**. Sin un campo de supresión comprobado, mantener un registro manual privado y no enviar campañas.
 - No crear automaciones de envío ni aprovechar Radar suspendido.
 
 ## 9. KPIs con denominadores comprobables
 Compatible con `docs/commercial-foundation/KPI_DICTIONARY.md`:
 - Investigados: empresas únicas verificadas del período.
-- Contactados: prospectos únicos con interacción efectivamente registrada, **no emails preparados ni tareas creadas**.
+- Contactados: prospectos únicos con interacción saliente efectivamente realizada, canal y fecha verificables, **no emails preparados, notas genéricas, tareas creadas o recepciones inbound sin acción comercial saliente**.
 - Respuesta: prospectos con respuesta / contactados de la misma cohorte y ventana.
 - Reuniones celebradas: citas con evidencia de realización, no únicamente agendadas.
 - Propuestas emitidas: versiones enviadas y verificables, no borradores.
@@ -112,7 +117,7 @@ Compatible con `docs/commercial-foundation/KPI_DICTIONARY.md`:
 ## 10. Entrega / dependencias / criterios de aceptación
 **BUSINESS STRATEGY:** tarifa/scope de Website+Lead Capture, CRM+Pipeline y Marketing Ops; unit economics con costos de producción. **FINANCE & KPIs:** CAC, conversión por cohorte, atribución y comisiones. **LEGAL & COMPLIANCE:** revisión de contacto, consentimientos, privacidad, contratos y modelo porcentual. **PRODUCT STUDIO/CLIENT OPERATIONS:** demos reales y capacidad de entrega/piloto. **PROJECT MANAGER:** asignación y aprobaciones. Ningún chat se presume sincronizado.
 
-**Criterios de aceptación de esta documentación:** español e inglés disponibles; objetivos claramente propuestos; 13 etapas canónicas intactas; B2B vs B2C separados; no envío de contactos ni datos de clientes; restricciones de producción visibles.
+**Criterios de aceptación de esta documentación:** español e inglés disponibles; objetivos claramente propuestos; 13 etapas y cinco grupos de presentación canónicos intactos; score comercial separado del score de completitud; B2B vs B2C separados; no envío de contactos ni datos de clientes; restricciones de producción visibles. Ver instrucciones del operador en `docs/sales-marketing/EXECUTION_CHECKLIST_001.md`.
 
 **Pendiente de Miguel y Samuel:** elección de vertical prioritaria, territorio, ofertas/precios, revisión legal y permiso puntual para ejecutar contactos.
 
