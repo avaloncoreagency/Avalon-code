@@ -48,7 +48,7 @@ export function QuickAdd({ lang, owners, me }: { lang: Lang; owners: { user_id: 
           <label className={s.field}><span>ZIP</span><input name="zip" defaultValue={v("zip")} maxLength={10} inputMode="numeric" /></label>
           <label className={s.field}><span>{t(lang, "Origen", "Source")}</span>
             <select name="origin" defaultValue={v("origin", "manual")}>
-              {[["manual", "Entrada manual", "Manual entry"], ["radar", "Radar / Lead Hunter", "Radar / Lead Hunter"], ["referral", "Referido", "Referral"], ["website", "Website Avalon", "Avalon website"], ["campaign", "Campaña", "Campaign"], ["other", "Otro (verificable)", "Other (verifiable)"]]
+              {[["manual", "Entrada manual", "Manual entry"], ["referral", "Referido", "Referral"], ["website", "Website Avalon", "Avalon website"], ["campaign", "Campaña", "Campaign"], ["other", "Otro (verificable)", "Other (verifiable)"]]
                 .map(([v, es, en]) => <option key={v} value={v}>{t(lang, es, en)}</option>)}
             </select></label>
           <label className={s.field}><span>{t(lang, "Responsable", "Owner")}</span>

@@ -14,7 +14,7 @@ export type IconName = "dashboard" | "crm" | "website" | "store" | "blueprint" |
 
 export const modules: ModuleDef[] = [
   { slug: "crm", key: "crm", href: "/admin/workspace/crm", name: "CRM", icon: "crm", accent: "cyan",
-    description: { es: "Leads Pipeline, Ventas y Clientes 360°, con Radar y tareas en herramientas secundarias.", en: "Leads Pipeline, Sales and Clients 360°, with Radar and tasks in secondary tools." } },
+    description: { es: "Leads Pipeline, Ventas, Cotizaciones y Clientes 360°, con solicitudes del website y tareas.", en: "Leads Pipeline, Sales, Quotes and Clients 360°, with website inquiries and tasks." } },
   { slug: "website-designer", key: "website", href: "/admin/workspace/website-designer", name: "Website Designer", icon: "website", accent: "violet",
     description: { es: "Gestiona webs de clientes, conexiones, recursos, cambios y mantenimiento.", en: "Manage client websites, connections, resources, changes and maintenance." } },
   { slug: "ecommerce-designer", key: "ecommerce", href: "/admin/workspace/ecommerce-designer", name: "E-commerce Designer", icon: "store", accent: "magenta",

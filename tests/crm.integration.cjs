@@ -506,15 +506,21 @@ test(
       await page
         .getByText("Guardado correctamente.", { exact: true })
         .waitFor();
+      // Five approved groups (#253): "En conversación" writes its canonical stage "contacted".
       await page
-        .getByLabel("Etapa de Synthetic Browser")
-        .selectOption("contacted");
+        .getByLabel("Grupo de Synthetic Browser")
+        .selectOption("conversation");
       await page.waitForTimeout(200);
       await page.reload();
-      await page.getByLabel("Etapa de Synthetic Browser").waitFor();
+      await page.getByLabel("Grupo de Synthetic Browser").waitFor();
       assert.equal(
-        await page.getByLabel("Etapa de Synthetic Browser").inputValue(),
+        await page.getByLabel("Grupo de Synthetic Browser").inputValue(),
+        "conversation",
+      );
+      assert.equal(
+        (await db.query("select stage_id from crm_leads where company = 'Synthetic Browser'")).rows[0].stage_id,
         "contacted",
+        "the group move persisted the canonical stage",
       );
       fs.mkdirSync("../evidence", { recursive: true });
       await page.screenshot({
@@ -526,6 +532,10 @@ test(
         if (suffix === "/calendar") {
           await page.getByRole("heading", { name: "Nuestro calendario" }).waitFor();
           await page.getByRole("button", { name: "+ Crear evento" }).waitFor();
+        } else if (suffix === "/hunter") {
+          // Radar is hibernated (switch off in this run): the server renders the suspension page, never the Radar UI.
+          await page.getByRole("heading", { name: "Radar está suspendido" }).waitFor();
+          assert.equal(await page.getByRole("button", { name: "Buscar negocios" }).count(), 0, "no Radar search UI while hibernated");
         } else {
           if (suffix === "/leads") {
             await page.getByRole("region", { name: "Pipeline de oportunidades" }).waitFor();

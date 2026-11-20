@@ -14,7 +14,8 @@ type Meeting = { id: string; title: string; starts_at: string; client_id: string
 export function loadCommandSummary(supabase: SupabaseClient) {
   return Promise.all([
     run<SalesMetric[]>(supabase.rpc("crm_sales_metrics")),
-    countRows(supabase, "crm_prospects", [["eq", "status", "pending"]]),
+    // Same scope as the website inquiry inbox (pending prospects that came with a public inquiry); Radar finds are excluded.
+    run<null>(supabase.from("crm_prospects").select("id,crm_public_inquiries!inner(id)", { count: "exact", head: true }).eq("status", "pending")),
     countRows(supabase, "crm_tasks", [["not_in", "status", ["done", "cancelled"]], ["lt", "due_at", new Date().toISOString()]]),
     countRows(supabase, "os_projects", [["eq", "status", "active"]]),
     run<Meeting[]>(supabase.from("crm_events").select("id,title,starts_at,client_id,lead_id")
@@ -33,7 +34,7 @@ export async function CommandSummary({ supabase, lang, data }: { supabase: Supab
       <Link className={s.button} href="/admin/workspace/crm/clients">{pick(lang, "Abrir Clientes 360°", "Open Clients 360°")}</Link>
     </div>
     <div className={styles.metrics}>
-      <Link className={`${s.stat} ${styles.metric}`} href="/admin/workspace/crm/hunter"><span>{pick(lang, "Prospectos por revisar", "Prospects awaiting review")}</span><strong>{count(prospects)}</strong></Link>
+      <Link className={`${s.stat} ${styles.metric}`} href="/admin/workspace/crm/inbound"><span>{pick(lang, "Solicitudes por revisar", "Inquiries awaiting review")}</span><strong>{count(prospects)}</strong></Link>
       <Link className={`${s.stat} ${styles.metric}`} href="/admin/workspace/crm/tasks?view=overdue"><span>{pick(lang, "Tareas vencidas", "Overdue tasks")}</span><strong>{count(overdue)}</strong></Link>
       <div className={`${s.stat} ${styles.metric}`}><span>{pick(lang, "Proyectos marcados activos¹", "Projects marked active¹")}</span><strong>{count(projects)}</strong></div>
       {sales.error ? <div className={`${s.stat} ${styles.metric}`} role="status"><span>{pick(lang, "Ventas y cobros", "Sales and collections")}</span><strong>{pick(lang, "Sin datos", "Unavailable")}</strong></div>

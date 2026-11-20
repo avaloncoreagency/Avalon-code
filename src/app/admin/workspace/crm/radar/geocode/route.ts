@@ -1,3 +1,4 @@
+import { radarExternalEnabled, RADAR_PAUSED_MESSAGE } from "@/lib/crm/radar-control";
 import { NextRequest, NextResponse } from "next/server";
 import { getOwnerSession } from "@/lib/auth/session";
 import { validGeoapifyKey } from "@/lib/crm/radar-geoapify";
@@ -16,6 +17,7 @@ let last = 0;
 export async function GET(request: NextRequest) {
   const session = await getOwnerSession();
   if (!session) return reply({ error: "No autorizado" }, 403);
+  if (!radarExternalEnabled()) return reply({error:RADAR_PAUSED_MESSAGE,paused:true},423);
   const q = normalizeQuery(request.nextUrl.searchParams.get("q"));
   if (q.length < 2) return reply({ error: "Escribe una ciudad, dirección, código postal o coordenadas (lat, lon)." }, 400);
   const kind = classifyQuery(q);

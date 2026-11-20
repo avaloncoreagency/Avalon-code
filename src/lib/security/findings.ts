@@ -138,7 +138,7 @@ export const FINDINGS: Finding[] = [
     title: ["Funciones públicas con privilegios elevados: revisar excepciones y límites", "Public privileged functions: review exceptions and rate limits"],
     location: "public.crm_public_inquiry · crm_ai_public_control · crm_growth_funnel_view/submit · os_bridge_api_open_import/import_status",
     fix: ["Las consultas públicas y funnels tienen controles de entrada y límites; los dos RPC del puente requieren token y scope, y el control IA devuelve solo interruptores. Mantener pruebas negativas, revisar abuso y no revocar flujos legítimos sin estudiar dependencias.", "Public intake and funnel RPCs validate and throttle requests; both bridge RPCs require scoped tokens, and AI control exposes only switches. Keep negative tests, assess abuse, and check dependencies before revoking required access."],
-    evidence: "2026-11-14: Supabase advisor reports 6 anon SECURITY DEFINER functions; read-only pg_proc privileges + pg_get_functiondef inspected. Access is intentional in existing designs; dynamic misuse testing still pending.",
+    evidence: "2026-11-14: Supabase advisor reports 6 anon SECURITY DEFINER functions; read-only pg_proc privileges + pg_get_functiondef inspected. Access is intentional in existing designs; dynamic misuse testing still pending. 2026-11-19 re-check: crm_ai_public_control must stay anon-callable — scripts/ai-engine/operate.cjs (GitHub Actions) reads it with the publishable key to honour Avalon's kill switch and fails closed if it is unreachable; it returns only kill_switch/automatic_enabled/ai_enabled/suspended (tests/security.test.cjs).",
   },
   {
     id: "R-18", severity: "medium", status: "open", area: "Supabase",

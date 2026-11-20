@@ -24,8 +24,8 @@ const kinds: [string, string, string][] = [
  * shown only when it is complete; otherwise a labelled partial subtotal (never when a source failed) and the reason.
  * `sales` are only the most recent rows, used for the service list.
  */
-export async function ClientWorkspace({ supabase, clientId, lang, sales, financeAllowed, finance }: {
-  supabase: SupabaseClient; clientId: string; lang: Lang; sales: Sale[]; financeAllowed: boolean; finance: FinanceSummary | null;
+export async function ClientWorkspace({ supabase, clientId, lang, sales, financeAllowed, finance, ledgerAvailable = false }: {
+  ledgerAvailable?: boolean; supabase: SupabaseClient; clientId: string; lang: Lang; sales: Sale[]; financeAllowed: boolean; finance: FinanceSummary | null;
 }) {
   const [workspace, journal, costs, revisions, detailRevisions] = await Promise.all([
     run<Workspace | null>(supabase.from("crm_client_workspace").select("client_id,package_name,development_stage,next_step,version").eq("client_id",clientId).maybeSingle()),
@@ -56,7 +56,7 @@ export async function ClientWorkspace({ supabase, clientId, lang, sales, finance
     {pending && <p role="status" className={s.notice}>{pick(lang,"La migración del expediente interno aún no está aplicada. No se muestran cifras incompletas.","The internal dossier migration has not been applied. Incomplete amounts are hidden.")}</p>}
     {failed && <p role="alert" className={s.notice}>{pick(lang,"No fue posible leer parte del expediente. Verifica los permisos y la base de datos.","Part of the dossier could not be loaded. Verify permissions and database.")}</p>}
     {!(pending||failed) && <>
-      {financeAllowed && <div className={s.stats}>
+      {financeAllowed && !ledgerAvailable && <div className={s.stats}>
         {!finance && <p role="alert" className={s.notice}>{pick(lang,"Resumen financiero no disponible: no se muestran importes parciales.","Financial summary unavailable: partial amounts are hidden.")}</p>}
         {finance && notice && <p role="status" className={s.notice} data-finance="partial">{notice}</p>}
         {finance && !sourceFailed && finance.currencies.map(f=><div key={f.currency} className={s.stat}>

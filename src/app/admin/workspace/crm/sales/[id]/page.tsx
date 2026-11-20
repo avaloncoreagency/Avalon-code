@@ -10,12 +10,13 @@ import { SERVICES, isService } from "@/lib/os/client-hud";
 import { label, money, PAYMENT_METHODS, WORK_ORDER_STATUSES } from "@/lib/sales/domain";
 import { recordPayment, updateContract, updateWorkOrder } from "../actions";
 import s from "@/components/sales/sales.module.css";
+import { SaleCorePanels } from "@/components/sales/core-panels";
 export const dynamic = "force-dynamic";
 
 type Sale = { id: string; sale_number: string; correlation_id: string; client_id: string; lead_id: string | null; sold_on: string; currency: string; subtotal: string; discount_total: string; tax_rate: string; tax_total: string; total: string; recurring_monthly: string; billing_mode: string; upfront_amount: string; seller_id: string; contract_status: string; delivery_status: string; notes: string; confirmed_at: string; crm_clients: { legal_name: string; client_code: string } | null };
 type Line = { id: string; position: number; description: string; quantity: string; unit_price: string; discount: string; line_total: string; billing_type: string; crm_service_catalog: { name: string; name_en: string } | null };
 type Order = { id: string; sale_line_id: string; department_id: string; project_id: string | null; assignee_id: string; recurrence: string; status: string; due_on: string | null; crm_departments: { label: string; os_module: string | null } | null; os_projects: { name: string; module: string } | null };
-type Payment = { id: string; amount: string; received_on: string; method: string; reference: string };
+type Payment = { status?: string; id: string; amount: string; received_on: string; method: string; reference: string };
 type Event = { id: number; event_type: string; module: string; detail: string; result: string; from_state: string | null; to_state: string | null; actor_id: string | null; created_at: string };
 
 export default async function SaleDetail({ params, searchParams }: { params: Promise<{ id: string }>; searchParams: Promise<Query> }) {
@@ -29,14 +30,14 @@ export default async function SaleDetail({ params, searchParams }: { params: Pro
   const [lines, orders, payments, owners, tasks] = await Promise.all([
     run<Line[]>(supabase.from("crm_sale_lines").select("id,position,description,quantity,unit_price,discount,line_total,billing_type,crm_service_catalog(name,name_en)").eq("sale_id", id).order("position")),
     run<Order[]>(supabase.from("crm_work_orders").select("id,sale_line_id,department_id,project_id,assignee_id,recurrence,status,due_on,crm_departments(label,os_module),os_projects(name,module)").eq("sale_id", id).order("created_at").order("id")),
-    run<Payment[]>(supabase.from("crm_payments").select("id,amount,received_on,method,reference").eq("sale_id", id).order("received_on")),
+    run<Payment[]>(supabase.from("crm_payments").select("*").eq("sale_id", id).order("received_on")),
     run<{ user_id: string; email: string }[]>(supabase.rpc("crm_owner_directory")),
     run<{ work_order_id: string; status: string }[]>(supabase.from("crm_tasks").select("work_order_id,status").eq("sale_id", id).limit(1000)),
   ]);
   const events = sale.data ? await run<Event[]>(supabase.from("crm_timeline").select("id,event_type,module,detail,result,from_state,to_state,actor_id,created_at").or(`correlation_id.eq.${sale.data.correlation_id},sale_id.eq.${id}`).order("id").limit(200)) : null;
   const ownerList = owners.data ?? [];
   const d = sale.data;
-  const paid = (payments.data ?? []).reduce((sum, x) => sum + Number(x.amount), 0);
+  const paid = (payments.data ?? []).filter(x=>x.status !== "reversed").reduce((sum, x) => sum + Number(x.amount), 0);
   const progress = (woId: string) => {
     const list = (tasks.data ?? []).filter(t => t.work_order_id === woId);
     return list.length ? `${list.filter(t => t.status === "done").length}/${list.filter(t => t.status !== "cancelled").length}` : "—";
@@ -77,6 +78,7 @@ export default async function SaleDetail({ params, searchParams }: { params: Pro
           </tr>; })}</tbody></table></div>}
       </section>
 
+      <SaleCorePanels db={supabase} saleId={d.id} clientId={d.client_id} lang={lang} currency={d.currency} owners={ownerList}/>
       <div className={s.columns}>
         <section className={s.panel} aria-labelledby="timeline"><header><h2 id="timeline">{pick(lang, "Línea de tiempo de la operación", "Operation timeline")}</h2></header>
           {!events || events.error ? <Unavailable lang={lang} code={events?.error ?? "unavailable"} /> : <ol className={s.timeline}>{events.data.map(e => <li key={e.id} data-result={e.result}>

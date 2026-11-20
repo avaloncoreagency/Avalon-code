@@ -12,6 +12,7 @@ import {
 } from "@/app/admin/workspace/crm/calendar/actions";
 import s from "./shared-calendar.module.css";
 import { AVALON_TIME_ZONE } from "@/lib/i18n";
+import { calendarDayLabel, calendarMonthLabel } from "./calendar-labels";
 import { calendarInput, calendarInstant } from "./calendar-time";
 import { useDialogFocus } from "./use-dialog-focus";
 
@@ -20,7 +21,7 @@ type Lead = { id: string; company: string };
 type Props = {
   events: CalendarEvent[]; banners: DayBanner[]; owners: OwnerOption[];
   clients: Client[]; leads: Lead[]; userId: string;
-  initialDate: string; initialView: CalendarView; lang: "es" | "en";
+  initialToday?: string; initialDate: string; initialView: CalendarView; lang: "es" | "en";
   dataError?: string;
 };
 type DraftEvent = {
@@ -44,9 +45,6 @@ const THEME_LABELS: Record<string, [string, string]> = {
   amber: ["Dorado", "Golden"], rose: ["Rosa", "Rose"],
 };
 const pad = (v: number) => String(v).padStart(2, "0");
-const localToday = () => {
-  return dayInZone(new Date().toISOString(), AVALON_TIME_ZONE);
-};
 const colorStyle = (value: string) => ({ "--calendar-accent": CALENDAR_COLORS.includes(value as typeof CALENDAR_COLORS[number]) ? value : CALENDAR_COLORS[0] }) as CSSProperties;
 function downloadIcs(event: CalendarEvent) {
   const escape = (v: string) => v.replace(/\\/g, "\\\\").replace(/\r?\n/g, "\\n").replace(/[,;]/g, "\\$&");
@@ -70,11 +68,11 @@ function downloadIcs(event: CalendarEvent) {
   setTimeout(() => URL.revokeObjectURL(url), 2000);
 }
 
-export function SharedCalendar({ events, banners, owners, clients, leads, userId, initialDate, initialView, lang, dataError }: Props) {
+export function SharedCalendar({ events, banners, owners, clients, leads, userId, initialDate, initialToday = initialDate, initialView, lang, dataError }: Props) {
   const router = useRouter();
-  const [date, setDate] = useState(isCalendarDay(initialDate) ? initialDate : localToday());
+  const [date, setDate] = useState(isCalendarDay(initialDate) ? initialDate : "");
   const [view, setView] = useState<CalendarView>(initialView);
-  const [selected, setSelected] = useState(isCalendarDay(initialDate) ? initialDate : localToday());
+  const [selected, setSelected] = useState(isCalendarDay(initialDate) ? initialDate : "");
   const [filter, setFilter] = useState("all");
   const zone = AVALON_TIME_ZONE;
   const [draft, setDraft] = useState<DraftEvent | null>(null);
@@ -103,16 +101,11 @@ export function SharedCalendar({ events, banners, owners, clients, leads, userId
   const dayEvents = (day: string) => filtered.filter(e => eventOnDay(e, day, zone))
     .sort((a, b) => a.starts_at.localeCompare(b.starts_at));
   const onDay = dayEvents(selected);
-  const today = localToday();
-  const title = new Intl.DateTimeFormat(lang === "es" ? "es-419" : "en-US",
-    { month: "long", year: "numeric", timeZone: "UTC" }).format(new Date(date.slice(0, 7) + "-01T12:00:00Z"));
-  const dateLabel = (day: string) => new Intl.DateTimeFormat(lang === "es" ? "es-419" : "en-US",
-    { weekday: "short", day: "numeric", month: "short", timeZone: "UTC" }).format(new Date(day + "T12:00:00Z"));
-  const timeLabel = (event: CalendarEvent) => {
-    if (event.all_day) return t("Todo el día", "All day");
-    const fmt = new Intl.DateTimeFormat(lang === "es" ? "es-419" : "en-US", { hour: "numeric", minute: "2-digit", timeZone: zone });
-    return fmt.format(new Date(event.starts_at)) + " – " + fmt.format(new Date(event.ends_at));
-  };
+  const today = initialToday;
+  const title = calendarMonthLabel(date,lang);
+  const dateLabel = (day:string) => calendarDayLabel(day,lang);
+  const timeLabel = (event:CalendarEvent) => event.all_day ? t("Todo el día","All day") :
+    calendarInput(event.starts_at,zone).slice(11) + " – " + calendarInput(event.ends_at,zone).slice(11);
   const bannerFor = (day: string) => banners.find(b => b.day === day);
   const navigate = (target: string, mode: CalendarView = view) => {
     if (!isCalendarDay(target)) return;

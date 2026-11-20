@@ -20,7 +20,10 @@ export default async function MarketingHubPage({ searchParams }: { searchParams:
   const page=Number.isSafeInteger(pageRaw) && pageRaw>=1 && pageRaw<=1000?pageRaw:1;
   const clientParam = param(params, "client");
   const scopedClientId = isUuid(clientParam) ? clientParam : undefined;
-  const projects = await listProjects(supabase, "marketing", { includeArchived: showArchived, page, clientId: scopedClientId });
+  const searchQuery = (param(params, "q") ?? "").trim().slice(0,80);
+  const requestedStatus = param(params,"status") ?? "";
+  const stateFilter = ["draft","active","archived"].includes(requestedStatus) ? requestedStatus : "";
+  const projects = await listProjects(supabase, "marketing", { includeArchived: showArchived, page, clientId: scopedClientId, search: searchQuery, status: stateFilter });
   return (
     <Suite active="marketing-hub">
       <PageHeader eyebrow="Marketing Hub" title={pick(lang, "Mis Campañas y Funnels", "My Campaigns and Funnels")}
@@ -36,7 +39,7 @@ export default async function MarketingHubPage({ searchParams }: { searchParams:
         </Link>
       </section>
       <Flash lang={lang} ok={param(params, "ok")} error={param(params, "error")} />
-      <ProjectsIndex lang={lang} module="marketing" base="/admin/workspace/marketing-hub" projects={projects} noun={{ es: "campañas", en: "campaigns" }} showArchived={showArchived} page={page} prefillClientId={scopedClientId}
+      <ProjectsIndex lang={lang} module="marketing" base="/admin/workspace/marketing-hub" projects={projects} noun={{ es: "campañas", en: "campaigns" }} showArchived={showArchived} page={page} prefillClientId={scopedClientId} searchQuery={searchQuery} stateFilter={stateFilter}
         createFields={<label className={s.field}><span>{pick(lang, "Objetivo", "Goal")}</span><input className={s.input} name="goal" maxLength={500} /></label>} />
     </Suite>
   );

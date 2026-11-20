@@ -4,7 +4,9 @@
   "private": true,
   "scripts": {
     "dev": "next dev",
+    "prebuild": "node scripts/patch-react-hydration-replay.cjs",
     "build": "next build",
+    "postbuild": "node scripts/verify-react-418-bundle.cjs",
     "start": "next start",
     "lint": "eslint .",
     "typecheck": "tsc --noEmit",
@@ -22,7 +24,8 @@
     "bridge:brief": "node scripts/dev-bridge/cli.cjs brief",
     "creative:validate": "node scripts/creative-bridge/validate.cjs",
     "acx": "node scripts/gitless/acx.mjs",
-    "bridge:health": "node scripts/bridge-health/cli.cjs"
+    "bridge:health": "node scripts/bridge-health/cli.cjs",
+    "postinstall": "node scripts/patch-react-hydration-replay.cjs"
   },
   "dependencies": {
     "@supabase/ssr": "0.6.1",
