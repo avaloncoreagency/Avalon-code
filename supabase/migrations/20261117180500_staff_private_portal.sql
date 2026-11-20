@@ -182,7 +182,11 @@ grant select, insert on public.staff_private_messages to authenticated;
 grant update (read_at) on public.staff_private_messages to authenticated;
 create policy staff_messages_read on public.staff_private_messages for select to authenticated
  using ((sender_id=(select auth.uid()) or recipient_id=(select auth.uid())) and
-   ((select crm_private.is_owner()) or (select crm_private.staff_active())));
+   ((select crm_private.is_owner()) or
+    ((select crm_private.staff_active()) and exists (
+      select 1 from public.staff_portal_access a
+      where a.user_id=(select auth.uid()) and a.active and a.can_message
+    ))));
 create policy staff_messages_send on public.staff_private_messages for insert to authenticated
  with check (sender_id=(select auth.uid()) and
    ((select crm_private.is_owner()) or
@@ -191,9 +195,17 @@ create policy staff_messages_send on public.staff_private_messages for insert to
    and exists (select 1 from public.staff_contacts c where c.user_id=recipient_id and c.is_listed));
 create policy staff_messages_mark_read on public.staff_private_messages for update to authenticated
  using (recipient_id=(select auth.uid()) and
-   ((select crm_private.is_owner()) or (select crm_private.staff_active())))
+   ((select crm_private.is_owner()) or
+    ((select crm_private.staff_active()) and exists (
+      select 1 from public.staff_portal_access a
+      where a.user_id=(select auth.uid()) and a.active and a.can_message
+    ))))
  with check (recipient_id=(select auth.uid()) and
-   ((select crm_private.is_owner()) or (select crm_private.staff_active())));
+   ((select crm_private.is_owner()) or
+    ((select crm_private.staff_active()) and exists (
+      select 1 from public.staff_portal_access a
+      where a.user_id=(select auth.uid()) and a.active and a.can_message
+    ))));
 
 create function crm_private.staff_message_guard() returns trigger
 language plpgsql security invoker set search_path='' as $$
