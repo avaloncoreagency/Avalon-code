@@ -1,4 +1,4 @@
--- Avalon OS · Performance (Supabase advisor auth_rls_initplan, 6 warnings). REVIEW ONLY until an owner approves applying it.
+-- Avalon OS · Performance (Supabase advisor auth_rls_initplan, 6 warnings). Applied to production 2026-11-20 with owner authorization (ledger 20261120130358).
 -- Same predicates, evaluated once per statement instead of once per row: auth.uid()/is_owner() are wrapped in (select ...).
 -- ALTER POLICY keeps each policy's name, command and roles; nothing is widened.
 begin;

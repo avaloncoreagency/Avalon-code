@@ -1,5 +1,5 @@
 -- Avalon OS · Security: crm_public_inquiry rejects malformed `services` instead of raising SQLSTATE 22023 (PR #249).
--- REVIEW ONLY until an owner explicitly approves applying it to production. Identical to the production definition
+-- Applied to production 2026-11-20 with owner authorization (ledger 20261120130354). Identical to the production definition
 -- (verified 2026-11-20 with pg_get_functiondef) except the services type guard. CREATE OR REPLACE keeps existing grants.
 begin;
 create or replace function public.crm_public_inquiry(request jsonb) returns text

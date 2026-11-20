@@ -1,5 +1,5 @@
 -- Avalon OS · Commercial Core 360 · 8.2 Product delivery lifecycle. ADDITIVE ONLY.
--- REVIEW ONLY until an owner explicitly approves applying it to production.
+-- Applied to production 2026-11-20 with owner authorization (ledger 20261120130331).
 --
 -- os_projects.settings.delivery = { stage, history[] } (no new column, no data rewrite, no RLS/grant change).
 -- This BEFORE trigger only acts when settings.delivery changes. It guarantees what the application promises:

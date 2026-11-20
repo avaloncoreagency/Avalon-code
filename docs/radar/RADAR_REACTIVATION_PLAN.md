@@ -59,16 +59,16 @@ Su código, migraciones, tablas, historial y pruebas se conservan. Mientras est�
 
 No hay datos verificables de facturación de Geoapify en el repositorio, así que no se estiman costes. Antes de reactivar, revisar el panel del proveedor.
 
-## 4. Recursos remotos en producción (verificado 2026-11-20, solo lectura)
+## 4. Recursos remotos en producción (actualizado 2026-11-20, con autorización del propietario)
 
 | Recurso | Estado observado | Acción recomendada (requiere autorización) |
 |---|---|---|
-| `pg_cron` job `avalon-radar-hourly` | Existe, **inactivo** (`active=false`) | Mantener inactivo. Opcional: `cron.unschedule` |
-| `crm_radar_worker_config.enabled` | `true` | Poner `false` con `scripts/ops/radar-worker-disable.sql` (reversible) |
+| `pg_cron` job `avalon-radar-hourly` | **Eliminado** (`cron.unschedule`, 2026-11-20). Antes existía inactivo | Para reactivar, volver a instalarlo con `scripts/ops/radar-worker-install.sql` (paso 6 del §8) |
+| `crm_radar_worker_config.enabled` | **`false`** (2026-11-20, `scripts/ops/radar-worker-disable.sql`). Historial conservado: 86 prospectos y 57 informes | Reversible: `enabled=true` solo tras el §8 |
 | Edge Function `avalon-radar-worker` v10 | **ACTIVE**, `verify_jwt=false`, exige un token cuyo SHA-256 coincida con la config. Esa versión **no** tiene el interruptor de #250 | Redeplegar la versión con el interruptor, o desactivar la función |
 | Variable `AVALON_RADAR_EXTERNAL_ENABLED` en Vercel | Ausente (= apagado) | No añadirla mientras esté suspendido |
 
-Con el cron inactivo y la función protegida por token, hoy no hay ejecuciones automáticas. Los dos cambios remotos anteriores son una defensa adicional que **no** se ejecuta sin autorización explícita de un propietario.
+Sin cron, con el worker en `enabled=false` y la función protegida por token, no hay ejecuciones automáticas. Queda pendiente redesplegar la Edge Function con el interruptor de #250 (o desactivarla). Hoy no puede ejecutarse por ninguna vía programada.
 
 ## 5. Problemas funcionales conocidos
 
