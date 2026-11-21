@@ -67,12 +67,15 @@ function timelineLimit(raw: string | null) {
   return Number.isInteger(n) ? Math.min(MAX_LIMIT, Math.max(50, n)) : DEFAULT_LIMIT;
 }
 // Bookkeeping columns never shown as edits; stage moves already appear as stage history.
-const IGNORED = new Set(["id", "agency_key", "version", "updated_at", "created_at", "created_by", "stage_id", "stage_entered_at", "search_vector"]);
+// Derived columns maintained by triggers (last_interaction_at on every note/activity, the computed lead_score)
+// are not owner edits: the note/activity itself is the event. The audit rows are kept untouched in the database.
+const IGNORED = new Set(["id", "agency_key", "version", "updated_at", "created_at", "created_by", "stage_id", "stage_entered_at", "search_vector",
+  "last_interaction_at", "lead_score"]);
 const FIELD_LABEL: Record<string, string> = {
   company: "Empresa", contact: "Contacto", email: "Correo", phone: "Teléfono", website: "Website", city: "Ciudad", zip: "ZIP",
   source: "Origen", value: "Valor estimado", priority: "Prioridad", owner_id: "Responsable", follow_up_at: "Próximo contacto",
   next_action: "Próxima acción", notes: "Notas", loss_reason: "Motivo de pérdida", industry: "Industria", archived: "Archivado",
-  body: "Texto", status: "Estado", due_at: "Fecha", kind: "Tipo",
+  body: "Texto", status: "Estado", due_at: "Fecha", kind: "Tipo", contract_status: "Estado del contrato", industry_key: "Industria",
 };
 /** Only changed field NAMES leave the server: never the before/after values (they can hold private content). */
 function editSummary(row: AuditRow) {
