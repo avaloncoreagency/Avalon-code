@@ -1,5 +1,7 @@
 # Final validation — Refs #292
 
+> Current21Nov2026 independent checkpoint: `PARALLEL_FORCE_20261121.md`. Pins now use #298@860288ccff13417cad433753697ac67d9e831bcd (including #294@55133cd and #297), plus #265/#293. The historical FV-001 below is resolved in synthetic acceptance on those pins. A new keyboard-modal acceptance finding remains red. Hosted release remains NO-GO. Historical results are not substituted for current evidence.
+
 2026-11-20 · main207ed3a · owner Miguel / executor Codex; Claude owns intake, CRM and backend fixes. **Pilot BLOCKED.** This additive PR changes only QA/release documentation. No application, migration, Auth/RLS, Guardian or employee portal implementation is changed. No production merge/deployment/SQL/configuration was performed.
 
 ## Current checkpoint and source freshness

@@ -28,4 +28,18 @@ function session(message) {
   assert.equal(sql('select count(*) from crm_public_inquiries'), '2');
   for (const t of ['crm_leads', 'crm_clients', 'crm_sales']) assert.equal(sql('select count(*) from ' + t), '0');
   console.log('PASS: four submissions, two concurrent pairs, one prospect/two messages/no fabricated sale');
+  const a='00000000-0000-4000-8000-000000000001',b='00000000-0000-4000-8000-000000000002';
+  sql(`insert into auth.users(id) values('${b}');insert into agency_memberships(user_id,role) values('${b}','owner');`);
+  const lead=sql(`set request.jwt.claim.sub='${a}';set role authenticated;insert into crm_leads(company,source,owner_id) values('Concurrent Synthetic Lead','manual','${a}') returning id;`).split('\n').find(x=>/^[a-f0-9-]{36}$/.test(x));
+  assert.ok(lead,'synthetic versioned lead created');
+  const ownerMove=(actor,stage)=>new Promise((resolve,reject)=>{
+    const p=cp.spawn('psql',['-XAt','-v','ON_ERROR_STOP=1'],{env});let out='',err='';p.stdout.on('data',b=>out+=b);p.stderr.on('data',b=>err+=b);p.on('error',reject);p.on('close',code=>code?reject(Error(err)):resolve(out.trim().split('\n').filter(x=>/^[01]$/.test(x))));
+    p.stdin.end(`begin;set local role authenticated;set local request.jwt.claim.sub='${actor}';select pg_sleep(0.4);with changed as(update crm_leads set stage_id='${stage}' where id='${lead}' and version=1 returning id) select count(*) from changed;commit;`);
+  });
+  const raced=await Promise.all([ownerMove(a,'contacted'),ownerMove(b,'proposal')]);
+  assert.ok(raced.every(r=>r.length===1));assert.deepEqual(raced.flat().sort(),['0','1']);
+  assert.equal(sql(`select version from crm_leads where id='${lead}'`),'2');
+  assert.equal(sql(`select count(*) from crm_lead_stage_history where lead_id='${lead}'`),'2');
+  assert.equal(sql('select count(*) from crm_sales'),'0');
+  console.log('PASS: two independent owner sessions, one version winner, one stale write, one history change, no sale');
 })().catch(e => { console.error(e); process.exitCode = 1; });
