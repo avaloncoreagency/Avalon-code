@@ -107,7 +107,7 @@ export function LeadTimeline({ lang = "es", lead, stages, revision, onClose, onE
     const key = (e: KeyboardEvent) => {
       if (e.key === "Escape") { onClose(); return; }
       if (e.key !== "Tab" || !dialog.current) return;
-      const items = [...dialog.current.querySelectorAll<HTMLElement>('summary,a[href],button:not([disabled]),input:not([disabled]),select:not([disabled]),textarea:not([disabled]),[tabindex]:not([tabindex="-1"])')];
+      const items = [...dialog.current.querySelectorAll<HTMLElement>('summary,a[href],button:not([disabled]),input:not([disabled]),select:not([disabled]),textarea:not([disabled]),[tabindex]:not([tabindex="-1"])')].filter(el => el.getClientRects().length > 0);
       if (!items.length) return;
       const first = items[0], last = items[items.length - 1];
       if (e.shiftKey && (document.activeElement === first || document.activeElement === dialog.current)) { e.preventDefault(); last.focus(); }
