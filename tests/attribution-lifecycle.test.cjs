@@ -43,7 +43,7 @@ test("results page uses the versioned lifecycle RPC and labels customer revenue 
   assert.match(page, /name="version"/);
   const migration = fs.readFileSync("supabase/migrations/20261121182000_crm_attribution_legacy_guard.sql", "utf8");
   assert.match(migration, /p_to = 'paid' and c.status = 'invoiced'/, "invoice is mandatory before payment");
-  assert.match(migration, /create or replace function public\\.crm_attribution_transition/, "legacy signature is disabled in-place");
+  assert.match(migration, /create or replace function public\.crm_attribution_transition/, "legacy signature is disabled in-place");
   assert.match(migration, /legacy_attribution_transition_disabled/);
   assert.match(migration, /from public, anon, authenticated, service_role/);
 });
