@@ -8,7 +8,7 @@ export function renderAgreementPdf(snapshot: AgreementSnapshot, id: string): Uin
   const pages: Draw[][] = [[]];
   let y = H - 64;
   const current = () => pages[pages.length-1];
-  const clean = (s: string) => s.normalize("NFC").replace(/[\u2010-\u2015]/g,"-").replace(/[\u2018\u2019]/g,"'").replace(/[\u201c\u201d]/g,'"').replace(/[^\x20-\x7e\xa0-\xff]/g,"?");
+  const clean = (s: string) => s.normalize("NFC").replace(/[\u2010-\u2015]/g,"-").replace(/[\u2018\u2019]/g,"'").replace(/[\u201c\u201d]/g,'"').replace(/\u2026/g,"...").replace(/\u2022/g,"-").replace(/[^\x20-\x7e\xa0-\xff\r\n\t]/g,"?");
   const wrap = (s: string,max:number):string[] => {
     const out:string[]=[];
     for(const paragraph of clean(s).split(/\r?\n/)) {

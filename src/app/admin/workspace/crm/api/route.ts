@@ -20,6 +20,12 @@ const json = (data: unknown, status = 200) =>
   });
 function failure(error: unknown) {
   const code = (error as { code?: string })?.code;
+  const message = String((error as { message?: string })?.message ?? "");
+  // Business-rule refusals get a stable code so the pipeline can explain them and revert the card precisely.
+  if (message.includes("won_requires_verified_contract"))
+    return json({ code: "won_requires_contract", error: "Para marcar como Ganado se necesita un contrato firmado y verificado. Regístralo (o registra la venta) desde la ficha." }, 409);
+  if (message.includes("Motivo de pérdida requerido"))
+    return json({ code: "loss_reason_required", error: "Indica el motivo de pérdida para mover la oportunidad a Perdido." }, 400);
   if (["23505", "23P01"].includes(code ?? ""))
     return json(
       {
@@ -78,6 +84,18 @@ export async function GET(request: NextRequest) {
       return error
         ? failure(error)
         : json({ rows: data, stages, userId: member.userId });
+    }
+    if (entity === "stage_history") {
+      // Read-only stage trail of one lead (newest first): lets the board restore a lost lead to its last working stage.
+      const lead = p.get("lead");
+      if (!lead || !uuid.test(lead)) return json({ error: "Lead inválido" }, 400);
+      const { data, error } = await client
+        .from("crm_lead_stage_history")
+        .select("from_stage,to_stage,changed_at")
+        .eq("lead_id", lead)
+        .order("changed_at", { ascending: false })
+        .limit(50);
+      return error ? failure(error) : json({ rows: data, stages, userId: member.userId });
     }
     if (entity !== "kpis" && !Object.hasOwn(tables, entity))
       return json({ error: "Sección inválida" }, 400);
@@ -218,9 +236,22 @@ export async function GET(request: NextRequest) {
       .order(sort, { ascending: p.get("asc") === "true" })
       .order("id")
       .range(page * 50, page * 50 + 49);
-    return error
-      ? failure(error)
-      : json({ rows: data, count, page, stages, userId: member.userId });
+    if (error) return failure(error);
+    if (inbound) {
+      // Every stored message of the listed prospects (P0.1). A database without migration 20261120160000 reports the
+      // history as pending instead of pretending each prospect has only its first message.
+      const ids = ((data ?? []) as unknown as { id: string }[]).map(r => r.id);
+      const history = ids.length
+        ? await client.from("crm_public_inquiries")
+            .select("id,prospect_id,created_at,services,language,message,review_status,review_note,version,reviewed_at")
+            .in("prospect_id", ids).order("created_at", { ascending: false }).limit(500)
+        : { data: [], error: null };
+      const pending = history.error && ["42703", "PGRST204", "42P01", "PGRST205"].includes(String(history.error.code));
+      if (history.error && !pending) return failure(history.error);
+      return json({ rows: data, count, page, stages, userId: member.userId,
+        messages: pending ? null : history.data, messageHistory: pending ? "pending_migration" : "available" });
+    }
+    return json({ rows: data, count, page, stages, userId: member.userId });
   } catch (error) {
     return failure(error);
   }
@@ -256,6 +287,20 @@ export async function POST(request: NextRequest) {
     }
     if (!body || typeof body !== "object")
       return json({ error: "Datos inválidos" }, 400);
+    if (body.action === "inquiry_review") {
+      // Owner review of ONE website message: reversible, versioned, never creates a lead, client or sale.
+      const statuses = ["pending", "legitimate", "possible_spam", "duplicate", "discarded"];
+      if (typeof body.id !== "string" || !uuid.test(body.id) || !Number.isSafeInteger(body.version) || (body.version as number) < 1
+          || typeof body.status !== "string" || !statuses.includes(body.status))
+        return json({ error: "Revisión inválida" }, 400);
+      const note = typeof body.note === "string" ? body.note.trim().slice(0, 500) : "";
+      const { data, error } = await client.from("crm_public_inquiries")
+        .update({ review_status: body.status, review_note: note })
+        .eq("id", body.id).eq("version", body.version).select("id,version,review_status").maybeSingle();
+      if (error) return failure(error);
+      if (!data) return json({ error: "La solicitud cambió. Actualiza antes de reintentar.", code: "stale" }, 409);
+      return json(data);
+    }
     if (body.action === "convert") {
       if (typeof body.id !== "string" || !uuid.test(body.id))
         return json({ error: "Prospecto inválido" }, 400);
@@ -326,6 +371,7 @@ export async function POST(request: NextRequest) {
       if (!data)
         return json(
           {
+            code: "stale",
             error:
               "El registro cambió o ya no está disponible. Recarga antes de editar.",
           },

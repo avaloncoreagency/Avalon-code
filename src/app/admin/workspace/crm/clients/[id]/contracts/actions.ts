@@ -10,7 +10,7 @@ const PROPS: (keyof AgreementData)[] = [
   "agencyLegalForm", "agencyName", "agencyBrand", "agencyAddress", "agencyEmail", "clientAddress", "clientEmail",
   "county", "effectiveDate", "scope", "exclusions", "deliverables", "milestones",
   "acceptance", "revisions", "term", "setupFee", "monthlyFee", "paymentSchedule",
-  "adSpend", "commission", "specialTerms",
+  "adSpend", "commission", "specialTerms", "supportMaintenance", "warrantyPeriod",
 ];
 
 export async function createClientAgreement(form: FormData) {

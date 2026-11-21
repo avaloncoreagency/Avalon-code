@@ -33,7 +33,7 @@ test("client edit panel updates canonical client and existing contacts via owner
 test("full lead profile has a visible edit action with validated business, email and location fields", () => {
   const page = read("src/app/admin/workspace/crm/lead/[id]/page.tsx");
   const actions = read("src/app/admin/workspace/crm/lead/actions.ts");
-  const board = read("src/components/crm/lead-board.tsx");
+  const board = read("src/components/crm/lead-timeline.tsx"); // edit link lives in the record, not on the card
   assert.match(page, /edit=1#lead-edit/);
   assert.match(page, /name="company"/);
   assert.match(page, /name="email" type="email"/);

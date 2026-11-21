@@ -12,8 +12,8 @@ test('public inquiry: anon creates a pending prospect only, validated, throttled
     await db.exec(fs.readFileSync('supabase/migrations/' + f, 'utf8'));
     if (f.startsWith('20261102053022')) await db.exec(`insert into agency_memberships values('${MIGUEL}','owner');`);
   }
-  // Explicit review-candidate SQL: intentionally excluded from automatic migration replay.
-  await db.exec(fs.readFileSync('docs/sql/public-inquiry-services-review.sql','utf8'));
+  // The services guard (docs/sql/public-inquiry-services-review.sql) is now migration 20261120130354; replaying the
+  // old review SQL here would overwrite the later message-history definition (20261120160000).
   await db.exec("reset role; set role anon;");
   const call = async r => (await db.query('select crm_public_inquiry($1::jsonb) r', [JSON.stringify(r)])).rows[0].r;
   const base = { company: 'Nova Sintética', name: 'Ana Prueba', email: 'ana@nova.example.invalid', phone: '+1 305 555 0100', message: 'Necesitamos web y recepcionista IA', services: ['website', 'receptionist', 'hack'] };
@@ -29,9 +29,10 @@ test('public inquiry: anon creates a pending prospect only, validated, throttled
   assert.equal(await call({ ...base, message: 'corto' }), 'invalid');
   assert.equal(await call({ ...base, website_url: 'http://spam.example' }), 'ok', 'honeypot answers ok');
   assert.equal(await call(base), 'ok');
-  assert.equal(await call({ ...base, email: 'ANA@nova.example.invalid' }), 'ok');
-  assert.equal(await call(base), 'ok', 'third request of the day still accepted');
-  assert.equal(await call(base), 'throttled', 'fourth within 24 h is throttled');
+  assert.equal(await call({ ...base, email: 'ANA@nova.example.invalid', message: base.message + ' (segundo mensaje)' }), 'ok');
+  assert.equal(await call({ ...base, message: base.message + ' (tercer mensaje)' }), 'ok', 'third request of the day still accepted');
+  assert.equal(await call(base), 'ok', 'an identical resubmission is idempotent (already stored), not a new receipt');
+  assert.equal(await call({ ...base, message: base.message + ' (cuarto mensaje)' }), 'throttled', 'fourth distinct message within 24 h is throttled')
 
   // Even when several statements share a transaction, anonymous callers must
   // not retain the temporary owner JWT claim used to create the pending prospect.

@@ -9,7 +9,7 @@ type ChallengeStatus = "idle" | "verifying" | "verified" | "retry";
 type TurnstileApi = {
   render: (container: HTMLElement, options: {
     sitekey: string;
-    action: "avalon_login";
+    action: "avalon_login" | "avalon_quote" | "avalon_funnel";
     theme: "dark";
     size: "flexible";
     execution: "execute";
@@ -39,10 +39,13 @@ export function HumanVerification({
   siteKey,
   language,
   onToken,
+  action = "avalon_login",
 }: {
   siteKey: string;
   language: Lang;
   onToken: (token: string) => void;
+  /** Must match the server's verifyHumanToken(action). */
+  action?: "avalon_login" | "avalon_quote" | "avalon_funnel";
 }) {
   const [scriptReady, setScriptReady] = useState(false);
   const [scriptFailed, setScriptFailed] = useState(false);
@@ -71,7 +74,7 @@ export function HumanVerification({
     try {
       widgetId = api.render(host, {
         sitekey: siteKey,
-        action: "avalon_login",
+        action,
         theme: "dark",
         size: "flexible",
         execution: "execute",
@@ -102,7 +105,7 @@ export function HumanVerification({
         try { api.remove(widgetId); } catch { /* no token is trusted without Siteverify */ }
       }
     };
-  }, [attempt, scriptReady, siteKey]);
+  }, [attempt, scriptReady, siteKey, action]);
 
   const verify = () => {
     if (status === "verifying" || status === "verified" || scriptFailed) return;
@@ -152,7 +155,9 @@ export function HumanVerification({
         {scriptFailed
           ? (es ? "Cloudflare no pudo cargar. Recarga la página e inténtalo de nuevo." : "Cloudflare could not load. Refresh and try again.")
           : status === "verified"
-            ? (es ? "Listo. Ya puedes iniciar sesión." : "Done. You can now sign in.")
+            ? (action !== "avalon_login"
+              ? (es ? "Listo. Ya puedes enviar tu solicitud." : "Done. You can now send your request.")
+              : (es ? "Listo. Ya puedes iniciar sesión." : "Done. You can now sign in."))
             : status === "retry"
               ? (es ? "La verificación expiró o falló. Toca para intentar otra vez." : "Verification expired or failed. Tap to retry.")
               : status === "verifying"

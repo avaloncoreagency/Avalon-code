@@ -1,6 +1,7 @@
 /* eslint-disable @next/next/no-img-element -- pre-optimized static WebP with srcset/sizes; avoids the Vercel image-optimization quota. */
 import type { Metadata, Viewport } from "next";
 import { QuoteForm } from "@/components/public/quote-form";
+import { publicTurnstileSiteKey } from "@/lib/security/turnstile";
 import { COPY, GROUPS, SERVICE_ORDER, type Lang } from "@/components/public/landing/copy";
 import { Icon } from "@/components/public/landing/icons";
 import { Effects } from "@/components/public/landing/effects";
@@ -139,7 +140,7 @@ export default async function Home({ searchParams }: { searchParams: Promise<Rec
               <div><p className={s.eyebrow}>{t.contact.eyebrow}</p><h2 id="h-quote" className={s.h2}>{t.contact.title}</h2><p className={s.lead}>{t.contact.lead}</p>
                 <ul className={s.points}>{t.contact.points.map(x => <li key={x}><Icon name="check" size={18} />{x}</li>)}</ul>
                 <p className={s.needs}>{t.contact.other}</p></div>
-              <div className={s.formCard}><QuoteForm lang={lang} initialServices={initialServices} /></div>
+              <div className={s.formCard}><QuoteForm lang={lang} initialServices={initialServices} turnstileSiteKey={publicTurnstileSiteKey()} /></div>
             </div>
           </div>
         </div>

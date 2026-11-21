@@ -29,6 +29,10 @@ export type AgreementData = {
   adSpend: string;
   commission: string;
   specialTerms: string;
+  /** Optional (Legal & Compliance): post-delivery support/maintenance terms. Empty = not included, stated explicitly. */
+  supportMaintenance?: string;
+  /** Optional: workmanship warranty window for this SOW (clause 09 applies). Empty = clause 09 only. */
+  warrantyPeriod?: string;
 };
 
 export type AgreementSnapshot = {
@@ -74,6 +78,10 @@ export function validateAgreement(input: AgreementData): string[] {
     new Date(input.effectiveDate).toISOString().slice(0, 10) !== input.effectiveDate)
     errors.push("effectiveDate");
   for (const k of ["setupFee", "monthlyFee"] as const) if (!usd(input[k])) errors.push(k);
+  for (const k of ["supportMaintenance", "warrantyPeriod"] as const) {
+    const v = input[k];
+    if (v !== undefined && (typeof v !== "string" || v.length > 2000)) errors.push(k);
+  }
 
   // "Avalon Core Agency" is a project/brand name, not a formed LLC or a substitute for a legal signer.
   const normalized = input.agencyName.toLowerCase().replace(/[.,\s]/g, "");
@@ -90,11 +98,23 @@ export function validateAgreement(input: AgreementData): string[] {
     if (value.length > max || /[\u0000-\u0008\u000B\u000C\u000E-\u001F]/.test(value)) errors.push(key);
   }
   if (input.agencyBrand?.length > 120) errors.push("agencyBrand");
-  // PDF currently uses WinAnsiEncoding. Do not silently replace non-Latin legal identities.
-  for (const k of ["agencyName", "clientName"] as const) {
-    if (typeof input[k] === "string" && /[^\x20-\x7e\xa0-\xff]/.test(
-      input[k].normalize("NFC").replace(/[\u2018\u2019]/g, "'").replace(/[\u2010-\u2015]/g, "-")))
-      errors.push(k);
+  // PDF uses WinAnsi. Reject unsupported user text before saving a legal draft;
+  // otherwise PDF fallback would silently alter names, scope or commission terms.
+  // Allow only typographic substitutions explicitly supported by the renderer.
+  const pdfCompatible = (value: string) => !/[^\x20-\x7e\xa0-\xff\r\n\t]/.test(
+    value.normalize("NFC")
+      .replace(/[\u2018\u2019]/g, "'")
+      .replace(/[\u201c\u201d]/g, '"')
+      .replace(/[\u2010-\u2015]/g, "-")
+      .replace(/\u2026/g, "...")
+      .replace(/\u2022/g, "-")
+  );
+  for (const [key, value] of Object.entries(input)) {
+    if (typeof value === "string" && !pdfCompatible(value)) errors.push(key);
+  }
+  // Cover-page identities must remain on a single line.
+  for (const key of ["agencyName", "clientName"] as const) {
+    if (typeof input[key] === "string" && /[\r\n\t]/.test(input[key])) errors.push(key);
   }
   return [...new Set(errors)];
 }
@@ -168,6 +188,8 @@ export function agreementLines(snapshot: AgreementSnapshot, id: string): { headi
     { heading: "Acceptance criteria", text: data.acceptance },
     { heading: "Included revisions", text: data.revisions },
     { heading: "Term and renewal terms", text: data.term },
+    { heading: "Support and maintenance", text: data.supportMaintenance?.trim() || "Not included in this Statement of Work. Any support, maintenance, hosting or service levels require a separate written and signed agreement." },
+    { heading: "Warranty period", text: data.warrantyPeriod?.trim() || "As stated in clause 09 (Limited workmanship warranty); no additional warranty period is offered in this draft." },
     { heading: "Fees", text: "One-time setup: USD " + data.setupFee + " | Recurring per month: USD " + data.monthlyFee },
     { heading: "Payment schedule", text: data.paymentSchedule },
     { heading: "Third-party and advertising spend", text: data.adSpend },

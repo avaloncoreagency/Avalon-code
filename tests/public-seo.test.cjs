@@ -84,5 +84,7 @@ test("demos, services and solution pages carry service intent into the quote for
   assert.ok(panel.includes('services=${services}#cotizacion'));
   assert.ok(showroom.includes('services=${k}#cotizacion'));
   assert.ok(detail.includes('initialServices={[service]}'));
-  assert.ok(form.includes('defaultChecked={initialServices.includes(k as ServiceKey)}'));
+  // Preselected services, or the visitor's own selection echoed back after a failed submission.
+  assert.ok(form.includes('const checked = (k: string) => v ? v.services.includes(k) : initialServices.includes(k as ServiceKey);'));
+  assert.ok(form.includes('defaultChecked={checked(k)}'));
 });

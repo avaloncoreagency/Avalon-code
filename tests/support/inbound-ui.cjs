@@ -46,6 +46,38 @@ module.exports=async function inboundUI({db,context,miguel,samuel,origin,evidenc
   assert.ok(await a.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+1),'inbox has no document overflow at 390px');
   await a.screenshot({path:evidence+'/inbound-es-390.png',fullPage:true});
   await b.screenshot({path:evidence+'/inbound-en-1440.png',fullPage:true});
+  // P0.1/P0.3: every stored message is visible with its own review; spam labels are reversible and logged.
+  const multi=await make('Inbox Synthetic Messages');
+  for(const [msg,ago] of [['Necesito un website con reservas para mi barbería.','2 hours'],["Hey team, I wanted to reach out about growing website traffic. We offer customized SEO services. May I send you a quote & price list?",'1 hour']])
+    await db.query(`insert into crm_public_inquiries(prospect_id,email_hash,services,message,message_sha256,created_at) values($1,repeat('b',64),array['website'],$2,encode(sha256(convert_to($2,'UTF8')),'hex'),now()-$3::interval)`,[multi.id,msg,ago]);
+  await inbox(b).getByRole('searchbox').fill('Inbox Synthetic Messages');
+  await Promise.all([b.waitForResponse(response=>{const u=new URL(response.url());return u.pathname.endsWith('/crm/api')&&u.searchParams.get('q')==='Inbox Synthetic Messages';}),inbox(b).getByRole('button',{name:'Search',exact:true}).click()]);
+  const list=b.getByRole('list',{name:'Messages from Inbox Synthetic Messages'});
+  await list.getByText('Necesito un website con reservas para mi barbería.').waitFor();
+  const spam=list.getByRole('listitem').filter({hasText:'customized SEO services'});
+  await spam.getByText(/Possible promotional inquiry/).waitFor();
+  assert.equal(await list.getByRole('listitem').filter({hasText:'barbería'}).getByText(/Possible promotional inquiry/).count(),0,'the legitimate message carries no warning');
+  b.once('dialog',d=>d.accept('Vendor pitch, not a client'));
+  await spam.getByRole('button',{name:'Possible spam',exact:true}).click();
+  await inbox(b).getByText(/Review saved/).waitFor();
+  const spamRow=async()=>(await db.query("select id,review_status,review_note,version from crm_public_inquiries where prospect_id=$1 and message like '%SEO%'",[multi.id])).rows[0];
+  assert.deepEqual(await spamRow().then(r=>[r.review_status,r.review_note,r.version]),['possible_spam','Vendor pitch, not a client',2]);
+  await list.getByRole('listitem').filter({hasText:'customized SEO services'}).getByRole('button',{name:'Legitimate inquiry',exact:true}).click();
+  await inbox(b).getByText(/Review saved/).waitFor();
+  assert.equal((await spamRow()).review_status,'legitimate','a false positive is recoverable');
+  const log=(await db.query('select from_status,to_status,actor_id from crm_public_inquiry_reviews where inquiry_id=$1 order by created_at',[(await spamRow()).id])).rows;
+  assert.deepEqual(log.map(r=>[r.from_status,r.to_status,r.actor_id]),[['pending','possible_spam',samuel.user.id],['possible_spam','legitimate',samuel.user.id]]);
+  assert.equal((await db.query("select status from crm_prospects where id=$1",[multi.id])).rows[0].status,'pending','reviewing a message never converts the prospect');
+  // A.4: per-message summary filters (page scope) — reviewed messages leave the "To review" view, nothing is deleted.
+  const filters=inbox(b).getByRole('group',{name:'Filter messages on this page'});
+  await filters.getByRole('button',{name:/^To review \(1\)$/}).click();
+  await list.getByText('Necesito un website con reservas para mi barbería.').waitFor();
+  assert.equal(await list.getByText(/customized SEO services/).count(),0,'reviewed message hidden in the To review view');
+  await filters.getByRole('button',{name:/^Reviewed \(1\)$/}).click();
+  await list.getByText(/customized SEO services/).waitFor();
+  await filters.getByRole('button',{name:/^All \(2\)$/}).click();
+  assert.equal(await list.getByRole('listitem').count(),2,'both messages back in the full view');
+  await b.screenshot({path:evidence+'/inbound-messages-en-1440.png',fullPage:true});
   // Transport loss must preserve the row and never show an optimistic confirmation.
   await receipt((await make('Inbox Synthetic Offline')).id);
   await inbox(a).getByRole('searchbox').fill('Inbox Synthetic Offline');await Promise.all([a.waitForResponse(response=>{const u=new URL(response.url());return u.pathname.endsWith('/crm/api')&&u.searchParams.get('q')==='Inbox Synthetic Offline';}),inbox(a).getByRole('button',{name:'Buscar',exact:true}).click()]);

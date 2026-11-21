@@ -567,37 +567,47 @@ test('Nova Restaurant through the real app: one form, three departments, no dupl
   await page.getByLabel('Origen / fuente *', { exact: true }).fill('web');
   await page.getByRole('button', { name: 'Guardar', exact: true }).click();
   await page.getByText('Guardado correctamente.', { exact: true }).waitFor();
-  // Approved five groups (#253): Nuevo / En conversación / Propuesta / Ganado / Perdido over the detailed stages.
+  // Kanban v2: five drop targets, two-line cards, pointer drag (mouse/touch), keyboard alternative, Won/Lost rules.
   const board = page.getByRole('region', { name: 'Pipeline de oportunidades' });
-  await board.getByRole('region', { name: 'En conversación', exact: true }).waitFor();
+  const column = name => board.locator(`[data-kanban-group="${name}"]`);
+  const cardOf = company => board.locator('article[data-lead-id]', { hasText: company });
+  const stageOf = async id => (await one('select stage_id, loss_reason, version from crm_leads where id=$1', [id]));
+  // Real pointer drag: press, move in steps past the slop, release over the target column (no synthetic DnD events).
+  const drag = async (company, group) => {
+    await cardOf(company).scrollIntoViewIfNeeded();
+    const from = await cardOf(company).boundingBox();
+    const to = await column(group).boundingBox(); // columns stretch the board height: aim at the card's own row
+    const sx = from.x + from.width / 2, sy = from.y + from.height / 2, tx = to.x + to.width / 2;
+    await page.mouse.move(sx, sy);
+    await page.mouse.down();
+    for (let i = 1; i <= 8; i++) await page.mouse.move(sx + (tx - sx) * i / 8, sy + 4 * Math.sin(i));
+    await page.mouse.up();
+  };
+  const groupOfStageId = id => ({ proposal: 'proposal', negotiation: 'proposal', contacted: 'conversation', won: 'won', lost: 'lost' })[id] ?? id;
+  // Wait for the board to finish saving (no optimistic card left) instead of networkidle (the app polls).
+  const settled = async () => { await board.locator('[data-saving="true"]').first().waitFor({ state: 'detached', timeout: 15000 }).catch(() => {}); await page.waitForTimeout(250); };
+  await column('conversation').waitFor();
   assert.deepEqual(await board.locator('[data-kanban-group] h3').allInnerTexts(), ['Nuevo', 'En conversación', 'Propuesta', 'Ganado', 'Perdido']);
-  await page.getByLabel('Grupo de Orbit Dental Sintético').selectOption('proposal');
-  await page.waitForTimeout(300);
-  await page.reload();
-  assert.equal(await page.getByLabel('Grupo de Orbit Dental Sintético').inputValue(), 'proposal', 'group move persisted');
   const leadId = (await one("select id from crm_leads where company='Orbit Dental Sintético'")).id;
-  // ── Pipedrive-style board: drag between stages, card history, note, file ──
-  assert.equal((await one("select stage_id from crm_leads where id=$1", [leadId])).stage_id, 'proposal', 'group writes the canonical stage');
-  const card = page.locator('article', { has: page.getByLabel('Grupo de Orbit Dental Sintético') });
-  await card.getByText('Etapa: Propuesta enviada').waitFor();
-  const target = page.getByRole('region', { name: 'En conversación', exact: true });
-  // HTML5 drag events fired on the real handlers: independent of pointer geometry and the sticky top bar.
-  const dt = await page.evaluateHandle(() => new DataTransfer());
-  await card.dispatchEvent('dragstart', { dataTransfer: dt });
-  await target.dispatchEvent('dragenter', { dataTransfer: dt });
-  await target.dispatchEvent('dragover', { dataTransfer: dt });
-  await target.dispatchEvent('drop', { dataTransfer: dt });
-  await card.dispatchEvent('dragend', { dataTransfer: dt });
-  await page.waitForTimeout(500);
+  await drag('Orbit Dental Sintético', 'proposal');
+  await column('proposal').locator('article', { hasText: 'Orbit Dental Sintético' }).waitFor();
+  await settled();
+  assert.equal((await stageOf(leadId)).stage_id, 'proposal', 'drag writes the group canonical stage');
   await page.reload();
-  assert.equal(await page.getByLabel('Grupo de Orbit Dental Sintético').inputValue(), 'conversation', 'drag & drop moved the lead');
-  assert.equal((await one("select stage_id from crm_leads where id=$1", [leadId])).stage_id, 'contacted');
-  // The company name is the card's primary action: it opens the LEAD record, not Clients 360.
-  await card.getByRole('button', { name: 'Abrir ficha de Orbit Dental Sintético' }).click();
+  await column('proposal').locator('article', { hasText: 'Orbit Dental Sintético' }).waitFor();
+  // ── Pipedrive-style card: tap opens the record (history, note, file); a drag never opens it ──
+  await drag('Orbit Dental Sintético', 'conversation');
+  await column('conversation').locator('article', { hasText: 'Orbit Dental Sintético' }).waitFor();
+  await settled();
+  assert.equal(await page.getByRole('dialog', { name: /Historial de/ }).count(), 0, 'finishing a drag does not open the record');
+  assert.equal((await stageOf(leadId)).stage_id, 'contacted');
+  const card = cardOf('Orbit Dental Sintético');
+  await card.click();
   let drawer = page.getByRole('dialog', { name: 'Historial de Orbit Dental Sintético' });
   await drawer.getByText(/Movido de Propuesta enviada a Contactado/).first().waitFor();
   assert.match(await drawer.locator('li', { hasText: 'Movido de Propuesta enviada a Contactado' }).first().innerText(), /miguel/, 'stage event names the real actor');
   assert.doesNotMatch(await drawer.innerText(), /· Sistema/, 'no actor is invented as System');
+  await drawer.getByRole('link', { name: 'Registrar venta para Orbit Dental Sintético' }).waitFor();
   await drawer.getByLabel('Nota').fill('Cliente pidió propuesta revisada (sintético)');
   await drawer.getByRole('button', { name: 'Guardar nota' }).click();
   await drawer.getByText('Cliente pidió propuesta revisada (sintético)').waitFor();
@@ -616,10 +626,145 @@ test('Nova Restaurant through the real app: one form, three departments, no dupl
   await drawer.getByText(/Tipo no permitido/).waitFor();
   await page.screenshot({ path: `${EVIDENCE}/pipeline-card-history.png`, fullPage: false });
   await drawer.getByRole('button', { name: 'Cerrar historial' }).click();
+
+  // ── Reported case, synthetic: "Chino Barber" opportunity in Propuesta (Propuesta enviada) → Ganado / Perdido / back ──
+  await db.exec(`reset role; set request.jwt.claim.sub='${MIGUEL}'; set role authenticated;`);
+  const chino = (await db.query("insert into crm_leads(company, contact, source, stage_id, owner_id) values('Chino Barber Sintético','Chino Prueba','referral','proposal',$1) returning id", [MIGUEL])).rows[0].id;
+  await db.exec('reset role;');
+  await page.reload();
+  const chinoCard = cardOf('Chino Barber Sintético');
+  await column('proposal').locator('article', { hasText: 'Chino Barber Sintético' }).waitFor();
+  assert.deepEqual((await chinoCard.innerText()).split('\n').map(x => x.trim()).filter(Boolean), ['Chino Prueba', 'Chino Barber Sintético'], 'card shows only client and company');
+  assert.equal(await chinoCard.locator('button, a, select').count(), 0, 'no buttons, links or selects on the card');
+  assert.ok((await chinoCard.boundingBox()).height <= 60, 'compact card height');
+  await page.screenshot({ path: `${EVIDENCE}/kanban-v2-desktop-1440.png`, fullPage: false });
+  // Ganado without a verified signed contract: the server rule refuses, the card returns, no sale is created.
+  await drag('Chino Barber Sintético', 'won');
+  const blocked = page.getByRole('alertdialog', { name: /aún no puede marcarse como Ganado/ });
+  await blocked.waitFor();
+  await blocked.getByRole('link', { name: 'Registrar venta' }).waitFor();
+  // PF-A11Y-001 (independent QA): focus stays inside the modal with Tab / Shift+Tab and returns to the card on close.
+  const focusInside = async dialog => dialog.evaluate(el => el.contains(document.activeElement));
+  assert.ok(await focusInside(blocked), 'focus moves into the Won dialog');
+  for (let i = 0; i < 5; i++) { await page.keyboard.press('Tab'); assert.ok(await focusInside(blocked), 'Tab stays inside (' + i + ')'); }
+  for (let i = 0; i < 5; i++) { await page.keyboard.press('Shift+Tab'); assert.ok(await focusInside(blocked), 'Shift+Tab stays inside (' + i + ')'); }
+  await page.screenshot({ path: `${EVIDENCE}/kanban-v2-won-gate.png`, fullPage: false });
+  await blocked.getByRole('button', { name: 'Cerrar' }).click();
+  await column('proposal').locator('article', { hasText: 'Chino Barber Sintético' }).waitFor();
+  assert.equal(await page.evaluate(() => document.activeElement?.closest('article[data-lead-id]')?.textContent ?? ''), 'Chino PruebaChino Barber Sintético', 'focus restored to the card that opened the dialog');
+  assert.equal((await stageOf(chino)).stage_id, 'proposal', 'refused Won leaves the stage untouched');
+  assert.equal(Number((await one('select count(*) n from crm_sales where lead_id=$1', [chino])).n), 0, 'no sale fabricated');
+  // With a real (synthetic) verified signed contract the same drag reaches Ganado and survives a reload.
+  await db.exec(`reset role; set request.jwt.claim.sub='${MIGUEL}'; set role authenticated;`);
+  await require('./helpers/verified-contract.cjs')(db, chino, 'Acuerdo Chino Barber sintético');
+  await db.exec('reset role;');
+  await page.reload();
+  await drag('Chino Barber Sintético', 'won');
+  await column('won').locator('article', { hasText: 'Chino Barber Sintético' }).waitFor();
+  await settled();
+  assert.equal((await stageOf(chino)).stage_id, 'won');
+  // Perdido asks for the mandatory reason; Cancel returns the card to Ganado untouched.
+  await drag('Chino Barber Sintético', 'lost');
+  const lostDialog = page.getByRole('dialog', { name: 'Mover Chino Prueba a Perdido' });
+  await lostDialog.waitFor();
+  for (let i = 0; i < 4; i++) { await page.keyboard.press('Tab'); assert.ok(await lostDialog.evaluate(el => el.contains(document.activeElement)), 'Lost dialog keeps focus (' + i + ')'); }
+  await lostDialog.getByRole('button', { name: 'Cancelar' }).click();
+  await column('won').locator('article', { hasText: 'Chino Barber Sintético' }).waitFor();
+  assert.equal((await stageOf(chino)).stage_id, 'won', 'cancelled confirmation reverts');
+  await drag('Chino Barber Sintético', 'lost');
+  await lostDialog.getByLabel('Motivo de pérdida (obligatorio)').fill('Pospuso el proyecto (sintético)');
+  await lostDialog.getByRole('button', { name: 'Mover a Perdido' }).click();
+  await column('lost').locator('article', { hasText: 'Chino Barber Sintético' }).waitFor();
+  await settled();
+  assert.deepEqual([(await stageOf(chino)).stage_id, (await stageOf(chino)).loss_reason], ['lost', 'Pospuso el proyecto (sintético)']);
+  await page.reload();
+  await column('lost').locator('article', { hasText: 'Chino Barber Sintético' }).waitFor();
+  // Recover from Perdido back to Propuesta: returns to its last detailed stage there; contact/company/contract intact.
+  await drag('Chino Barber Sintético', 'proposal');
+  await column('proposal').locator('article', { hasText: 'Chino Barber Sintético' }).waitFor();
+  await settled();
+  const recovered = await one('select stage_id, company, contact from crm_leads where id=$1', [chino]);
+  assert.deepEqual([recovered.stage_id, recovered.company, recovered.contact], ['proposal', 'Chino Barber Sintético', 'Chino Prueba'], 'restored without data loss');
+  assert.equal(Number((await one("select count(*) n from crm_contracts where lead_id=$1 and status='verified_signed'", [chino])).n), 1, 'contract kept');
+  const trail = (await db.query('select to_stage from crm_lead_stage_history where lead_id=$1 order by changed_at', [chino])).rows.map(r => r.to_stage);
+  assert.deepEqual(trail, ['proposal', 'won', 'lost', 'proposal'], 'coherent, append-only stage history');
+  // Keyboard alternative without visible buttons: Space picks up, ← chooses En conversación, Space drops.
+  await chinoCard.focus();
+  await page.keyboard.press('Space');
+  await page.keyboard.press('ArrowLeft');
+  await page.keyboard.press('Space');
+  await column('conversation').locator('article', { hasText: 'Chino Barber Sintético' }).waitFor();
+  await settled();
+  assert.equal((await stageOf(chino)).stage_id, 'contacted', 'keyboard move persisted');
+  // Two owners, stale card: a concurrent change is refused (409), the card reverts and the board re-syncs.
+  await db.exec(`reset role; set request.jwt.claim.sub='${MIGUEL}'; set role authenticated;`);
+  await db.query("update crm_leads set priority = 'high' where id=$1", [chino]);
+  await db.exec('reset role;');
+  await drag('Chino Barber Sintético', 'new');
+  await board.getByRole('alert').filter({ hasText: /Otro propietario cambió/ }).waitFor();
+  assert.equal((await stageOf(chino)).stage_id, 'contacted', 'stale move did not overwrite');
   await page.screenshot({ path: `${EVIDENCE}/pipeline-board.png`, fullPage: false });
-  await card.screenshot({ path: `${EVIDENCE}/pipeline-card.png` });
-  await page.getByLabel('Grupo de Orbit Dental Sintético').selectOption('proposal');
-  await page.waitForTimeout(300);
+  await cardOf('Orbit Dental Sintético').screenshot({ path: `${EVIDENCE}/pipeline-card.png` });
+  await drag('Orbit Dental Sintético', 'proposal');
+  await column('proposal').locator('article', { hasText: 'Orbit Dental Sintético' }).waitFor();
+  await settled();
+  // ── iPhone-size touch: press-and-hold drag with real touch events (CDP), edge auto-scroll, tap opens the record ──
+  {
+    const cdp = await page.context().newCDPSession(page);
+    await cdp.send('Emulation.setTouchEmulationEnabled', { enabled: true, maxTouchPoints: 5 });
+    await page.setViewportSize({ width: 390, height: 844 });
+    await page.reload();
+    await column('conversation').waitFor();
+    assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1), 'no page-level horizontal overflow at 390px');
+    const touch = (type, x, y) => cdp.send('Input.dispatchTouchEvent', { type, touchPoints: type === 'touchEnd' ? [] : [{ x, y, id: 1 }] });
+    const chinoTouch = cardOf('Chino Barber Sintético');
+    await chinoTouch.evaluate(el => el.scrollIntoView({ block: 'center', inline: 'center' }));
+    await page.waitForTimeout(150);
+    // A quick swipe is a scroll, never a move.
+    let box = await chinoTouch.boundingBox();
+    await touch('touchStart', box.x + 20, box.y + box.height / 2);
+    await touch('touchMove', box.x + 60, box.y + box.height / 2);
+    await touch('touchEnd');
+    await page.waitForTimeout(300);
+    assert.equal((await stageOf(chino)).stage_id, 'contacted', 'swipe does not move the card');
+    await page.screenshot({ path: `${EVIDENCE}/kanban-v2-iphone-390.png`, fullPage: false });
+    // Press and hold, then drag to the right edge: the board auto-scrolls until Propuesta is under the finger.
+    await chinoTouch.evaluate(el => el.scrollIntoView({ block: 'center', inline: 'nearest' }));
+    await page.waitForTimeout(150);
+    box = await chinoTouch.boundingBox();
+    assert.equal(await page.evaluate(([x, yy]) => Boolean(document.elementFromPoint(x, yy)?.closest('article[data-lead-id]')), [box.x + box.width / 2, box.y + box.height / 2]), true, 'finger is on the card, not under fixed navigation');
+    const y = box.y + box.height / 2;
+    await touch('touchStart', box.x + box.width / 2, y);
+    await page.waitForTimeout(320);
+    for (let i = 1; i <= 6; i++) await touch('touchMove', box.x + box.width / 2 + (382 - box.x - box.width / 2) * i / 6, y);
+    assert.equal(await board.locator('[data-dragging="true"]').count() > 0, true, 'press-and-hold started a touch drag');
+    // Hold at the edge until Propuesta scrolls into the safe middle area, then move onto it and release.
+    let rect = null;
+    for (let i = 0; i < 80; i++) {
+      rect = await column('proposal').evaluate(el => { const r = el.getBoundingClientRect(); return { left: r.left, right: r.right }; });
+      if (rect.left < 220) break;
+      await touch('touchMove', 382, y);
+      await page.waitForTimeout(40);
+    }
+    const dropX = Math.max(rect.left + 24, Math.min(rect.right - 24, 200));
+    for (let i = 0; i < 3; i++) { await touch('touchMove', dropX, y); await page.waitForTimeout(40); }
+    await touch('touchEnd');
+    await column('proposal').locator('article', { hasText: 'Chino Barber Sintético' }).waitFor();
+    await settled();
+    assert.equal(groupOfStageId((await stageOf(chino)).stage_id), 'proposal', 'touch drag persisted');
+    assert.equal(await page.getByRole('dialog', { name: /Historial de/ }).count(), 0, 'touch drag does not open the record');
+    // A tap opens the record.
+    await cardOf('Chino Barber Sintético').evaluate(el => el.scrollIntoView({ block: 'center', inline: 'center' }));
+    await page.waitForTimeout(150);
+    const tapBox = await cardOf('Chino Barber Sintético').boundingBox();
+    await touch('touchStart', tapBox.x + tapBox.width / 2, tapBox.y + tapBox.height / 2);
+    await touch('touchEnd');
+    await page.getByRole('dialog', { name: 'Historial de Chino Barber Sintético' }).waitFor();
+    await page.screenshot({ path: `${EVIDENCE}/kanban-v2-iphone-record.png`, fullPage: false });
+    await page.getByRole('button', { name: 'Cerrar historial' }).click();
+    await cdp.send('Emulation.setTouchEmulationEnabled', { enabled: false });
+    await page.setViewportSize({ width: 1366, height: 1000 });
+  }
   await page.goto(`${origin}/admin/workspace/crm/sales/new?lead=${leadId}`);
   await page.getByLabel('Cliente nuevo').check();
   await page.getByLabel('Nombre de empresa *').fill('Orbit Dental Sintético');
@@ -777,7 +922,7 @@ test('Nova Restaurant through the real app: one form, three departments, no dupl
   }
   await matrix.goto(origin + '/admin/workspace/crm/leads');
   await matrix.getByRole('region', { name: 'Opportunity pipeline' }).waitFor();
-  await matrix.getByText('Your pipeline in 5 groups').waitFor();
+  await matrix.locator('[data-kanban-group]').first().waitFor(); // Kanban v2 compact header
   assert.ok(await matrix.getByRole('region', { name: 'Sales command center' }).isVisible());
   await matrix.screenshot({ path: EVIDENCE + '/command-pipeline-desktop.png', fullPage: true });
   // Real browser UI with synthetic API failures: retain drafts and require explicit discard.

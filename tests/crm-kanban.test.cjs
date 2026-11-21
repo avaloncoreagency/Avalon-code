@@ -46,22 +46,28 @@ test("UI reuses existing owner-protected CRM mutations and manual loss reason", 
   const crm = fs.readFileSync("src/components/crm/crm.tsx", "utf8");
   const board = fs.readFileSync("src/components/crm/lead-board.tsx", "utf8");
   assert.match(crm, /<LeadBoard/);
-  assert.match(crm, /target.kind === "lost"/);
-  assert.match(crm, /version: lead.version/);
-  assert.match(board, /application\/x-avalon-lead/);
-  assert.match(board, /moveToGroup\(lead, event.target.value\)/);
-  assert.match(board, /const stageId = moveTarget\(lead, groupId, stages\);\n    if \(stageId\) onMove\(lead, stageId\);/, "group moves go through the same versioned onMove");
-  assert.match(board, /hasta 50 registros por página/);
+  assert.match(crm, /version: lead\.version/, "every move is the versioned update (409 on a concurrent change)");
+  assert.match(crm, /restoreTarget\(lead, groupId, stages, history\) : moveTarget\(lead, groupId, stages\)/);
+  assert.match(crm, /loss_reason: extra\.lossReason/, "Lost carries the owner's reason to the server rule");
+  assert.match(board, /moveRequirement\(group\) === "loss_reason"\) \{ place\(id, group\); setLostAsk\(lead\)/, "Lost asks for the reason before saving");
+  assert.match(board, /place\(id, null\); \/\/ revert to the previous column/, "failed saves revert the optimistic card");
+  assert.match(board, /if \(pending\.has\(id\) \|\| displayedGroup\(lead, pending\) === group\) return;/, "one in-flight move per card");
+  assert.match(board, /Hasta 50 registros por página/);
 });
 
 test("dragging can auto-scroll to nonadjacent columns without stage-by-stage mutations", () => {
   const board = fs.readFileSync("src/components/crm/lead-board.tsx", "utf8");
   const styles = fs.readFileSync("src/components/crm/lead-board.module.css", "utf8");
   assert.match(board, /ref=\{scrollRef\}/, "scroll container has its own ref");
-  assert.match(board, /window\.addEventListener\("dragover", trackPointer\)/, "drag coordinates tracked globally");
-  assert.match(board, /requestAnimationFrame\(scrollAtEdge\)/, "edge scrolling continues as pointer pauses");
-  assert.match(board, /node\.scrollLeft \+= strength \* 25/, "edge velocity scrolls the board itself");
+  assert.match(board, /window\.addEventListener\("pointermove", move\)/, "pointer coordinates tracked globally (mouse, pen, touch)");
+  assert.match(board, /Window listeners are attached ONCE/, "an early pointercancel can never leave a stale gesture");
+  assert.match(board, /node\.addEventListener\("touchmove", blockScroll, \{ passive: false \}\)/, "Safari touch drag does not scroll the page (listener present before touchstart)");
+  assert.match(board, /frame = requestAnimationFrame\(step\)/, "edge scrolling continues as pointer pauses");
+  assert.match(board, /node\.scrollLeft \+= strength \* 18/, "edge velocity scrolls the board itself");
   assert.match(board, /data-kanban-group=\{group\.id\}/, "every group can receive a drop");
-  assert.match(board, /if \(lead\) moveToGroup\(lead, groupId\)/, "drop targets the chosen group directly");
+  assert.match(board, /if \(lead && group && PIPELINE_GROUPS\.some\(g => g\.id === group\)\) commit\(lead, group\)/, "drop targets the chosen group directly");
+  assert.match(board, /suppressClick\.current = true/, "the click after a drag never opens the record");
+  assert.match(board, /document\.addEventListener\("keydown", trap, true\)/, "PF-A11Y-001: Tab is trapped inside open dialogs");
+  assert.match(board, /\[data-lead-id="\$\{CSS\.escape\(id\)\}"\]`\)\?\.focus\(\)/, "focus returns to the opener card");
   assert.match(styles, /\.scroll\[data-dragging="true"\] \{ scroll-snap-type: none/, "snap does not fight auto-scroll");
 });

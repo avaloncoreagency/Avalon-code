@@ -1,3 +1,11 @@
 .inbox { min-inline-size: 0; overflow-wrap: anywhere; }
 .inbox > ul, .inbox > ul > li { min-inline-size: 0; grid-template-columns: minmax(0, 1fr); }
 .inbox input, .inbox select, .inbox button { min-inline-size: 0; max-inline-size: 100%; min-block-size: 44px; }
+/* One card per stored message (P0.1). The original text wraps and stays readable on iPhone. */
+.messages { list-style: none; margin: 0; padding: 0; display: grid; gap: 10px; min-inline-size: 0; }
+.messages > li { border: 1px solid var(--line, rgba(140,140,140,.3)); border-radius: 10px; padding: 10px 12px; min-inline-size: 0; }
+.messages > li[data-review="possible_spam"], .messages > li[data-review="discarded"] { opacity: .78; }
+.body { white-space: pre-wrap; overflow-wrap: anywhere; margin: 6px 0; }
+
+.summary { display: flex; flex-wrap: wrap; gap: .5rem; margin: .5rem 0; }
+.summary button[aria-pressed="true"] { outline: 2px solid currentColor; outline-offset: 1px; }

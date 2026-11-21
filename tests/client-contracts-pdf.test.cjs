@@ -70,3 +70,43 @@ test("real PDF bytes contain clauses, full Latin legal names, valid xref and foo
   assert.ok(streams.length >= 3, "multi-page content streams");
   for (const m of streams) assert.equal(Buffer.byteLength(m[2], "latin1"), Number(m[1]));
 });
+
+
+test("contract PDF preserves multiline terms without question-mark substitutions", () => {
+  const multiline = { ...sample, scope: "First line of scope\nSecond line of scope", commission: "Rate: 10%\nAttribution: approved only" };
+  assert.deepEqual(Array.from(agreement.validateAgreement(multiline)), []);
+  const bytes = Buffer.from(pdf.renderAgreementPdf(agreement.makeAgreementSnapshot(multiline), "test-legal-pdf"));
+  const source = bytes.toString("latin1");
+  assert.ok(source.includes("(First line of scope) Tj"));
+  assert.ok(source.includes("(Second line of scope) Tj"));
+  assert.ok(source.includes("(Rate: 10%) Tj"));
+  assert.ok(source.includes("(Attribution: approved only) Tj"));
+  assert.doesNotMatch(source, /First line of scope\?/);
+});
+
+test("contract validation prevents unsupported characters silently mutating legal text", () => {
+  assert.ok(agreement.validateAgreement({ ...sample, clientName: "Studio 🛠" }).includes("clientName"));
+  assert.ok(agreement.validateAgreement({ ...sample, commission: "Price is €100" }).includes("commission"));
+  assert.ok(agreement.validateAgreement({ ...sample, scope: "Custom 漢字 content" }).includes("scope"));
+  assert.ok(agreement.validateAgreement({ ...sample, agencyName: "Ana\nLopez" }).includes("agencyName"));
+  const supported = { ...sample, scope: "Two-line scope\nSecond line — with ‘quoted’ details…" };
+  assert.equal(agreement.validateAgreement(supported).length, 0);
+  const output = Buffer.from(pdf.renderAgreementPdf(agreement.makeAgreementSnapshot(supported), "test-typography")).toString("latin1");
+  assert.ok(output.includes("(Second line - with 'quoted' details...) Tj"));
+});
+
+test('Legal: support/maintenance and warranty are explicit in Exhibit A — stated as not included when empty, never invented', () => {
+  const ts = require('typescript');
+  const src = ts.transpileModule(require('fs').readFileSync('src/lib/contracts/agreement.ts', 'utf8'), { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022, resolveJsonModule: true, esModuleInterop: true } }).outputText;
+  const mod = { exports: {} };
+  new Function('require', 'module', 'exports', src)(id => id === './master.json' ? require('../src/lib/contracts/master.json') : id === './service-schedules' ? { SERVICE_SCHEDULES: {} } : require(id), mod, mod.exports);
+  const a = mod.exports;
+  const page = require('fs').readFileSync('src/app/admin/workspace/crm/clients/[id]/contracts/page.tsx', 'utf8');
+  assert.match(page, /\["supportMaintenance",/);
+  assert.match(page, /\["warrantyPeriod",/);
+  assert.match(page, /key!=="supportMaintenance"/, 'optional in the form');
+  const agreement = require('fs').readFileSync('src/lib/contracts/agreement.ts', 'utf8');
+  assert.match(agreement, /Not included in this Statement of Work/);
+  assert.match(agreement, /As stated in clause 09/);
+  assert.equal(typeof a.validateAgreement, 'function');
+});

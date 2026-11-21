@@ -49,7 +49,9 @@ test("growth funnel: admin page and public intake are separated, no bypass or pa
   assert.match(controls, /await ownerForAction\(\)/);
   assert.match(publicPage, /crm_growth_funnel_view/);
   assert.match(publicPage, /notFound\(\)/);
-  assert.match(publicAction, /crm_growth_funnel_submit/);
+  // Same reviewed RPC, reached through the server-only intake gate when AVALON_INTAKE_TOKEN is configured (P0.2).
+  assert.match(publicAction, /intakeCall\("funnel", request\)/);
+  assert.match(fs.readFileSync("src/lib/supabase/intake.ts", "utf8"), /crm_growth_funnel_submit/);
   assert.match(publicAction, /authLimiter\.hit/);
   assert.match(publicForm, /name="consent"/);
   assert.match(publicForm, /name="website_url"/);

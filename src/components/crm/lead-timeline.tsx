@@ -1,5 +1,6 @@
 "use client";
 import { useEffect, useRef, useState } from "react";
+import Link from "next/link";
 import type { Row, Stage } from "@/lib/crm/domain";
 import s from "./lead-timeline.module.css";
 
@@ -155,6 +156,13 @@ export function LeadTimeline({ lead, stages, revision, onClose, onEdit, onEditAc
             <button type="button" onClick={onClose} aria-label="Cerrar historial">✕</button>
           </div>
         </header>
+        {/* Commercial actions live in the record (not on the compact pipeline cards). */}
+        <nav className={s.recordLinks} aria-label={`Acciones de ${lead.company}`}>
+          <Link href={`/admin/workspace/crm/lead/${String(lead.id)}?tab=summary&edit=1#lead-edit`}>Editar datos</Link>
+          {!lead.archived && <Link href={`/admin/workspace/crm/sales/new?lead=${encodeURIComponent(String(lead.id))}`} aria-label={`Registrar venta para ${lead.company}`}>Registrar venta</Link>}
+          <Link href={`/admin/workspace/crm/lead/${String(lead.id)}`}>Oportunidad y contratos</Link>
+          <Link href={`/admin/workspace/clients/${String(lead.id)}`}>Cliente 360 y proyectos</Link>
+        </nav>
         <div className={s.tabs} role="tablist" aria-label="Añadir al historial">
           {([["note", "Nota"], ["activity", "Actividad"], ["file", "Archivo"]] as const).map(([k, t]) => (
             <button key={k} type="button" role="tab" aria-selected={mode === k} onClick={() => setMode(k)}>{t}</button>

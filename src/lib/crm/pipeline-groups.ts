@@ -68,3 +68,29 @@ export function neighbourGroup(lead: Row, direction: -1 | 1): PipelineGroup | nu
   const next = OPEN_GROUPS[index + direction];
   return next ? PIPELINE_GROUPS.find(g => g.id === next)! : null;
 }
+
+/** Hard business rules a move into a group must satisfy before it can be saved. */
+export type MoveRequirement = "loss_reason" | "won_gate" | null;
+export function moveRequirement(groupId: string): MoveRequirement {
+  return groupId === "lost" ? "loss_reason" : groupId === "won" ? "won_gate" : null;
+}
+
+/**
+ * Restoring a lost (or re-opening a won) lead: when it returns to the group it worked in before, put it back on the
+ * exact detailed stage it last had there (from crm_lead_stage_history, newest first) instead of the group's canonical
+ * stage, so its working state is recovered. Falls back to moveTarget when there is no usable history.
+ */
+export function restoreTarget(lead: Row, groupId: string, stages: readonly Stage[], history: readonly { to_stage?: unknown }[]): string | null {
+  const group = PIPELINE_GROUPS.find(g => g.id === groupId);
+  if (!group || group.stages.includes(String(lead.stage_id ?? ""))) return null;
+  for (const entry of history) {
+    const stage = String(entry.to_stage ?? "");
+    if (group.stages.includes(stage) && stages.some(s => s.id === stage)) return stage;
+  }
+  return moveTarget(lead, groupId, stages);
+}
+
+/** Group to render a lead in while a move is pending (optimistic), else its real group. */
+export function displayedGroup(lead: Row, pending: ReadonlyMap<string, PipelineGroupId>): PipelineGroupId | null {
+  return pending.get(String(lead.id)) ?? groupOfStage(lead.stage_id)?.id ?? null;
+}
