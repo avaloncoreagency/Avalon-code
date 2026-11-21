@@ -1,0 +1,99 @@
+const { test } = require("node:test");
+const assert = require("node:assert/strict");
+const fs = require("node:fs");
+const ts = require("typescript");
+
+const OWNER = "00000000-0000-4000-8000-0000000000a1";
+const INVITED = "00000000-0000-4000-8000-0000000000c3";
+const SOURCE = "supabase/functions/staff-invite/index.ts";
+
+function makeEdge({role="owner",missingOrigin=false,roster=0,inviteFails=false}={}) {
+  const src = fs.readFileSync(SOURCE,"utf8");
+  const js = ts.transpileModule(src,{compilerOptions:{
+    target:ts.ScriptTarget.ES2022,module:ts.ModuleKind.None,
+  }}).outputText;
+  let handler;
+  const calls=[];
+  const env={
+    SUPABASE_URL:"https://synthetic.supabase.co",
+    SUPABASE_ANON_KEY:"public-test-key",
+    SUPABASE_SERVICE_ROLE_KEY:"private-test-key",
+    AVALON_OWNER_APP_ORIGIN:missingOrigin?undefined:"https://avaloncoreagency.com",
+  };
+  const Deno={env:{get:k=>env[k]},serve:fn=>{handler=fn;}};
+  const fetch=async(url,init)=>{
+    const u=new URL(url);
+    calls.push({path:u.pathname,method:init.method||"GET",body:init.body||null,headers:init.headers||{}});
+    let data;let status=200;
+    if(u.pathname==="/auth/v1/user") data={id:OWNER};
+    else if(u.pathname==="/rest/v1/agency_memberships"&&init.method==="POST") {
+      data=null; status=201;
+    } else if(u.pathname==="/rest/v1/agency_memberships"&&u.searchParams.get("role")==="eq.operator") {
+      data=Array.from({length:roster},(_,i)=>({user_id:String(i)}));
+    } else if(u.pathname==="/rest/v1/agency_memberships") data=[{role}];
+    else if(u.pathname==="/auth/v1/invite") {
+      status=inviteFails?409:200;data=inviteFails?{error:"existing"}:{id:INVITED};
+    } else throw Error("Unexpected request to "+u.toString());
+    return new Response(data===null?"":JSON.stringify(data),{
+      status,headers:{"content-type":"application/json"},
+    });
+  };
+  new Function("Deno","fetch",js)(Deno,fetch);
+  assert.equal(typeof handler,"function");
+  return {calls,handler};
+}
+function request(body,token="fake.user.jwt") {
+  return new Request("https://synthetic.supabase.co/functions/v1/staff-invite",{
+    method:"POST",headers:{"authorization":"Bearer "+token,"content-type":"application/json"},
+    body:JSON.stringify(body),
+  });
+}
+test("pending operator invite is strictly owner-verified and never activated",async()=>{
+  const edge=makeEdge();
+  const resp=await edge.handler(request({email:" NEW.Employee@Example.invalid "}));
+  assert.equal(resp.status,200);
+  assert.deepEqual(await resp.json(),{invited:true,requires_owner_activation:true});
+  assert.deepEqual(edge.calls.map(x=>x.path),[
+    "/auth/v1/user","/rest/v1/agency_memberships",
+    "/rest/v1/agency_memberships","/auth/v1/invite",
+    "/rest/v1/agency_memberships",
+  ]);
+  const sent=JSON.parse(edge.calls[3].body);
+  assert.equal(sent.email,"new.employee@example.invalid");
+  const added=JSON.parse(edge.calls[4].body);
+  assert.deepEqual(added,{user_id:INVITED,role:"operator"});
+  assert.ok(edge.calls.every(x=>!x.path.includes("staff_portal_access")),"no activation created");
+  assert.equal(edge.calls[0].headers.Authorization,"Bearer fake.user.jwt");
+  assert.ok(!srcContainsAdminSecret(edge.calls),"no service key included in the user-facing invite request");
+});
+function srcContainsAdminSecret(calls) {
+  return String(calls.find(x=>x.path==="/auth/v1/invite")?.body).includes("private-test-key");
+}
+test("outsiders cannot invite or enumerate staff",async()=>{
+  const edge=makeEdge({role:"operator"});
+  const res=await edge.handler(request({email:"new@example.invalid"}));
+  assert.equal(res.status,403);
+  assert.equal(edge.calls.some(x=>x.path==="/auth/v1/invite"),false);
+});
+test("missing or invalid login authorization never reaches admin invite endpoint",async()=>{
+  const edge=makeEdge();
+  const result=await edge.handler(new Request("https://synthetic.supabase.co/functions/v1/staff-invite",{method:"POST"}));
+  assert.equal(result.status,401);
+  assert.equal(edge.calls.length,0);
+});
+test("failed invitation and missing app-origin configuration both fail closed",async()=>{
+  const missing=makeEdge({missingOrigin:true});
+  assert.equal((await missing.handler(request({email:"x@example.invalid"}))).status,503);
+  assert.equal(missing.calls.length,0);
+  const failed=makeEdge({inviteFails:true});
+  assert.equal((await failed.handler(request({email:"x@example.invalid"}))).status,409);
+  assert.equal(failed.calls.some(x=>x.method==="POST"&&x.path==="/rest/v1/agency_memberships"),false);
+});
+test("owner invite enforces strict input and maximum roster",async()=>{
+  const invalid=makeEdge();
+  assert.equal((await invalid.handler(request({email:"not-an-email"}))).status,400);
+  assert.equal(invalid.calls.some(x=>x.path==="/auth/v1/invite"),false);
+  const full=makeEdge({roster:50});
+  assert.equal((await full.handler(request({email:"x@example.invalid"}))).status,429);
+  assert.equal(full.calls.some(x=>x.path==="/auth/v1/invite"),false);
+});
