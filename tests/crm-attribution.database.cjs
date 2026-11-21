@@ -51,18 +51,39 @@ test("attributed revenue: approved signed terms, exact cents, finance isolation 
   assert.equal(row.commission_due,"12.00");
   assert.equal(row.rate_pct,"15.00");
   await assert.rejects(db.query("select crm_attribution_record($1::jsonb)",[JSON.stringify(input)]),/duplicate|unique|crm_attributed_conversions_client_id_external_ref_key/i);
-  await assert.rejects(db.query("select crm_attribution_transition($1,'paid','TRANSFER-001')",[conversion]),/invalid_conversion_transition/);
-  await db.query("select crm_attribution_transition($1,'verified','Receipt and booking verified')",[conversion]);
+  // The legacy three-argument RPC has been retired. Even an authorized owner
+  // must not use it to bypass versioning, intermediate evidence or event history.
+  for (const target of ["verified", "paid", "void"]) {
+    await assert.rejects(
+      db.query("select crm_attribution_transition($1,$2,'LEGACY-ATTEMPT')", [conversion, target]),
+      /permission denied|legacy_attribution_transition_disabled/i
+    );
+  }
+  const unchanged = await one("select status,version from crm_attributed_conversions where id=$1", [conversion]);
+  assert.equal(unchanged.status, "reported");
+  assert.equal(unchanged.version, 1);
+  const advance = (to,evidence,version) =>
+    db.query("select crm_attribution_advance($1,$2,$3,$4)",[conversion,to,evidence,version]);
+  await assert.rejects(advance("paid","TRANSFER-001",1), /invalid_conversion_transition/);
+  await advance("client_paid_verified","Customer receipt checked",1);
+  await advance("attribution_verified","Tracking proof and contract",2);
+  await advance("eligible","Commission reviewed against terms",3);
   const summary1=(await one("select crm_attribution_summary($1) s",[client])).s.currencies[0];
   assert.equal(summary1.currency,"USD");
   assert.equal(summary1.eligible,"12.00");
   assert.equal(summary1.pending,"12.00");
   assert.equal(summary1.paid,"0");
-  await db.query("select crm_attribution_transition($1,'paid','TRANSFER-001')",[conversion]);
+  await assert.rejects(advance("paid","TRANSFER-001",4), /invalid_conversion_transition/,
+    "a verified, eligible commission cannot be paid before invoicing");
+  await advance("invoiced","AV-INV-QA-001",4);
+  await advance("paid","TRANSFER-001",5);
   const summary2=(await one("select crm_attribution_summary($1) s",[client])).s.currencies[0];
   assert.equal(summary2.pending,"0");
   assert.equal(summary2.paid,"12.00");
-  await assert.rejects(db.query("select crm_attribution_transition($1,'void','Refunded transaction')",[conversion]),/invalid_conversion_transition/);
+  await assert.rejects(advance("void","Refunded transaction",6), /invalid_conversion_transition/);
+  const history=(await db.query("select from_status,to_status from crm_attribution_events where conversion_id=$1 order by created_at,id",[conversion])).rows;
+  assert.equal(history.length,5,"all five required steps have an audit event");
+  assert.deepEqual(history.map(e=>e.to_status).sort(),["client_paid_verified","attribution_verified","eligible","invoiced","paid"].sort());
 
   await as(OUTSIDER);
   const unauthorized = await db.query("select id from crm_attributed_conversions");
