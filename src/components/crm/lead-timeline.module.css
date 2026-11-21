@@ -75,3 +75,120 @@
 .recordLinks a { display:inline-flex; align-items:center; min-height:36px; padding:0 10px; border-radius:8px; font-size:12.5px; color:inherit; text-decoration:none; border:1px solid var(--line-strong, rgba(140,140,140,.4)); }
 .recordLinks a:focus-visible { outline:2px solid var(--cyan, currentColor); outline-offset:2px; }
 @media (max-width:700px) { .recordLinks a { min-height:44px; } }
+
+
+/* CRM Lead Focus Panel V3 — quiet backdrop, fixed context, progressive disclosure.
+   All records are still available; the history control decides what is visible. */
+.scrim { background:rgba(2,7,19,.40); }
+.drawer {
+  width:min(610px, calc(100vw - 32px));
+  height:100dvh; max-height:100dvh;
+  padding:0 18px 24px; gap:10px;
+  overflow-x:hidden; overflow-y:auto;
+  overscroll-behavior-y:contain;
+  scrollbar-gutter:stable;
+  background:linear-gradient(150deg,#0c1930 0%,#071122 62%,#060d1b 100%);
+  border-left:1px solid #45678d;
+  box-shadow:-16px 0 48px rgba(0,0,0,.48);
+}
+.drawerHead {
+  position:sticky; top:0; z-index:4;
+  margin:0 -18px; padding:15px 18px 13px;
+  background:rgba(7,20,39,.97);
+  backdrop-filter:blur(14px);
+  -webkit-backdrop-filter:blur(14px);
+  border-bottom:1px solid #274c72;
+  box-shadow:0 8px 18px rgba(1,7,18,.38);
+}
+.drawerHead > div:first-child {min-width:0;}
+.drawerHead h2 {font-size:clamp(17px,2vw,21px); margin:3px 0 5px;}
+.eyebrow {font-weight:700; letter-spacing:.1em;}
+.sub {font-size:12px; line-height:1.45;}
+.scrim .drawer .headActions button {min-height:44px; white-space:nowrap;}
+.scrim .drawer .headActions button:last-child {
+  min-width:44px; padding:0; font-size:20px;
+  border-color:#4c6e96; background:#172b45;
+}
+.scrim .drawer button:focus-visible,.recordLinks a:focus-visible,.historyFilters button:focus-visible {
+  outline:2px solid #7de6ff; outline-offset:2px;
+}
+.recordLinks {margin:4px 0 0; gap:7px;}
+.recordLinks a {
+  min-height:44px; padding:7px 11px; border-radius:9px;
+  background:rgba(15,43,72,.55); border-color:#335b83; font-size:12px;
+}
+.composeSection,.attachmentsSection {
+  display:block; min-width:0; border:1px solid #254663;
+  border-radius:13px; background:rgba(6,20,38,.6); padding:0 12px;
+}
+.sectionSummary {
+  min-height:48px; display:flex; align-items:center;
+  cursor:pointer; font-size:13px; font-weight:650; color:#c8e6ff;
+  list-style:none; outline-offset:3px;
+}
+.sectionSummary::-webkit-details-marker {display:none;}
+.sectionSummary::after {
+  content:"+"; font-size:21px; margin-left:auto; color:#6cdeff;
+}
+.composeSection[open] .sectionSummary::after,.attachmentsSection[open] .sectionSummary::after {content:"−";}
+.composeSection > .tabs {margin:9px 0;}
+.composeSection > .composer {margin-bottom:12px; background:#081a31;}
+.attachmentsSection > .attachmentShelf {margin:4px 0 12px;}
+.attachmentsSection > p {margin:5px 0 12px;}
+.historySection {
+  display:grid; gap:10px; min-width:0;
+  padding:14px; border:1px solid #2e567b; border-radius:15px;
+  background:rgba(9,26,49,.77);
+}
+.historyHead {display:flex; flex-wrap:wrap; justify-content:space-between; align-items:center; gap:6px;}
+.historyHead h3 {margin:0; font-size:16px; color:#d7edff;}
+.historyCount {font-size:11px; color:#95b6d4;}
+.historyFilters {display:flex; gap:7px; overflow-x:auto; padding:0 0 5px; scrollbar-width:thin;}
+.scrim .drawer .historyFilters button {
+  flex:0 0 auto; display:inline-flex; gap:6px; align-items:center;
+  min-height:44px; padding:5px 12px; font-size:12px;
+  border:1px solid #2a517a; border-radius:999px;
+  background:#0b2039; white-space:nowrap;
+}
+.scrim .drawer .historyFilters button[aria-pressed="true"] {
+  background:#103c53; border-color:#48d7eb; color:#eaffff;
+}
+.filterCount {font-size:10.5px; color:#a1c5dc; font-variant-numeric:tabular-nums;}
+.timeline {
+  border-left:0; padding:0;
+  gap:8px; min-width:0;
+}
+.timeline li {
+  border:1px solid #254463;
+  border-left:3px solid #a78bfa;
+  border-radius:10px;
+  background:rgba(5,18,36,.72);
+  padding:10px 12px;
+  gap:6px;
+}
+.timeline li::before {display:none;}
+.timeline li[data-type="stage"] {border-left-color:#42cde6;}
+.timeline li[data-type="file"] {border-left-color:#f4c16c;}
+.timeline li[data-type="activity"] {border-left-color:#9cd8b4;}
+.timeline li[data-type="edit"] {border-left-color:#a78bfa;}
+.timeline p {font-size:13px; line-height:1.45; color:#e5f1ff;}
+.timeline p strong {font-weight:600;}
+.timeline small {font-size:11px; line-height:1.4; color:#93b0d1;}
+.body {font-size:12.5px; line-height:1.45; color:#bfd1e7;}
+.scrim .drawer .historyMore {
+  min-height:44px; width:100%; font-size:12.5px; font-weight:600;
+  background:#0b2c4b; border:1px solid #3e759f; color:#d5f4ff;
+}
+@media (max-width:700px) {
+  .drawer {width:100%;padding:0 12px 24px; scrollbar-gutter:auto;}
+  .drawerHead {margin:0 -12px;padding:12px;gap:8px;}
+  .drawerHead h2 {font-size:17px;}
+  .headActions {gap:5px;}
+  .scrim .drawer .headActions button {padding:5px 8px;font-size:12px;}
+  .scrim .drawer .headActions button:last-child {padding:0;font-size:19px;}
+  .historySection {padding:12px;}
+  .recordLinks a {font-size:12px;}
+}
+@media (prefers-reduced-motion:reduce) {
+  .drawer,.drawerHead,.timeline li {animation:none; transition:none;}
+}
