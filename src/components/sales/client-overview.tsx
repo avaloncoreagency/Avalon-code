@@ -77,7 +77,7 @@ export function ClientOverview({ lang, client, owner, contacts, nextSteps, nextS
       </div>
 
       <nav className={styles.jump} aria-label={pick(lang, "Ir a una sección", "Jump to section")}>
-        <a href="#client-overview">Overview</a>
+        <a href="#client-overview">{pick(lang, "Resumen", "Overview")}</a>
         <a href="#client-tools">{pick(lang, "Herramientas", "Tools")}</a>
         <a href="#internal-workspace">{pick(lang, "Expediente", "Dossier")}</a>
         <a href="#projects">{pick(lang, "Proyectos", "Projects")}</a>
