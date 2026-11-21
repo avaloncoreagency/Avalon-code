@@ -4,6 +4,7 @@ import { useMemo, useState } from "react";
 import s from "@/components/sales/sales.module.css";
 import w from "./quotes.module.css";
 import { hasChatbotCatalogEntry, proposedChatbotLine } from "@/lib/quotes/chatbot-catalog";
+import { ServiceStudio, type StudioResult } from "./service-studio";
 import {
   BILLING_MODELS, SETTLEMENTS, formatUsd, quoteTotals, validateQuote,
   type BillingModel, type QuoteCommission, type QuoteContent, type QuoteInternal, type QuoteLine,
@@ -37,6 +38,11 @@ export function QuoteWizard({ lang, mode, action, hidden, initial, initialIntern
   const set = <K extends keyof QuoteContent>(k: K, v: QuoteContent[K]) => setC(prev => ({ ...prev, [k]: v }));
   const setLine = (i: number, patch: Partial<QuoteLine>) => set("lines", c.lines.map((l, j) => (j === i ? { ...l, ...patch } : l)));
   const errors = useMemo(() => { try { return validateQuote(c); } catch { return ["lines"]; } }, [c]);
+  // Service configurator: appends (never overwrites) the line, scope, exclusions and third-party costs.
+  const addStudio = (r: StudioResult) => setC(prev => {
+    const join = (a: string, b: string) => (b ? (a.trim() ? `${a.trim()}\n\n${b}` : b).slice(0, 4000) : a);
+    return { ...prev, lines: [...prev.lines, r.line], scope: join(prev.scope, r.scope), exclusions: prev.exclusions.includes(r.exclusions) ? prev.exclusions : join(prev.exclusions, r.exclusions), thirdPartyCosts: join(prev.thirdPartyCosts, r.thirdParty) };
+  });
   const totals = useMemo(() => { try { return quoteTotals(c); } catch { return null; } }, [c]);
   const steps = [t("Prospecto", "Prospect"), t("Servicios y precios", "Services and pricing"), t("Modelo de cobro", "Billing model"), t("Alcance y condiciones", "Scope and terms"), t("Revisión", "Review")];
   const stepErrors = [
@@ -111,6 +117,7 @@ export function QuoteWizard({ lang, mode, action, hidden, initial, initialIntern
 
       {step === 1 && <fieldset className={s.fieldset}><legend>{steps[1]}</legend>
         <p className={w.hint}>{t("Elige servicios del catálogo o agrega un concepto personalizado. Solo se precarga un precio si el catálogo lo tiene aprobado; si no, escríbelo tú.", "Pick catalog services or add a custom item. A price is prefilled only when the catalog has an approved one; otherwise type it in.")}</p>
+        <ServiceStudio lang={lang} catalog={catalog.map(item => ({ code: item.code, name: item.name, suggested_price: item.billing === "monthly" ? item.approvedMonthly : item.approvedPrice }))} onAdd={addStudio} />
         <div className={w.catalog} role="group" aria-label={t("Catálogo de servicios", "Service catalog")}>
           {catalog.map(item => <button key={item.code} type="button" className={s.button} onClick={() => addCatalog(item)}>+ {item.name}{item.approvedPrice || item.approvedMonthly ? "" : " · " + t("sin precio aprobado", "no approved price")}</button>)}
           {!hasChatbotCatalogEntry(catalog) && <button type="button" className={s.button} onClick={() => set("lines", [...c.lines, proposedChatbotLine(lang)])}>

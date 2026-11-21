@@ -28,3 +28,11 @@
   .steps li { scroll-snap-align:start; }
   .preview { height:70vh; }
 }
+/* V5 service configurator + provider estimators */
+.studio { display:grid; gap:10px; padding:12px; border:1px solid var(--line, #2b4a75); border-radius:12px; margin-bottom:12px; }
+.rates { display:grid; gap:6px; }
+.estimate { width:100%; border-collapse:collapse; font-size:13px; }
+.estimate caption { text-align:left; font-weight:600; padding:6px 0; }
+.estimate th, .estimate td { padding:6px 8px; border-bottom:1px solid var(--line, #1e3a5f); text-align:left; vertical-align:top; }
+.estimate td small { display:block; opacity:.7; }
+@media (max-width:700px) { .estimate { display:block; overflow-x:auto; } }
