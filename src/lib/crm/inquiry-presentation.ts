@@ -26,12 +26,20 @@ function serviceKey(value: string): string {
 /** The original message is never changed; output is solely a compact human-readable view. */
 export function presentInquiry(message: string | null, requested: readonly string[], lang: "es" | "en") {
   const raw = message ?? "";
-  const match = /^(?:Interés adicional|Additional interest):[ \t]*([^\r\n]+)(?:\r?\n|$)/i.exec(raw);
+  // Before message history existed, the database prepended a machine-generated
+  // "Solicitud web (...) · servicios: ..." line to the prospect opportunity.
+  // Keep that line in the original record, but never display it before the need.
+  let body = raw;
+  const legacy = /^Solicitud web \((?:es|en)\)(?:\s*·\s*servicios:\s*([^\r\n]*))?\r?\n/i.exec(body);
+  const fromLegacy = legacy?.[1] ? legacy[1].split(",").map(s => s.trim()).filter(Boolean) : [];
+  if (legacy) body = body.slice(legacy[0].length);
+  const match = /^(?:Interés adicional|Additional interest):[ \t]*([^\r\n]+)(?:\r?\n|$)/i.exec(body);
   const extra = match ? match[1].split(",").map(s => s.trim()).filter(Boolean) : [];
-  const body = (match ? raw.slice(match[0].length) : raw).trim();
+  if (match) body = body.slice(match[0].length);
+  body = body.trim();
   const distinct = new Set<string>();
   const services: string[] = [];
-  for (const original of [...requested, ...extra]) {
+  for (const original of [...requested, ...fromLegacy, ...extra]) {
     const key = serviceKey(original);
     if (!key || distinct.has(key)) continue;
     distinct.add(key);
