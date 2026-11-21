@@ -608,7 +608,13 @@ test('Nova Restaurant through the real app: one form, three departments, no dupl
   assert.match(await drawer.locator('li', { hasText: 'Movido de Propuesta enviada a Contactado' }).first().innerText(), /miguel/, 'stage event names the real actor');
   assert.doesNotMatch(await drawer.innerText(), /· Sistema/, 'no actor is invented as System');
   await drawer.getByRole('link', { name: 'Registrar venta para Orbit Dental Sintético' }).waitFor();
-  await drawer.getByLabel('Nota').fill('Cliente pidió propuesta revisada (sintético)');
+  // The premium lead drawer intentionally starts with its composer collapsed.
+  // Exercise the actual user interaction before adding a note; do not bypass visibility.
+  const noteInput = drawer.getByLabel('Nota');
+  assert.equal(await noteInput.isVisible(), false, 'the lead composer is collapsed by default');
+  await drawer.getByText('Añadir nota, actividad o archivo', { exact: true }).click();
+  assert.equal(await noteInput.isVisible(), true, 'opening the disclosure reveals the note field');
+  await noteInput.fill('Cliente pidió propuesta revisada (sintético)');
   await drawer.getByRole('button', { name: 'Guardar nota' }).click();
   await drawer.getByText('Cliente pidió propuesta revisada (sintético)').waitFor();
   await drawer.getByRole('tab', { name: 'Archivo' }).click();
