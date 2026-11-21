@@ -13,8 +13,9 @@ test('synthetic probe: oversized fields never reach intake', async () => {
   assert.equal(a.calls.rpc, 0);
 });
 test('synthetic probe: RPC failure is never reported as success', async () => {
-  const a = action(root, { networkFailure: true });
+  const a = action(root, { human: 'ok', networkFailure: true });
   assert.notEqual((await a.submit({ status: 'idle' }, form())).status, 'ok');
+  assert.equal(a.calls.rpc, 1, 'reach the failing database after a valid synthetic human check');
 });
 // Human-check acceptance is a separate mandatory gate: node tests/final-validation/intake-boundary.cjs .
 // This suite passing does not imply that gate passed.

@@ -24,7 +24,7 @@ jobs:
         ports:
           - 5432:5432
         options: >-
-          --health-cmd pg_isready --health-interval 5s --health-timeout 5s --health-retries 10
+          --health-cmd "pg_isready -U postgres" --health-interval 5s --health-timeout 5s --health-retries 10
     env:
       NODE_PATH: ./tests/qa/node_modules
       NEXT_TELEMETRY_DISABLED: '1'
@@ -43,7 +43,7 @@ jobs:
         working-directory: ${{ runner.temp }}/avalon-candidate
       - run: npm test && npm run typecheck && npm run lint && npm run build
         working-directory: ${{ runner.temp }}/avalon-candidate
-      - run: node --test --test-concurrency=1 tests/public-inquiry.database.cjs tests/inquiry-history.database.cjs tests/intake-role.database.cjs tests/growth-funnel.database.cjs tests/core-engine.database.cjs tests/sales.database.cjs tests/final-validation/*.test.cjs tests/final-validation/identities.database.cjs
+      - run: node --test --test-concurrency=1 tests/public-inquiry.database.cjs tests/inquiry-history.database.cjs tests/intake-role.database.cjs tests/growth-funnel.database.cjs tests/core-engine.database.cjs tests/sales.database.cjs tests/fv2-commercial-chain.database.cjs tests/fv2-intake-matrix.database.cjs tests/fv2-migrations.database.cjs tests/fv2-capacity.database.cjs tests/fv2-intake-matrix.test.cjs tests/final-validation/*.test.cjs tests/final-validation/identities.database.cjs tests/final-validation/commercial-negative.database.cjs
         working-directory: ${{ runner.temp }}/avalon-candidate
       - name: Real concurrent database sessions (ephemeral service)
         run: node tests/final-validation/concurrent-postgres.cjs
@@ -53,15 +53,22 @@ jobs:
           PGHOST: 127.0.0.1
           PGDATABASE: avalon_qa
           PGPASSWORD: synthetic-ci-only
+      - name: Independent integrated product and planning boundaries
+        run: node --test --test-concurrency=1 tests/backbone-e2e.database.cjs tests/product-delivery.database.cjs tests/quotes.database.cjs tests/agents-missions.database.cjs tests/operations/mission.database.cjs
+        working-directory: ${{ runner.temp }}/avalon-candidate
       - run: node tests/qa/node_modules/playwright/cli.js install --with-deps chromium
         working-directory: ${{ runner.temp }}/avalon-candidate
-      - run: node --test --test-concurrency=1 tests/sales.browser.cjs tests/quotes.browser.cjs tests/prod-schema-compat.browser.cjs tests/growth-funnel.http.cjs
+      - run: node --test --test-concurrency=1 tests/final-validation/kanban-browser.cjs tests/quotes.browser.cjs tests/prod-schema-compat.browser.cjs tests/growth-funnel.http.cjs
         working-directory: ${{ runner.temp }}/avalon-candidate
         env:
-          SALES_BROWSER: '1'
           QUOTES_BROWSER: '1'
           EVIDENCE_DIR: evidence/final-validation
-      - name: Mandatory human verification acceptance (known red until Claude fix)
+      - name: Five-area mobile and client-product relationships
+        run: node --test tests/quick-improvements/mobile.browser.cjs
+        working-directory: ${{ runner.temp }}/avalon-candidate
+        env:
+          QUICK_EXPECT_TOUCH_TARGETS: '1'
+      - name: Mandatory human verification acceptance on reviewed current candidate
         if: always()
         run: node tests/final-validation/intake-boundary.cjs .
         working-directory: ${{ runner.temp }}/avalon-candidate
