@@ -53,6 +53,9 @@ jobs:
           PGHOST: 127.0.0.1
           PGDATABASE: avalon_qa
           PGPASSWORD: synthetic-ci-only
+      - name: Independent integrated product and planning boundaries
+        run: node --test --test-concurrency=1 tests/backbone-e2e.database.cjs tests/product-delivery.database.cjs tests/quotes.database.cjs tests/agents-missions.database.cjs tests/operations/mission.database.cjs
+        working-directory: ${{ runner.temp }}/avalon-candidate
       - run: node tests/qa/node_modules/playwright/cli.js install --with-deps chromium
         working-directory: ${{ runner.temp }}/avalon-candidate
       - run: node --test --test-concurrency=1 tests/final-validation/kanban-browser.cjs tests/quotes.browser.cjs tests/prod-schema-compat.browser.cjs tests/growth-funnel.http.cjs
