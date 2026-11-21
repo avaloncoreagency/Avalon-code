@@ -45,7 +45,7 @@ function makeEdge({role="owner",missingOrigin=false,roster=0,inviteFails=false,e
 function request(body,token="fake.user.jwt") {
   return new Request("https://synthetic.supabase.co/functions/v1/staff-invite",{
     method:"POST",headers:{"authorization":"Bearer "+token,"content-type":"application/json"},
-    body:JSON.stringify(body),
+    body:JSON.stringify({origin:"https://avaloncoreagency.com",...body}),
   });
 }
 test("pending operator invite is strictly owner-verified and never activated",async()=>{
@@ -99,6 +99,12 @@ test("failed invitation and missing app-origin configuration both fail closed",a
   const failed=makeEdge({inviteFails:true});
   assert.equal((await failed.handler(request({email:"x@example.invalid"}))).status,409);
   assert.equal(failed.calls.some(x=>x.method==="POST"&&x.path==="/rest/v1/agency_memberships"),false);
+});
+test("invitation rejects redirects outside project-owned application origins",async()=>{
+  const edge=makeEdge();
+  const denied=await edge.handler(request({email:"staff@example.invalid",origin:"https://attacker.invalid"}));
+  assert.equal(denied.status,400);
+  assert.equal(edge.calls.some(x=>x.path==="/auth/v1/invite"),false);
 });
 test("owner invite enforces strict input and maximum roster",async()=>{
   const invalid=makeEdge();
