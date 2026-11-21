@@ -7,6 +7,7 @@ import { getLang } from "@/lib/i18n-server";
 import { pick } from "@/lib/i18n";
 import { UUID_RE } from "@/components/sales/ui";
 import { recordAttribution, transitionAttribution } from "./actions";
+import { ATTRIBUTION_LABEL, attributionActions, isAttributionState } from "@/lib/sales/attribution";
 import s from "@/components/sales/sales.module.css";
 
 export const dynamic = "force-dynamic";
@@ -16,15 +17,13 @@ type Terms = {id:string;billing_model:string|null;commission_pct:number|null;com
 type Contract = {id:string;verified_at:string|null};
 type Conversion = {id:string;source:string;external_ref:string;gross_collected:string;excluded_amount:string;
   rate_pct:string;commission_due:string;currency:string;status:string;created_at:string;
-  verification_ref:string;settlement_ref:string;void_reason:string};
-type Summary = {currency:string;count:number;reported_count:number;eligible:string;paid:string;pending:string};
+  verification_ref:string;settlement_ref:string;void_reason:string;version?:number;disputed_from?:string|null;
+  client_payment_ref?:string;attribution_ref?:string;invoice_ref?:string;dispute_reason?:string};
+type Summary = {currency:string;count:number;reported_count:number;eligible:string;paid:string;pending:string;
+  unverified?:string;invoiced?:string;disputed?:string};
 type SummaryPayload = {currencies:Summary[]};
 const n = (v:number|string,currency="USD") =>
   new Intl.NumberFormat("en-US",{style:"currency",currency}).format(Number(v));
-const statusLabel:Record<string,string> = {
-  reported:"Reportada / Reported",verified:"Verificada / Verified",
-  paid:"Pagada a Avalon / Paid to Avalon",void:"Anulada / Voided",
-};
 
 export default async function ClientResults({params,searchParams}:{
   params:Promise<{id:string}>;
@@ -53,7 +52,7 @@ export default async function ClientResults({params,searchParams}:{
       .eq("lead_id",client.origin_lead_id).eq("kind","agreed").maybeSingle()
       : Promise.resolve({data:null,error:null}),
     supabase.from("crm_attributed_conversions")
-      .select("id,source,external_ref,gross_collected,excluded_amount,rate_pct,commission_due,currency,status,created_at,verification_ref,settlement_ref,void_reason")
+      .select("*")
       .eq("client_id",id).order("created_at",{ascending:false}).limit(100),
     supabase.rpc("crm_attribution_summary",{p_client:id}),
   ]);
@@ -105,11 +104,14 @@ export default async function ClientResults({params,searchParams}:{
             <div className={s.card}><span>{pick(lang,"Cobrado por Avalon","Collected by Avalon")}</span><strong>{n(currency.paid,currency.currency)}</strong></div>
             <div className={s.card}><span>{pick(lang,"Pendiente de cobro","Awaiting settlement")}</span><strong>{n(currency.pending,currency.currency)}</strong></div>
             <div className={s.card}><span>{pick(lang,"Conversiones reportadas / total","Reported / total conversions")}</span><strong>{currency.reported_count} / {currency.count}</strong></div>
+            {currency.unverified!==undefined && <div className={s.card}><span>{pick(lang,"Sin verificar (no exigible)","Unverified (not eligible)")}</span><strong>{n(currency.unverified,currency.currency)}</strong></div>}
+            {currency.invoiced!==undefined && <div className={s.card}><span>{pick(lang,"Facturada, pendiente de cobro","Invoiced, not yet collected")}</span><strong>{n(currency.invoiced,currency.currency)}</strong></div>}
+            {currency.disputed!==undefined && <div className={s.card}><span>{pick(lang,"En disputa (excluida)","Disputed (excluded)")}</span><strong>{n(currency.disputed,currency.currency)}</strong></div>}
           </div>
         </div>)}
       </section>}
       {q.ok && <p className={s.flash} data-tone="ok">{pick(lang,"Operación registrada; consulta la tabla para verificar el estado.","Operation saved; inspect the row status below.")}</p>}
-      {q.error && <p className={s.flash} data-tone="error">{pick(lang,"La operación no se aplicó:", "Operation rejected:")} {q.error}</p>}
+      {q.error && <p className={s.flash} data-tone="error">{pick(lang,"La operación no se aplicó:", "Operation rejected:")} {q.error==="conflict" ? pick(lang,"otra persona cambió este registro; recarga y revisa antes de continuar.","someone else changed this record; reload and review before continuing.") : q.error==="schema_pending" ? pick(lang,"la migración del ciclo de comisiones (20261121181000) aún no está aplicada.","the commission lifecycle migration (20261121181000) is not applied yet.") : q.error}</p>}
       {canRecord && <section className={s.panel}>
         <h2>{pick(lang,"Registrar venta atribuida cobrada","Record paid, attributable end-customer sale")}</h2>
         <form action={recordAttribution} className={s.form}>
@@ -134,23 +136,25 @@ export default async function ClientResults({params,searchParams}:{
         {!entries.length ? <p className={s.muted}>{pick(lang,"Sin conversiones registradas.","No conversions recorded.")}</p> :
           <div className={s.grid}>{entries.map(c=><article className={s.card} key={c.id}>
             <strong>{c.source} · {c.external_ref}</strong>
-            <p>{statusLabel[c.status]||c.status} · {new Date(c.created_at).toLocaleDateString(lang==="es"?"es-US":"en-US")}</p>
-            <p>{pick(lang,"Cobrado al negocio","Collected by client business")}: {n(c.gross_collected,c.currency)} · {pick(lang,"Excluido","Excluded")}: {n(c.excluded_amount,c.currency)}</p>
+            <p>{isAttributionState(c.status) ? pick(lang,...ATTRIBUTION_LABEL[c.status]) : c.status} · {new Date(c.created_at).toLocaleDateString(lang==="es"?"es-US":"en-US")}</p>
+            <p>{pick(lang,"Cobrado al negocio (no es ingreso de Avalon)","Collected by client business (not Avalon revenue)")}: {n(c.gross_collected,c.currency)} · {pick(lang,"Excluido","Excluded")}: {n(c.excluded_amount,c.currency)}</p>
             <p><strong>{pick(lang,"Comisión de Avalon","Avalon commission")}: {n(c.commission_due,c.currency)} ({c.rate_pct}%)</strong></p>
+            {c.client_payment_ref && <p className={s.muted}>{pick(lang,"Cobro del cliente","Customer payment")}: {c.client_payment_ref}</p>}
+            {c.attribution_ref && <p className={s.muted}>{pick(lang,"Atribución","Attribution")}: {c.attribution_ref}</p>}
             {c.verification_ref && <p className={s.muted}>{pick(lang,"Evidencia de verificación","Verification evidence")}: {c.verification_ref}</p>}
+            {c.invoice_ref && <p className={s.muted}>{pick(lang,"Factura de Avalon","Avalon invoice")}: {c.invoice_ref}</p>}
             {c.settlement_ref && <p className={s.muted}>{pick(lang,"Referencia de pago a Avalon","Avalon settlement reference")}: {c.settlement_ref}</p>}
+            {c.dispute_reason && c.status==="disputed" && <p className={s.muted}>{pick(lang,"Disputa","Dispute")}: {c.dispute_reason}</p>}
             {c.void_reason && <p className={s.muted}>{pick(lang,"Motivo de anulación","Void reason")}: {c.void_reason}</p>}
-            {["reported","verified"].includes(c.status) && <form action={transitionAttribution} className={s.form}>
+            {attributionActions(c.status,c.disputed_from).map(a=><form key={a.to} action={transitionAttribution} className={s.form}>
               <input type="hidden" name="client_id" value={id}/>
               <input type="hidden" name="conversion_id" value={c.id}/>
-              <label className={s.field}>{pick(lang,"Evidencia o referencia de transferencia","Evidence or transfer reference")}
-                <input name="evidence" minLength={3} maxLength={250} required/></label>
-              <div className={s.actions}>
-                {c.status==="reported" && <button className={s.button} name="target" value="verified">{pick(lang,"Verificar atribución y cobro","Verify attribution and collection")}</button>}
-                {c.status==="verified" && <button className={s.button+" "+s.primary} name="target" value="paid">{pick(lang,"Confirmar pago a Avalon","Confirm payment to Avalon")}</button>}
-                <button className={s.button} name="target" value="void">{pick(lang,"Anular (explicar motivo)","Void (give reason)")}</button>
-              </div>
-            </form>}
+              <input type="hidden" name="version" value={String(c.version ?? 1)}/>
+              <input type="hidden" name="target" value={a.to}/>
+              <label className={s.field}>{pick(lang,...a.evidence)}
+                <input name="evidence" minLength={a.to==="void"||a.to==="disputed"?5:3} maxLength={250} required/></label>
+              <div className={s.actions}><button className={s.button+(a.tone==="primary"?" "+s.primary:"")}>{pick(lang,a.es,a.en)}</button></div>
+            </form>)}
           </article>)}</div>}
       </section>
     </>}
