@@ -1,10 +1,12 @@
 "use client";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import Link from "next/link";
 import { pick, type Lang } from "@/lib/i18n";
 import type { Row, Stage } from "@/lib/crm/domain";
 import s from "./lead-timeline.module.css";
 import { timelineWindow, type TimelineFilter } from "@/lib/crm/timeline-window";
+import { lockPageScroll, useIsClient } from "@/lib/ui/page-scroll-lock";
 
 type Owner = { user_id: string; email: string };
 type Entry = { id: string; at: string; type: "stage" | "activity" | "file" | "edit"; data: Record<string, unknown> };
@@ -91,18 +93,30 @@ export function LeadTimeline({ lang = "es", lead, stages, revision, onClose, onE
     return () => c.abort();
     // eslint-disable-next-line react-hooks/exhaustive-deps -- t only formats a fallback message; reloading on language change is not needed
   }, [id, tick, revision, limit]);
-  // Focus moves into the dialog, stays there (Tab cycles) and returns to the opener on close.
+  // Two independent scroll contexts. The panel is portalled to <body>, so `position:fixed` is relative to the
+  // viewport even when a page ancestor is transformed (the #main entrance animation keeps `transform` filled).
+  // While open, the page is locked at its current position; on close it is restored exactly and focus returns
+  // to the card that opened the panel. Focus never scrolls anything (`preventScroll`).
+  const isClient = useIsClient();
+  // Captured during the first render, before the panel takes focus.
+  const [opener] = useState<HTMLElement | null>(() =>
+    typeof document !== "undefined" && document.activeElement instanceof HTMLElement && document.activeElement !== document.body ? document.activeElement : null);
   useEffect(() => {
-    const opener = document.activeElement instanceof HTMLElement ? document.activeElement : null;
-    dialog.current?.focus();
-    const root = document.documentElement;
-    const previousOverflow = root.style.overflow;
-    root.style.overflow = "hidden"; // The pipeline behind the dialog must not scroll.
+    if (!isClient) return;
+    const release = lockPageScroll();
     return () => {
-      root.style.overflow = previousOverflow;
-      if (opener?.isConnected) opener.focus();
+      release();
+      if (opener?.isConnected) opener.focus({ preventScroll: true });
     };
-  }, [id]);
+  }, [isClient, opener]);
+  // Opening, reopening or switching lead always starts the panel at the top. Saving a note, changing a filter
+  // or loading more history does not depend on `id`, so the reading position is kept.
+  useLayoutEffect(() => {
+    const panel = dialog.current;
+    if (!panel) return;
+    panel.scrollTop = 0;
+    panel.focus({ preventScroll: true });
+  }, [id, isClient]);
   useEffect(() => {
     const key = (e: KeyboardEvent) => {
       if (e.key === "Escape") { onClose(); return; }
@@ -166,7 +180,8 @@ export function LeadTimeline({ lang = "es", lead, stages, revision, onClose, onE
     } finally { setSaving(false); }
   }
 
-  return (
+  if (!isClient) return null;
+  return createPortal(
     <div className={s.scrim} onClick={e => e.target === e.currentTarget && onClose()}>
       <aside ref={dialog} tabIndex={-1} className={s.drawer} role="dialog" aria-modal="true" aria-label={t(`Historial de ${lead.company}`, `History of ${lead.company}`)}>
         <header className={s.drawerHead}>
@@ -307,6 +322,7 @@ export function LeadTimeline({ lang = "es", lead, stages, revision, onClose, onE
         )}
         </section>
       </aside>
-    </div>
+    </div>,
+    document.body,
   );
 }

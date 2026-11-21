@@ -192,3 +192,11 @@
 @media (prefers-reduced-motion:reduce) {
   .drawer,.drawerHead,.timeline li {animation:none; transition:none;}
 }
+/* V5 scroll independence: the panel is the only scroll container while open. The scrim never scrolls and
+   never chains to the page; the drawer follows the dynamic viewport and respects iPhone safe areas. */
+.scrim { height:100vh; height:100dvh; overflow:hidden; overscroll-behavior:contain; }
+.drawer { -webkit-overflow-scrolling:touch; padding-bottom:calc(24px + env(safe-area-inset-bottom, 0px)); }
+.drawerHead { padding-top:calc(15px + env(safe-area-inset-top, 0px)); }
+@media (max-width: 700px) {
+  .drawerHead { padding-top:calc(12px + env(safe-area-inset-top, 0px)); }
+}

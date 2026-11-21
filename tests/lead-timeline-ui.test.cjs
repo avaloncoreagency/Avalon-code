@@ -15,7 +15,13 @@ test("lead drawer preserves history and attachments while reducing default visua
   assert.match(drawer, /role="dialog" aria-modal="true"/);
   assert.match(drawer, /if \(e\.key === "Escape"\)/);
   assert.match(drawer, /getClientRects\(\)\.length > 0/, "closed-details controls cannot steal Tab focus");
-  assert.match(drawer, /root\.style\.overflow = "hidden"/, "background stays still when detail is open");
+  // Background lock moved to a shared helper (V5): page position saved and restored, scrollbar gap compensated.
+  const lock = fs.readFileSync("src/lib/ui/page-scroll-lock.ts", "utf8");
+  assert.match(drawer, /const release = lockPageScroll\(\)/, "background stays still when detail is open");
+  assert.match(lock, /root\.style\.overflow = "hidden"/);
+  assert.match(lock, /window\.scrollTo\(\{ left: x, top: y/, "page position restored on close");
+  assert.match(drawer, /createPortal\(/, "panel is anchored to the viewport, not to a transformed ancestor");
+  assert.match(drawer, /panel\.scrollTop = 0;[\s\S]*\}, \[id, isClient\]\)/, "every open or lead switch starts at the top");
   assert.match(css, /\.drawerHead \{[^}]*position:sticky/s);
   assert.match(css, /\.historySection \{/);
   assert.match(css, /\.historyFilters \{/);
