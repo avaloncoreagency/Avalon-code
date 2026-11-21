@@ -7,9 +7,9 @@ const src = fs.readFileSync("src/lib/crm/timeline-window.ts", "utf8");
 const js = ts.transpileModule(src, {
   compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 },
 }).outputText;
-const exports = {};
-new Function("exports", js)(exports);
-const { timelineWindow } = exports;
+const loaded = {};
+new Function("exports", js)(loaded);
+const { timelineWindow } = loaded;
 const history = [
   {id:"stage-1",type:"stage"},
   {id:"task-2",type:"activity"},
