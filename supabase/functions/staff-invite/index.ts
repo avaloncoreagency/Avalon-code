@@ -67,7 +67,7 @@ Deno.serve(async (request: Request) => {
     // Invite sends a Supabase Auth-managed verification email. It does not grant
     // any CRM, Office, messaging or casefile permissions to the new identity.
     const invite = await fetchJSON(
-      `${url}/auth/v1/invite?redirect_to=${encodeURIComponent(origin + "/admin/auth/callback")}`, {
+      `${url}/auth/v1/invite?redirect_to=${encodeURIComponent(origin + "/admin/signup")}`, {
         method: "POST",
         headers: {
           apikey: serviceKey, Authorization: `Bearer ${serviceKey}`,
