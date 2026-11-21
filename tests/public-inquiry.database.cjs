@@ -27,10 +27,17 @@ test('public inquiry: anon creates a pending prospect only, validated, throttled
   await db.exec('rollback');
   assert.equal(await call({ ...base, email: 'no-es-correo' }), 'invalid');
   assert.equal(await call({ ...base, message: 'corto' }), 'invalid');
+  // The anonymous RPC is callable directly; malformed JSON types must never
+  // throw (SQLSTATE 22023) or create prospects, regardless of the UI schema.
+  for (const services of ['website', null, { website: true }, 5, true]) {
+    assert.equal(await call({ ...base, services }), 'invalid', `non-array services: ${JSON.stringify(services)}`);
+  }
   assert.equal(await call({ ...base, website_url: 'http://spam.example' }), 'ok', 'honeypot answers ok');
   assert.equal(await call(base), 'ok');
-  assert.equal(await call({ ...base, email: 'ANA@nova.example.invalid' }), 'ok');
-  assert.equal(await call(base), 'ok', 'third request of the day still accepted');
+  const withoutServices = { ...base };
+  delete withoutServices.services;
+  assert.equal(await call(withoutServices), 'ok', 'omitting optional services remains valid');
+  assert.equal(await call({ ...base, email: 'ANA@nova.example.invalid' }), 'ok', 'third request of the day still accepted');
   assert.equal(await call(base), 'throttled', 'fourth within 24 h is throttled');
 
   // Even when several statements share a transaction, anonymous callers must
