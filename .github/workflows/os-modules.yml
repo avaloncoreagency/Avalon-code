@@ -39,7 +39,7 @@ jobs:
       PGPASSWORD: postgres
       PGDATABASE: postgres
     steps:
-      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
       - name: Apply stub and all migrations (incl. crm_core), then run RLS assertions
         run: |
           psql -v ON_ERROR_STOP=1 -q \
