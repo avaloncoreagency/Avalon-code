@@ -7,7 +7,7 @@ const OWNER = "00000000-0000-4000-8000-0000000000a1";
 const INVITED = "00000000-0000-4000-8000-0000000000c3";
 const SOURCE = "supabase/functions/staff-invite/index.ts";
 
-function makeEdge({role="owner",missingOrigin=false,roster=0,inviteFails=false}={}) {
+function makeEdge({role="owner",missingOrigin=false,roster=0,inviteFails=false,enrolledMfa=false}={}) {
   const src = fs.readFileSync(SOURCE,"utf8");
   const js = ts.transpileModule(src,{compilerOptions:{
     target:ts.ScriptTarget.ES2022,module:ts.ModuleKind.None,
@@ -25,7 +25,7 @@ function makeEdge({role="owner",missingOrigin=false,roster=0,inviteFails=false}=
     const u=new URL(url);
     calls.push({path:u.pathname,url:u.toString(),method:init.method||"GET",body:init.body||null,headers:init.headers||{}});
     let data;let status=200;
-    if(u.pathname==="/auth/v1/user") data={id:OWNER};
+    if(u.pathname==="/auth/v1/user") data={id:OWNER,factors:enrolledMfa?[{status:"verified",factor_type:"totp"}]:[]};
     else if(u.pathname==="/rest/v1/agency_memberships"&&init.method==="POST") {
       data=null; status=201;
     } else if(u.pathname==="/rest/v1/agency_memberships"&&u.searchParams.get("role")==="eq.operator") {
@@ -75,6 +75,16 @@ test("outsiders cannot invite or enumerate staff",async()=>{
   const res=await edge.handler(request({email:"new@example.invalid"}));
   assert.equal(res.status,403);
   assert.equal(edge.calls.some(x=>x.path==="/auth/v1/invite"),false);
+});
+test("MFA-enrolled owners must present a verified AAL2 session",async()=>{
+  const edge=makeEdge({enrolledMfa:true});
+  const makeJwt=aal=>"header."+Buffer.from(JSON.stringify({sub:OWNER,aal})).toString("base64url")+".sig";
+  const denied=await edge.handler(request({email:"x@example.invalid"},makeJwt("aal1")));
+  assert.equal(denied.status,403);
+  assert.deepEqual(await denied.json(),{error:"mfa_required"});
+  assert.equal(edge.calls.some(x=>x.path==="/auth/v1/invite"),false);
+  const passed=await edge.handler(request({email:"x@example.invalid"},makeJwt("aal2")));
+  assert.equal(passed.status,200);
 });
 test("missing or invalid login authorization never reaches admin invite endpoint",async()=>{
   const edge=makeEdge();
