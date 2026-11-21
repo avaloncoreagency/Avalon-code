@@ -8,11 +8,11 @@ import type { ServiceKey } from "./landing/copy";
 import s from "@/app/public.module.css";
 
 const T = {
-  es: { company: "Nombre de tu negocio, marca u oficio", name: "Tu nombre", email: "Correo", phone: "Teléfono (opcional)", services: "¿Qué necesitas?", message: "¿Qué problema quieres resolver o qué te gustaría mejorar?", send: "Solicitar cotización", sending: "Enviando…",
+  es: { company: "Nombre de tu negocio, marca u oficio", name: "Tu nombre", email: "Correo", phone: "Teléfono (opcional)", services: "Herramientas que te interesan (opcional)", message: "¿Qué necesitas lograr? Cuéntanos el problema o resultado que buscas.", send: "Solicitar cotización", sending: "Enviando…",
     ok: "¡Gracias! Recibimos tu solicitud. Un especialista de Avalon la revisará y te contactará.", invalid: "Revisa los campos: correo válido y una descripción de al menos 10 caracteres.", throttled: "Ya recibimos varias solicitudes. Inténtalo más tarde o escríbenos directamente.", unavailable: "No pudimos enviar la solicitud ahora. Tus datos siguen aquí: inténtalo de nuevo en unos minutos.",
     human: "Antes de enviar, pulsa «Verificar que soy humano». Tus datos siguen aquí.",
     privacy: "Si trabajas por tu cuenta, escribe tu profesión en el campo del negocio. Usamos tus datos solo para responder a esta solicitud.", preselected: "Ya marcamos las herramientas que viste. Puedes cambiar la selección." },
-  en: { company: "Business, brand or profession", name: "Your name", email: "Email", phone: "Phone (optional)", services: "What do you need?", message: "What problem do you want to solve or improve?", send: "Request a quote", sending: "Sending…",
+  en: { company: "Business, brand or profession", name: "Your name", email: "Email", phone: "Phone (optional)", services: "Tools you are interested in (optional)", message: "What would you like to achieve? Describe the problem or result you want.", send: "Request a quote", sending: "Sending…",
     ok: "Thank you! We received your request. An Avalon specialist will review it and contact you.", invalid: "Please check the fields: a valid email and a description of at least 10 characters.", throttled: "We already received several requests. Please try later or email us directly.", unavailable: "We couldn't send your request right now. Your details are still here: please try again in a few minutes.",
     human: "Before sending, tap “Verify I am human”. Your details are still here.",
     privacy: "If you work independently, enter your profession in the business field. We only use your data to respond to this request.", preselected: "We selected the tools you explored. You can change your selection." },
@@ -44,11 +44,11 @@ export function QuoteForm({ lang, initialServices = [], turnstileSiteKey }: { la
       <label>{t.email}<input name="email" type="email" required maxLength={254} autoComplete="email" defaultValue={v?.email} /></label>
       <label>{t.phone}<input name="phone" type="tel" maxLength={40} autoComplete="tel" defaultValue={v?.phone} /></label>
     </div>
+    <label>{t.message}<textarea name="message" required minLength={10} maxLength={2000} rows={4} defaultValue={v?.message} /></label>
     <fieldset className={s.services}><legend>{t.services}</legend>
       {Object.entries(SERVICE_NAMES[lang]).map(([k, v]) => <label key={k}><input type="checkbox" name="services" value={k} defaultChecked={checked(k)} />{v}</label>)}
     </fieldset>
     {initialServices.length > 0 && <small className={s.note}>{t.preselected}</small>}
-    <label>{t.message}<textarea name="message" required minLength={10} maxLength={2000} rows={4} defaultValue={v?.message} /></label>
     {turnstileSiteKey && <HumanVerification key={state.attempt ?? 0} siteKey={turnstileSiteKey} language={lang} action="avalon_quote" onToken={t => setHuman({ attempt: state.attempt ?? 0, token: t })} />}
     {state.status !== "idle" && <p className={s.error} role="alert">{t[state.status]}</p>}
     <Submit lang={lang} />

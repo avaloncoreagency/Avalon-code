@@ -3,6 +3,7 @@
 import { useMemo, useState } from "react";
 import s from "@/components/sales/sales.module.css";
 import w from "./quotes.module.css";
+import { hasChatbotCatalogEntry, proposedChatbotLine } from "@/lib/quotes/chatbot-catalog";
 import {
   BILLING_MODELS, SETTLEMENTS, formatUsd, quoteTotals, validateQuote,
   type BillingModel, type QuoteCommission, type QuoteContent, type QuoteInternal, type QuoteLine,
@@ -112,6 +113,9 @@ export function QuoteWizard({ lang, mode, action, hidden, initial, initialIntern
         <p className={w.hint}>{t("Elige servicios del catálogo o agrega un concepto personalizado. Solo se precarga un precio si el catálogo lo tiene aprobado; si no, escríbelo tú.", "Pick catalog services or add a custom item. A price is prefilled only when the catalog has an approved one; otherwise type it in.")}</p>
         <div className={w.catalog} role="group" aria-label={t("Catálogo de servicios", "Service catalog")}>
           {catalog.map(item => <button key={item.code} type="button" className={s.button} onClick={() => addCatalog(item)}>+ {item.name}{item.approvedPrice || item.approvedMonthly ? "" : " · " + t("sin precio aprobado", "no approved price")}</button>)}
+          {!hasChatbotCatalogEntry(catalog) && <button type="button" className={s.button} onClick={() => set("lines", [...c.lines, proposedChatbotLine(lang)])}>
+            + {t("Chatbot con IA (propuesta)", "AI chatbot (proposal)")} · {t("sin precio aprobado", "no approved price")}
+          </button>}
           <button type="button" className={s.button} onClick={() => set("lines", [...c.lines, { code: null, name: "", description: "", kind: "one_time", qty: 1, unitPrice: "" }])}>+ {t("Concepto personalizado", "Custom item")}</button>
         </div>
         {c.lines.length === 0 && <p className={s.empty}>{t("Todavía no hay conceptos. Una cotización solo de comisión puede no tener conceptos con precio.", "No items yet. A commission-only quote may have no priced items.")}</p>}
