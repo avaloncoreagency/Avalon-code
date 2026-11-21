@@ -11,7 +11,7 @@ const MIGUEL = '00000000-0000-4000-8000-0000000000a1';
 const SAMUEL = '00000000-0000-4000-8000-0000000000b2';
 const uuid = i => `${String(i).padStart(8, '0')}-0000-4000-8000-${String(i).padStart(12, '0')}`;
 
-test('capacity 1/5/10/25/50 clients: Clients 360 list, search, pagination, leads, projects, sales, inquiries, finance', { timeout: 600000 }, async t => {
+test('capacity 1/5/10/20/25/50 clients: Clients 360 list, search, pagination, leads, projects, sales, inquiries, finance', { timeout: 600000 }, async t => {
   const db = new PGlite(); t.after(() => db.close());
   await db.exec(fs.readFileSync('tests/sql/00_supabase_stub.sql', 'utf8'));
   await db.exec(`insert into auth.users(id,email) values('${MIGUEL}','m@example.invalid'),('${SAMUEL}','s@example.invalid');`);
@@ -27,7 +27,7 @@ test('capacity 1/5/10/25/50 clients: Clients 360 list, search, pagination, leads
 
   let created = 0;
   const report = [];
-  for (const target of [1, 5, 10, 25, 50]) {
+  for (const target of [1, 5, 10, 20, 25, 50]) {
     for (; created < target; created++) {
       const i = created + 1;
       // Two clients share a trade name on purpose ("Repetida") — duplicates by name must not merge distinct clients.

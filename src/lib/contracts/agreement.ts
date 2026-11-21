@@ -29,6 +29,10 @@ export type AgreementData = {
   adSpend: string;
   commission: string;
   specialTerms: string;
+  /** Optional (Legal & Compliance): post-delivery support/maintenance terms. Empty = not included, stated explicitly. */
+  supportMaintenance?: string;
+  /** Optional: workmanship warranty window for this SOW (clause 09 applies). Empty = clause 09 only. */
+  warrantyPeriod?: string;
 };
 
 export type AgreementSnapshot = {
@@ -74,6 +78,10 @@ export function validateAgreement(input: AgreementData): string[] {
     new Date(input.effectiveDate).toISOString().slice(0, 10) !== input.effectiveDate)
     errors.push("effectiveDate");
   for (const k of ["setupFee", "monthlyFee"] as const) if (!usd(input[k])) errors.push(k);
+  for (const k of ["supportMaintenance", "warrantyPeriod"] as const) {
+    const v = input[k];
+    if (v !== undefined && (typeof v !== "string" || v.length > 2000)) errors.push(k);
+  }
 
   // "Avalon Core Agency" is a project/brand name, not a formed LLC or a substitute for a legal signer.
   const normalized = input.agencyName.toLowerCase().replace(/[.,\s]/g, "");
@@ -180,6 +188,8 @@ export function agreementLines(snapshot: AgreementSnapshot, id: string): { headi
     { heading: "Acceptance criteria", text: data.acceptance },
     { heading: "Included revisions", text: data.revisions },
     { heading: "Term and renewal terms", text: data.term },
+    { heading: "Support and maintenance", text: data.supportMaintenance?.trim() || "Not included in this Statement of Work. Any support, maintenance, hosting or service levels require a separate written and signed agreement." },
+    { heading: "Warranty period", text: data.warrantyPeriod?.trim() || "As stated in clause 09 (Limited workmanship warranty); no additional warranty period is offered in this draft." },
     { heading: "Fees", text: "One-time setup: USD " + data.setupFee + " | Recurring per month: USD " + data.monthlyFee },
     { heading: "Payment schedule", text: data.paymentSchedule },
     { heading: "Third-party and advertising spend", text: data.adSpend },

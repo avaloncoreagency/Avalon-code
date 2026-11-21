@@ -37,6 +37,8 @@ const fields = [
   ["paymentSchedule","Payment schedule / invoice due dates","Calendario de pagos y vencimientos","textarea","Net 15; define deposit and milestones in writing."],
   ["adSpend","Third-party advertising / platform budgets","Presupuesto y gastos de terceros","textarea","Paid directly by client unless a signed budget authorizes otherwise."],
   ["commission","Commission rate, revenue base and trigger (or None)","Comisión, base de cálculo y cuándo se gana (o Ninguna)","textarea","None."],
+  ["supportMaintenance","Support and maintenance (optional: hours, channel, response time, monthly scope)","Soporte y mantenimiento (opcional: horario, canal, tiempo de respuesta, alcance mensual)","textarea",""],
+  ["warrantyPeriod","Warranty period for this work (optional)","Período de garantía de este trabajo (opcional)","text",""],
   ["specialTerms","Additional mutually approved conditions","Condiciones adicionales aprobadas","textarea",""],
 ] as const;
 const name=(lang:"es"|"en",es:string,en:string)=>pick(lang,es,en);
@@ -222,11 +224,11 @@ export default async function ClientContracts({params, searchParams}:{
             {kind==="textarea"?<textarea name={key} rows={3} defaultValue={fromQuote && key in fromQuote && typeof fromQuote[key as keyof typeof fromQuote]==="string" && fromQuote[key as keyof typeof fromQuote] ? String(fromQuote[key as keyof typeof fromQuote]) : key==="commission" ? commissionDescription :
                 key==="adSpend" && terms?.client_ad_budget!==null && terms?.client_ad_budget!==undefined
                   ? "Client advertising spend: USD "+price(terms.client_ad_budget)+". Paid by client unless separately authorized." :
-                key==="specialTerms" ? signedTermsDescription : def} required={key!=="exclusions"&&key!=="specialTerms"} maxLength={3000}/>
+                key==="specialTerms" ? signedTermsDescription : def} required={key!=="exclusions"&&key!=="specialTerms"&&key!=="supportMaintenance"} maxLength={3000}/>
               :<input name={key} type="text" defaultValue={fromQuote && key in fromQuote && typeof fromQuote[key as keyof typeof fromQuote]==="string" && fromQuote[key as keyof typeof fromQuote] ? String(fromQuote[key as keyof typeof fromQuote]) : key==="term" && terms?.duration_months
                 ? "Initial term: "+terms.duration_months+" months. Start date: "+(terms.start_date || "to be agreed")+
                   ". Renewal/cancellation subject to signed terms."
-                : def} required maxLength={800}/>}
+                : def} required={key!=="warrantyPeriod"} maxLength={800}/>}
           </label>)}
           <label className={s.field}>{name(lang,"Costo de instalación (USD)","One-time setup fee (USD)")}
             <input name="setupFee" type="number" min="0" step="0.01" defaultValue={fromQuote ? fromQuote.setupFee : price(terms?.setup_price)} required/>

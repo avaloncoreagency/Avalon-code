@@ -94,3 +94,19 @@ test("contract validation prevents unsupported characters silently mutating lega
   const output = Buffer.from(pdf.renderAgreementPdf(agreement.makeAgreementSnapshot(supported), "test-typography")).toString("latin1");
   assert.ok(output.includes("(Second line - with 'quoted' details...) Tj"));
 });
+
+test('Legal: support/maintenance and warranty are explicit in Exhibit A — stated as not included when empty, never invented', () => {
+  const ts = require('typescript');
+  const src = ts.transpileModule(require('fs').readFileSync('src/lib/contracts/agreement.ts', 'utf8'), { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022, resolveJsonModule: true, esModuleInterop: true } }).outputText;
+  const mod = { exports: {} };
+  new Function('require', 'module', 'exports', src)(id => id === './master.json' ? require('../src/lib/contracts/master.json') : id === './service-schedules' ? { SERVICE_SCHEDULES: {} } : require(id), mod, mod.exports);
+  const a = mod.exports;
+  const page = require('fs').readFileSync('src/app/admin/workspace/crm/clients/[id]/contracts/page.tsx', 'utf8');
+  assert.match(page, /\["supportMaintenance",/);
+  assert.match(page, /\["warrantyPeriod",/);
+  assert.match(page, /key!=="supportMaintenance"/, 'optional in the form');
+  const agreement = require('fs').readFileSync('src/lib/contracts/agreement.ts', 'utf8');
+  assert.match(agreement, /Not included in this Statement of Work/);
+  assert.match(agreement, /As stated in clause 09/);
+  assert.equal(typeof a.validateAgreement, 'function');
+});
