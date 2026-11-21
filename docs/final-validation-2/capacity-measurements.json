@@ -1,0 +1,62 @@
+{
+  "engine": "PGlite (WASM, in-process)",
+  "node": "v22.23.4",
+  "note": "Single run; not hosted Supabase. Correctness asserted, timings informational.",
+  "report": [
+    {
+      "clients": 1,
+      "ms": {
+        "clientsList": 3.6,
+        "search": 1.6,
+        "emptySearch": 1.9,
+        "leads": 1.7,
+        "inquiries": 2.1,
+        "financeSummary": 15.4
+      }
+    },
+    {
+      "clients": 5,
+      "ms": {
+        "clientsList": 2.2,
+        "search": 1.1,
+        "emptySearch": 1,
+        "leads": 2.1,
+        "inquiries": 1.5,
+        "financeSummary": 8.2
+      }
+    },
+    {
+      "clients": 10,
+      "ms": {
+        "clientsList": 2,
+        "search": 1,
+        "emptySearch": 1.3,
+        "leads": 1.4,
+        "inquiries": 1.6,
+        "financeSummary": 4
+      }
+    },
+    {
+      "clients": 25,
+      "ms": {
+        "clientsList": 2.2,
+        "search": 1,
+        "emptySearch": 1,
+        "leads": 2.1,
+        "inquiries": 2,
+        "financeSummary": 3.6
+      }
+    },
+    {
+      "clients": 50,
+      "ms": {
+        "clientsList": 2.8,
+        "search": 1,
+        "emptySearch": 0.9,
+        "leads": 1.4,
+        "inquiries": 1.6,
+        "financeSummary": 3.5
+      }
+    }
+  ]
+}
