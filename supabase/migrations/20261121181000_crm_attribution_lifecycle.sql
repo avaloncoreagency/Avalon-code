@@ -13,7 +13,8 @@
 --
 -- Rules kept: a reported customer sale is NOT Avalon revenue; a calculated commission is NOT collected; only `paid`
 -- counts as cash received by Avalon. Legacy rows in `verified` keep working (treated as eligible) and the legacy
--- crm_attribution_transition RPC is unchanged. Every transition is appended to crm_attribution_events and bumps
+-- three-argument crm_attribution_transition RPC is retired in this migration: it cannot bypass the new audit/version gate.
+-- Every accepted versioned transition is appended to crm_attribution_events and bumps
 -- `version` (optimistic concurrency: a stale screen cannot overwrite a newer decision).
 
 begin;
@@ -98,7 +99,7 @@ begin
   elsif p_to = 'invoiced' and c.status in ('eligible', 'verified') then
     update public.crm_attributed_conversions set status = p_to, invoice_ref = note, invoiced_at = now(),
       invoiced_by = auth.uid(), version = version + 1 where id = c.id;
-  elsif p_to = 'paid' and c.status in ('invoiced', 'eligible', 'verified') then
+  elsif p_to = 'paid' and c.status = 'invoiced' then
     update public.crm_attributed_conversions set status = p_to, settlement_ref = note, paid_at = now(),
       paid_by = auth.uid(), version = version + 1 where id = c.id;
   elsif p_to = 'disputed' and c.status in ('reported', 'client_paid_verified', 'attribution_verified', 'eligible', 'verified', 'invoiced') then
@@ -163,5 +164,20 @@ revoke all on function public.crm_attribution_advance(uuid, text, text, integer)
   public.crm_attribution_set_period(uuid, date, date) from public, anon;
 grant execute on function public.crm_attribution_advance(uuid, text, text, integer),
   public.crm_attribution_set_period(uuid, date, date) to authenticated;
+
+-- Retire the legacy, non-versioned RPC *in the same migration that enables the new RPC*.
+-- Merely revoking EXECUTE does not protect privileged or previously granted callers.
+-- Replace the implementation with a fail-closed shim too, while preserving the
+-- signature for old clients so failures are explicit and cannot mutate money.
+-- Production must coordinate the app cutover: old clients will get a deliberate
+-- denial rather than being allowed to post unaudited financial transitions.
+create or replace function public.crm_attribution_transition(
+  p_conversion uuid, p_to text, p_evidence text
+) returns void language plpgsql security definer set search_path = '' as $$
+begin
+  raise exception 'legacy_attribution_transition_disabled' using errcode = '0A000';
+end $$;
+revoke all on function public.crm_attribution_transition(uuid, text, text)
+  from public, anon, authenticated, service_role;
 
 commit;
