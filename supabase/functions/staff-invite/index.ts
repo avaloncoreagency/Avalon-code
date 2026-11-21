@@ -21,9 +21,17 @@ Deno.serve(async (request: Request) => {
   const url = Deno.env.get("SUPABASE_URL");
   const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
   const publicKey = Deno.env.get("SUPABASE_ANON_KEY");
-  // Dedicated owner-app origin, configured in Edge Function secrets.
-  const origin = Deno.env.get("AVALON_OWNER_APP_ORIGIN");
-  if (!url || !serviceKey || !publicKey || !origin || !/^https:\/\/[a-z0-9.-]+$/.test(origin))
+  // Bound to a specific, owned application origin. Never reflect arbitrary
+  // request Origin/Host into an email verification redirect.
+  const projectRef = url ? new URL(url).hostname.split(".")[0] : "";
+  const originsByProject: Record<string, string[]> = {
+    ltbwzcrxeuczdhhtbqgm: ["https://avaloncoreagency.com","https://www.avaloncoreagency.com"],
+    xrtgnmuiyqmtisdrzqcg: ["https://avalon-core-agency-git-integration-st-dca9bb-avalon-core-agency.vercel.app"],
+  };
+  const configuredOrigin = Deno.env.get("AVALON_OWNER_APP_ORIGIN");
+  const trustedOrigins = configuredOrigin ? [configuredOrigin] : originsByProject[projectRef] ?? [];
+  if (!url || !serviceKey || !publicKey || !trustedOrigins.length ||
+      trustedOrigins.some(x => !/^https:\/\/[a-z0-9.-]+$/.test(x)))
     return reply(503, { error: "invitation_not_configured" });
   const bearer = request.headers.get("authorization") ?? "";
   if (!/^Bearer [A-Za-z0-9_.~-]+$/.test(bearer)) return reply(401, { error: "unauthorized" });
@@ -70,6 +78,11 @@ Deno.serve(async (request: Request) => {
     let body: unknown;
     try { body = JSON.parse(raw); } catch { return reply(400, { error: "invalid_request" }); }
     const emailRaw = object(body)?.email;
+    const originRaw = object(body)?.origin;
+    // A project can only issue invitations for its own trusted app domain.
+    if (typeof originRaw !== "string" || !trustedOrigins.includes(originRaw))
+      return reply(400, { error: "untrusted_redirect" });
+    const origin = originRaw;
     if (typeof emailRaw !== "string") return reply(400, { error: "invalid_request" });
     const email = emailRaw.trim().toLowerCase();
     if (!EMAIL.test(email) || email.length > 254) return reply(400, { error: "invalid_request" });
