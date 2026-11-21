@@ -88,3 +88,30 @@ test('existing lead conflict blocks guessing client identity', {timeout:180000},
   assert.equal((await one('select origin_lead_id from crm_clients where id=$1',[c.id])).origin_lead_id,null);
   assert.equal(await n('select count(*) n from crm_leads'),1);
 });
+
+test('V5 acceptance: "Chino Barber Demo" created in Clients 360 shows exactly one New lead and zero sales/invoices/contracts/payments', {timeout:180000}, async t => {
+  const {db,as,one,n}=await setup();
+  t.after(()=>db.close());
+  await as(OWNER);
+  const req={legal_name:'Chino Barber Demo LLC',trade_name:'Chino Barber Demo',source:'Registro manual',industry:'Barbershop'};
+  const created=(await one('select public.crm_register_client_with_opportunity($1::jsonb) r',[JSON.stringify(req)])).r;
+  const lead=await one('select stage_id,company from crm_leads where id=$1',[created.lead_id]);
+  assert.equal(lead.stage_id,'new');
+  assert.equal((await one('select origin_lead_id from crm_clients where id=$1',[created.client_id])).origin_lead_id,created.lead_id);
+  assert.equal(await n("select count(*) n from crm_leads where company='Chino Barber Demo'"),1);
+  for (const table of ['crm_sales','crm_invoices','crm_payments','crm_contracts','crm_commissions','crm_attributed_conversions','os_projects']) {
+    const exists=await one("select to_regclass('public.'||$1) is not null e",[table]);
+    if (exists.e) assert.equal(await n(`select count(*) n from ${table}`),0,`${table}: creating a client is not closing a sale`);
+  }
+  // Same company again (case-insensitive) is a duplicate, never a second lead.
+  await assert.rejects(db.query('select public.crm_register_client_with_opportunity($1::jsonb)',[JSON.stringify({...req,legal_name:'chino barber demo llc'})]),/sale_client_exists/);
+  assert.equal(await n('select count(*) n from crm_leads'),1);
+});
+
+test('client creation fails closed: no client-only insert fallback that leaves an orphan without a lead', () => {
+  const actions=fs.readFileSync('src/app/admin/workspace/crm/clients/actions.ts','utf8');
+  const create=actions.slice(actions.indexOf('export async function createClientRecord'),actions.indexOf('export async function ensureClientOpportunity'));
+  assert.match(create,/crm_register_client_with_opportunity/);
+  assert.doesNotMatch(create,/from\("crm_clients"\)\.insert/,'no silent orphan client');
+  assert.match(create,/"schema_pending"/);
+});

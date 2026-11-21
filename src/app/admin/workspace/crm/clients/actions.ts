@@ -21,21 +21,19 @@ export async function createClientRecord(form: FormData) {
   } catch { back(LIST, { error: "sale_too_long" }); }
   if (!row.legal_name) back(LIST, { error: "sale_client_required" });
   if (row.website && !/^https:\/\/[^\s<>"]+$/.test(row.website)) back(LIST, { error: "sale_invalid_website" });
-  // Atomic, audited company+opportunity registration after its reviewed migration is active.
-  // Before rollout, preserve the legacy client-only entry without inventing lead stages.
+  // Atomic, audited company + exactly one "Nuevo" opportunity, linked by id (origin_lead_id). No sale, invoice,
+  // contract, payment or paid project is created. Applied in production as 20261119143838.
+  // Fail closed: if the RPC is missing (an environment without that migration) we report "schema_pending"
+  // instead of silently creating a client without a lead (an orphan the pipeline would never show).
   const linked = await supabase.rpc("crm_register_client_with_opportunity", { p_request: row });
-  if (!linked.error && linked.data && typeof linked.data.client_id === "string") {
-    revalidatePath("/admin/workspace/crm/leads");
-    revalidatePath(LIST);
-    back(`${LIST}/${linked.data.client_id}`, { ok: "created" });
+  if (linked.error) {
+    const code = linked.error.code ?? "";
+    back(LIST, { error: ["PGRST202", "42883"].includes(code) ? "schema_pending" : code === "23505" ? "sale_client_exists" : saleErrorCode(linked.error) });
   }
-  if (linked.error && !["PGRST202", "42883"].includes(linked.error.code ?? "")) {
-    back(LIST, { error: linked.error.code === "23505" ? "sale_client_exists" : saleErrorCode(linked.error) });
-  }
-  const { data, error } = await supabase.from("crm_clients").insert(row).select("id").single();
-  if (error) back(LIST, { error: error.code === "23505" ? "sale_client_exists" : saleErrorCode(error) });
+  if (!linked.data || typeof linked.data.client_id !== "string") back(LIST, { error: "unavailable" });
+  revalidatePath("/admin/workspace/crm/leads");
   revalidatePath(LIST);
-  back(`${LIST}/${data.id}`, { ok: "created" });
+  back(`${LIST}/${linked.data.client_id}`, { ok: "created" });
 }
 
 /** Owner-confirmed, idempotent fix for an older unlinked Client 360 record.
