@@ -90,7 +90,37 @@ export function LeadBoard({ lang = "es", leads, total, page, busy, onDetail, onM
     void save(lead, group);
   }, [pending, save]);
 
-  useLayoutEffect(() => { if (lostAsk) reasonRef.current?.focus(); }, [lostAsk]);
+  // Modal focus management (PF-A11Y-001, independent QA): focus moves into the open dialog, Tab/Shift+Tab stay inside
+  // it, and closing returns focus to the card that opened it.
+  const dialogRef = useRef<HTMLElement | null>(null);
+  const openerId = useRef<string | null>(null);
+  const modalLead = lostAsk ?? wonBlocked;
+  useLayoutEffect(() => {
+    if (modalLead) {
+      openerId.current = String(modalLead.id);
+      if (lostAsk) reasonRef.current?.focus();
+      else dialogRef.current?.querySelector<HTMLElement>("button, a[href]")?.focus();
+      return;
+    }
+    const id = openerId.current;
+    openerId.current = null;
+    if (id) document.querySelector<HTMLElement>(`[data-lead-id="${CSS.escape(id)}"]`)?.focus();
+  }, [modalLead, lostAsk]);
+  useEffect(() => {
+    if (!modalLead) return;
+    const trap = (event: globalThis.KeyboardEvent) => {
+      const dialog = dialogRef.current;
+      if (event.key !== "Tab" || !dialog) return;
+      const items = [...dialog.querySelectorAll<HTMLElement>("button:not([disabled]), a[href], textarea:not([disabled]), input:not([disabled]), select:not([disabled]), [tabindex]:not([tabindex='-1'])")];
+      if (!items.length) return;
+      const first = items[0], last = items[items.length - 1];
+      const inside = dialog.contains(document.activeElement);
+      if (event.shiftKey && (document.activeElement === first || !inside)) { event.preventDefault(); last.focus(); }
+      else if (!event.shiftKey && (document.activeElement === last || !inside)) { event.preventDefault(); first.focus(); }
+    };
+    document.addEventListener("keydown", trap, true);
+    return () => document.removeEventListener("keydown", trap, true);
+  }, [modalLead]);
 
   // ---- Pointer drag (mouse, pen and touch; Safari/iPhone uses a short press-and-hold) --------------------------
   const finish = useCallback((dropped: boolean) => {
@@ -316,7 +346,7 @@ export function LeadBoard({ lang = "es", leads, total, page, busy, onDetail, onM
 
       {lostAsk && (
         <div className={s.scrim} onClick={event => { if (event.target === event.currentTarget) { place(String(lostAsk.id), null); setLostAsk(null); } }}>
-          <form className={s.dialog} role="dialog" aria-modal="true" aria-labelledby="lost-title"
+          <form ref={el => { dialogRef.current = el; }} className={s.dialog} role="dialog" aria-modal="true" aria-labelledby="lost-title"
             onSubmit={event => {
               event.preventDefault();
               const reason = (reasonRef.current?.value ?? "").trim();
@@ -341,13 +371,13 @@ export function LeadBoard({ lang = "es", leads, total, page, busy, onDetail, onM
 
       {wonBlocked && (
         <div className={s.scrim} onClick={event => { if (event.target === event.currentTarget) setWonBlocked(null); }}>
-          <div className={s.dialog} role="alertdialog" aria-modal="true" aria-labelledby="won-title" aria-describedby="won-body"
+          <div ref={el => { dialogRef.current = el; }} className={s.dialog} role="alertdialog" aria-modal="true" aria-labelledby="won-title" aria-describedby="won-body"
             onKeyDown={event => { if (event.key === "Escape") setWonBlocked(null); }}>
             <h3 id="won-title">{t(`${nameOf(wonBlocked)} aún no puede marcarse como Ganado`, `${nameOf(wonBlocked)} cannot be marked Won yet`)}</h3>
             <p id="won-body">{t("Regla comercial: Ganado requiere un contrato firmado y verificado. Al confirmar una venta real con ese contrato, la oportunidad pasa a Ganado automáticamente. La tarjeta volvió a su grupo; no se creó ninguna venta.",
               "Business rule: Won requires a signed, verified contract. Confirming a real sale with that contract moves the opportunity to Won automatically. The card returned to its group; no sale was created.")}</p>
             <div className={s.dialogActions}>
-              <button type="button" onClick={() => setWonBlocked(null)} autoFocus>{t("Cerrar", "Close")}</button>
+              <button type="button" onClick={() => setWonBlocked(null)}>{t("Cerrar", "Close")}</button>
               <Link href={`/admin/workspace/crm/lead/${String(wonBlocked.id)}`}>{t("Contratos en la ficha", "Contracts in the record")}</Link>
               <Link data-primary="true" href={`/admin/workspace/crm/sales/new?lead=${encodeURIComponent(String(wonBlocked.id))}`}>{t("Registrar venta", "Record sale")}</Link>
             </div>
