@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { Suite } from "@/components/suite/suite";
 import { requireOwner } from "@/lib/auth/session";
-import { setStaffAccess, grantStaffClient, revokeStaffClient } from "./actions";
+import { inviteStaffEmployee, setStaffAccess, grantStaffClient, revokeStaffClient } from "./actions";
 import { sendStaffMessage, readStaffMessage } from "@/app/staff/actions";
 import s from "@/components/sales/sales.module.css";
 export const dynamic = "force-dynamic";
@@ -17,6 +17,8 @@ const statuses: Record<string,string> = {
  invalid:"Los datos no son válidos.",denied:"No tienes autorización para esta operación.",
  failed:"No se pudo confirmar el cambio.", "directory-failed":"Acceso actualizado, pero falló la libreta de contactos.",
  "access-enabled":"Acceso de empleado activado.","access-revoked":"Acceso de empleado revocado.",
+ "invite-sent":"Invitación enviada. La cuenta queda bloqueada hasta que un propietario active los permisos.",
+ "invite-failed":"No se envió la invitación. Revisa la configuración de invitaciones de Supabase o si ya existe esa cuenta.",
  "client-granted":"Cliente asignado.","client-revoked":"Acceso al cliente revocado.",
  sent:"Mensaje privado enviado.",read:"Mensaje marcado como leído.",
 };
@@ -58,6 +60,18 @@ export default async function StaffAdministration({searchParams}:{
    {status && Object.hasOwn(statuses,status) && <p role="status" className={s.flash}>{statuses[status]}</p>}
    {!ready && <p role="alert" className={s.flash}>El módulo aún no está disponible. Verifica la migración, permisos y conexión del entorno aislado.</p>}
    {ready && <>
+    <section className={s.panel} aria-labelledby="staff-invite">
+      <h2 id="staff-invite">Invitar empleado</h2>
+      <p className={s.muted}>Solo los propietarios pueden enviar invitaciones. El acceso permanecerá desactivado hasta tu aprobación.</p>
+      <form action={inviteStaffEmployee} className={s.form}>
+        <label className={s.field}>Correo electrónico del empleado
+          <input type="email" name="employee_email" autoComplete="email" maxLength={254}
+            placeholder="empleado@empresa.com" required />
+        </label>
+        <button className={s.button} type="submit">Enviar invitación segura</button>
+      </form>
+      <p className={s.muted}>Requiere la función Supabase `staff-invite` habilitada en este entorno y el origen de invitación configurado. El empleado no recibe permisos por ser invitado.</p>
+    </section>
     <section className={s.panel} aria-labelledby="staff-roster"><h2 id="staff-roster">Control de empleados</h2>
       <p className={s.muted}>Fase 1: solo empleados que ya existan en Auth y tengan membresía técnica <code>operator</code>. Activar un permiso no crea cuentas ni envía invitaciones.</p>
       {!members.length && <p>No hay empleados preaprobados. No se autoriza el registro público.</p>}
