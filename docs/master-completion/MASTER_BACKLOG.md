@@ -63,6 +63,28 @@ Left out on purpose:
 | QA-01 | QA | Acceptance matrix (#276) + Final Validation 2.0 (#298) | IMPLEMENTED_IN_BRANCH | Independent QA: **pending Codex** (no credits) |
 | WEB-01 | Public website (Ultimate) | Integrated and stable | No reproducible defect found in this session | Visual acceptance on a physical iPhone: **NOT_RUN** |
 
+## Classification A–H (Master Prompt V3)
+
+| Class | Items |
+|---|---|
+| A. Integrated and verified | Radar hibernation, React #418 fix, five-group pipeline (all in `main@207ed3a`) |
+| B. Implemented, pending independent validation | #294 (incl. #288/#289/#278/#284/#297), #298, LEG-02 (this branch). Needs Codex |
+| C. In a separate branch | #293 Orchestrator (Codex), #296 staff portal (Samuel) |
+| D. Partial | SEC-04 Preview (blocked), CRM-01 physical iPhone (NOT_RUN) |
+| E. Pending development | None found in scope that does not depend on an owner decision or on data that does not exist yet (FIN-03) |
+| F. Blocked by owner decision | Prices, legal review #286, SQL/backup, Turnstile keys, inquiry limit, preview cleanup |
+| G. Duplicated or superseded | #260/#277 (→ #293), #269 (→ #288), old JWT design of #289 |
+| H. Paused | Guardian (#261/#267/#287), Radar, OpenRouter, receptionists/chatbots, campaigns |
+
+## Collision check with Samuel (read-only, local only, nothing pushed)
+- #296 (`dbbe890`) and #300 (`9e99c58`) share **no files**.
+- #296 touches `src/lib/auth/*`, `src/middleware.ts` and migration `20261117180500_staff_private_portal.sql`. #300 adds migration `20261120160000`.
+- A temporary local merge of both:
+  - has no merge conflicts;
+  - typechecks;
+  - passes unit 775/775 and PGlite 85/85.
+- **No schema or permission collision detected.** Integrating #296 is still Samuel's decision.
+
 ## Owner decisions (not replaced by any automation)
 - **Joint (Miguel + Samuel):**
   - merge the integration branch;
