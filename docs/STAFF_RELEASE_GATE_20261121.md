@@ -28,3 +28,13 @@ First rollback Vercel traffic to the last verified production deployment (record
 ## Why no automatic publish to main yet
 
 CI/build success does not prove the backup is restorable. The Supabase connector exposes schema/migrations but no backup restore inspection. The Vercel environment inventory also has no `SUPABASE_SERVICE_ROLE_KEY` or `AUTH_FLOW_SECRET` for a reviewed Admin Auth invitation flow; do not install broad admin secrets into `NEXT_PUBLIC_` or bypass the existing Turnstile/MFA gates to force the onboarding UI.
+
+## Staff invitation implementation — isolated Preview
+
+The new `supabase/functions/staff-invite/index.ts` function was deployed **only** to `xrtgnmuiyqmtisdrzqcg` as a JWT-protected Edge Function. It validates the JWT against Supabase Auth, verifies an `owner` membership using a server-only service key, enforces `aal2` for owners with a verified MFA factor, and limits invitations to 50 operators. It accepts only explicit application origins bound to the actual Supabase project; never arbitrary untrusted redirect URLs.
+
+The owner console offers invitations through a server action. The email link goes to `/admin/signup`, where the browser exchanges Supabase's URL-fragment session into secured SSR cookies and a separate server action checks the membership is `operator` before granting a short-lived password-setup cookie. The invited account is **not activated**: `staff_portal_access` remains absent until an owner explicitly grants it.
+
+In the isolated Preview, `AUTH_FLOW_SECRET` is configured as a branch-only encrypted Vercel variable. No privileged Supabase key was placed in Vercel. Supabase's Auth email redirect allow-list and SMTP delivery require live E2E verification before sending invitations to actual employees.
+
+**Important:** The function has not been deployed to production, no real employees have been invited, and real invitation delivery/acceptance has not been certified. Production migration and merge gates remain unchanged.
