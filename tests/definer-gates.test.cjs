@@ -1,6 +1,6 @@
 // Static guard over supabase/migrations: every SECURITY DEFINER function that anon/authenticated can execute must be
 // owner-gated, token-gated or an explicitly reviewed public endpoint. Mirrors the Supabase Security Advisor findings
-// 0028/0029 (production: 6 anon, 38 authenticated, 39 unique) without connecting to any database.
+// 0028/0029 conceptually; this test reads migration files, not live deployed permissions.
 const { test } = require('node:test');
 const assert = require('node:assert/strict');
 const { audit, PUBLIC_ALLOWLIST } = require('../scripts/security/definer-audit.cjs');
@@ -27,4 +27,9 @@ test('Core Engine money RPCs are owner-gated and not anonymous', () => {
     assert.equal(r.gate, 'owner', name);
     assert.equal(r.anon, false, name);
   }
+});
+
+test('executable SECURITY DEFINER functions pin an empty search_path', () => {
+  const unpinned = audit().filter(r => !r.safeSearchPath).map(r => `${r.name} (${r.file})`);
+  assert.deepEqual(unpinned, [], 'declare SET search_path = \'\' in each public SECURITY DEFINER definition');
 });
