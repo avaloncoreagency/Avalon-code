@@ -2,6 +2,7 @@
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { requireOwner } from "@/lib/auth/session";
+import { getAppOrigin } from "@/lib/auth/policy";
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 function get(form: FormData, field: string) {
@@ -23,7 +24,7 @@ export async function inviteStaffEmployee(form: FormData) {
     done("invalid");
   try {
     const { data, error } = await supabase.functions.invoke("staff-invite", {
-      body: { email },
+      body: { email, origin: getAppOrigin() },
     });
     if (error || !data || data.invited !== true ||
         data.requires_owner_activation !== true) done("invite-failed");
