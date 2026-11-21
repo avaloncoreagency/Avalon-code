@@ -1,0 +1,42 @@
+name: Backend isolated acceptance
+on:
+  pull_request:
+    paths:
+      - 'src/lib/auth/**'
+      - 'src/lib/supabase/**'
+      - 'src/lib/security/**'
+      - 'src/middleware.ts'
+      - 'src/app/login/**'
+      - 'src/app/admin/password-actions.ts'
+      - 'src/app/admin/mfa-actions.ts'
+      - 'src/app/admin/auth/**'
+      - 'tests/password-outage.test.cjs'
+      - '.github/workflows/backend-acceptance.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: backend-isolated-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+jobs:
+  isolated-database:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with:
+          node-version: '22'
+          cache: npm
+      - run: npm ci --ignore-scripts --no-audit --no-fund
+      - run: npm ci --prefix tests/qa --ignore-scripts --no-audit --no-fund
+      - name: Auth outage regression
+        run: node --test tests/password-outage.test.cjs
+      - name: Business invariants on isolated PostgreSQL WASM
+        run: node --test tests/crm.database.cjs tests/sales.database.cjs tests/radar.database.cjs tests/pipeline-board.database.cjs tests/office.database.cjs
+        env:
+          NODE_PATH: ./tests/qa/node_modules
+      - name: Verification boundary
+        run: echo 'Synthetic identities and isolated PostgreSQL only. No hosted data, provider secrets, migrations or human sessions used.' >> "$GITHUB_STEP_SUMMARY"

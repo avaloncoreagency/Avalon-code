@@ -25,14 +25,24 @@ export async function savePassword(form: FormData) {
   const type = form.get("flow") === "invite" ? "invite" : "recovery";
   const path = type === "invite" ? "/admin/signup" : "/admin/reset-password";
   if (!authLimiter.hit(hashKey("password-set-ip", clientIp(await headers())), AUTH_RULES.passwordSetPerIp).allowed) redirect(`${path}?error=throttled`);
-  const client = await createClient();
-  const { data: { user }, error } = await client.auth.getUser();
-  if (error || !user || !await validPasswordFlow(user.id, type)) redirect(`${path}?error=expired`);
+  let client: Awaited<ReturnType<typeof createClient>>;
+  let verified = false;
+  try {
+    client = await createClient();
+    const { data: { user }, error } = await client.auth.getUser();
+    verified = !error && !!user && await validPasswordFlow(user.id, type);
+  } catch { redirect(`${path}?error=expired`); }
+  if (!verified) redirect(`${path}?error=expired`);
   const password = form.get("password");
   if (typeof password !== "string" || password.length < 12 || password.length > 1024 || password !== form.get("confirm")) redirect(`${path}?error=password`);
-  const result = await client.auth.updateUser({ password });
-  if (result.error) redirect(`${path}?error=password`);
-  await clearPasswordFlow();
-  await client.auth.signOut({ scope: "local" });
+  let saved = false;
+  try { saved = !(await client.auth.updateUser({ password })).error; }
+  catch { /* Never expose provider diagnostics or claim the password was saved. */ }
+  if (!saved) redirect(`${path}?error=password`);
+  try {
+    await clearPasswordFlow();
+    const { error } = await client.auth.signOut({ scope: "local" });
+    if (error) redirect("/admin/login?error=unavailable");
+  } catch { redirect("/admin/login?error=unavailable"); }
   redirect("/admin/login?updated=1");
 }
