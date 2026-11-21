@@ -93,3 +93,16 @@ Resultados verificados en la base aislada:
 4. Invitar dos identidades sintéticas de prueba mediante Supabase Auth (no insertarlas directamente en `auth.users` para sesiones reales); otorgar membresías `operator` y activar permisos desde owner de prueba.
 5. Probar login, MFA, rutas `/staff` y `/admin/staff`, 403/IDOR, revocación inmediata, aislamiento de expedientes y DMs.
 6. Exigir respaldo verificable y aprobación de despliegue antes de aplicar la migración de staff al proyecto principal. Producción conserva 2 owners y 0 operadores, sin cuentas reales activadas.
+
+
+### Segunda recuperación, con sincronización histórica completa
+
+Después del primer rescate, la sincronización alcanzó 31 versiones y detectó otro bloqueo por dos objetos históricos ausentes. Se aplicó **exclusivamente a Preview**:
+4. `preview_rehydrate_crm_pipeline_13_from_git`: SQL de `supabase/migrations/20261102180000_crm_pipeline_13.sql` — **success**.
+5. `preview_rehydrate_pipeline_board_from_git`: SQL de `supabase/migrations/20261102210000_pipeline_board.sql` — **success**.
+
+Luego se repitió `rebase_branch` y el ledger aislado pasó a **54 versiones: las 49 versiones principales más 5 rescates exclusivos de Preview**. La comparación exacta de versiones confirma `missing_from_preview=[]`. El proyecto Supabase devuelve `ACTIVE_HEALTHY` y completó la fase `FUNCTIONS_DEPLOYED`, aunque el estado de rama aún no se ha observado como `READY`.
+
+Verificaciones adicionales: `crm_attachments` y `crm_lead_assessments` ahora existen; `auth.users` no contiene cuentas de prueba persistentes. Se volvió a ejecutar el ensayo de RLS con cuatro identidades sintéticas y `ROLLBACK`: **PASS** para aislamiento de expedientes, mensajes y revocación de `can_message` después de la sincronización.
+
+Esto **resuelve las dependencias SQL del portal en el Preview existente**, pero no arregla de forma permanente los marcadores del historial original del proyecto principal ni sustituye una prueba E2E real de invitación/inicio de sesión. La reconstrucción reproducible desde una base totalmente vacía, sin aplicar rescates manuales, sigue pendiente de estandarizarse en Git antes de un release productivo.
