@@ -4,6 +4,7 @@ import Link from "next/link";
 import { pick, type Lang } from "@/lib/i18n";
 import type { Row, Stage } from "@/lib/crm/domain";
 import s from "./lead-timeline.module.css";
+import { timelineWindow, type TimelineFilter } from "@/lib/crm/timeline-window";
 
 type Owner = { user_id: string; email: string };
 type Entry = { id: string; at: string; type: "stage" | "activity" | "file" | "edit"; data: Record<string, unknown> };
@@ -43,6 +44,8 @@ export function LeadTimeline({ lang = "es", lead, stages, revision, onClose, onE
   const [entries, setEntries] = useState<Entry[] | null>(null);
   const [warning, setWarning] = useState(""), [error, setError] = useState(""), [ok, setOk] = useState(""), [saving, setSaving] = useState(false);
   const [tick, setTick] = useState(0), [mode, setMode] = useState<"note" | "activity" | "file">("note");
+  const [historyFilter, setHistoryFilter] = useState<TimelineFilter>("all");
+  const [showFullHistory, setShowFullHistory] = useState(false);
   const [limit, setLimit] = useState(200), [maxLimit, setMaxLimit] = useState(1000);
   const [truncated, setTruncated] = useState<string[]>([]), [incomplete, setIncomplete] = useState<string[]>([]);
   // A file already stored for a note whose text failed: retry sends only the note, never the same file twice.
@@ -50,6 +53,16 @@ export function LeadTimeline({ lang = "es", lead, stages, revision, onClose, onE
   const dialog = useRef<HTMLElement>(null);
   const id = String(lead.id);
   const label = (st: unknown) => stages.find(x => x.id === st)?.label ?? String(st ?? "—");
+  // The API remains the source of truth. This only controls how much of the fetched
+  // history is visible until the owner asks for the full audit trail.
+  const history = timelineWindow(entries ?? [], historyFilter, showFullHistory, 8);
+  const historyOptions: { key: TimelineFilter; es: string; en: string }[] = [
+    { key: "all", es: "Todos", en: "All" },
+    { key: "activity", es: "Notas y tareas", en: "Notes & tasks" },
+    { key: "stage", es: "Etapas", en: "Stages" },
+    { key: "edit", es: "Ediciones", en: "Edits" },
+    { key: "file", es: "Archivos", en: "Files" },
+  ];
   // Missing directory data is not evidence of a system action: say what is actually known.
   const who = (u: unknown) => {
     if (!u) return t("Autor no registrado", "Author not recorded");
@@ -82,13 +95,19 @@ export function LeadTimeline({ lang = "es", lead, stages, revision, onClose, onE
   useEffect(() => {
     const opener = document.activeElement instanceof HTMLElement ? document.activeElement : null;
     dialog.current?.focus();
-    return () => { if (opener?.isConnected) opener.focus(); };
+    const root = document.documentElement;
+    const previousOverflow = root.style.overflow;
+    root.style.overflow = "hidden"; // The pipeline behind the dialog must not scroll.
+    return () => {
+      root.style.overflow = previousOverflow;
+      if (opener?.isConnected) opener.focus();
+    };
   }, [id]);
   useEffect(() => {
     const key = (e: KeyboardEvent) => {
       if (e.key === "Escape") { onClose(); return; }
       if (e.key !== "Tab" || !dialog.current) return;
-      const items = [...dialog.current.querySelectorAll<HTMLElement>('a[href],button:not([disabled]),input:not([disabled]),select:not([disabled]),textarea:not([disabled]),[tabindex]:not([tabindex="-1"])')];
+      const items = [...dialog.current.querySelectorAll<HTMLElement>('summary,a[href],button:not([disabled]),input:not([disabled]),select:not([disabled]),textarea:not([disabled]),[tabindex]:not([tabindex="-1"])')];
       if (!items.length) return;
       const first = items[0], last = items[items.length - 1];
       if (e.shiftKey && (document.activeElement === first || document.activeElement === dialog.current)) { e.preventDefault(); last.focus(); }
@@ -168,6 +187,8 @@ export function LeadTimeline({ lang = "es", lead, stages, revision, onClose, onE
           <Link href={`/admin/workspace/crm/lead/${String(lead.id)}`}>{t("Oportunidad y contratos", "Opportunity and agreements")}</Link>
           <Link href={`/admin/workspace/clients/${String(lead.id)}`}>{t("Cliente 360 y proyectos", "Client 360 and projects")}</Link>
         </nav>
+        <details className={s.composeSection}>
+          <summary className={s.sectionSummary}>{t("Añadir nota, actividad o archivo", "Add note, task or file")}</summary>
         <div className={s.tabs} role="tablist" aria-label={t("Añadir al historial", "Add to history")}>
           {([["note", t("Nota", "Note")], ["activity", t("Actividad", "Activity")], ["file", t("Archivo", "File")]] as const).map(([k, text]) => (
             <button key={k} type="button" role="tab" aria-selected={mode === k} onClick={() => setMode(k)}>{text}</button>
@@ -198,8 +219,9 @@ export function LeadTimeline({ lang = "es", lead, stages, revision, onClose, onE
           {incomplete.length > 0 && <p role="alert" className={s.error}>{t("Historial incompleto: no se pudieron cargar", "Incomplete history: could not load")} {incomplete.map(src).join(", ")}. {t("Lo que ves no es el historial completo.", "What you see is not the full history.")} <button type="button" className={s.inlineEdit} onClick={() => setTick(n => n + 1)}>{t("Reintentar", "Retry")}</button></p>}
           {warning && <p role="status" className={s.warn}>{warning}</p>}
         </form>
-        <section aria-labelledby="lead-files-title">
-          <h3 id="lead-files-title" className={s.timelineTitle}>{t("Archivos adjuntos", "Attachments")} ({entries?.filter(entry => entry.type === "file").length ?? 0})</h3>
+        </details>
+        <details className={s.attachmentsSection}>
+          <summary id="lead-files-title" className={s.sectionSummary}>{t("Archivos adjuntos", "Attachments")} ({entries?.filter(entry => entry.type === "file").length ?? 0})</summary>
           {!entries ? <p role="status">{t("Cargando archivos…", "Loading files…")}</p> : (
             <ul className={s.attachmentShelf}>
               {entries.filter(entry => entry.type === "file").map(entry => {
@@ -225,8 +247,21 @@ export function LeadTimeline({ lang = "es", lead, stages, revision, onClose, onE
               {!entries.some(entry => entry.type === "file") && <li className={s.empty}>{t("Aún no hay documentos adjuntos.", "No attachments yet.")}</li>}
             </ul>
           )}
-        </section>
-        <h3 className={s.timelineTitle}>{t("Historial", "History")}</h3>
+        </details>
+        <section className={s.historySection} aria-labelledby="lead-history-title">
+          <div className={s.historyHead}>
+            <h3 id="lead-history-title" className={s.timelineTitle}>{t("Historial", "History")}</h3>
+            <span className={s.historyCount}>{entries ? t(`${entries.length} eventos cargados`, `${entries.length} loaded events`) : t("Cargando…", "Loading…")}</span>
+          </div>
+          <div className={s.historyFilters} role="group" aria-label={t("Filtrar historial", "Filter history")}>
+            {historyOptions.map(option => (
+              <button key={option.key} type="button" aria-pressed={historyFilter === option.key}
+                onClick={() => { setHistoryFilter(option.key); setShowFullHistory(false); }}>
+                {t(option.es, option.en)}
+                {entries && <span className={s.filterCount}>{option.key === "all" ? entries.length : entries.filter(entry => entry.type === option.key).length}</span>}
+              </button>
+            ))}
+          </div>
         {truncated.length > 0 && (
           <p role="status" className={s.warn}>
             {t(`Mostrando los ${limit} registros más recientes por tipo; hay más`, `Showing the ${limit} most recent records per type; there are more`)} {truncated.map(src).join(", ")}.{" "}
@@ -237,7 +272,7 @@ export function LeadTimeline({ lang = "es", lead, stages, revision, onClose, onE
         )}
         {!entries ? <p role="status">{t("Cargando historial…", "Loading history…")}</p> : (
           <ol className={s.timeline}>
-            {entries.map(e => (
+            {history.visible.map(e => (
               <li key={e.id} data-type={e.type}>
                 {e.type === "stage" ? (
                   <p><strong>{e.data.from_stage ? t(`Movido de ${label(e.data.from_stage)} a ${label(e.data.to_stage)}`, `Moved from ${label(e.data.from_stage)} to ${label(e.data.to_stage)}`) : t(`Creado en ${label(e.data.to_stage)}`, `Created in ${label(e.data.to_stage)}`)}</strong>
@@ -255,9 +290,22 @@ export function LeadTimeline({ lang = "es", lead, stages, revision, onClose, onE
                 <small>{when(e.at, lang)} · {who(e.type === "stage" || e.type === "edit" ? e.data.actor_id : e.data.created_by)}</small>
               </li>
             ))}
-            {!entries.length && <li>{t("Sin historial todavía.", "No history yet.")}</li>}
+            {history.matching === 0 && <li>{entries.length
+              ? t("Sin eventos de este tipo.", "No events in this category.")
+              : t("Sin historial todavía.", "No history yet.")}</li>}
           </ol>
         )}
+        {entries && history.hidden > 0 && (
+          <button type="button" className={s.historyMore} onClick={() => setShowFullHistory(true)}>
+            {t(`Ver los ${history.matching} eventos de esta vista`, `Show all ${history.matching} events in this view`)}
+          </button>
+        )}
+        {entries && showFullHistory && history.matching > 8 && (
+          <button type="button" className={s.historyMore} onClick={() => setShowFullHistory(false)}>
+            {t("Mostrar solo los 8 más recientes", "Show only the latest 8")}
+          </button>
+        )}
+        </section>
       </aside>
     </div>
   );
