@@ -78,7 +78,7 @@ test("$10,000 customer job at 5% = $500 commission; customer revenue is never Av
 });
 
 test("exclusions, disputes, resolution, void and period", { timeout: 240000 }, async t => {
-  const { db, as, one, record, advance, row, summary } = await setup();
+  const { db, as, record, advance, row, summary } = await setup();
   t.after(() => db.close());
   const id = await record("JOB-EXCL", "1000.00", "200.00");
   assert.equal((await row(id)).due, "40.00", "5% of (1000 - 200 excluded)");
