@@ -56,6 +56,11 @@ test("$10,000 customer job at 5% = $500 commission; customer revenue is never Av
   await assert.rejects(advance(id, "attribution_verified", "stale screen", 1), /conversion_version_conflict/, "stale version cannot overwrite");
   await advance(id, "attribution_verified", "CRM source + call log match", 2);
   await advance(id, "eligible", "Agreement v1 clause 4 applies", 3);
+  await assert.rejects(advance(id, "paid", "WIRE-BYPASS-001", 4), /invalid_conversion_transition/,
+    "even eligible owners cannot skip invoice evidence");
+  await assert.rejects(db.query("select crm_attribution_transition($1,'paid','LEGACY-BYPASS')", [id]),
+    /permission denied|legacy_attribution_transition_disabled/i, "old RPC never bypasses evidence");
+  assert.equal((await row(id)).version, 4, "rejected shortcuts cannot change a row version");
   s = await summary();
   assert.equal(s.eligible, "500.00");
   assert.equal(s.pending, "500.00");
