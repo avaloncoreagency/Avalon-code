@@ -643,9 +643,15 @@ test('Nova Restaurant through the real app: one form, three departments, no dupl
   const blocked = page.getByRole('alertdialog', { name: /aún no puede marcarse como Ganado/ });
   await blocked.waitFor();
   await blocked.getByRole('link', { name: 'Registrar venta' }).waitFor();
+  // PF-A11Y-001 (independent QA): focus stays inside the modal with Tab / Shift+Tab and returns to the card on close.
+  const focusInside = async dialog => dialog.evaluate(el => el.contains(document.activeElement));
+  assert.ok(await focusInside(blocked), 'focus moves into the Won dialog');
+  for (let i = 0; i < 5; i++) { await page.keyboard.press('Tab'); assert.ok(await focusInside(blocked), 'Tab stays inside (' + i + ')'); }
+  for (let i = 0; i < 5; i++) { await page.keyboard.press('Shift+Tab'); assert.ok(await focusInside(blocked), 'Shift+Tab stays inside (' + i + ')'); }
   await page.screenshot({ path: `${EVIDENCE}/kanban-v2-won-gate.png`, fullPage: false });
   await blocked.getByRole('button', { name: 'Cerrar' }).click();
   await column('proposal').locator('article', { hasText: 'Chino Barber Sintético' }).waitFor();
+  assert.equal(await page.evaluate(() => document.activeElement?.closest('article[data-lead-id]')?.textContent ?? ''), 'Chino PruebaChino Barber Sintético', 'focus restored to the card that opened the dialog');
   assert.equal((await stageOf(chino)).stage_id, 'proposal', 'refused Won leaves the stage untouched');
   assert.equal(Number((await one('select count(*) n from crm_sales where lead_id=$1', [chino])).n), 0, 'no sale fabricated');
   // With a real (synthetic) verified signed contract the same drag reaches Ganado and survives a reload.
@@ -661,6 +667,7 @@ test('Nova Restaurant through the real app: one form, three departments, no dupl
   await drag('Chino Barber Sintético', 'lost');
   const lostDialog = page.getByRole('dialog', { name: 'Mover Chino Prueba a Perdido' });
   await lostDialog.waitFor();
+  for (let i = 0; i < 4; i++) { await page.keyboard.press('Tab'); assert.ok(await lostDialog.evaluate(el => el.contains(document.activeElement)), 'Lost dialog keeps focus (' + i + ')'); }
   await lostDialog.getByRole('button', { name: 'Cancelar' }).click();
   await column('won').locator('article', { hasText: 'Chino Barber Sintético' }).waitFor();
   assert.equal((await stageOf(chino)).stage_id, 'won', 'cancelled confirmation reverts');
