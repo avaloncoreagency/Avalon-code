@@ -55,3 +55,41 @@ No se crean empleados automáticamente ni se ofrece registro público. Esta prim
 ## Riesgos y evolución
 
 El esquema utiliza nombres nuevos y es aditivo, pero los flujos de venta/Cliente 360 existentes son sensibles. Posteriormente: invitaciones de empleados, permisos por módulo (view/edit/manage), campos específicos de Cliente 360, comentarios colaborativos con trazabilidad, búsqueda, paginación, filtros, archivos adjuntos con Storage RLS, notificaciones no invasivas y auditoría visible en admin. La fase de PR no demuestra funcionamiento en Preview sin las pruebas indicadas.
+
+
+## Avance de recuperación del Preview — 21 nov 2026 (solo rama aislada)
+
+**Entorno:** Supabase `xrtgnmuiyqmtisdrzqcg` (`integration/staff-portal-preview-20261120`), conectado a los overrides Vercel Preview de esta rama. **Producción `ltbwzcrxeuczdhhtbqgm` no fue alterada.**
+
+### Diagnóstico verificado
+
+La rama aislada tenía 13 migraciones históricas registradas, pero carecía de `public.crm_clients` y `public.office_profiles`, **aunque sus versiones históricas de Sales Core y Office constaban en el ledger**. La tabla `supabase_migrations.schema_migrations` contiene marcadores/comentarios, no el DDL necesario para recrear todas las tablas. El historial de Git y el ledger remoto presentan diferencias de versiones y nombres documentadas en `docs/recovery/SUPABASE_RECONCILIATION.md`. No basta con `migration repair` ni con marcar versiones aplicadas.
+
+### Reparaciones ejecutadas exclusivamente en Preview
+
+1. `preview_rehydrate_avalon_sales_core_from_git`: SQL exacto de `supabase/migrations/20261102170000_avalon_sales_core.sql` — **success**.
+2. `preview_rehydrate_avalon_office_from_git`: SQL exacto de `supabase/migrations/20261103100000_office.sql` — **success**.
+3. `staff_private_portal_preview_validated`: SQL exacto de `supabase/migrations/20261117180500_staff_private_portal.sql` del PR — **success**.
+
+Resultados verificados en la base aislada:
+- Existen `crm_clients`, `office_profiles`, `office_messages` y las seis tablas del portal `staff_*`.
+- Las seis tablas `staff_*` tienen RLS activo y el rol `anon` no tiene privilegios SELECT.
+- Ensayo en una transacción **con rollback** y cuatro identidades sintéticas: dos owners y dos operadores. Se confirmó que el operador A ve su expediente y conversación, el operador B **no** ve el expediente de A pero sí el mensaje dirigido a B, ambos siguen sin ver `crm_clients` por acceso directo, el owner B puede inspeccionar expedientes pero **no** mensajes de terceros, y revocar `can_message` hace ilegible el historial sin revocar expedientes. Todo terminó en **PASS** y la transacción se revirtió.
+- **Sin cuentas de prueba persistentes, sin clientes reales y sin activaciones de empleados.**
+
+### Límites importantes que permanecen
+
+- Supabase Branching aún informa `MIGRATIONS_FAILED`; la rama aislada **no** reproduce las 49 migraciones del principal. El rescate manual de 3 esquemas críticos no repara por sí solo el historial de 36 migraciones posteriores ni demuestra compatibilidad de toda Avalon.
+- No hay identidades de Auth en esta rama de prueba ni empleados preaprobados con `agency_memberships.role='operator'`. No se pueden validar sesiones de navegador reales hasta establecer un flujo seguro de identidades sintéticas.
+- El Preview Vercel `dpl_FtMucxPUHCnV17y8KZDihQVKXDst` está compilado (`READY`), pero **no** debe habilitarse como portal productivo.
+- Los asesores de seguridad de Supabase reportan funciones SECURITY DEFINER de Sales Core/Office (preexistentes a este módulo). Revisarlas según sus contratos y pruebas; no cambiar o revocar sus permisos masivamente a ciegas.
+- La rama Supabase tiene costo horario autorizado. Detenerla/eliminarla cuando ya no se requiera, después de conservar evidencia.
+
+### Ruta segura de release
+
+1. Resolver la divergencia **histórica** del ledger de Supabase. Para las migraciones antiguas marcadas pero sin tablas, comparar el SQL exacto del repositorio con la estructura actual de producción y preparar un baseline ordenado y reproducible. Para versiones equivalentes que difieren de nombre/fecha, comparar huellas de tablas, políticas, triggers, funciones y extensiones antes de cualquier reconciliación.
+2. Verificar el baseline en una base aislada nueva o reconstruida, con `supabase db reset` de desarrollo y tests integrados. Nunca ejecutar `db reset` en producción.
+3. Confirmar que todo el esquema está completo, que la rama está sana y que el Preview usa **exclusivamente** URL y publishable key de la rama aislada.
+4. Invitar dos identidades sintéticas de prueba mediante Supabase Auth (no insertarlas directamente en `auth.users` para sesiones reales); otorgar membresías `operator` y activar permisos desde owner de prueba.
+5. Probar login, MFA, rutas `/staff` y `/admin/staff`, 403/IDOR, revocación inmediata, aislamiento de expedientes y DMs.
+6. Exigir respaldo verificable y aprobación de despliegue antes de aplicar la migración de staff al proyecto principal. Producción conserva 2 owners y 0 operadores, sin cuentas reales activadas.
