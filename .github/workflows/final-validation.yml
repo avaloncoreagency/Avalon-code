@@ -63,6 +63,11 @@ jobs:
         env:
           QUOTES_BROWSER: '1'
           EVIDENCE_DIR: evidence/final-validation
+      - name: Five-area mobile and client-product relationships
+        run: node --test tests/quick-improvements/mobile.browser.cjs
+        working-directory: ${{ runner.temp }}/avalon-candidate
+        env:
+          QUICK_EXPECT_TOUCH_TARGETS: '1'
       - name: Mandatory human verification acceptance on reviewed current candidate
         if: always()
         run: node tests/final-validation/intake-boundary.cjs .
