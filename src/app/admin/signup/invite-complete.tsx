@@ -27,10 +27,12 @@ export function InviteComplete() {
       try {
         const { error } = await client.auth.setSession({ access_token, refresh_token });
         if (error) { setState("failed"); return; }
-        await completeStaffInvitation();
       } catch {
         setState("failed");
+        return;
       }
+      // Do not catch a Next.js Server Action redirect: it is control flow.
+      await completeStaffInvitation();
     })();
   },[]);
   if (state === "verifying") return <p role="status">Verificando tu invitación segura…</p>;
