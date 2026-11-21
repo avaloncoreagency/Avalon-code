@@ -1,0 +1,32 @@
+name: Effective function privileges (isolated)
+on:
+  pull_request:
+    paths:
+      - 'scripts/security/definer-audit.cjs'
+      - 'tests/definer-gates.test.cjs'
+      - 'tests/definer-privilege-regression.test.cjs'
+      - 'tests/definer-privileges.database.cjs'
+      - 'docs/security/PUBLIC_EXECUTE_AUDIT.md'
+      - '.github/workflows/definer-effective-acl.yml'
+permissions:
+  contents: read
+concurrency:
+  group: definer-effective-acl-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  privileges:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: tests/qa/package-lock.json
+      - run: npm ci --prefix tests/qa --ignore-scripts --no-audit --no-fund
+      - run: node --test tests/definer-gates.test.cjs tests/definer-privilege-regression.test.cjs tests/definer-privileges.database.cjs
+        env:
+          NODE_PATH: ./tests/qa/node_modules
