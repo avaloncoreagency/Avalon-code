@@ -30,7 +30,7 @@ export async function confirmSale(_prev: SaleFormState, form: FormData): Promise
     }
     const canonicalLead = linked.data.origin_lead_id as string | null;
     if (request.lead_id && request.lead_id !== canonicalLead) {
-      return { error: "sale_lead_missing", values };
+      return { error: "sale_lead_other_client", values };
     }
     if (!request.lead_id && canonicalLead) request.lead_id = canonicalLead;
   }
