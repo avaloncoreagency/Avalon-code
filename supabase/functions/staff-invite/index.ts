@@ -37,6 +37,24 @@ Deno.serve(async (request: Request) => {
     const ownerId = identity?.id;
     if (!user.ok || typeof ownerId !== "string" || !UUID.test(ownerId))
       return reply(401, { error: "unauthorized" });
+    // Respect the owners' MFA gate even for a direct Edge Function request.
+    // /auth/v1/user verified the session signature above; only now may we
+    // inspect the signed token's authentication assurance level (aal).
+    const factors = Array.isArray(identity.factors) ? identity.factors : [];
+    const enrolled = factors.some(f => object(f)?.status === "verified");
+    if (enrolled) {
+      let aal = "";
+      let subject = "";
+      try {
+        const body = token.split(".")[1];
+        const normalized = body.replace(/-/g, "+").replace(/_/g, "/");
+        const claims = object(JSON.parse(atob(normalized)));
+        aal = typeof claims?.aal === "string" ? claims.aal : "";
+        subject = typeof claims?.sub === "string" ? claims.sub : "";
+      } catch { /* Fail closed. */ }
+      if (aal !== "aal2" || subject !== ownerId)
+        return reply(403, { error: "mfa_required" });
+    }
 
     // Authorize with trusted database membership; no email, metadata or client claim.
     const members = await fetchJSON(
