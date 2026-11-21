@@ -105,7 +105,7 @@ export function InboundInbox({lang}:{lang:Lang}) {
     {!loading&&<ul className={ui.cards}>{rows.filter(row=>messages===null||focus===""||messages.some(m=>m.prospect_id===row.id&&inFocus(focus,m.review_status))).map(row=>{
       const visibleMessages=messages?.filter(m=>m.prospect_id===row.id&&inFocus(focus,m.review_status))??[];
       const legacy=presentInquiry(row.opportunity,(row.crm_public_inquiries??[]).flatMap(x=>x.services),lang);
-      const statusText=Object.hasOwn(STATES,row.status)?pick(lang,...STATES[row.status as keyof typeof STATES]):row.status;
+      const statusText=Object.hasOwn(STATES,row.status)?pick(lang,STATES[row.status as keyof typeof STATES][0],STATES[row.status as keyof typeof STATES][1]):row.status;
       return <li key={row.id} className={ui.requestCard}>
         <header className={ui.requestHeader}>
           <div className={ui.identity}>
