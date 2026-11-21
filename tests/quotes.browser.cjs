@@ -111,6 +111,25 @@ test('Quoting Studio in the real app: wizard, PDF without internal data, states,
   await m.getByLabel('Concepto', { exact: true }).nth(1).fill('Mantenimiento y soporte');
   await m.getByLabel('Tipo').nth(1).selectOption('monthly');
   await m.getByLabel('Precio unitario (USD)').nth(1).fill('150');
+  // V5 service configurator + receptionist estimator (synthetic rate; nothing is called or activated).
+  await m.getByLabel('Configurar un servicio').selectOption('receptionist');
+  await m.getByLabel('Llamadas por mes').fill('100');
+  await m.getByLabel('Duración promedio (s)').fill('90');
+  await m.getByLabel('Proveedor', { exact: true }).fill('Synthetic Voice');
+  const estimate = m.getByRole('table', { name: /Costos mensuales estimados del proveedor/ });
+  assert.match(await estimate.innerText(), /N\/D/, 'no verified rate → N/D, never a guessed price');
+  for (const label of ['Plataforma incluye telefonía', 'Incluye STT/TTS', 'Incluye modelo IA']) await m.getByLabel(label).selectOption('yes');
+  await m.getByLabel('Plataforma por minuto (USD)').fill('0.10');
+  assert.match(await estimate.innerText(), /N\/D/, 'a rate without source/date is still N/D');
+  await m.getByLabel('Fuente (URL o contrato)').first().fill('synthetic-test-rate');
+  await m.getByLabel('Verificada el').first().fill('2026-11-21');
+  assert.match(await estimate.getByRole('row', { name: /Total mensual/ }).innerText(), /\$20[.,]00/, '100 calls × 90 s billed per minute = 200 min × $0.10');
+  await m.screenshot({ path: `${EVIDENCE}/quote-receptionist-estimator.png`, fullPage: true });
+  await m.getByRole('button', { name: 'Añadir a la cotización' }).click();
+  const linesAfterStudio = await m.getByLabel('Precio unitario (USD)').count();
+  assert.equal(linesAfterStudio, 3, 'studio adds one line');
+  assert.equal(await m.getByLabel('Precio unitario (USD)').nth(2).inputValue(), '', 'no approved catalog price → empty, owner decides');
+  await m.getByRole('button', { name: 'Quitar' }).nth(2).click();
   await m.getByRole('button', { name: 'Siguiente' }).click();
   await m.getByLabel('Híbrido').check();
   await m.getByLabel('Porcentaje propuesto').check();

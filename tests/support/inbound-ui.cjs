@@ -53,16 +53,21 @@ module.exports=async function inboundUI({db,context,miguel,samuel,origin,evidenc
   await inbox(b).getByRole('searchbox').fill('Inbox Synthetic Messages');
   await Promise.all([b.waitForResponse(response=>{const u=new URL(response.url());return u.pathname.endsWith('/crm/api')&&u.searchParams.get('q')==='Inbox Synthetic Messages';}),inbox(b).getByRole('button',{name:'Search',exact:true}).click()]);
   const list=b.getByRole('list',{name:'Messages from Inbox Synthetic Messages'});
-  await list.getByText('Necesito un website con reservas para mi barbería.').waitFor();
+  await list.getByText('Necesito un website con reservas para mi barbería.', { exact: true }).waitFor();
   const spam=list.getByRole('listitem').filter({hasText:'customized SEO services'});
   await spam.getByText(/Possible promotional inquiry/).waitFor();
   assert.equal(await list.getByRole('listitem').filter({hasText:'barbería'}).getByText(/Possible promotional inquiry/).count(),0,'the legitimate message carries no warning');
   b.once('dialog',d=>d.accept('Vendor pitch, not a client'));
+  // #306: review actions live in the collapsible "Message review and details" section; open it like a user would.
+  const openReview=item=>item.locator('summary',{hasText:'Message review and details'}).click();
+  await openReview(spam);
   await spam.getByRole('button',{name:'Possible spam',exact:true}).click();
   await inbox(b).getByText(/Review saved/).waitFor();
   const spamRow=async()=>(await db.query("select id,review_status,review_note,version from crm_public_inquiries where prospect_id=$1 and message like '%SEO%'",[multi.id])).rows[0];
   assert.deepEqual(await spamRow().then(r=>[r.review_status,r.review_note,r.version]),['possible_spam','Vendor pitch, not a client',2]);
-  await list.getByRole('listitem').filter({hasText:'customized SEO services'}).getByRole('button',{name:'Legitimate inquiry',exact:true}).click();
+  const again=list.getByRole('listitem').filter({hasText:'customized SEO services'});
+  if(!(await again.getByRole('button',{name:'Legitimate inquiry',exact:true}).isVisible())) await openReview(again);
+  await again.getByRole('button',{name:'Legitimate inquiry',exact:true}).click();
   await inbox(b).getByText(/Review saved/).waitFor();
   assert.equal((await spamRow()).review_status,'legitimate','a false positive is recoverable');
   const log=(await db.query('select from_status,to_status,actor_id from crm_public_inquiry_reviews where inquiry_id=$1 order by created_at',[(await spamRow()).id])).rows;
@@ -71,10 +76,10 @@ module.exports=async function inboundUI({db,context,miguel,samuel,origin,evidenc
   // A.4: per-message summary filters (page scope) — reviewed messages leave the "To review" view, nothing is deleted.
   const filters=inbox(b).getByRole('group',{name:'Filter messages on this page'});
   await filters.getByRole('button',{name:/^To review \(1\)$/}).click();
-  await list.getByText('Necesito un website con reservas para mi barbería.').waitFor();
+  await list.getByText('Necesito un website con reservas para mi barbería.', { exact: true }).waitFor();
   assert.equal(await list.getByText(/customized SEO services/).count(),0,'reviewed message hidden in the To review view');
   await filters.getByRole('button',{name:/^Reviewed \(1\)$/}).click();
-  await list.getByText(/customized SEO services/).waitFor();
+  await list.getByText(/customized SEO services/).first().waitFor(); // #306 also renders the full original text
   await filters.getByRole('button',{name:/^All \(2\)$/}).click();
   assert.equal(await list.getByRole('listitem').count(),2,'both messages back in the full view');
   await b.screenshot({path:evidence+'/inbound-messages-en-1440.png',fullPage:true});
