@@ -76,10 +76,15 @@ module.exports = async function coreEngineUI({db,context,miguel,samuel,origin,ev
   if(!await item.getByRole('button',{name:'Approve offer',exact:true}).isVisible()) await item.locator('summary').filter({hasText:'Commercial offer'}).click();
   ui.once('dialog',d=>d.accept());
   await item.getByRole('button',{name:'Approve offer',exact:true}).click();
-  await item.getByText(/approved · v/).waitFor();
+  // The approval's server refresh can remount the item and collapse its <details>: the status is then in the DOM but
+  // hidden. Wait for the persisted state itself, then reopen the disclosure before interacting again.
+  const reopen=async()=>{if(!await terms.getByLabel('Monthly price',{exact:true}).isVisible()) await item.locator('summary').filter({hasText:'Commercial offer'}).click();};
+  await item.getByText(/approved · v/).waitFor({state:'attached'});
+  await reopen();
   await terms.getByLabel('Monthly price',{exact:true}).fill('21');
   await terms.getByRole('button',{name:'Save commercial terms',exact:true}).click();
-  await item.getByText(/draft · v2/).waitFor();
+  await item.getByText(/draft · v2/).waitFor({state:'attached'});
+  await reopen();
   // Attachment labels arrive from the server, not the browser's independent Intl implementation.
   await ui.addInitScript(()=>{const Original=Intl.DateTimeFormat;Intl.DateTimeFormat=function(...args){const result=new Original(...args);Object.defineProperty(result,'format',{value:()=> 'DIFFERENT CLIENT ICU'});return result;};});
   for(let i=0;i<3;i++) {
