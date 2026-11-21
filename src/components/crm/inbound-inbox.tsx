@@ -119,7 +119,7 @@ export function InboundInbox({lang}:{lang:Lang}) {
             <strong className={ui.messageTitle}>{t("Qué necesita el cliente","What the customer needs")}</strong>
             <p className={ui.body}>{legacy.text||t("No hay descripción disponible.","No description available.")}</p>
             {legacy.services.length>0&&<div className={ui.chips} aria-label={t("Servicios solicitados","Requested services")}>{legacy.services.map(service=><span key={service} className={ui.chip}>{service}</span>)}</div>}
-            {triageText(row.opportunity)}
+            {messages===null&&triageText(row.opportunity)}
             <details className={ui.details}><summary>{t("Ver registro original","View original record")}</summary><p className={ui.rawNote}>{row.opportunity}</p></details>
             <p className={ui.quiet}>{t("Historial anterior no disponible en esta base de datos; se conserva el registro original.","Earlier history is not available in this database; the original record is retained.")}</p>
           </section>
