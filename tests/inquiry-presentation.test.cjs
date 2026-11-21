@@ -31,13 +31,13 @@ test("historical message without prefix remains intact and empty selection stays
 });
 
 test("legacy SQL opportunity header does not hide the customer's actual need", () => {
-  const original = "Solicitud web (es) · servicios: website, crm\\nInterés adicional: Chatbots IA\\nQuiero un chatbot para atender consultas sin perder clientes.";
+  const original = "Solicitud web (es) · servicios: website, crm\nInterés adicional: Chatbots IA\nQuiero un chatbot para atender consultas sin perder clientes.";
   const view = presentInquiry(original, ["website"], "es");
   assert.equal(view.text, "Quiero un chatbot para atender consultas sin perder clientes.");
   assert.deepEqual(Array.from(view.services), ["Desarrollo web", "CRM", "Chatbot con IA"]);
 });
 test("legacy SQL opportunity without services still extracts the original request", () => {
-  const view = presentInquiry("Solicitud web (en)\\nI need a booking calendar.", [], "en");
+  const view = presentInquiry("Solicitud web (en)\nI need a booking calendar.", [], "en");
   assert.equal(view.text, "I need a booking calendar.");
   assert.deepEqual(Array.from(view.services), []);
 });
