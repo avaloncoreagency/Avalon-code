@@ -543,6 +543,7 @@ export function Crm({ section = "leads", focusLeadId, lang = "es", radarEnabled 
             {section === "leads" && <LeadLink onOpen={setDetail} />}
             {detail && (
               <LeadTimeline
+                lang={lang}
                 lead={rows.find((r) => r.id === detail.id) ?? detail}
                 stages={stages}
                 revision={revision}
