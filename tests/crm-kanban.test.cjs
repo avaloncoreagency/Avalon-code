@@ -67,5 +67,7 @@ test("dragging can auto-scroll to nonadjacent columns without stage-by-stage mut
   assert.match(board, /data-kanban-group=\{group\.id\}/, "every group can receive a drop");
   assert.match(board, /if \(lead && group && PIPELINE_GROUPS\.some\(g => g\.id === group\)\) commit\(lead, group\)/, "drop targets the chosen group directly");
   assert.match(board, /suppressClick\.current = true/, "the click after a drag never opens the record");
+  assert.match(board, /document\.addEventListener\("keydown", trap, true\)/, "PF-A11Y-001: Tab is trapped inside open dialogs");
+  assert.match(board, /\[data-lead-id="\$\{CSS\.escape\(id\)\}"\]`\)\?\.focus\(\)/, "focus returns to the opener card");
   assert.match(styles, /\.scroll\[data-dragging="true"\] \{ scroll-snap-type: none/, "snap does not fight auto-scroll");
 });
