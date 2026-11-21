@@ -13,6 +13,26 @@ function done(status: string): never {
   redirect(`/admin/staff?status=${status}`);
 }
 
+/** Email invitations are issued by a protected Supabase Edge Function,
+ * never by shipping an admin key into the Next.js application. The function
+ * creates an INACTIVE operator, which owners must activate separately. */
+export async function inviteStaffEmployee(form: FormData) {
+  const { supabase } = await requireOwner();
+  const email = get(form, "employee_email").toLowerCase();
+  if (!email || email.length > 254 || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email))
+    done("invalid");
+  try {
+    const { data, error } = await supabase.functions.invoke("staff-invite", {
+      body: { email },
+    });
+    if (error || !data || data.invited !== true ||
+        data.requires_owner_activation !== true) done("invite-failed");
+  } catch {
+    done("invite-failed");
+  }
+  done("invite-sent");
+}
+
 /** Only existing, trusted operator memberships can become employees. */
 export async function setStaffAccess(form: FormData) {
   const { supabase, userId } = await requireOwner();
