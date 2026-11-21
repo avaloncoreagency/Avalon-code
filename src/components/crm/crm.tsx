@@ -1,5 +1,6 @@
 "use client";
 import Link from "next/link";
+import { createPortal } from "react-dom";
 import { pick, type Lang } from "@/lib/i18n";
 import { useCallback, useEffect, useState } from "react";
 import {
@@ -541,7 +542,7 @@ export function Crm({ section = "leads", focusLeadId, lang = "es", radarEnabled 
               </div>
             )}
             {section === "leads" && <LeadLink onOpen={setDetail} />}
-            {detail && (
+            {detail && createPortal(
               <LeadTimeline
                 lang={lang}
                 lead={rows.find((r) => r.id === detail.id) ?? detail}
@@ -556,7 +557,8 @@ export function Crm({ section = "leads", focusLeadId, lang = "es", radarEnabled 
                   edit(a, "activities");
                   setDetail(null);
                 }}
-              />
+              />,
+              document.body
             )}
             {section === "leads" &&
               (view === "table" ? (

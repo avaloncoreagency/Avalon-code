@@ -608,6 +608,7 @@ test('Nova Restaurant through the real app: one form, three departments, no dupl
   assert.match(await drawer.locator('li', { hasText: 'Movido de Propuesta enviada a Contactado' }).first().innerText(), /miguel/, 'stage event names the real actor');
   assert.doesNotMatch(await drawer.innerText(), /· Sistema/, 'no actor is invented as System');
   await drawer.getByRole('link', { name: 'Registrar venta para Orbit Dental Sintético' }).waitFor();
+  await drawer.getByText('Añadir nota, actividad o archivo', { exact: true }).click();
   await drawer.getByLabel('Nota').fill('Cliente pidió propuesta revisada (sintético)');
   await drawer.getByRole('button', { name: 'Guardar nota' }).click();
   await drawer.getByText('Cliente pidió propuesta revisada (sintético)').waitFor();
