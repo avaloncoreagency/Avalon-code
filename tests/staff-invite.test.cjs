@@ -23,7 +23,7 @@ function makeEdge({role="owner",missingOrigin=false,roster=0,inviteFails=false}=
   const Deno={env:{get:k=>env[k]},serve:fn=>{handler=fn;}};
   const fetch=async(url,init)=>{
     const u=new URL(url);
-    calls.push({path:u.pathname,method:init.method||"GET",body:init.body||null,headers:init.headers||{}});
+    calls.push({path:u.pathname,url:u.toString(),method:init.method||"GET",body:init.body||null,headers:init.headers||{}});
     let data;let status=200;
     if(u.pathname==="/auth/v1/user") data={id:OWNER};
     else if(u.pathname==="/rest/v1/agency_memberships"&&init.method==="POST") {
@@ -60,6 +60,7 @@ test("pending operator invite is strictly owner-verified and never activated",as
   ]);
   const sent=JSON.parse(edge.calls[3].body);
   assert.equal(sent.email,"new.employee@example.invalid");
+  assert.equal(new URL(edge.calls[3].url).searchParams.get("redirect_to"),"https://avaloncoreagency.com/admin/signup");
   const added=JSON.parse(edge.calls[4].body);
   assert.deepEqual(added,{user_id:INVITED,role:"operator"});
   assert.ok(edge.calls.every(x=>!x.path.includes("staff_portal_access")),"no activation created");
