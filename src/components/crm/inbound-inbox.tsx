@@ -140,7 +140,7 @@ export function InboundInbox({lang}:{lang:Lang}) {
                   <summary>{t("Revisión y detalles del mensaje","Message review and details")}</summary>
                   <div className={ui.detailsBody}>
                     {m.review_note&&<p className={ui.quiet}><strong>{t("Nota de revisión","Review note")}:</strong> {m.review_note}</p>}
-                    {m.message&&<p className={ui.rawNote}><strong>{t("Mensaje completo (registro original)","Full message (original record)")}:</strong> {m.message}</p>}
+                    {m.message && view.text !== m.message.trim() && <p className={ui.rawNote}><strong>{t("Mensaje completo (registro original)","Full message (original record)")}:</strong> {m.message}</p>}
                     <div className={ui.actions} role="group" aria-label={t("Revisar este mensaje","Review this message")}>
                       {(Object.keys(REVIEW) as ReviewStatus[]).filter(k=>k!==m.review_status).map(k=>
                         <button key={k} type="button" className={s.button} disabled={busy} onClick={()=>void review(m,k)}>{k==="pending"?t("Volver a revisar","Back to review"):reviewLabel(k)}</button>)}
