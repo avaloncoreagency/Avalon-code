@@ -31,7 +31,7 @@ export default async function CrmPage() {
   const n = (v: number | null) => (v === null ? "—" : String(v));
   return (
     <Suite active="crm">
-      <CrmOverview radarEnabled={radarExternalEnabled()} />
+      <CrmOverview radarEnabled={radarExternalEnabled()} lang={lang} />
       <section className={s.hud} aria-labelledby="crm-ops" style={{ marginTop: 18 }}>
         <header className={s.header}>
           <div><p className={s.eyebrow}>{pick(lang, "Operaciones comerciales", "Commercial operations")}</p>

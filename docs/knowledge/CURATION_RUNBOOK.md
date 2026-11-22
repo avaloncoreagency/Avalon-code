@@ -1,7 +1,7 @@
 # Procedimiento de incorporación y mantenimiento de conocimiento
 
-**ID:** KNI-SOP-001 · **Versión:** v0.2 · **Custodio propuesto:** Knowledge & Innovation.
-**Solidez:** PROPUESTO · **Vigencia:** POR REVISAR · **Aprobación:** BORRADOR · **Clasificación:** PUBLICABLE · **Última revisión:** 2026-11-20.
+**ID:** KNI-SOP-001 · **Versión:** v0.3 · **Custodio propuesto:** Knowledge & Innovation.
+**Solidez:** PROPUESTO · **Vigencia:** POR REVISAR · **Aprobación:** BORRADOR · **Clasificación:** PUBLICABLE · **Última revisión:** 2026-11-22.
 
 El procedimiento no habilita agentes, gastos, integraciones, aprobaciones automáticas ni cambios productivos.
 
@@ -19,7 +19,7 @@ Este repositorio es público. No guardar aquí datos reales de clientes, contrat
 2. **Seguridad.** Clasificar PUBLICABLE / INTERNO / CONFIDENCIAL / RESTRINGIDO. Solo PUBLICABLE pasa al GitHub público tras comprobar que no contiene datos privados ni claves. `INTERNO` no significa publicable.
 3. **Tipo y custodia.** Identificar DEC (decisión/directriz), SOP (procedimiento), STD (estándar), LEG (modelo legal), ARCH (arquitectura), RUN (soporte), RES (investigación), LES (aprendizaje), IMP (mejora). Asignar departamento responsable y una ID sin reutilizar otras existentes.
 4. **Fuentes y tiempo.** Registrar fecha de la fuente, fecha de revisión y `main@SHA` si afirma algo sobre el código. Distinguir `main`, rama/PR, CI, Preview y producción. No equiparar `success` de un check con aceptación hospedada.
-5. **Tres estados separados.** Solidez: VERIFICADO / PROPUESTO / PENDIENTE / DESCONOCIDO. Vigencia: VIGENTE / HISTÓRICO / SUSTITUIDO / REVOCADO / POR REVISAR. Aprobación: BORRADOR / EN REVISIÓN / APROBADO / RECHAZADO.
+5. **Tres ejes independientes (V2).** Solidez: VERIFICADO / REPORTADO / PROPUESTO / DESCARTADO / PAUSADO / DESCONOCIDO. Vigencia: VIGENTE / HISTÓRICO / SUSTITUIDO / REVOCADO / POR REVISAR. Aprobación: BORRADOR / EN REVISIÓN / APROBADO / RECHAZADO. **PENDIENTE** corresponde a acciones, no a evidencia.
 6. **Revisión por responsable.** El departamento custodio verifica exactitud y contradicciones. Si dos fuentes discrepan, conservar ambas con fecha y marcar la decisión como `POR REVISAR`. No resolver contradicciones adjudicando autoridad a un modelo.
 7. **Autorización.** Los owners deciden política empresarial, gastos, contratación, cambios sensibles y cualquier excepción que requiera su aprobación. Ningún PR documental o texto generado por IA equivale a una aprobación corporativa.
 8. **Publicación e historial.** Actualizar el índice canónico, enlazar fuente y sucesor, registrar versión; no borrar el historial ni reescribir retrospectivamente una decisión anterior.
@@ -66,7 +66,7 @@ El calendario no autoriza tareas programadas ni llamadas automáticas. PROJECT M
 ```text
 Registro: [ID] / [título]
 Custodio / clasificación:
-Solidez: [VERIFICADO|PROPUESTO|PENDIENTE|DESCONOCIDO]
+Solidez V2: [VERIFICADO|REPORTADO|PROPUESTO|DESCARTADO|PAUSADO|DESCONOCIDO]
 Vigencia: [VIGENTE|HISTÓRICO|SUSTITUIDO|REVOCADO|POR REVISAR]
 Aprobación: [BORRADOR|EN REVISIÓN|APROBADO|RECHAZADO]
 Fuente y fecha / entorno / SHA:

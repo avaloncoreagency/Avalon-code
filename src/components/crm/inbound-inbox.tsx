@@ -3,6 +3,7 @@ import Link from "next/link";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { pick, type Lang } from "@/lib/i18n";
 import { inquiryTriageReason } from "@/lib/crm/inquiry-triage";
+import { presentInquiry } from "@/lib/crm/inquiry-presentation";
 import s from "@/components/sales/sales.module.css";
 import ui from "./inbound-inbox.module.css";
 
@@ -101,33 +102,73 @@ export function InboundInbox({lang}:{lang:Lang}) {
         {pick(lang,FOCUS[key][0],FOCUS[key][1])} ({messages.filter(m=>inFocus(key,m.review_status)).length})</button>)}
     </div>}
     {!loading&&!error&&rows.length===0&&<p className={s.empty}>{t("No hay solicitudes en esta vista.","No inquiries in this view.")}</p>}
-    {!loading&&<ul className={s.list}>{rows.filter(row=>messages===null||focus===""||messages.some(m=>m.prospect_id===row.id&&inFocus(focus,m.review_status))).map(row=><li key={row.id}>
-      <h2>{row.company}</h2>
-      {messages===null&&triageText(row.opportunity)}
-      <p>{Object.hasOwn(STATES,row.status)?STATES[row.status as keyof typeof STATES][lang === "es" ? 0 : 1]:row.status}</p>
-      <p>{row.contact} · {row.email||"—"} · {row.phone||"—"}</p><p>{row.industry} · {row.location}</p>
-      {messages===null&&<p>{row.opportunity}</p>}
-      {messages===null
-        ?<p className={s.muted}>{t("El historial completo de mensajes aún no está activo en esta base de datos: se muestra el primer mensaje registrado.","Full message history is not active in this database yet: showing the first recorded message.")}</p>
-        :<ol className={ui.messages} aria-label={t(`Mensajes de ${row.company}`,`Messages from ${row.company}`)}>
-          {messages.filter(m=>m.prospect_id===row.id&&inFocus(focus,m.review_status)).map(m=><li key={m.id} data-review={m.review_status}>
-            <p className={s.muted}><time dateTime={m.created_at}>{new Date(m.created_at).toLocaleString(lang==="es"?"es":"en",{dateStyle:"medium",timeStyle:"short"})}</time> · {m.services.join(", ")||t("Sin servicio marcado","No service selected")} · {Object.hasOwn(REVIEW,m.review_status)?reviewLabel(m.review_status as ReviewStatus):m.review_status}</p>
-            {triageText(m.message)}
-            <p className={ui.body}>{m.message??t("Mensaje no registrado: llegó antes de que existiera el historial.","Message not recorded: received before history existed.")}</p>
-            {m.review_note&&<p className={s.muted}>{t("Nota","Note")}: {m.review_note}</p>}
-            <div className={s.actions} role="group" aria-label={t("Revisar este mensaje","Review this message")}>
-              {(Object.keys(REVIEW) as ReviewStatus[]).filter(k=>k!==m.review_status).map(k=>
-                <button key={k} type="button" className={s.button} disabled={busy} onClick={()=>void review(m,k)}>{k==="pending"?t("Volver a revisar","Back to review"):reviewLabel(k)}</button>)}
-            </div>
-          </li>)}
-        </ol>}
-      <p>{t("Solicitudes recibidas","Received inquiries")}: {row.crm_public_inquiries?.length ?? "—"} · {t("Servicios solicitados","Requested services")}: {[...new Set((row.crm_public_inquiries??[]).flatMap(x=>x.services))].join(", ")||"—"}</p><p className={s.muted}>{t("Fuente","Source")}: {row.source} · {row.acquired_at.slice(0,10)} · v{row.version}</p>
-      {row.do_not_contact?<p>{t("No contactar: revisión bloqueada.","Do not contact: review blocked.")}</p>:row.status==="converted"?row.lead_id&&<Link href={`/admin/workspace/crm/lead/${row.lead_id}`}>{t("Abrir oportunidad","Open opportunity")}</Link>:<div className={s.actions}>
-        {row.status!=="approved"&&<button className={s.button} disabled={busy} onClick={()=>void act(row,"approved")}>{t("Aprobar revisión","Approve review")}</button>}
-        {row.status==="approved"&&<button className={s.button} disabled={busy} onClick={()=>void act(row,"convert")}>{t("Convertir a lead","Convert to lead")}</button>}
-        {row.status!=="rejected"&&<button className={s.button} disabled={busy} onClick={()=>void act(row,"rejected")}>{t("Descartar","Discard")}</button>}
-      </div>}
-    </li>)}</ul>}
+    {!loading&&<ul className={ui.cards}>{rows.filter(row=>messages===null||focus===""||messages.some(m=>m.prospect_id===row.id&&inFocus(focus,m.review_status))).map(row=>{
+      const visibleMessages=messages?.filter(m=>m.prospect_id===row.id&&inFocus(focus,m.review_status))??[];
+      const legacy=presentInquiry(row.opportunity,(row.crm_public_inquiries??[]).flatMap(x=>x.services),lang);
+      const statusText=Object.hasOwn(STATES,row.status)?pick(lang,STATES[row.status as keyof typeof STATES][0],STATES[row.status as keyof typeof STATES][1]):row.status;
+      return <li key={row.id} className={ui.requestCard}>
+        <header className={ui.requestHeader}>
+          <div className={ui.identity}>
+            <h2>{row.company}</h2>
+            <p>{row.contact||t("Contacto no indicado","Contact not supplied")}</p>
+          </div>
+          <span className={ui.state} data-status={row.status}>{statusText}</span>
+        </header>
+        {messages===null
+          ?<section className={ui.messageCard} aria-label={t("Solicitud inicial","Initial inquiry")}>
+            <strong className={ui.messageTitle}>{t("Qué necesita el cliente","What the customer needs")}</strong>
+            <p className={ui.body}>{legacy.text||t("No hay descripción disponible.","No description available.")}</p>
+            {legacy.services.length>0&&<div className={ui.chips} aria-label={t("Servicios solicitados","Requested services")}>{legacy.services.map(service=><span key={service} className={ui.chip}>{service}</span>)}</div>}
+            {messages===null&&triageText(row.opportunity)}
+            <details className={ui.details}><summary>{t("Ver registro original","View original record")}</summary><p className={ui.rawNote}>{row.opportunity}</p></details>
+            <p className={ui.quiet}>{t("Historial anterior no disponible en esta base de datos; se conserva el registro original.","Earlier history is not available in this database; the original record is retained.")}</p>
+          </section>
+          :<ol className={ui.messages} aria-label={t("Mensajes de ","Messages from ")+row.company}>
+            {visibleMessages.map(m=>{
+              const view=presentInquiry(m.message,m.services,lang);
+              const reviewed=Object.hasOwn(REVIEW,m.review_status)?reviewLabel(m.review_status as ReviewStatus):m.review_status;
+              return <li key={m.id} className={ui.messageCard} data-review={m.review_status}>
+                <div className={ui.messageHeader}>
+                  <strong className={ui.messageTitle}>{t("Qué necesita el cliente","What the customer needs")}</strong>
+                  <span className={ui.reviewStatus} data-review={m.review_status}>{reviewed}</span>
+                </div>
+                <p className={ui.body}>{view.text||t("Mensaje no registrado: recibido antes del historial.","Message not recorded: received before message history.")}</p>
+                {view.services.length>0&&<div className={ui.chips} aria-label={t("Servicios solicitados","Requested services")}>{view.services.map(service=><span key={service} className={ui.chip}>{service}</span>)}</div>}
+                <p className={ui.quiet}><time dateTime={m.created_at}>{new Date(m.created_at).toLocaleString(lang==="es"?"es":"en",{dateStyle:"medium",timeStyle:"short"})}</time></p>
+                {triageText(m.message)}
+                <details className={ui.details}>
+                  <summary>{t("Revisión y detalles del mensaje","Message review and details")}</summary>
+                  <div className={ui.detailsBody}>
+                    {m.review_note&&<p className={ui.quiet}><strong>{t("Nota de revisión","Review note")}:</strong> {m.review_note}</p>}
+                    {m.message && view.text !== m.message.trim() && <p className={ui.rawNote}><strong>{t("Mensaje completo (registro original)","Full message (original record)")}:</strong> {m.message}</p>}
+                    <div className={ui.actions} role="group" aria-label={t("Revisar este mensaje","Review this message")}>
+                      {(Object.keys(REVIEW) as ReviewStatus[]).filter(k=>k!==m.review_status).map(k=>
+                        <button key={k} type="button" className={s.button} disabled={busy} onClick={()=>void review(m,k)}>{k==="pending"?t("Volver a revisar","Back to review"):reviewLabel(k)}</button>)}
+                    </div>
+                  </div>
+                </details>
+              </li>;
+            })}
+          </ol>}
+        <details className={ui.details}>
+          <summary>{t("Contacto y datos de seguimiento","Contact and tracking details")}</summary>
+          <div className={ui.detailsBody}>
+            <p>{t("Correo","Email")}: {row.email||"—"} · {t("Teléfono","Phone")}: {row.phone||"—"}</p>
+            <p>{t("Sector","Industry")}: {row.industry||"—"} · {t("Ubicación","Location")}: {row.location||"—"}</p>
+            <p>{t("Solicitudes registradas","Recorded inquiries")}: {row.crm_public_inquiries?.length??"—"} · {t("Origen","Source")}: {row.source} · {row.acquired_at.slice(0,10)} · v{row.version}</p>
+          </div>
+        </details>
+        {row.do_not_contact
+          ?<p className={ui.quiet}>{t("No contactar: revisión bloqueada.","Do not contact: review blocked.")}</p>
+          :row.status==="converted"
+            ?row.lead_id&&<Link className={s.button} href={"/admin/workspace/crm/lead/"+row.lead_id}>{t("Abrir oportunidad","Open opportunity")}</Link>
+            :<div className={ui.actions}>
+              {row.status!=="approved"&&<button className={s.button} disabled={busy} onClick={()=>void act(row,"approved")}>{t("Aprobar revisión","Approve review")}</button>}
+              {row.status==="approved"&&<button className={s.button} disabled={busy} onClick={()=>void act(row,"convert")}>{t("Convertir a lead","Convert to lead")}</button>}
+              {row.status!=="rejected"&&<button className={s.button} disabled={busy} onClick={()=>void act(row,"rejected")}>{t("Descartar","Discard")}</button>}
+            </div>}
+      </li>;
+    })}</ul>}
     <nav className={s.actions} aria-label={t("Páginas de solicitudes","Inquiry pages")}>
       <button className={s.button} disabled={busy||loading||page===0} onClick={()=>setPage(p=>p-1)}>{t("Anterior","Previous")}</button>
       <button className={s.button} disabled={busy||loading||count===null||(page+1)*50>=count||page>=10000} onClick={()=>setPage(p=>p+1)}>{t("Siguiente","Next")}</button>

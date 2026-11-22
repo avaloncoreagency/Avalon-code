@@ -1,4 +1,5 @@
 "use client";
+import { rovingKeyDown } from "@/components/a11y/roving";
 import { useMemo, useState } from "react";
 import type { Lang } from "../../landing/copy";
 import { money } from "../industries";
@@ -78,9 +79,9 @@ export function ShopDemo({ lang }: { lang: Lang }) {
     note={t("Tienda y checkout de demostración: no se procesa ningún pago, no se piden datos reales y Apple Pay, Klarna o PayPal se muestran solo como ejemplo, sin integración.", "Demo store and checkout: no payment is processed, no real data is requested, and Apple Pay, Klarna or PayPal are shown only as examples, not integrated.")}>
     {step === "shop" && <div className={d.shop}>
       <div className={d.catalog}>
-        <div className={d.seg} role="radiogroup" aria-label={t("Categorías", "Categories")}>
-          <button type="button" role="radio" aria-checked={cat < 0} onClick={() => setCat(-1)}>{t("Todo", "All")}</button>
-          {cats.map((x, i) => <button key={x} type="button" role="radio" aria-checked={cat === i} onClick={() => setCat(i)}>{x}</button>)}
+        <div className={d.seg} role="radiogroup" onKeyDown={e => rovingKeyDown(e, "radio")} aria-label={t("Categorías", "Categories")}>
+          <button type="button" role="radio" aria-checked={cat < 0} tabIndex={(cat < 0) ? 0 : -1} onClick={() => setCat(-1)}>{t("Todo", "All")}</button>
+          {cats.map((x, i) => <button key={x} type="button" role="radio" aria-checked={cat === i} tabIndex={(cat === i) ? 0 : -1} onClick={() => setCat(i)}>{x}</button>)}
         </div>
         <div className={d.products}>{list.map(x => <button key={x.id} type="button" className={d.product} aria-pressed={pid === x.id} onClick={() => { setPid(x.id); setColor(0); setView(0); }}>
           <Shoe c={x.colors[0]} label="" /><b>{x.name}</b><span>{money(x.price)}</span></button>)}</div>
@@ -116,8 +117,8 @@ export function ShopDemo({ lang }: { lang: Lang }) {
       <div className={d.coGrid}>
         <div>
           <h4>{t("Método de pago (ilustrativo)", "Payment method (illustrative)")}</h4>
-          <div className={d.payList} role="radiogroup" aria-label={t("Método de pago", "Payment method")}>{Object.entries(payLabel).map(([k, v]) =>
-            <button key={k} type="button" role="radio" aria-checked={pay === k} onClick={() => setPay(k)}>{v}</button>)}</div>
+          <div className={d.payList} role="radiogroup" onKeyDown={e => rovingKeyDown(e, "radio")} aria-label={t("Método de pago", "Payment method")}>{Object.entries(payLabel).map(([k, v]) =>
+            <button key={k} type="button" role="radio" aria-checked={pay === k} tabIndex={(pay === k) ? 0 : -1} onClick={() => setPay(k)}>{v}</button>)}</div>
           {pay === "card" && <div className={d.cardMock}><p>{t("Tarjeta de prueba (no editable)", "Test card (not editable)")}</p><b>4242 4242 4242 4242</b><span>12/30 · CVC •••</span></div>}
           {pay === "apple" && <div className={d.walletMock}><b>Apple Pay</b><p>{t("Ejemplo visual: Apple Pay no está integrado en esta demostración.", "Visual example: Apple Pay is not integrated in this demo.")}</p></div>}
           {pay === "klarna" && <div className={d.walletMock}><b>Klarna</b><p>{t(`Ejemplo: 4 pagos de $${(sums.total / 4).toFixed(2)} sin intereses (ilustrativo, sin integración).`, `Example: 4 interest-free payments of $${(sums.total / 4).toFixed(2)} (illustrative, not integrated).`)}</p></div>}

@@ -1,7 +1,7 @@
 # Plantillas reutilizables de Knowledge & Innovation
 
-**ID:** KNI-TPL-001 · **Versión:** v0.2 · **Custodio propuesto:** Knowledge & Innovation.
-**Solidez:** PROPUESTO · **Vigencia:** POR REVISAR · **Aprobación:** BORRADOR · **Clasificación:** PUBLICABLE · **Última revisión:** 2026-11-20.
+**ID:** KNI-TPL-001 · **Versión:** v0.3 · **Custodio propuesto:** Knowledge & Innovation.
+**Solidez:** PROPUESTO · **Vigencia:** POR REVISAR · **Aprobación:** BORRADOR · **Clasificación:** PUBLICABLE · **Última revisión:** 2026-11-22.
 
 Estas plantillas son **documentación**, no órdenes ejecutables, contratos aprobados ni sustitutos de revisión por propietarios. Rellenar únicamente con datos autorizados en el sistema de clasificación correspondiente. **No introducir información confidencial en un repositorio público.**
 
@@ -70,7 +70,7 @@ Si precio, capacidad o normativa dependen del proveedor, consultar fuente oficia
 # INC-AREA-NNN — Síntoma y contexto
 - Fecha / gravedad / responsable:
 - Entorno / SHA / versión:
-- Estado: PENDIENTE o VERIFICADO según evidencia
+- Evidencia V2: REPORTADO / VERIFICADO / DESCONOCIDO según fuente; acción correctiva PENDIENTE si no concluyó
 - Clasificación: restringida si contiene datos operativos
 ## Síntomas observados (sin secretos)
 ## Reproducción autorizada y evidencia
@@ -91,7 +91,7 @@ Un ticket o log de cliente debe guardarse en un sistema privado, no en GitHub p�
 # HANDOFF — KNI-XXX
 - Objetivo / alcance:
 - Base revisada: main@SHA / fecha / herramientas usadas
-- Estado: VERIFICADO / PROPUESTO / PENDIENTE / DESCONOCIDO
+- Evidencia V2: VERIFICADO / REPORTADO / PROPUESTO / DESCARTADO / PAUSADO / DESCONOCIDO
 - Vigencia de fuentes:
 - Cambios reales: rutas, issue y PR
 - Evidencia: tests corridos, resultado y entorno

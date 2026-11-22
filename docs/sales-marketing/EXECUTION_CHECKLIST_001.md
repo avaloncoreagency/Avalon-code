@@ -1,13 +1,13 @@
 # AVALON-SALES-001 — SOP operativo del piloto de 30 días
 
-**Estado:** PROPUESTO / NO ACTIVADO · **Issue:** #275 · **Revisión:** 2026-11-20  
+**Estado:** DOCUMENTACIÓN V2 CORREGIDA / NO ACTIVADA · **Issue:** #275 · **Revisión:** 2026-11-22  
 **Documento principal:** [AVALON_SALES_001.md](./AVALON_SALES_001.md)  
 **Destinatarios:** Miguel y Samuel (owners). **Repositorio público:** nunca agregar contactos reales, información de clientes, teléfonos, correos, reuniones privadas ni contratos.
 
 ## 1. Reglas antes de usarlo
 - Este SOP guía **trabajo humano manual**. No da permiso para enviar correos, llamar, mandar SMS/DM, importar CSV, contratar servicios, usar Radar o gastar en Ads.
 - Previo al primer contacto, LEGAL debe revisar el canal, CAN-SPAM/TCPA/Florida, las reglas de la plataforma, el destinatario y el método de oposición. Un contacto B2B no equivale automáticamente a consentimiento.
-- Toda oferta requiere validar que PRODUCT STUDIO pueda construirla, BUSINESS STRATEGY apruebe precio/alcance y LEGAL revise los términos. No prometer resultados, fechas de entrega, servicios de IA ni porcentaje por desempeño.
+- **WP-01 es CANDIDATO / NO SELLABLE**; Lead Capture, CRM y e-commerce están BLOQUEADOS para venta. Cualquier oferta requiere PRODUCT STUDIO, BUSINESS STRATEGY, FINANCE, LEGAL, QA y owners. No prometer resultados, fechas de entrega, servicios de IA ni porcentaje por desempeño.
 - En este archivo solamente se muestran **plantillas y datos sintéticos**. Registrar fichas reales únicamente en almacenamiento privado autorizado.
 - Ante oposición, marcar **NO CONTACTAR** en el control privado de supresión y cancelar cualquier tarea/siguiente contacto; no asumir que la etapa `lost` del CRM cubre ese propósito.
 
@@ -17,8 +17,8 @@
 | --- | --- | --- |
 | 0–15 | Investigación manual de negocios por sector y zona aprobada | Nombre verificado, web/GBP pública, sector, fecha/fuente |
 | 15–25 | Comprobar duplicados y redactar microdiagnóstico | Observación reproducible; hecho vs hipótesis separados |
-| 25–35 | Calificar necesidad, decisor, oportunidad y viabilidad | Score interno **0–10** marcado como propuesta |
-| 35–45 | Revisar consentimiento, exclusiones y autorizaciones para cada canal | Sin aprobación, **NO CONTACTAR** |
+| 25–35 | Calificar necesidad, decisor, oportunidad y viabilidad | Score comercial **1–5** o NO CALIFICADO; no confundir con Hunter 0–100 |
+| 35–45 | Revisar consentimiento, exclusiones y autorizaciones para cada canal | Sin permiso, no ejecutar; **NO CONTACTAR** solo si existe oposición o supresión activa |
 | 45–60 | Cuando autorizado: ejecutar **un** contacto personalizado o dar seguimiento acordado; registrar resultado | Fecha, canal, owner, respuesta real, siguiente acción |
 
 El tiempo es una guía de planificación, no una promesa de capacidad. No hay ejecución autónoma.
@@ -29,10 +29,10 @@ El tiempo es una guía de planificación, no una promesa de capacidad. No hay ej
 2. **Qué observé:** un hecho concreto y verificable (p. ej., un enlace de solicitud difícil de ubicar en la navegación móvil). No afirmar que una web “falla” sin comprobarlo.
 3. **Qué desconozco:** volumen de llamadas, clientes perdidos, ingresos, presupuesto, capacidad del equipo, tasa de conversión.
 4. **Pregunta de validación:** ¿cómo se recibe y se sigue actualmente una solicitud?
-5. **Hipótesis de solución:** website, formulario, integración a reservas o CRM, con capacidad **PENDIENTE** si no está demostrada.
+5. **Hipótesis de solución:** web informativa WP-01 solo tras aprobación. Formularios propios, CRM y automatizaciones son necesidades futuras BLOQUEADAS, no ofertas listas.
 6. **Estado:** solo investigación / autorizado para contacto manual individual / no contactar / contacto realizado.
 
-**Ficha sintética de ejemplo:** `TEST-ROOFING-01`, empresa ficticia de techos, observación ficticia “acceso al formulario poco visible”, hipótesis “podría facilitarse la solicitud”, necesidad **DESCONOCIDA**, score comercial 2/10, autorización **NO OTORGADA**. No copiar a producción.
+**Ficha sintética de ejemplo:** `TEST-ROOFING-01`, empresa ficticia de techos, observación ficticia “acceso al formulario poco visible”, hipótesis “podría facilitarse la solicitud”, necesidad **DESCONOCIDA**, score comercial 2/5 (ejemplo sintético), autorización **NO OTORGADA**. No copiar a producción.
 
 ## 4. Registro privado de 20 investigaciones — esquema, NO lista de leads reales
 
@@ -43,11 +43,13 @@ El tiempo es una guía de planificación, no una promesa de capacidad. No hay ej
 | URL pública y fecha de consulta | Página exacta donde se confirmó el dato |
 | Observación y evidencia | Una frase factual, separada de la hipótesis |
 | Contacto autorizado | Sí/No; canal; quién aprobó; cuándo; fundamento revisado |
-| Owner y score comercial | Miguel/Samuel, 0–10; distinto del score Hunter 0–100 |
+| Owner y score comercial | Miguel/Samuel, encaje manual **1–5** o NO CALIFICADO; Hunter 0–100 es completitud |
 | Interacción y resultado | Ninguna / se intentó / respuesta real / reunión acordada |
 | Próxima acción | Responsable, fecha y consentimiento vigente |
 | Exclusión o rechazo | Si el destinatario se opuso, bloquear siguientes contactos |
 | CRM | Lead existente y stage **real**, solo después de acceso/autorización |
+
+**Escala vigente:** 1 = sin encaje/rechazo; 2 = encaje hipotético; 3 = necesidad expresada; 4 = decisor y prioridad compatibles con **SKU aprobado**; 5 = solicitud de propuesta con SKU, alcance y condiciones **aprobados**. Si faltan datos: NO CALIFICADO. WP-01 NO SELLABLE: no asignar 4/5 como si se pudiera cotizar. NO CONTACTAR es una restricción independiente y no equivale a score bajo.
 
 **Control de duplicados:** antes de registrar una empresa, comprobar en el CRM privado el negocio y los identificadores que existan; no asumir que el nombre normalizado identifica sin ambigüedad a una entidad. No crear clientes para leads sin una relación aprobada.
 
@@ -67,7 +69,7 @@ El tiempo es una guía de planificación, no una promesa de capacidad. No hay ej
 
 ## 6. Registro comercial y compatibilidad con el CRM canónico
 
-**Comprobado por inspección de fuente en `main@207ed3a3dc8fdae5dd949a7361733e441c530519`:** `src/lib/crm/domain.ts` y `pipeline-groups.ts`.
+**Comprobado por inspección de fuente en `main@ff8191d23c99e3e4230f0d6e224230821c94aa43`:** `src/lib/crm/domain.ts` y `pipeline-groups.ts`.
 
 | Concepto operativo | En Avalon | Limitación a respetar |
 | --- | --- | --- |
@@ -76,7 +78,7 @@ El tiempo es una guía de planificación, no una promesa de capacidad. No hay ej
 | Próxima acción | `crm_leads.follow_up_at` o tarea autorizada | Fecha de seguimiento ≠ permiso de comunicación |
 | Notas y seguimiento | `crm_activities` (`pending`, `completed`) | Nota completada ≠ prueba de llamada o email |
 | Cita | `crm_events` (`scheduled`, `completed`, `cancelled`) | Agendada ≠ celebrada |
-| Puntaje | Hunter `scoreProspect()` = completitud 0–100 | No utilizar como fit de ventas 0–10 |
+| Puntaje | Hunter `scoreProspect()` = completitud 0–100 | No confundir con encaje comercial 1–5 |
 | Acuerdo/venta | `crm_sales`, proceso de confirmación existente | Sin venta no marcar ganado por heurística |
 | Cobro | `crm_payments` | Contratado ≠ facturado ≠ cobrado |
 | Baja de contacto | Control privado de supresión aprobado | No confirmado como campo nativo; no inventarlo |
@@ -105,25 +107,24 @@ El tiempo es una guía de planificación, no una promesa de capacidad. No hay ej
 - **Rechazo/opt-out en cualquier momento:** suprimir inmediatamente; registrar evidencia en el sistema privado de contacto; sin nuevos mensajes.
 - Ante respuesta positiva: pasar a discovery, acordar cita, preparar propuesta versionada, no automatizar cierre.
 
-## 9. Tablero de control semanal (manual y honesto)
+## 9. Control semanal del experimento de 30 días
+**Plan PROPUESTO / NO ACTIVADO:** hasta **20 negocios** investigados manualmente y hasta **10 entrevistas** aceptadas voluntariamente y autorizadas por Legal/owners. La meta inicial de 80 investigaciones y 40 contactos queda sustituida, nunca se presenta como resultado.
 
-| Semana | Investigados acumulados, meta | Contactos individuales acumulados, meta condicional | Citas celebradas, meta |
-| --- | ---: | ---: | ---: |
-| 1 | 20 | 6 | 0 |
-| 2 | 40 | 16 | 1 |
-| 3 | 60 | 28 | 2 |
-| 4 | 80 | 40 | 4 |
+| Semana | Objetivo de investigaciones acumuladas | Tope de entrevistas acumuladas CON permiso | Bloqueo |
+| --- | ---: | ---: | --- |
+| 1 | 5 | hasta 2 | Sin autorización individual, no contactar |
+| 2 | 10 | hasta 4 | Oposición activa: detener seguimiento |
+| 3 | 15 | hasta 7 | Sin SKU aprobado, no cotizar |
+| 4 | 20 | hasta 10 | Concluir GO / PIVOT / STOP con evidencia |
 
-Las metas son de planificación. **Datos reales: DESCONOCIDOS** hasta disponer de registros completos. No tratar solicitudes de reunión como citas celebradas. Medir contactos únicos efectivamente realizados por cohorte; la cantidad de mensajes aprobados no es contacto real. Registrar resultados por período, zona horaria, owner y fuente; usar **N/D** para denominador ausente. KPI definitivos en `docs/commercial-foundation/KPI_DICTIONARY.md`.
-
-**Revisión al día 30:** comparar roofing/fencing/barberías por conversaciones útiles, propuesta completada, margen estimable con costos aprobados, carga manual y adecuación técnica. Si no hay evidencia suficiente, continuar validando y no escalar Ads ni automatizaciones.
+**Datos reales: DESCONOCIDOS** hasta obtener registros privados completos. Diferenciar investigados, contactados, respuestas, citas celebradas, propuestas enviadas, contratos y pagos. No inventar un CAC cero: FINANCE debe contabilizar tiempo y desplazamientos. Sin autorización no iniciar campañas, Radar, bots ni publicidad.
 
 ## 10. Gates de propuesta y entrega
 
-1. **BUSINESS STRATEGY:** paquetes/alcance y precios `PROPUESTOS` vs `APROBADOS`.
-2. **FINANCE & KPIs:** costos directos, CAC, atribución y cálculo de comisión; venta de cliente ≠ ingreso de Avalon.
+1. **BUSINESS STRATEGY:** WP-01 informativo, NO SELLABLE hasta aprobación de alcance y precios; B/C BLOQUEADOS.
+2. **FINANCE & KPIs:** costos completos, margen, CAC, precio y comisión excepcional, sin porcentajes supuestos; venta de cliente ≠ ingreso de Avalon.
 3. **LEGAL & COMPLIANCE:** permiso de contacto, condiciones de cancelación/IP/confidencialidad y modelo porcentual.
-4. **PRODUCT STUDIO:** demo y checklist de capacidad real de website/CRM/mobile.
+4. **CLOUD & SECURITY / PRODUCT STUDIO / QA:** hosting, seguridad y Safari/iPhone; no prometer CRM/Lead Capture no certificados.
 5. **CLIENT OPERATIONS:** materiales, onboarding, aceptación y mantenimiento.
 6. **Miguel y Samuel:** aprobación puntual antes de hacer ofertas vinculantes o enviar comunicaciones.
 
@@ -131,6 +132,7 @@ Las metas son de planificación. **Datos reales: DESCONOCIDOS** hasta disponer d
 - [x] No hay nombres o contactos reales de prospectos.
 - [x] No hay instrucciones para scraping, campañas automáticas o activación de Radar.
 - [x] Las cinco agrupaciones y 13 etapas coinciden con fuente del repositorio **inspeccionada**, no con prueba en navegador.
+- [x] Score comercial manual 1–5, separado de Hunter 0–100; experimento 20/10 condicional.
 - [x] Las plantillas no afirman cotizaciones, contratos, resultados ni ingresos aprobados.
 - [ ] Owners han aprobado sector y territorio.
 - [ ] LEGAL ha aprobado canal y texto final.
@@ -138,4 +140,4 @@ Las metas son de planificación. **Datos reales: DESCONOCIDOS** hasta disponer d
 - [ ] QA ha comprobado persistencia CRM/consentimiento y Safari/iPhone real cuando sea necesario.
 
 ## HANDOFF AL PROJECT MANAGER
-**ID:** AVALON-SALES-001 / Issue #275. **Objeto:** SOP de investigación, calificación, aprobación, comunicación manual y seguimiento de negocios locales. **Estado:** documento en revisión, sin outreach, importaciones ni cambios de producto. **Next action:** owners + LEGAL revisan el gate de contacto y BUSINESS STRATEGY define la primera oferta antes de ejecutar el lote de 20 negocios.
+**ID:** AVALON-SALES-001 / Issue #275 · **Estado:** SOP V2 CORREGIDO / OPERACIÓN NO-GO. **Entregado:** rutina manual, ejemplo ficticio, score 1–5, consentimiento y supresión separados, piloto 20/10 y gates WP-01. **No ejecutado:** campañas, emails, llamadas, CRM, ventas ni cobros. **Next action:** PM revisa el diff; Business/Finance/Legal/Product/Cloud/QA/Ops validan gates y owners autorizan contacto individual antes de cualquier outreach.

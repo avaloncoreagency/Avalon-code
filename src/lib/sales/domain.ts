@@ -164,6 +164,7 @@ export const SALE_ERRORS = {
   sale_contract_required: ["Esta venta cierra el lead como Ganado: primero registra y verifica el contrato firmado en la ficha del lead (pestaña Contrato).", "This sale closes the lead as Won: first record and verify the signed contract on the lead (Contract tab)."],
   sale_client_exists: ["Ese cliente ya existe. Selecciónalo como cliente existente para no duplicarlo.", "That client already exists. Select it as an existing client to avoid a duplicate."],
   sale_lead_missing: ["La oportunidad de origen no existe o está archivada.", "The source opportunity does not exist or is archived."],
+  sale_lead_other_client: ["Esa oportunidad pertenece a otra empresa. Una venta solo puede cerrar la oportunidad vinculada al cliente seleccionado.", "That opportunity belongs to another company. A sale can only close the opportunity linked to the selected client."],
   crm_forbidden: ["No tienes permiso para registrar ventas.", "You are not allowed to record sales."],
   payment_exceeds_total: ["El cobro supera el total pendiente de la venta.", "The payment exceeds the sale's outstanding total."],
   payment_currency_mismatch: ["La moneda del cobro debe coincidir con la de la venta.", "The payment currency must match the sale."],

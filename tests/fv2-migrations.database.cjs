@@ -15,7 +15,9 @@ test('message-history migration upgrades a populated older schema without loss a
   await db.exec(`insert into auth.users(id) values('${MIGUEL}'),('${STRANGER}');`);
   const files = fs.readdirSync('supabase/migrations').filter(f => f.endsWith('.sql')).sort();
   assert.ok(files.includes(TARGET), 'migration under review is present');
-  assert.equal(files[files.length - 1], TARGET, 'it is the last migration: nothing later depends on it yet');
+  // Migrations added after TARGET (e.g. 20261121180000 sale/lead guard) are applied right after it below,
+  // so the upgrade is verified against the whole current chain, not only up to TARGET.
+  const later = files.filter(f => f > TARGET);
   for (const f of files.filter(f => f < TARGET)) {
     await db.exec(fs.readFileSync('supabase/migrations/' + f, 'utf8'));
     if (f.startsWith('20261102053022')) await db.exec(`insert into agency_memberships values('${MIGUEL}','owner'),('${STRANGER}','operator');`);
@@ -29,6 +31,7 @@ test('message-history migration upgrades a populated older schema without loss a
   const prospectsBefore = (await db.query('select id, status, opportunity from crm_prospects order by id')).rows;
 
   await db.exec(fs.readFileSync('supabase/migrations/' + TARGET, 'utf8'));
+  for (const f of later) await db.exec(fs.readFileSync('supabase/migrations/' + f, 'utf8'));
 
   const legacy = (await db.query('select message, review_status, version, source from crm_public_inquiries order by created_at')).rows;
   assert.equal(legacy.length, before, 'no receipt lost or duplicated by the upgrade');

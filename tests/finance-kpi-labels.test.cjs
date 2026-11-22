@@ -37,3 +37,10 @@ test("FIN-002 does not replace source finance access or fabricate revenue", () =
   assert.match(finance, /v\.subtotalProfitCents = v\.collectedCents - v\.expensesCents/);
   assert.match(finance, /v\.profitCents = complete \? v\.subtotalProfitCents : null/);
 });
+
+test("Client ledger panel uses the same FIN-01 wording: recorded balance, not profit", () => {
+  const panel = require("node:fs").readFileSync("src/components/sales/core-panels.tsx", "utf8");
+  assert.doesNotMatch(panel, /Beneficio de caja registrado|Recorded cash profit|Profit = collected/);
+  assert.match(panel, /"profit","Saldo registrado \(no es beneficio neto\)","Recorded balance \(not net profit\)"/);
+  assert.match(panel, /incluye cobros sin verificar y no equivale a beneficio neto ni a flujo de caja/);
+});

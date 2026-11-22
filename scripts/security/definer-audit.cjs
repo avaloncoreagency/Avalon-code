@@ -28,31 +28,45 @@ function stripComments(sql) {
 function parse() {
   const files = fs.readdirSync(DIR).filter(f => f.endsWith(".sql")).sort();
   const defs = new Map(); // name -> {file, definer, safeSearchPath, body}
-  const grants = new Map(); // name -> {anon:boolean, authenticated:boolean}
+  const grants = new Map(); // direct grants and inherited PUBLIC EXECUTE are separate.
+  const globalDefaults = { public: true, anon: false, authenticated: false };
+  const schemaDefaults = { public: false, anon: false, authenticated: false };
+  const freshGrants = () => Object.fromEntries(Object.keys(globalDefaults).map(r => [r, globalDefaults[r] || schemaDefaults[r]]));
   const re = /create\s+(?:or\s+replace\s+)?function\s+public\.([a-z0-9_]+)\s*\(([\s\S]*?)\)\s*(?:returns[\s\S]*?)?\s+as\s+(\$[a-z_]*\$)([\s\S]*?)\3/gi;
   for (const f of files) {
     const sql = stripComments(fs.readFileSync(path.join(DIR, f), "utf8"));
     let m;
+    const events = [];
     while ((m = re.exec(sql))) {
       const header = sql.slice(m.index, m.index + m[0].length - m[4].length - 2 * m[3].length);
-      defs.set(m[1], { file: f, definer: /security\s+definer/i.test(header), safeSearchPath: /\bset\s+search_path\s*(?:=|to)\s*(?:''|"")/i.test(header), body: m[4] });
-      // A fresh CREATE (not OR REPLACE) of a dropped function starts without explicit grants; OR REPLACE keeps them.
-      if (!/or\s+replace/i.test(header)) grants.delete(m[1]);
+      events.push({ index: m.index, kind: 'definition', name: m[1].toLowerCase(), header, body: m[4] });
     }
     // One statement may list several functions: grant execute on function public.a(x), public.b(y) to anon, authenticated;
     const g = /(grant|revoke)\s+(?:all(?:\s+privileges)?|execute)\s+on\s+function\s+([\s\S]*?)\s+(to|from)\s+([a-z_,\s]+?)\s*;/gi;
     while ((m = g.exec(sql))) {
-      const names = [...m[2].matchAll(/public\.([a-z0-9_]+)\s*\(/gi)].map(x => x[1]);
-      const roles = m[4].split(",").map(r => r.trim());
-      const on = m[1].toLowerCase() === "grant";
-      for (const n of names) {
-        const cur = grants.get(n) || { anon: false, authenticated: false };
-        for (const r of roles) {
-          if (r === "anon") cur.anon = on;
-          if (r === "authenticated") cur.authenticated = on;
-          // "revoke ... from public" removes only the implicit PUBLIC grant; explicit anon/authenticated grants survive.
+      events.push({ index: m.index, kind: 'grant', names: [...m[2].matchAll(/public\.([a-z0-9_]+)\s*\(/gi)].map(x => x[1].toLowerCase()), roles: m[4].split(',').map(r => r.trim().toLowerCase()), on: m[1].toLowerCase() === 'grant' });
+    }
+    // PostgreSQL's built-in PUBLIC EXECUTE default is global: a schema-level REVOKE cannot remove it.
+    const defaults = /alter\s+default\s+privileges\s+([^;]*?)\b(grant|revoke)\s+(?:all(?:\s+privileges)?|execute)\s+on\s+functions\s+(?:to|from)\s+([a-z_,\s]+?)\s*;/gi;
+    while ((m = defaults.exec(sql))) {
+      const role = m[1].match(/for\s+(?:role|user)\s+([a-z0-9_]+)/i)?.[1]?.toLowerCase();
+      const schema = m[1].match(/in\s+schema\s+([a-z0-9_]+)/i)?.[1]?.toLowerCase();
+      if ((role && role !== 'postgres') || (schema && schema !== 'public')) continue;
+      events.push({ index: m.index, kind: 'default', schema: Boolean(schema), roles: m[3].split(',').map(r => r.trim().toLowerCase()), on: m[2].toLowerCase() === 'grant' });
+    }
+    for (const event of events.sort((a, b) => a.index - b.index)) {
+      if (event.kind === 'definition') {
+        defs.set(event.name, { file: f, definer: /security\s+definer/i.test(event.header), safeSearchPath: /\bset\s+search_path\s*(?:=|to)\s*(?:''|"")/i.test(event.header), body: event.body });
+        if (!/or\s+replace/i.test(event.header) || !grants.has(event.name)) grants.set(event.name, freshGrants());
+      } else if (event.kind === 'default') {
+        const target = event.schema ? schemaDefaults : globalDefaults;
+        for (const role of event.roles) if (Object.hasOwn(target, role)) target[role] = event.on;
+      } else {
+        for (const name of event.names) {
+          const cur = grants.get(name) || freshGrants();
+          for (const role of event.roles) if (Object.hasOwn(cur, role)) cur[role] = event.on;
+          grants.set(name, cur);
         }
-        grants.set(n, cur);
       }
     }
   }
@@ -72,9 +86,10 @@ function audit() {
   const rows = [];
   for (const [name, d] of defs) {
     if (!d.definer) continue;
-    const g = grants.get(name) || { anon: false, authenticated: false };
-    if (!g.anon && !g.authenticated) continue;
-    rows.push({ name, file: d.file, anon: g.anon, authenticated: g.authenticated, safeSearchPath: d.safeSearchPath, gate: classify(name, d.body), dynamicSql: /\bexecute\s+(format|')/i.test(d.body) });
+    const g = grants.get(name) || { public: true, anon: false, authenticated: false };
+    const anon = g.public || g.anon, authenticated = g.public || g.authenticated;
+    if (!anon && !authenticated) continue;
+    rows.push({ name, file: d.file, anon, authenticated, safeSearchPath: d.safeSearchPath, gate: classify(name, d.body), dynamicSql: /\bexecute\s+(format|')/i.test(d.body) });
   }
   return rows.sort((a, b) => a.gate.localeCompare(b.gate) || a.name.localeCompare(b.name));
 }

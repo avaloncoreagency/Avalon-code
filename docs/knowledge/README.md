@@ -1,7 +1,7 @@
 # Avalon Knowledge — índice y reglas de consulta
 
-**ID:** KNI-INDEX-001 · **Versión:** v0.2 · **Custodio propuesto:** Knowledge & Innovation.
-**Solidez:** PROPUESTO · **Vigencia:** POR REVISAR · **Aprobación:** BORRADOR · **Clasificación:** PUBLICABLE · **Última revisión:** 2026-11-20.
+**ID:** KNI-INDEX-001 · **Versión:** v0.3 · **Custodio propuesto:** Knowledge & Innovation.
+**Solidez:** PROPUESTO · **Vigencia:** POR REVISAR · **Aprobación:** BORRADOR · **Clasificación:** PUBLICABLE · **Última revisión:** 2026-11-22.
 
 Este documento no acredita aprobación de los owners ni despliegue.
 
@@ -33,6 +33,7 @@ Las ubicaciones enlazadas pueden contener contenido de distinta fecha o vigencia
 ## Acceso rápido para PROJECT MANAGER
 
 - **¿Dónde está la fuente y de qué fecha es?** [Catálogo de fuentes](./SOURCE_CATALOG.md), con distinción explícita entre archivos históricos y conocimiento por revisar.
+- **¿Qué evidencia reemplaza un checkpoint anterior?** [Sucesión incremental STABLE V1 (KN-V3-01)](../pm-v3/knowledge/evidence-and-decisions.md), siempre subordinada a las fuentes primarias.
 - **¿Quién aprobó una decisión?** [Registro de decisiones](./DECISION_REGISTER.md). Sin aprobador explícito, el resultado permanece en borrador.
 - **¿Qué significa lead, cliente, venta, cobro o PR verificado?** [Glosario operativo](./GLOSSARY.md), pendiente de ratificación por los departamentos.
 - **¿Cómo documentamos una operación repetible?** [Plantillas de decisión, SOP, investigación, incidente y handoff](./TEMPLATES.md).
@@ -46,7 +47,7 @@ Un elemento del catálogo puede estar **VERIFICADO como archivo existente** y **
 
 1. Identificar tema, responsable y documento canónico.
 2. Comprobar rama `main`, commit SHA, PR/issue, fecha de la fuente y si el documento está sustituido.
-3. Separar hechos **VERIFICADOS**, recomendaciones **PROPUESTAS**, acciones **PENDIENTES** y lo **DESCONOCIDO**; añadir el estado de vigencia independientemente.
+3. Clasificar la evidencia como **VERIFICADO**, **REPORTADO**, **PROPUESTO**, **DESCARTADO**, **PAUSADO** o **DESCONOCIDO** (V2). Usar **PENDIENTE** para tareas; documentar vigencia y aprobación por separado.
 4. Para sistemas, exigir pruebas reales del entorno y alcance afirmados. CI verde no equivale a navegador móvil probado ni a producción aceptada.
 5. Enviar a PROJECT MANAGER un resumen breve con fuente, riesgo, responsable, decisión humana y próxima acción. Nunca autoaprobar ni invocar proveedores por una sugerencia.
 
@@ -59,6 +60,15 @@ Un elemento del catálogo puede estar **VERIFICADO como archivo existente** y **
 - No crear clientes, productos piloto, ventas o contratos reales mediante esta biblioteca.
 
 Revisar estas restricciones frente a **instrucciones posteriores** de los owners antes de tratarlas como definitivas.
+
+## Estado comprobado de integración documental — 2026-11-22
+
+- **VERIFICADO en repositorio:** los nueve archivos del [PR #268](https://github.com/avaloncoreagency/Avalon-code/pull/268) se integraron en `main@ff8191d23c99e3e4230f0d6e224230821c94aa43` a través de [#300](https://github.com/avaloncoreagency/Avalon-code/pull/300). No reconstruirlos ni crear otra biblioteca de producto.
+- **POR REVISAR:** las fuentes históricas permanecen en el [catálogo](./SOURCE_CATALOG.md), ahora con su cadena de sucesión. Consultar siempre el SHA vivo antes de recomendar una integración.
+- **REQUIERE APROBACIÓN:** esta integración no ratifica el protocolo documental, los custodios, el almacenamiento privado ni las decisiones empresariales de Miguel/Samuel.
+- **NO CERTIFICADO:** la mera documentación de CI, migraciones o Preview no valida producción ni Safari físico.
+
+La biblioteca sigue siendo un **índice editorial** y no el backlog del PROJECT MANAGER. Los módulos de colaboradores externos y cualquier documentación privada permanecen bajo sus responsables y permisos.
 
 ## Cambios al propio índice
 

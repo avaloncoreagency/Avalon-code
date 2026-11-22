@@ -101,3 +101,12 @@ test("anonymous and malformed requests are still refused before any query", asyn
   const api = route({ user: { id: "u" }, supabase: { from() { throw Error("must not query"); } } });
   assert.equal((await api.GET(new NextRequest("https://qa.example.invalid/admin/workspace/crm/pipeline?lead=nope"))).status, 400);
 });
+
+test("derived lead columns updated by triggers are not shown as owner edits (no 'Otro campo' noise per note)", () => {
+  const src = require("node:fs").readFileSync("src/app/admin/workspace/crm/pipeline/route.ts", "utf8");
+  const ignored = src.match(/const IGNORED = new Set\(\[([\s\S]*?)\]\)/)[1];
+  for (const col of ["last_interaction_at", "lead_score", "stage_id"]) assert.match(ignored, new RegExp(`"${col}"`));
+  // Owner-visible business fields stay visible.
+  for (const col of ["company", "email", "value", "notes"]) assert.doesNotMatch(ignored, new RegExp(`"${col}"`));
+  assert.match(src, /contract_status: "Estado del contrato"/);
+});

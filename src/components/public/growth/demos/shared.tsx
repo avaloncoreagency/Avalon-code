@@ -1,4 +1,5 @@
 "use client";
+import { rovingKeyDown } from "@/components/a11y/roving";
 import type { ReactNode } from "react";
 import type { Lang } from "../../landing/copy";
 import { INDUSTRIES, INDUSTRY_ORDER, tx } from "../industries";
@@ -43,8 +44,8 @@ export function IndustryPicker({ lang }: { lang: Lang }) {
       <h2 id="h-industry" className={d.h2}>{t("¿Qué tipo de negocio tienes?", "What kind of business do you run?")}</h2>
       <p className={d.sub}>{t("Elige tu sector y todas las demostraciones cambian: clientes, servicios, agenda y oportunidades de tu día a día.", "Pick your industry and every demo adapts: customers, services, calendar and the opportunities you see every day.")}</p>
     </div>
-    <div className={d.chips} role="radiogroup" aria-labelledby="h-industry">
-      {INDUSTRY_ORDER.map(k => <button key={k} type="button" role="radio" aria-checked={state.industry === k} className={d.chip} onClick={() => dispatch({ type: "industry", industry: k })}>
+    <div className={d.chips} role="radiogroup" onKeyDown={e => rovingKeyDown(e, "radio")} aria-labelledby="h-industry">
+      {INDUSTRY_ORDER.map(k => <button key={k} type="button" role="radio" aria-checked={state.industry === k} tabIndex={(state.industry === k) ? 0 : -1} className={d.chip} onClick={() => dispatch({ type: "industry", industry: k })}>
         <span aria-hidden="true">{INDUSTRIES[k].icon}</span>{tx(lang, INDUSTRIES[k].label)}
       </button>)}
     </div>

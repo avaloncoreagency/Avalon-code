@@ -8,6 +8,8 @@ import s from "./sales.module.css";
 
 export type CatalogService = { code: string; name: string; name_en: string; billing_type: string; suggested_price: string | null; department: string };
 type Option = { id: string; label: string };
+/** Client choice with its canonical opportunity (crm_clients.origin_lead_id), resolved on the server. */
+export type ClientOption = Option & { lead?: Option | null };
 const t = (lang: Lang, es: string, en: string) => (lang === "es" ? es : en);
 
 function Submit({ lang }: { lang: Lang }) {
@@ -18,7 +20,7 @@ function Submit({ lang }: { lang: Lang }) {
 }
 
 export function SaleForm({ lang, idempotencyKey, services, clients, leads, owners, me, defaults, initialDate }: {
-  lang: Lang; idempotencyKey: string; initialDate: string; services: CatalogService[]; clients: Option[]; leads: Option[]; owners: Option[]; me: string;
+  lang: Lang; idempotencyKey: string; initialDate: string; services: CatalogService[]; clients: ClientOption[]; leads: Option[]; owners: Option[]; me: string;
   defaults: { client_id?: string; lead_id?: string; legal_name?: string };
 }) {
   const [state, action] = useActionState<SaleFormState, FormData>(confirmSale, { error: null, values: {} });
@@ -29,6 +31,10 @@ export function SaleForm({ lang, idempotencyKey, services, clients, leads, owner
   if (lastState.current !== state) { lastState.current = state; attempts.current += 1; }
   const attempt = attempts.current;
   const [mode, setMode] = useState<"existing" | "new">(defaults.client_id ? "existing" : (state.values.client_mode as "existing" | "new") || (defaults.lead_id ? "new" : (clients.length ? "existing" : "new")));
+  // The opportunity follows the selected company: an existing client only ever shows its own canonical lead.
+  // The server re-validates this (actions.ts + DB trigger), so the form is guidance, not the guard.
+  const [clientId, setClientId] = useState(state.existingClientId ?? v("client_id", defaults.client_id ?? ""));
+  const selected = clients.find(c => c.id === clientId);
   const [totals, setTotals] = useState(() => previewTotals([]));
   const [currency, setCurrency] = useState("USD");
   const [filled, setFilled] = useState<boolean[]>(() => Array.from({ length: MAX_LINES }, (_, i) => i === 0));
@@ -64,7 +70,7 @@ export function SaleForm({ lang, idempotencyKey, services, clients, leads, owner
         <label><input type="radio" name="client_mode" value="new" checked={mode === "new"} onChange={() => setMode("new")} />{t(lang, "Cliente nuevo", "New client")}</label>
       </div>
       {mode === "existing" ? <label className={s.field}>{t(lang, "Cliente", "Client")}
-        <select name="client_id" required defaultValue={state.existingClientId ?? v("client_id", defaults.client_id ?? "")}>
+        <select name="client_id" required value={clientId} onChange={e => setClientId(e.target.value)}>
           <option value="">{t(lang, "Selecciona…", "Select…")}</option>
           {clients.map(c => <option key={c.id} value={c.id}>{c.label}</option>)}
         </select></label>
@@ -82,11 +88,19 @@ export function SaleForm({ lang, idempotencyKey, services, clients, leads, owner
         </div>
         <label className={s.field}>{t(lang, "Notas del cliente", "Client notes")}<textarea name="client_notes" maxLength={4000} rows={2} defaultValue={v("client_notes")} /></label>
       </>}
-      <label className={s.field}>{t(lang, "Oportunidad de origen (opcional)", "Source opportunity (optional)")}
+      {mode === "existing" ? <div className={s.field} aria-live="polite" data-testid="sale-opportunity">
+        <span>{t(lang, "Oportunidad vinculada", "Linked opportunity")}</span>
+        {!selected ? <small>{t(lang, "Selecciona un cliente para ver su oportunidad.", "Select a client to see its opportunity.")}</small>
+          : selected.lead ? <><input type="hidden" name="lead_id" value={selected.lead.id} /><strong>{selected.lead.label}</strong>
+            <small>{t(lang, "Al confirmar la venta con su contrato verificado, esta oportunidad pasa a Ganado.", "When the sale is confirmed with its verified contract, this opportunity moves to Won.")}</small></>
+          : <small>{t(lang, "Este cliente no tiene oportunidad vinculada. Puedes registrar la venta sin ella, o crearla primero de forma segura desde ", "This client has no linked opportunity. You can record the sale without it, or first create it safely from ")}
+            <a href={`/admin/workspace/crm/clients/${selected.id}`}>Client 360</a>.</small>}
+      </div>
+      : <label className={s.field}>{t(lang, "Oportunidad de origen (opcional)", "Source opportunity (optional)")}
         <select name="lead_id" defaultValue={v("lead_id", defaults.lead_id ?? "")}>
           <option value="">{t(lang, "Sin oportunidad vinculada", "No linked opportunity")}</option>
           {leads.map(l => <option key={l.id} value={l.id}>{l.label}</option>)}
-        </select></label>
+        </select></label>}
       <details open={Boolean(v("contact_0_name"))}>
         <summary>{t(lang, "Contactos (se añaden sin duplicar correos)", "Contacts (added without duplicating e-mails)")}</summary>
         {Array.from({ length: MAX_CONTACTS }, (_, i) => <div className={s.row} key={i}>

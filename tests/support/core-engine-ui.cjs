@@ -69,17 +69,33 @@ module.exports = async function coreEngineUI({db,context,miguel,samuel,origin,ev
   const item=ui.locator('li').filter({has:ui.locator('code').getByText('desarrollo-web',{exact:true})});
   await item.locator('summary').filter({hasText:'Commercial offer'}).click();
   const terms=item.getByRole('form',{name:'Save commercial terms',exact:true});
+  // CoreForm shows its status BEFORE router.refresh() delivers the re-rendered tree. Actions are bound to the row
+  // version of the last render, so clicking Approve in that gap sends a stale version and is (correctly) rejected as
+  // a conflict. Wait for the refresh's RSC response before the next action.
+  const refreshed=()=>ui.waitForResponse(r=>r.request().method()==='GET'&&r.request().headers()['rsc']==='1'&&r.url().includes('/admin/workspace/crm/settings'));
   await terms.getByLabel('Monthly price',{exact:true}).fill('20');
+  let refresh=refreshed();
   await terms.getByRole('button',{name:'Save commercial terms',exact:true}).click();
   await terms.getByRole('status').waitFor();
+  await refresh;
   // Refresh preserves disclosure on a stable React subtree; reopen if a navigation replaces it.
   if(!await item.getByRole('button',{name:'Approve offer',exact:true}).isVisible()) await item.locator('summary').filter({hasText:'Commercial offer'}).click();
   ui.once('dialog',d=>d.accept());
+  refresh=refreshed();
   await item.getByRole('button',{name:'Approve offer',exact:true}).click();
-  await item.getByText(/approved · v/).waitFor();
+  await refresh;
+  assert.equal(await item.getByRole('alert').count(),0,'approval was not rejected (no stale-version conflict)');
+  // The approval's server refresh can remount the item and collapse its <details>: the status is then in the DOM but
+  // hidden. Wait for the persisted state itself, then reopen the disclosure before interacting again.
+  const reopen=async()=>{if(!await terms.getByLabel('Monthly price',{exact:true}).isVisible()) await item.locator('summary').filter({hasText:'Commercial offer'}).click();};
+  await item.getByText(/approved · v/).waitFor({state:'attached'});
+  await reopen();
   await terms.getByLabel('Monthly price',{exact:true}).fill('21');
+  refresh=refreshed();
   await terms.getByRole('button',{name:'Save commercial terms',exact:true}).click();
-  await item.getByText(/draft · v2/).waitFor();
+  await refresh;
+  await item.getByText(/draft · v2/).waitFor({state:'attached'});
+  await reopen();
   // Attachment labels arrive from the server, not the browser's independent Intl implementation.
   await ui.addInitScript(()=>{const Original=Intl.DateTimeFormat;Intl.DateTimeFormat=function(...args){const result=new Original(...args);Object.defineProperty(result,'format',{value:()=> 'DIFFERENT CLIENT ICU'});return result;};});
   for(let i=0;i<3;i++) {
