@@ -1,11 +1,11 @@
 # Registro inicial de decisiones y directrices
 
-**ID:** KNI-DEC-REG-001 · **Versión:** v0.3 · **Custodio propuesto:** Knowledge & Innovation.
-**Solidez:** PROPUESTO · **Vigencia:** POR REVISAR · **Aprobación:** BORRADOR · **Clasificación:** PUBLICABLE · **Última revisión:** 2026-11-20.
+**ID:** KNI-DEC-REG-001 · **Versión:** v0.4 · **Custodio propuesto:** Knowledge & Innovation.
+**Solidez:** PROPUESTO · **Vigencia:** POR REVISAR · **Aprobación:** BORRADOR · **Clasificación:** PUBLICABLE · **Última revisión:** 2026-11-22.
 
-Los registros individuales distinguen directrices verificadas documentalmente de aprobaciones reales. Base contrastada: `main@207ed3a3dc8fdae5dd949a7361733e441c530519`.
+Los registros individuales distinguen directrices verificadas documentalmente de aprobaciones reales. Corte histórico: `main@207ed3a3dc8fdae5dd949a7361733e441c530519`. Nueva verificación documental: `main@ff8191d23c99e3e4230f0d6e224230821c94aa43` (2026-11-22).
 
-Este es un registro de **directrices y recomendaciones rastreables**, no un acta de aprobación conjunta. Las tres columnas de estado se usan con los valores exactos de [control documental](./DOCUMENT_CONTROL.md). `VERIFICADO` solo significa que la fuente citada fue encontrada y respalda la **existencia de la directriz**; no significa que su implementación esté activa en producción.
+Este es un registro de **directrices y recomendaciones rastreables**, no un acta de aprobación conjunta. Las tres columnas de estado se usan con los valores exactos de [control documental](./DOCUMENT_CONTROL.md). La etiqueta de solidez usa desde esta revisión los seis valores V2; `PENDIENTE` queda reservado a tareas y decisiones por tomar. `VERIFICADO` solo significa que la fuente citada fue encontrada y respalda la **existencia de la directriz**; no significa que su implementación esté activa en producción.
 
 | ID | Tipo | Directriz o propuesta | Solidez | Vigencia | Aprobación del registro | Fuente pública |
 | --- | --- | --- | --- | --- | --- | --- |
@@ -13,11 +13,12 @@ Este es un registro de **directrices y recomendaciones rastreables**, no un acta
 | KDEC-002 | Regla de entrega | Una referencia/URL de producto no demuestra una venta, pago, entrega, publicación ni uptime; preservar vínculo canónico y versión. | VERIFICADO | POR REVISAR | BORRADOR | [Product Control](../PRODUCT_CONTROL_RELEASE.md), [Dev Bridge](../dev-bridge/COOPERATION.md) |
 | KDEC-003 | Procedimiento de desarrollo | Verificar SHA exacto y diferenciar pruebas CI, Preview, navegador y producción. | VERIFICADO | VIGENTE | BORRADOR | [AGENTS.md](../../AGENTS.md), [Cooperación](../dev-bridge/COOPERATION.md) |
 | KDEC-004 | Restricción operativa | Radar debe mantenerse suspendido, sin activar búsqueda, campañas ni costos. | VERIFICADO | VIGENTE | BORRADOR | [Plan de hibernación](../radar/RADAR_REACTIVATION_PLAN.md), [PR #262](https://github.com/avaloncoreagency/Avalon-code/pull/262) |
-| KDEC-005 | Límite de responsabilidad | No modificar el portal de empleados atendido por Samuel dentro de esta misión. | VERIFICADO | VIGENTE | BORRADOR | [PR Draft #233](https://github.com/avaloncoreagency/Avalon-code/pull/233); instrucción de coordinación del proyecto |
+| KDEC-005 | Límite de responsabilidad | El portal de empleados pertenece a Samuel y no es alcance de Knowledge. | VERIFICADO | VIGENTE | BORRADOR | [Antecedente #233](https://github.com/avaloncoreagency/Avalon-code/pull/233), [candidato #317](https://github.com/avaloncoreagency/Avalon-code/pull/317); directriz de coordinación |
 | KDEC-006 | Restricción de proveedores | No activar recepcionistas/chatbots comerciales ni OpenRouter en esta fase. | VERIFICADO | VIGENTE | BORRADOR | Instrucción de coordinación del proyecto; **sin acta corporativa en GitHub** |
 | KDEC-007 | Recomendación documental | Evaluar Google Drive como custodia corporativa principal y GitHub como índice técnico. | PROPUESTO | POR REVISAR | BORRADOR | [Índice Knowledge](./README.md) |
+| KDEC-008 | Estado de integración documental | Los nueve archivos de Knowledge del [PR #268](https://github.com/avaloncoreagency/Avalon-code/pull/268) están integrados en `main` mediante la cadena [#300](https://github.com/avaloncoreagency/Avalon-code/pull/300). Esto **no aprueba** la política documental. | VERIFICADO | VIGENTE | BORRADOR | [`main@ff8191d`](https://github.com/avaloncoreagency/Avalon-code/tree/ff8191d23c99e3e4230f0d6e224230821c94aa43/docs/knowledge) y PR fusionados |
 
-**Precauciones:** KDEC-006 se respalda en el mandato del proyecto, no en una verificación de que los proveedores estén apagados remotamente. KDEC-005 identifica exclusión de alcance, no prueba que el PR #233 esté fusionado. KDEC-004 cita documentación y código fusionado; el estado remoto no fue comprobado por esta misión. KDEC-007 **no** autoriza crear ni compartir carpetas de Drive.
+**Precauciones:** KDEC-006 se respalda en el mandato del proyecto, no en una verificación de que los proveedores estén apagados remotamente. KDEC-005 identifica exclusión de alcance: #317 sigue como candidato, no como publicación verificada. KDEC-004 cita documentación y código fusionado; el estado remoto no fue comprobado por esta misión. KDEC-007 **no** autoriza crear ni compartir carpetas de Drive. KDEC-008 prueba integración técnica, **no** ratificación de políticas corporativas.
 
 ## Cómo añadir una decisión aprobada
 
@@ -32,7 +33,7 @@ Este es un registro de **directrices y recomendaciones rastreables**, no un acta
 ```text
 ID / tipo:
 Título y contexto:
-Solidez: VERIFICADO | PROPUESTO | PENDIENTE | DESCONOCIDO
+Solidez (evidencia V2): VERIFICADO | REPORTADO | PROPUESTO | DESCARTADO | PAUSADO | DESCONOCIDO
 Vigencia: VIGENTE | HISTÓRICO | SUSTITUIDO | REVOCADO | POR REVISAR
 Aprobación: BORRADOR | EN REVISIÓN | APROBADO | RECHAZADO
 Alternativas y opción de no actuar:
