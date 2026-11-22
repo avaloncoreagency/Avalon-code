@@ -33,6 +33,7 @@ Las ubicaciones enlazadas pueden contener contenido de distinta fecha o vigencia
 ## Acceso rápido para PROJECT MANAGER
 
 - **¿Dónde está la fuente y de qué fecha es?** [Catálogo de fuentes](./SOURCE_CATALOG.md), con distinción explícita entre archivos históricos y conocimiento por revisar.
+- **¿Qué evidencia reemplaza un checkpoint anterior?** [Sucesión incremental STABLE V1 (KN-V3-01)](../pm-v3/knowledge/evidence-and-decisions.md), siempre subordinada a las fuentes primarias.
 - **¿Quién aprobó una decisión?** [Registro de decisiones](./DECISION_REGISTER.md). Sin aprobador explícito, el resultado permanece en borrador.
 - **¿Qué significa lead, cliente, venta, cobro o PR verificado?** [Glosario operativo](./GLOSSARY.md), pendiente de ratificación por los departamentos.
 - **¿Cómo documentamos una operación repetible?** [Plantillas de decisión, SOP, investigación, incidente y handoff](./TEMPLATES.md).
