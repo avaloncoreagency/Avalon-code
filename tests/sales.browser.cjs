@@ -610,7 +610,7 @@ test('Nova Restaurant through the real app: one form, three departments, no dupl
   await drawer.getByRole('link', { name: 'Registrar venta para Orbit Dental Sintético' }).waitFor();
   // The premium lead drawer intentionally starts with its composer collapsed.
   // Exercise the actual user interaction before adding a note; do not bypass visibility.
-  const noteInput = drawer.getByLabel('Nota');
+  const noteInput = drawer.getByRole('textbox', { name: 'Nota', exact: true });
   assert.equal(await noteInput.isVisible(), false, 'the lead composer is collapsed by default');
   await drawer.getByText('Añadir nota, actividad o archivo', { exact: true }).click();
   assert.equal(await noteInput.isVisible(), true, 'opening the disclosure reveals the note field');
