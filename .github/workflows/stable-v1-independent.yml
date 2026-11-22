@@ -1,0 +1,30 @@
+name: Stable V1 independent financial regressions
+on:
+  pull_request:
+    paths:
+      - 'tests/stable-v1-independent/**'
+      - 'supabase/migrations/**'
+      - '.github/workflows/stable-v1-independent.yml'
+permissions:
+  contents: read
+concurrency:
+  group: stable-v1-independent-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  financial-boundaries:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: tests/qa/package-lock.json
+      - run: npm ci --prefix tests/qa --no-audit --no-fund
+      - name: Assert financial acceptance (known failures must stay visible)
+        env:
+          NODE_PATH: ./tests/qa/node_modules
+        run: node --test --test-concurrency=1 tests/stable-v1-independent/*.database.cjs
