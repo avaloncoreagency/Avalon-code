@@ -1,7 +1,7 @@
 # Control documental — protocolo propuesto
 
-**ID:** KNI-GOV-001 · **Versión:** v0.2 · **Custodio propuesto:** Knowledge & Innovation.
-**Solidez:** PROPUESTO · **Vigencia:** POR REVISAR · **Aprobación:** BORRADOR · **Clasificación:** PUBLICABLE · **Última revisión:** 2026-11-20.
+**ID:** KNI-GOV-001 · **Versión:** v0.3 · **Custodio propuesto:** Knowledge & Innovation.
+**Solidez:** PROPUESTO · **Vigencia:** POR REVISAR · **Aprobación:** BORRADOR · **Clasificación:** PUBLICABLE · **Última revisión:** 2026-11-22.
 
 No constituye aprobación formal de política.
 
@@ -9,11 +9,22 @@ No constituye aprobación formal de política.
 
 | Dimensión | Valores | Interpretación |
 | --- | --- | --- |
-| Solidez | VERIFICADO / PROPUESTO / PENDIENTE / DESCONOCIDO | VERIFICADO requiere evidencia adecuada al hecho y entorno; PENDIENTE es una acción no concluida |
+| Solidez (evidencia V2) | VERIFICADO / REPORTADO / PROPUESTO / DESCARTADO / PAUSADO / DESCONOCIDO | Distingue hechos comprobados, afirmaciones no corroboradas, diseños y exclusiones o suspensiones documentadas |
 | Vigencia | VIGENTE / HISTÓRICO / SUSTITUIDO / REVOCADO / POR REVISAR | El estado antiguo puede haber sido correcto en su fecha |
 | Aprobación | BORRADOR / EN REVISIÓN / APROBADO / RECHAZADO | APROBADO exige un aprobador y una evidencia explícita |
 
 Un documento puede ser VERIFICADO + HISTÓRICO + APROBADO y, aun así, no autorizar operaciones actuales.
+
+### Criterio de clasificación y migración V2
+
+- **VERIFICADO:** fuente primaria consultada que acredita **solo** el alcance afirmado (por ejemplo, código en `main`, no funcionamiento remoto).
+- **REPORTADO:** afirmación presente en una nota, issue o mensaje de un agente sin evidencia suficiente del resultado.
+- **PROPUESTO:** alternativa preparada, aún sin aceptación o integración necesaria.
+- **DESCARTADO:** alternativa excluida mediante una directriz verificable; indicar quién y cuándo la decidió, si se conoce.
+- **PAUSADO:** capacidad conservada pero sin permiso para activación; no inferir que una integración o proceso remoto esté deshabilitado sin prueba del entorno.
+- **DESCONOCIDO:** evidencia insuficiente, inaccesible o contradictoria; especificar la comprobación faltante.
+
+**`PENDIENTE` corresponde al estado de una tarea o decisión por tomar, no a la solidez de la evidencia.** Al migrar registros antiguos, no convertir automáticamente `PENDIENTE` en `REPORTADO` o `DESCONOCIDO`: leer su fuente y asignar la categoría apropiada. La etiqueta de metadatos `Solidez` se conserva por compatibilidad en documentos anteriores, con los **seis valores V2**. Mantener siempre las dimensiones **Vigencia** y **Aprobación** independientes, sin inferir consentimiento por un PR fusionado o un CI exitoso.
 
 ## Metadatos mínimos de cada registro
 
