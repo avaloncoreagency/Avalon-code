@@ -98,6 +98,20 @@ test('lead drawer opens at the top from any Kanban scroll position and the board
     assert.equal(r.after.winY, r.before.winY, `${vp.name} A: page scroll preserved while open`);
     assert.equal(r.after.rootOverflow, 'hidden', `${vp.name} A: background locked`);
     await page.screenshot({ path: `${DIR}/${vp.name}-A-top.png` });
+    // FE-STABLE-07: compose tabs follow the ARIA tabs pattern (roving tabindex, arrows, Home/End, tabpanel link).
+    await drawer.getByText('Añadir nota, actividad o archivo').click();
+    const tab = name => drawer.getByRole('tab', { name, exact: true });
+    await tab('Nota').focus();
+    assert.equal(await tab('Actividad').getAttribute('tabindex'), '-1', `${vp.name}: only the selected tab is in the Tab order`);
+    await page.keyboard.press('ArrowRight');
+    assert.equal(await tab('Actividad').getAttribute('aria-selected'), 'true', `${vp.name}: ArrowRight selects the next tab`);
+    assert.equal(await page.evaluate(() => document.activeElement?.textContent), 'Actividad', `${vp.name}: focus follows selection`);
+    await page.keyboard.press('End');
+    assert.equal(await tab('Archivo').getAttribute('aria-selected'), 'true', `${vp.name}: End selects the last tab`);
+    await page.keyboard.press('ArrowRight');
+    assert.equal(await tab('Nota').getAttribute('aria-selected'), 'true', `${vp.name}: arrows wrap`);
+    assert.equal(await drawer.getByRole('tabpanel').getAttribute('aria-labelledby'), await tab('Nota').getAttribute('id'), `${vp.name}: tabpanel labelled by the selected tab`);
+    await drawer.getByText('Añadir nota, actividad o archivo').click();
     await scrollDrawerToEnd();
     // Wheel / touch over the drawer moves only the drawer, even at its end (no chaining).
     const box = await drawer.boundingBox();

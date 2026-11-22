@@ -1,5 +1,6 @@
 "use client";
 /* eslint-disable @next/next/no-img-element -- pre-optimized local WebP layers; no image-optimization quota. */
+import { rovingKeyDown } from "@/lib/ui/roving";
 import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties, type KeyboardEvent, type PointerEvent as RPointerEvent } from "react";
 import type { Lang } from "../landing/copy";
 import { INDUSTRIES, money } from "./industries";
@@ -424,9 +425,9 @@ export function GrowthTree({ lang }: { lang: Lang }) {
               <svg width="22" height="22" viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M12 2.5c-.3 0-.6.2-.8.4C9.6 5 6 9.6 6 13.5a6 6 0 0 0 12 0c0-3.9-3.6-8.5-5.2-10.6a1 1 0 0 0-.8-.4Z" /></svg>
               <span>{pouring ? c.pouring : c.water}</span><small>{Math.round(growth)}%</small>
             </button>
-            <div className={t.effort} role="radiogroup" aria-label={c.invest}>
+            <div className={t.effort} role="radiogroup" onKeyDown={e => rovingKeyDown(e, "radio")} aria-label={c.invest}>
               <span>{c.invest}</span>
-              <div>{c.level.map((l, i) => <button key={l} type="button" role="radio" aria-checked={effort === i} onClick={() => setEffort(i)}>{l}</button>)}</div>
+              <div>{c.level.map((l, i) => <button key={l} type="button" role="radio" aria-checked={effort === i} tabIndex={(effort === i) ? 0 : -1} onClick={() => setEffort(i)}>{l}</button>)}</div>
             </div>
           </div>
           <div className={t.multi} aria-live="polite">

@@ -1,5 +1,6 @@
 "use client";
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
+import { rovingKeyDown } from "@/lib/ui/roving";
 import { createPortal } from "react-dom";
 import Link from "next/link";
 import { pick, type Lang } from "@/lib/i18n";
@@ -204,12 +205,13 @@ export function LeadTimeline({ lang = "es", lead, stages, revision, onClose, onE
         </nav>
         <details className={s.composeSection}>
           <summary className={s.sectionSummary}>{t("Añadir nota, actividad o archivo", "Add note, task or file")}</summary>
-        <div className={s.tabs} role="tablist" aria-label={t("Añadir al historial", "Add to history")}>
+        <div className={s.tabs} role="tablist" aria-label={t("Añadir al historial", "Add to history")} onKeyDown={e => rovingKeyDown(e, "tab")}>
           {([["note", t("Nota", "Note")], ["activity", t("Actividad", "Activity")], ["file", t("Archivo", "File")]] as const).map(([k, text]) => (
-            <button key={k} type="button" role="tab" aria-selected={mode === k} onClick={() => setMode(k)}>{text}</button>
+            <button key={k} type="button" role="tab" id={`lead-compose-tab-${k}`} aria-controls="lead-compose-panel" aria-selected={mode === k}
+              tabIndex={mode === k ? 0 : -1} onClick={() => setMode(k)}>{text}</button>
           ))}
         </div>
-        <form className={s.composer} onSubmit={e => { e.preventDefault(); submit(e.currentTarget); }}>
+        <form className={s.composer} id="lead-compose-panel" role="tabpanel" aria-labelledby={`lead-compose-tab-${mode}`} onSubmit={e => { e.preventDefault(); submit(e.currentTarget); }}>
           {mode === "file" ? (
             <>
               <label>{t("Archivo (PDF, imagen, TXT, CSV, DOCX, XLSX · máx. 5 MB)", "File (PDF, image, TXT, CSV, DOCX, XLSX · max 5 MB)")}<input type="file" name="file" required accept=".pdf,.png,.jpg,.jpeg,.webp,.txt,.csv,.docx,.xlsx" /></label>

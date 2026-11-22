@@ -1,4 +1,5 @@
 "use client";
+import { rovingKeyDown } from "@/lib/ui/roving";
 import { useState } from "react";
 import type { Lang } from "../../landing/copy";
 import { INDUSTRIES, money, tx } from "../industries";
@@ -35,8 +36,8 @@ export function CalendarDemo({ lang }: { lang: Lang }) {
   return <Panel lang={lang} services="crm,automation" kicker={t("Agenda con trabajo", "A calendar with work")} title={t("Reservas que se organizan solas", "Bookings that organize themselves")}
     note={t("Agenda de demostración de un negocio ficticio. Los cambios solo existen en tu navegador.", "Demo calendar for a fictional business. Changes only exist in your browser.")}>
     <div className={d.calTop}>
-      <div className={d.seg} role="radiogroup" aria-label={t("Servicio", "Service")}>{ind.services.map((sv, i) =>
-        <button key={i} type="button" role="radio" aria-checked={service === i} onClick={() => setService(i)}>{tx(lang, sv.name)}<small>{sv.minutes} min{sv.price ? ` · ${money(sv.price)}` : ""}</small></button>)}</div>
+      <div className={d.seg} role="radiogroup" onKeyDown={e => rovingKeyDown(e, "radio")} aria-label={t("Servicio", "Service")}>{ind.services.map((sv, i) =>
+        <button key={i} type="button" role="radio" aria-checked={service === i} tabIndex={(service === i) ? 0 : -1} onClick={() => setService(i)}>{tx(lang, sv.name)}<small>{sv.minutes} min{sv.price ? ` · ${money(sv.price)}` : ""}</small></button>)}</div>
       <dl className={d.kpis}>
         <div><dt>{t("Ocupación", "Occupancy")}</dt><dd>{pct}%</dd></div>
         <div><dt>{t("Citas", "Appointments")}</dt><dd>{used}</dd></div>
@@ -56,7 +57,7 @@ export function CalendarDemo({ lang }: { lang: Lang }) {
       {SLOTS.map((s, si) => <div key={s} className={d.weekRow}><span>{s}</span>{DAYS[lang].map((_, di) => cell(di, si))}</div>)}
     </div>
     <div className={d.dayView}>
-      <div className={d.seg} role="radiogroup" aria-label={t("Día", "Day")}>{DAYS[lang].map((x, i) => <button key={x} type="button" role="radio" aria-checked={day === i} onClick={() => setDay(i)}>{x}</button>)}</div>
+      <div className={d.seg} role="radiogroup" onKeyDown={e => rovingKeyDown(e, "radio")} aria-label={t("Día", "Day")}>{DAYS[lang].map((x, i) => <button key={x} type="button" role="radio" aria-checked={day === i} tabIndex={(day === i) ? 0 : -1} onClick={() => setDay(i)}>{x}</button>)}</div>
       <div className={d.dayList}>{SLOTS.map((s, si) => <div key={s} className={d.dayRow}><span>{s}</span>{cell(day, si)}</div>)}</div>
     </div>
   </Panel>;

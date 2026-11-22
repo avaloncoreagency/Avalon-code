@@ -1,4 +1,5 @@
 "use client";
+import { rovingKeyDown } from "@/lib/ui/roving";
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties, type FormEvent } from "react";
 import type { Lang } from "@/lib/i18n";
@@ -321,9 +322,9 @@ function MemberPanel({ member, data, lang, when, onClose, onChanged }: { member:
         <p className={s.sub}>{[member.title, member.department].filter(Boolean).join(" · ") || t("Cargo y departamento sin definir", "Title and department not set")}</p>
         <p className={s.presenceDrawerLabel} data-presence={member.presence?.state ?? "inactive"}>{presenceName(member.presence?.state ?? "inactive", lang)} · {t("Según horario y calendario", "Based on schedule and calendar")}</p>
       </div></div>}>
-      <div className={s.tabs} role="tablist">
+      <div className={s.tabs} role="tablist" aria-label={t("Secciones del miembro", "Member sections")} onKeyDown={e => rovingKeyDown(e, "tab")}>
         {([["profile", t("Perfil", "Profile")], ["projects", t("Proyectos", "Projects")], ["tasks", t("Tareas", "Tasks")], ...(!self ? [["messages", t("Mensajes", "Messages")]] : [])] as [typeof tab, string][]).map(([k, label]) =>
-          <button key={k} type="button" role="tab" aria-selected={tab === k} onClick={() => { setTab(k); setOk(""); setErr(""); }}>{label}{k === "messages" && member.unread > 0 ? ` · ${member.unread}` : ""}</button>)}
+          <button key={k} type="button" role="tab" aria-selected={tab === k} tabIndex={tab === k ? 0 : -1} onClick={() => { setTab(k); setOk(""); setErr(""); }}>{label}{k === "messages" && member.unread > 0 ? ` · ${member.unread}` : ""}</button>)}
       </div>
       {ok && <p role="status" className={s.ok}>{ok}</p>}
       {err && <p role="alert" className={s.alert}>{err}</p>}
