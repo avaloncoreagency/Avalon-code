@@ -1,5 +1,5 @@
 "use client";
-import { rovingKeyDown } from "@/lib/ui/roving";
+import { rovingKeyDown } from "@/components/a11y/roving";
 import type { ReactNode } from "react";
 import type { Lang } from "../../landing/copy";
 import { INDUSTRIES, INDUSTRY_ORDER, tx } from "../industries";

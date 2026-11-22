@@ -1,6 +1,6 @@
 "use client";
 /* eslint-disable @next/next/no-img-element -- pre-optimized local WebP layers; no image-optimization quota. */
-import { rovingKeyDown } from "@/lib/ui/roving";
+import { rovingKeyDown } from "@/components/a11y/roving";
 import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties, type KeyboardEvent, type PointerEvent as RPointerEvent } from "react";
 import type { Lang } from "../landing/copy";
 import { INDUSTRIES, money } from "./industries";

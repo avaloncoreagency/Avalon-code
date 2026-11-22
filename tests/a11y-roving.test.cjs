@@ -21,6 +21,6 @@ test("ARIA tablists in the CRM drawer and Office handle arrows and roving tabind
   assert.match(drawer, /id="lead-compose-panel" role="tabpanel" aria-labelledby=/);
   assert.match(office, /role="tablist" aria-label=[^>]*onKeyDown=\{e => rovingKeyDown\(e, "tab"\)\}/);
   assert.match(office, /tabIndex=\{tab === k \? 0 : -1\}/);
-  const lib = read("src/lib/ui/roving.ts");
+  const lib = read("src/components/a11y/roving.ts");
   for (const k of ["ArrowLeft", "ArrowRight", "ArrowUp", "ArrowDown", "Home", "End"]) assert.match(lib, new RegExp(k));
 });

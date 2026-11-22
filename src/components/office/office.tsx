@@ -1,5 +1,5 @@
 "use client";
-import { rovingKeyDown } from "@/lib/ui/roving";
+import { rovingKeyDown } from "@/components/a11y/roving";
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties, type FormEvent } from "react";
 import type { Lang } from "@/lib/i18n";

@@ -1,6 +1,6 @@
 "use client";
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
-import { rovingKeyDown } from "@/lib/ui/roving";
+import { rovingKeyDown } from "@/components/a11y/roving";
 import { createPortal } from "react-dom";
 import Link from "next/link";
 import { pick, type Lang } from "@/lib/i18n";
