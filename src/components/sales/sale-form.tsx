@@ -224,7 +224,7 @@ export function SaleForm({ lang, idempotencyKey, services, clients, leads, owner
       if (schedule === "subscription") setBillingMode(totals.recurring > 0 && Math.abs(totals.total - totals.recurring) < 0.01 ? "monthly" : "mixed");
     }} /></div>
 
-    <div id="sale-review" className={s.summary} aria-live="polite" role="region" aria-label={t(lang, "5 · Revisar y confirmar venta", "5 · Review and confirm sale")}>
+    <div id="sale-review" className={s.summary} aria-live="polite" role="region" aria-label={t(lang, "Resumen de la venta", "Sale summary")}>
       <h2>{t(lang, "5 · Revisar y confirmar", "5 · Review and confirm")}</h2>
       <dl>
         <div><dt>Subtotal</dt><dd>{fmt(totals.subtotal)}</dd></div>
