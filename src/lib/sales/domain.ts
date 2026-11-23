@@ -187,6 +187,15 @@ export const SALE_ERRORS = {
   refund_idempotency_conflict: ["Ese envío ya se registró con otros datos. Recarga la página.", "That submission was already recorded with different data. Reload the page."],
   chargeback_invalid: ["Indica el resultado y una nota (mín. 5 caracteres).", "Give the outcome and a note (min. 5 characters)."],
   chargeback_not_open: ["Ese contracargo ya está resuelto.", "That chargeback is already resolved."],
+  settlement_invalid: ["Datos de liquidación no válidos.", "Invalid settlement data."],
+  settlement_invalid_amount: ["La base elegible debe ser positiva y mayor que las exclusiones.", "The eligible base must be positive and above the exclusions."],
+  settlement_invalid_period: ["Periodo no válido: no puede empezar antes de la vigencia del acuerdo.", "Invalid period: it cannot start before the agreement is effective."],
+  settlement_period_overlap: ["Ese periodo ya tiene una liquidación vigente.", "That period already has a live settlement."],
+  settlement_evidence_required: ["Indica la evidencia (reporte, conciliación…).", "Give the evidence (report, reconciliation…)."],
+  settlement_reason_required: ["Indica el motivo de la anulación (mín. 5 caracteres).", "Give the reason for voiding (min. 5 characters)."],
+  settlement_has_payments: ["Hay cobros que dependen de esta liquidación: no puede anularse.", "Receipts depend on this settlement: it cannot be voided."],
+  settlement_invalid_transition: ["Ese cambio de estado no está permitido.", "That status change is not allowed."],
+  settlement_no_variable_terms: ["Esta venta no tiene acuerdo variable.", "This sale has no variable agreement."],
   payment_currency_mismatch: ["La moneda del cobro debe coincidir con la de la venta.", "The payment currency must match the sale."],
   payment_invalid_sale: ["La venta no admite cobros.", "This sale cannot receive payments."],
   duplicate: ["Ya existe un registro con ese identificador (por ejemplo, el mismo correo).", "A record with that identifier already exists (for example, the same e-mail)."],
@@ -201,7 +210,7 @@ export const saleErrorText = (lang: Lang, code: string) => SALE_ERRORS[isSaleErr
 /** Map a PostgREST/PostgreSQL error to a known code, never echoing raw DB text. */
 export function saleErrorCode(error: { code?: string; message?: string } | null | undefined): SaleErrorCode {
   const message = error?.message ?? "";
-  const known = message.match(/\b(sale_[a-z_]+|payment_[a-z_]+|schedule_[a-z_]+|refund_[a-z_]+|chargeback_[a-z_]+|finance_forbidden|crm_forbidden)\b/)?.[1];
+  const known = message.match(/\b(sale_[a-z_]+|payment_[a-z_]+|schedule_[a-z_]+|refund_[a-z_]+|chargeback_[a-z_]+|settlement_[a-z_]+|finance_forbidden|crm_forbidden)\b/)?.[1];
   if (known && isSaleError(known)) return known;
   if (message.includes("won_requires_verified_contract")) return "sale_contract_required";
   if (error?.code === "PGRST202" || error?.code === "PGRST205" || error?.code === "42P01" || error?.code === "42883") return "schema_pending";
@@ -237,7 +246,7 @@ const LABELS: Record<string, [string, string]> = {
   ach: ["ACH", "ACH"], wire: ["Wire", "Wire"], zelle: ["Zelle", "Zelle"], check: ["Cheque", "Check"], paypal: ["PayPal", "PayPal"],
   payment_link: ["Enlace de pago", "Payment link"], financing_external: ["Financiamiento externo (desembolso)", "External financing (disbursement)"],
   deposit: ["Anticipo", "Deposit"], installment: ["Cuota", "Installment"], balance: ["Saldo", "Balance"], milestone: ["Hito", "Milestone"], recurring: ["Recurrente", "Recurring"],
-  scheduled: ["Programada", "Scheduled"], paid: ["Pagada", "Paid"], partial: ["Pago parcial", "Partially paid"], overdue: ["Vencida", "Overdue"], due: ["Por vencer", "Upcoming"],
+  pending: ["Pendiente de verificar", "Pending verification"], scheduled: ["Programada", "Scheduled"], paid: ["Pagada", "Paid"], partial: ["Pago parcial", "Partially paid"], overdue: ["Vencida", "Overdue"], due: ["Por vencer", "Upcoming"],
   unpaid: ["Sin pagos", "Unpaid"], partially_paid: ["Pago parcial", "Partially paid"], refunded: ["Reembolsada", "Refunded"], disputed: ["En disputa", "Disputed"],
   refund: ["Reembolso", "Refund"], chargeback: ["Contracargo", "Chargeback"], won: ["Ganado", "Won"], lost: ["Perdido", "Lost"],
   recorded: ["Registrado", "Recorded"], verified: ["Verificado", "Verified"], reversed: ["Revertido", "Reversed"],

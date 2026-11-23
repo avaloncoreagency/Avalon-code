@@ -245,3 +245,56 @@ export async function resolveChargeback(form: FormData) {
   refreshSaleMoney(saleId);
   back(path, { ok: "chargeback" });
 }
+
+/**
+ * "Cerrar venta": registers the sale from the EXACT accepted quote revision (crm_quote_close_sale). Idempotent in the
+ * database: repeating the action returns the same sale. Redirects to the sale on success.
+ */
+export async function closeSaleFromQuote(form: FormData) {
+  const { supabase } = await ownerForAction();
+  const quoteId = uuidField(form, "quote_id");
+  const version = Number(field(form, "version_no"));
+  if (!quoteId || !Number.isInteger(version) || version < 1) back("/admin/workspace/crm/quotes", { error: "save" });
+  const back2quote = (code: string) => redirect(`/admin/workspace/crm/quotes/${quoteId}?close_error=${encodeURIComponent(code)}#close-sale`);
+  const { data, error } = await supabase.rpc("crm_quote_close_sale", { request: { quote_id: quoteId, version_no: version } });
+  if (error) {
+    const known = /\b(quote_[a-z_]+|won_requires_verified_contract|crm_forbidden|sale_[a-z_]+)\b/.exec(error.message ?? "")?.[1];
+    back2quote(known ?? "unavailable");
+  }
+  const r = data as { sale_id?: string; client_id?: string; replayed?: boolean } | null;
+  if (!r?.sale_id || !/^[0-9a-f-]{36}$/.test(r.sale_id)) back2quote("unavailable");
+  for (const path of ["/admin/workspace/crm/sales", "/admin/workspace/crm/quotes", `/admin/workspace/crm/quotes/${quoteId}`, "/admin/workspace/crm/clients",
+    "/admin/workspace/crm/overview", "/admin/workspace/crm/activity", "/admin/dashboard"]) revalidatePath(path);
+  if (r!.client_id) revalidatePath(`/admin/workspace/crm/clients/${r!.client_id}`);
+  redirect(`/admin/workspace/crm/sales/${r!.sale_id}?ok=${r!.replayed ? "replayed" : "closed"}`);
+}
+
+/** Record a settlement period for a sale's variable agreement: verified base × agreed pct, computed by the database. */
+export async function recordSettlement(form: FormData) {
+  const { supabase } = await ownerForAction();
+  const saleId = uuidField(form, "sale_id"), key = uuidField(form, "idempotency_key");
+  if (!saleId) back("/admin/workspace/crm/sales", { error: "sale_invalid" });
+  const path = `/admin/workspace/crm/sales/${saleId}`;
+  const money = (v: string) => /^[0-9]{1,13}(\.[0-9]{1,2})?$/.test(v) ? v : null;
+  const base = money(field(form, "eligible_base").trim()), excluded = money(field(form, "excluded_amount").trim() || "0");
+  const from = field(form, "period_start"), to = field(form, "period_end");
+  if (!key || !base || !excluded || !/^\d{4}-\d{2}-\d{2}$/.test(from) || !/^\d{4}-\d{2}-\d{2}$/.test(to)) back(path, { error: "settlement_invalid" });
+  const { error } = await supabase.rpc("crm_sale_settlement_record", { request: {
+    sale_id: saleId, idempotency_key: key, period_start: from, period_end: to, eligible_base: base, excluded_amount: excluded,
+    evidence: field(form, "evidence").trim().slice(0, 500) } });
+  if (error) back(path, { error: saleErrorCode(error) });
+  refreshSaleMoney(saleId);
+  back(path, { ok: "settlement" });
+}
+
+export async function moveSettlement(form: FormData) {
+  const { supabase } = await ownerForAction();
+  const saleId = uuidField(form, "sale_id"), id = uuidField(form, "settlement_id"), to = field(form, "to");
+  if (!saleId) back("/admin/workspace/crm/sales", { error: "sale_invalid" });
+  const path = `/admin/workspace/crm/sales/${saleId}`;
+  if (!id || !["verified", "void"].includes(to)) back(path, { error: "settlement_invalid" });
+  const { error } = await supabase.rpc("crm_sale_settlement_transition", { p_settlement: id, p_to: to, p_note: field(form, "note").trim().slice(0, 500) });
+  if (error) back(path, { error: saleErrorCode(error) });
+  refreshSaleMoney(saleId);
+  back(path, { ok: "settlement" });
+}

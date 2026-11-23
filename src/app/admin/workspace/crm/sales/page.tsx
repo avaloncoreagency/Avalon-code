@@ -68,6 +68,20 @@ export default async function SalesPage({ searchParams }: { searchParams: Promis
   ]);
   if (clientId && !filteredClient.error && !filteredClient.data) notFound();
   const receivables = sales.error ? null : await loadReceivables(supabase, sales.data.map(r => r.id));
+  // Commercial model (migration 20261123160000). Optional: before it is applied every sale renders as fixed.
+  const models = sales.error || sales.data.length === 0 ? null
+    : await supabase.from("crm_sales").select("id,commercial_model").in("id", sales.data.map(r => r.id));
+  const modelOf = new Map(((models?.error ? [] : models?.data) ?? []).map(r => [(r as { id: string }).id, (r as { commercial_model: string | null }).commercial_model]));
+  // Sales Center overview: the quote funnel and variable agreements live next to closed sales (one workspace).
+  const [quoteRows, closedFromQuotes, variableTerms, pendingSettlements] = clientId ? [null, null, null, null] : await Promise.all([
+    supabase.from("crm_quotes").select("status").in("status", ["draft", "internal_review", "approved", "sent", "accepted"]).limit(2000),
+    supabase.from("crm_sales").select("quote_id").not("quote_id", "is", null).limit(2000),
+    supabase.from("crm_sale_variable_terms").select("id", { count: "exact", head: true }),
+    supabase.from("crm_sale_settlements").select("id", { count: "exact", head: true }).eq("status", "recorded"),
+  ]);
+  const quoteCount = (st: string[]) => (quoteRows?.data ?? []).filter(r => st.includes((r as { status: string }).status)).length;
+  const acceptedTotal = quoteCount(["accepted"]);
+  const closedCount = new Set((closedFromQuotes?.data ?? []).map(r => (r as { quote_id: string }).quote_id)).size;
   const collections = clientId ? null : await supabase.from("crm_sale_receivables").select("currency,overdue").gt("overdue", 0).limit(500);
   const overdueByCurrency = new Map<string, { amount: number; sales: number }>();
   for (const row of (collections && !collections.error ? collections.data ?? [] : []) as { currency: string; overdue: string }[]) {
@@ -88,6 +102,13 @@ export default async function SalesPage({ searchParams }: { searchParams: Promis
         {" · "}{sales.error ? "—" : (sales.count ?? 0)} {pick(lang, "venta(s) registrada(s)", "recorded sale(s)")}
         {" · "}<Link href="/admin/workspace/crm/sales">{pick(lang, "Ver todas las ventas", "View all sales")}</Link>
       </p>}
+    </section>}
+    {quoteRows && !quoteRows.error && <section className={s.stats} id="sales-overview" aria-label={pick(lang, "Resumen del Sales Center", "Sales Center overview")}>
+      <div className={s.stat}><span>{pick(lang, "Cotizaciones en preparación", "Quotes in preparation")}</span><strong>{quoteCount(["draft", "internal_review", "approved"])}</strong><small><Link href="/admin/workspace/crm/quotes">{pick(lang, "Abrir cotizaciones", "Open quotes")}</Link></small></div>
+      <div className={s.stat}><span>{pick(lang, "Enviadas al cliente", "Sent to client")}</span><strong>{quoteCount(["sent"])}</strong></div>
+      <div className={s.stat}><span>{pick(lang, "Aceptadas pendientes de cierre", "Accepted, waiting to close")}</span><strong>{Math.max(0, acceptedTotal - closedCount)}</strong><small><Link href="/admin/workspace/crm/sales/new">{pick(lang, "Cerrar ventas", "Close sales")}</Link></small></div>
+      {variableTerms && !variableTerms.error && <div className={s.stat}><span>{pick(lang, "Acuerdos variables activos", "Active variable agreements")}</span><strong>{variableTerms.count ?? 0}</strong>
+        {pendingSettlements && !pendingSettlements.error && <small>{pendingSettlements.count ?? 0} {pick(lang, "liquidación(es) por verificar", "settlement(s) to verify")}</small>}</div>}
     </section>}
     {!clientId && (metrics.error ? <Unavailable lang={lang} code={metrics.error} /> : <section className={s.stats} aria-label={pick(lang, "Métricas comerciales globales", "Agency-wide commercial metrics")}>
       {metrics.data.length === 0 && <div className={s.stat}><span>{pick(lang, "Ingresos contratados", "Contracted revenue")}</span><strong>{money(lang, 0)}</strong><small>{pick(lang, "Sin ventas confirmadas", "No confirmed sales")}</small></div>}
@@ -129,7 +150,9 @@ export default async function SalesPage({ searchParams }: { searchParams: Promis
       </tr></thead><tbody>{sales.data.map(r => <tr key={r.id}>
         <td data-label={pick(lang, "Venta", "Sale")}><Link href={`/admin/workspace/crm/sales/${r.id}`}>{r.sale_number}</Link></td>
         <td data-label={pick(lang, "Cliente", "Client")}>{r.crm_clients ? <Link href={`/admin/workspace/crm/clients/${r.crm_clients.id}`}>{r.crm_clients.legal_name}</Link> : "—"}</td>
-        <td data-label={pick(lang, "Fecha", "Date")}>{formatDate(lang, r.sold_on)}</td><td data-label="Total" className={s.num}>{money(lang, r.total, r.currency)}</td><td data-label={pick(lang, "Servicios", "Services")}>{r.crm_sale_lines.length}</td>
+        <td data-label={pick(lang, "Fecha", "Date")}>{formatDate(lang, r.sold_on)}</td><td data-label="Total" className={s.num} data-model={modelOf.get(r.id) ?? "fixed"}>{modelOf.get(r.id) === "commission"
+          ? pick(lang, "Variable · según liquidación", "Variable · per settlement")
+          : <>{money(lang, r.total, r.currency)}{modelOf.get(r.id) === "hybrid" && <><br /><span className={s.muted}>{pick(lang, "+ variable", "+ variable")}</span></>}</>}</td><td data-label={pick(lang, "Servicios", "Services")}>{r.crm_sale_lines.length}</td>
         <td data-label={pick(lang, "Contrato", "Contract")}><Tag lang={lang} value={r.contract_status} /></td><td data-label={pick(lang, "Entrega", "Delivery")}><Tag lang={lang} value={r.delivery_status} /></td>
         <td data-label={pick(lang, "Cobranza", "Collections")}>{(() => { const rec = receivables?.get(r.id); if (!rec) return <span className={s.muted}>—</span>;
           return <><Tag lang={lang} value={paymentStatus(rec)} /><br /><span className={s.muted}>{pick(lang, "Saldo", "Balance")} {money(lang, rec.balance, r.currency)}{Number(rec.overdue) > 0 ? ` · ${pick(lang, "vencido", "overdue")} ${money(lang, rec.overdue, r.currency)}` : ""}</span></>; })()}</td><td data-label={pick(lang, "Vendedor", "Seller")}>{ownerName(ownerList, r.seller_id)}</td>

@@ -13,9 +13,10 @@ import { recordPayment, updateContract, updateWorkOrder } from "../actions";
 import s from "@/components/sales/sales.module.css";
 import { SaleCorePanels } from "@/components/sales/core-panels";
 import { SaleSchedulePanel } from "@/components/sales/sale-schedule-panel";
+import { SaleAgreementPanel } from "@/components/sales/sale-agreement-panel";
 export const dynamic = "force-dynamic";
 
-type Sale = { id: string; schedule_version?: number | null; status?: string; sale_number: string; correlation_id: string; client_id: string; lead_id: string | null; sold_on: string; currency: string; subtotal: string; discount_total: string; tax_rate: string; tax_total: string; total: string; recurring_monthly: string; billing_mode: string; upfront_amount: string; seller_id: string; contract_status: string; delivery_status: string; notes: string; confirmed_at: string; crm_clients: { legal_name: string; client_code: string } | null };
+type Sale = { id: string; schedule_version?: number | null; status?: string; commercial_model?: string | null; sale_number: string; correlation_id: string; client_id: string; lead_id: string | null; sold_on: string; currency: string; subtotal: string; discount_total: string; tax_rate: string; tax_total: string; total: string; recurring_monthly: string; billing_mode: string; upfront_amount: string; seller_id: string; contract_status: string; delivery_status: string; notes: string; confirmed_at: string; crm_clients: { legal_name: string; client_code: string } | null };
 type Line = { id: string; position: number; description: string; quantity: string; unit_price: string; discount: string; line_total: string; billing_type: string; crm_service_catalog: { name: string; name_en: string } | null };
 type Order = { id: string; sale_line_id: string; department_id: string; project_id: string | null; assignee_id: string; recurrence: string; status: string; due_on: string | null; crm_departments: { label: string; os_module: string | null } | null; os_projects: { name: string; module: string } | null };
 type Payment = { status?: string; id: string; amount: string; received_on: string; method: string; reference: string; installment_id?: string | null };
@@ -51,6 +52,10 @@ export default async function SaleDetail({ params, searchParams }: { params: Pro
   // Net of refunds/chargebacks when the receivables view is available (finance access); recorded receipts otherwise.
   const net = !receivable.error && receivable.data ? Number(receivable.data.net_collected) : paid;
   const refunded = !receivable.error && receivable.data ? Number(receivable.data.refunded) : 0;
+  // Balance from the receivables view (fixed total + VERIFIED variable settlements − net collected); fallback: total − net.
+  const balanceDue = !receivable.error && receivable.data ? Number(receivable.data.balance) : (d ? Number(d.total) - net : 0);
+  // The receipt form follows the DB cap (total + verified settlements − recorded receipts).
+  const collectible = d ? Number(d.total) + Math.max(0, balanceDue + net - Number(d.total)) - paid : 0;
   const allocatedTo = (insId: string) => (payments.data ?? []).filter(x => x.status !== "reversed" && x.installment_id === insId).reduce((a, x) => a + Number(x.amount), 0);
   const openInstallments = (liveInstallments.error ? [] : liveInstallments.data ?? []).filter(i => Number(i.amount) - allocatedTo(i.id) > 0.004);
   const progress = (woId: string) => {
@@ -64,8 +69,8 @@ export default async function SaleDetail({ params, searchParams }: { params: Pro
     <OkFlash lang={lang} code={q(p, "ok")} /><ErrorFlash lang={lang} code={q(p, "error")} />
     {sale.error ? <Unavailable lang={lang} code={sale.error} /> : d && <>
       <section className={s.stats}>
-        <div className={s.stat}><span>{pick(lang, "Total contratado", "Contracted total")}</span><strong>{money(lang, d.total, d.currency)}</strong><small>Subtotal {money(lang, d.subtotal, d.currency)} · {pick(lang, "Desc.", "Disc.")} {money(lang, d.discount_total, d.currency)} · {pick(lang, "Imp.", "Tax")} {money(lang, d.tax_total, d.currency)} ({Number(d.tax_rate)}%)</small></div>
-        <div className={s.stat}><span>{refunded > 0 ? pick(lang, "Cobrado neto", "Net collected") : pick(lang, "Cobrado", "Collected")}</span><strong>{money(lang, net, d.currency)}</strong><small>{pick(lang, "Saldo pendiente", "Balance due")}: {money(lang, Number(d.total) - net, d.currency)}{refunded > 0 ? ` · ${pick(lang, "reembolsado", "refunded")} ${money(lang, refunded, d.currency)}` : ""}</small></div>
+        <div className={s.stat}><span>{d.commercial_model === "commission" ? pick(lang, "Importe variable", "Variable amount") : pick(lang, "Total contratado", "Contracted total")}</span><strong>{d.commercial_model === "commission" ? pick(lang, "Según liquidación", "Per settlement") : money(lang, d.total, d.currency)}</strong>{d.commercial_model === "hybrid" && <small>{pick(lang, "+ componente variable pendiente de liquidación", "+ variable component pending settlement")}</small>}<small>Subtotal {money(lang, d.subtotal, d.currency)} · {pick(lang, "Desc.", "Disc.")} {money(lang, d.discount_total, d.currency)} · {pick(lang, "Imp.", "Tax")} {money(lang, d.tax_total, d.currency)} ({Number(d.tax_rate)}%)</small></div>
+        <div className={s.stat}><span>{refunded > 0 ? pick(lang, "Cobrado neto", "Net collected") : pick(lang, "Cobrado", "Collected")}</span><strong>{money(lang, net, d.currency)}</strong><small>{pick(lang, "Saldo pendiente", "Balance due")}: {money(lang, balanceDue, d.currency)}{refunded > 0 ? ` · ${pick(lang, "reembolsado", "refunded")} ${money(lang, refunded, d.currency)}` : ""}</small></div>
         <div className={s.stat}><span>{pick(lang, "Pago inicial acordado", "Agreed upfront")}</span><strong>{money(lang, d.upfront_amount, d.currency)}</strong><small>{pick(lang, "Recurrente / mes", "Recurring / mo")}: {money(lang, d.recurring_monthly, d.currency)}</small></div>
         <div className={s.stat}><span>{pick(lang, "Contrato · Entrega", "Contract · Delivery")}</span><strong style={{ fontSize: 16, display: "flex", gap: 8, flexWrap: "wrap" }}><Tag lang={lang} value={d.contract_status} /><Tag lang={lang} value={d.delivery_status} /></strong>
           <form action={updateContract} className={s.inline} style={{ marginTop: 10 }}><input type="hidden" name="sale_id" value={d.id} />
@@ -98,6 +103,7 @@ export default async function SaleDetail({ params, searchParams }: { params: Pro
         {paymentTerms.terms.notes && <p style={{whiteSpace:"pre-wrap"}}><strong>{pick(lang, "Condiciones adicionales", "Additional terms")}:</strong> {paymentTerms.terms.notes}</p>}
       </section>}
 
+      <SaleAgreementPanel db={supabase} lang={lang} saleId={d.id} currency={d.currency} />
       <SaleSchedulePanel db={supabase} lang={lang} sale={d} payments={payments.error ? [] : payments.data} terms={paymentTerms.terms} />
 
       <section className={s.panel} aria-labelledby="orders"><header><h2 id="orders">{pick(lang, "Servicios, órdenes de trabajo y proyectos", "Services, work orders and projects")}</h2></header>
@@ -135,7 +141,7 @@ export default async function SaleDetail({ params, searchParams }: { params: Pro
               const detail = known ? tagged?.[2] : x.reference;
               return <li key={x.id}><strong>{money(lang, x.amount, d.currency)}</strong><span className={s.muted}>{formatDate(lang, x.received_on)} · {methodText}{detail ? ` · ${detail}` : ""}</span></li>;
             })}</ul>}
-          {d.contract_status !== "cancelled" && Number(d.total) - paid > 0 && <form action={recordPayment} className={s.form} style={{ marginTop: 14 }}><input type="hidden" name="sale_id" value={d.id} />
+          {d.contract_status !== "cancelled" && collectible > 0.004 && <form action={recordPayment} className={s.form} style={{ marginTop: 14 }}><input type="hidden" name="sale_id" value={d.id} />
             <div className={s.row}>
               <label className={s.field}>{pick(lang, "Importe", "Amount")} ({d.currency})<input name="amount" required inputMode="decimal" pattern="\d{1,13}(\.\d{1,2})?" /></label>
               <label className={s.field}>{pick(lang, "Fecha de cobro", "Received on")}<input name="received_on" type="date" required defaultValue={new Date().toISOString().slice(0, 10)} /></label>

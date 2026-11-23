@@ -45,9 +45,18 @@ export type QuoteLine = {
   unitPrice: string;
 };
 
+/** What the percentage pays for. Optional for backward compatibility: older quotes are read as revenue_share. */
+export type VariableKind = "revenue_share" | "sale_commission" | "outcome_commission";
+export const VARIABLE_KINDS: VariableKind[] = ["revenue_share", "sale_commission", "outcome_commission"];
+
 export type QuoteCommission = {
   /** "to_negotiate" = no percentage agreed yet. It can be presented, never accepted. */
   status: "proposed" | "to_negotiate";
+  kind?: VariableKind;
+  /** Date the agreement starts counting (YYYY-MM-DD); settlements cannot start earlier. Defaults to the sale date. */
+  effectiveDate?: string;
+  /** Duration of the agreement in months (1–120); empty = until terminated per contract. */
+  durationMonths?: number | null;
   pct: string;
   base: CommissionBase;
   baseNote: string;
@@ -171,6 +180,9 @@ export function validateQuote(c: QuoteContent): string[] {
     if (typeof cm.evidence !== "string" || !cm.evidence.trim()) errors.push("commission.evidence");
     if (cm.attributionWindowDays !== null && (!Number.isInteger(cm.attributionWindowDays) || cm.attributionWindowDays < 1 || cm.attributionWindowDays > 730)) errors.push("commission.attributionWindowDays");
     if (!SETTLEMENTS.includes(cm.settlement)) errors.push("commission.settlement");
+    if (cm.kind !== undefined && !VARIABLE_KINDS.includes(cm.kind)) errors.push("commission.kind");
+    if (cm.effectiveDate !== undefined && cm.effectiveDate !== "" && !DATE.test(cm.effectiveDate)) errors.push("commission.effectiveDate");
+    if (cm.durationMonths !== undefined && cm.durationMonths !== null && (!Number.isInteger(cm.durationMonths) || cm.durationMonths < 1 || cm.durationMonths > 120)) errors.push("commission.durationMonths");
     for (const k of ["baseNote", "exclusions", "refunds", "expiry"] as const) if (typeof cm[k] !== "string" || cm[k].length > 2000) errors.push("commission." + k);
   }
 
@@ -215,6 +227,9 @@ export function clientSafe(c: QuoteContent): QuoteContent {
     lines: c.lines.map(l => ({ code: l.code, name: l.name.trim(), description: l.description.trim(), kind: l.kind, qty: l.qty, unitPrice: centsToString(toCents(l.unitPrice)) })),
     commission: c.commission ? {
       status: c.commission.status, pct: c.commission.status === "proposed" ? c.commission.pct.trim() : "",
+      ...(c.commission.kind ? { kind: c.commission.kind } : {}),
+      ...(c.commission.effectiveDate ? { effectiveDate: c.commission.effectiveDate } : {}),
+      ...(c.commission.durationMonths ? { durationMonths: c.commission.durationMonths } : {}),
       base: c.commission.base, baseNote: c.commission.baseNote.trim(), trigger: c.commission.trigger.trim(),
       attributionWindowDays: c.commission.attributionWindowDays, evidence: c.commission.evidence.trim(),
       settlement: c.commission.settlement, exclusions: c.commission.exclusions.trim(), refunds: c.commission.refunds.trim(),

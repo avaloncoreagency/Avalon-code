@@ -309,3 +309,9 @@ a.stat span, a.stat small { color:var(--muted); }
   .salesFilterGroups nav a,.salesFilterGroups nav span { flex:none; white-space:nowrap; }
 }
 .warn { color:#ffcf7a; font-size:13px; line-height:1.55; overflow-wrap:anywhere; }
+.detail > div { display:contents; }
+@media (max-width:480px) { .detail { grid-template-columns:minmax(0,1fr); } .detail dd { margin-bottom:6px; } }
+.centerTabs { display:flex; gap:6px; overflow-x:auto; padding:4px; margin:0 0 14px; border:1px solid var(--line); border-radius:14px; background:#0b1528aa; scrollbar-width:thin; }
+.centerTabs a { flex:0 0 auto; padding:9px 14px; border-radius:10px; color:#cad8ec; text-decoration:none; font-size:14px; min-height:40px; display:inline-flex; align-items:center; }
+.centerTabs a[aria-current="page"] { background:linear-gradient(135deg,#0f3a5c,#2a1f5c); color:#fff; box-shadow:0 0 0 1px #6fe3ff44; }
+.centerTabs .centerNew { margin-left:auto; border:1px solid var(--accent); color:#fff; }

@@ -1,3 +1,4 @@
+import { redirect } from "next/navigation";
 import { randomUUID } from "node:crypto";
 import Link from "next/link";
 import { Suite } from "@/components/suite/suite";
@@ -21,6 +22,16 @@ export default async function NewSalePage({ searchParams }: { searchParams: Prom
   const requestedLeadId = q(p, "lead");
   const requestedQuoteId = q(p, "quote");
   const quoteId = requestedQuoteId && UUID_RE.test(requestedQuoteId) ? requestedQuoteId : null;
+  // Sales Center: a sale from a quote is closed ON the accepted quote ("Cerrar venta"), never re-typed here.
+  // Legacy links (?quote=…) keep working by landing on that review.
+  if (quoteId) redirect(`/admin/workspace/crm/quotes/${quoteId}#close-sale`);
+  const [pendingQuotes, closedQuoteIds] = await Promise.all([
+    run<{ id: string; quote_number: string; title: string; accepted_at: string | null; crm_leads: { company: string } | null }[]>(supabase.from("crm_quotes")
+      .select("id,quote_number,title,accepted_at,crm_leads(company)").eq("status", "accepted").order("accepted_at", { ascending: false }).limit(50)),
+    run<{ quote_id: string | null }[]>(supabase.from("crm_sales").select("quote_id").not("quote_id", "is", null).limit(1000)),
+  ]);
+  const closedSet = new Set((closedQuoteIds.error ? [] : closedQuoteIds.data ?? []).map(r => r.quote_id));
+  const toClose = (pendingQuotes.data ?? []).filter(x => !closedSet.has(x.id));
   const quoteR = quoteId ? await run<{ id: string; quote_number: string; status: string; lead_id: string; current_version: number } | null>(
     supabase.from("crm_quotes").select("id,quote_number,status,lead_id,current_version").eq("id", quoteId).maybeSingle()
   ) : null;
@@ -99,13 +110,27 @@ export default async function NewSalePage({ searchParams }: { searchParams: Prom
     lead: c.origin_lead_id ? { id: c.origin_lead_id, label: leadLabel.get(c.origin_lead_id) ?? pick(lang, "Oportunidad vinculada a este cliente", "Opportunity linked to this client") } : null }));
   const freeLeads = leadChoices.filter(l => !ownedLeads.has(l.id) || l.id === sourceLead?.id);
   return <Suite active="crm"><div className={s.hud}>
-    <OpsHeader lang={lang} active="new" crm="sales" eyebrow="CRM / Ventas" title={pick(lang, "Registrar venta", "Record a sale")}
+    <OpsHeader lang={lang} active="new" crm="sales" eyebrow="CRM / Ventas" title={pick(lang, "Nueva venta", "New sale")}
       lead={pick(lang, "Registra la venta una sola vez: Avalon crea o vincula el cliente, genera las órdenes de trabajo, los proyectos por departamento, las tareas iniciales y los avisos.", "Record the sale once: Avalon creates or links the client and generates work orders, departmental projects, starter tasks and notices.")} />
     {failed ? <Unavailable lang={lang} code={failed} /> : quoteMismatch
       ? <p className={s.flash} data-tone="error" role="alert">{pick(lang, "La cotización no existe, no está aceptada o no coincide con la oportunidad solicitada. No se registró ninguna venta.", "The quote is unavailable, not accepted or mismatched with the opportunity. No sale was recorded.")} <Link href="/admin/workspace/crm/quotes">{pick(lang, "Volver a cotizaciones", "Back to quotes")}</Link></p>
       : requestedLeadId && !sourceLead
       ? <p className={s.flash} data-tone="error" role="alert">{pick(lang, "La oportunidad enlazada no está disponible. No se registró ninguna venta.", "The linked opportunity is unavailable. No sale was recorded.")} <Link href="/admin/workspace/crm/leads">{pick(lang, "Volver al pipeline", "Back to pipeline")}</Link></p>
-      : <SaleForm lang={lang} idempotencyKey={randomUUID()} initialDate={new Date().toISOString().slice(0, 10)} me={userId}
+      : <>
+      <section className={s.panel} aria-labelledby="close-from-quote">
+        <header><h2 id="close-from-quote">{pick(lang, "Cerrar una cotización aceptada", "Close an accepted quote")}</h2>
+          <Link className={`${s.button} ${s.primary}`} href={leadId ? `/admin/workspace/crm/quotes/new?lead=${leadId}` : "/admin/workspace/crm/quotes/new"}>{pick(lang, "Crear cotización", "Create quote")}</Link></header>
+        <p className={s.muted}>{pick(lang, "Toda venta nace de una cotización aceptada: servicios, precios, porcentajes y condiciones se registran exactamente como el cliente los aceptó, sin volver a escribirlos.",
+          "Every sale starts from an accepted quote: services, prices, percentages and terms are recorded exactly as the client accepted them, without typing them again.")}</p>
+        {toClose.length === 0 ? <p className={s.empty}>{pick(lang, "No hay cotizaciones aceptadas pendientes de cierre. Crea una cotización y márcala como aceptada con su evidencia.", "No accepted quotes waiting to be closed. Create a quote and mark it accepted with its evidence.")}</p> :
+          <ul className={s.list} aria-label={pick(lang, "Cotizaciones pendientes de cierre", "Quotes waiting to be closed")}>{toClose.map(x => <li key={x.id}>
+            <strong>{x.crm_leads?.company ?? x.title}</strong><span className={s.muted}>{x.quote_number} · {x.title}</span>
+            <Link className={s.button} href={`/admin/workspace/crm/quotes/${x.id}#close-sale`}>{pick(lang, "Revisar y cerrar venta", "Review and close sale")}</Link></li>)}</ul>}
+      </section>
+      <details className={s.panel} open={Boolean(requestedLeadId || clientId)} data-manual-sale>
+        <summary>{pick(lang, "Registro manual — solo ventas históricas o excepciones autorizadas", "Manual record — historical sales or authorised exceptions only")}</summary>
+        <p className={s.muted}>{pick(lang, "No sustituye a la cotización: úsalo solo para importar una venta anterior o una excepción aprobada por los propietarios.", "It does not replace the quote: use it only to import an earlier sale or an exception approved by the owners.")}</p>
+      <SaleForm lang={lang} idempotencyKey={randomUUID()} initialDate={new Date().toISOString().slice(0, 10)} me={userId}
       services={(services.data ?? []).map<CatalogService>(x => ({ code: x.code, name: x.name, name_en: x.name_en, billing_type: x.billing_type, suggested_price: x.offer_status === "approved"
         ? x.billing_type === "monthly" ? (x.monthly_price ?? x.suggested_price) : x.suggested_price
         : null, department: x.crm_departments?.label ?? "" }))}
@@ -113,6 +138,7 @@ export default async function NewSalePage({ searchParams }: { searchParams: Prom
       leads={freeLeads.map(l => ({ id: l.id, label: leadLabel.get(l.id) ?? l.company }))}
       owners={(owners.data ?? []).map(o => ({ id: o.user_id, label: o.email }))}
       quoteSource={quoteSource}
-      defaults={{ client_id: sourceLead ? sourceClient?.id : selectedClient.data?.id ?? undefined, lead_id: sourceLead?.id ?? chosenLeadId, legal_name: sourceLead?.company }} />}
+      defaults={{ client_id: sourceLead ? sourceClient?.id : selectedClient.data?.id ?? undefined, lead_id: sourceLead?.id ?? chosenLeadId, legal_name: sourceLead?.company }} />
+      </details></>}
   </div></Suite>;
 }

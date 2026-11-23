@@ -131,6 +131,10 @@ export default async function Client360({ params, searchParams }: { params: Prom
     ? await run<boolean>(supabase.rpc("crm_client_opportunity_capability"))
     : null;
   const canOpenOpportunity = linking?.data === true && !linking.error;
+  // Variable agreements (revenue share / commissions, migration 20261123160000). Optional: absent → nothing shown.
+  const variableR = financePermitted ? await supabase.from("crm_sale_variable_terms").select("sale_id,kind,pct").eq("client_id", id) : null;
+  const variableBySale = new Map(((variableR?.error ? [] : variableR?.data) ?? []).map(v => [(v as { sale_id: string }).sale_id, v as { sale_id: string; kind: string; pct: string }]));
+
   return <Suite active="crm"><div className={s.hud}>
     <OpsHeader lang={lang} active="clients" eyebrow={`CRM / Clientes / ${c?.client_code ?? ""}`} title={c?.legal_name ?? pick(lang, "Cliente", "Client")}
       lead={c ? [c.trade_name, c.industry, [c.location, c.country].filter(Boolean).join(", "), `${pick(lang, "Fuente", "Source")}: ${c.source}`].filter(Boolean).join(" · ") : undefined}
@@ -159,6 +163,9 @@ export default async function Client360({ params, searchParams }: { params: Prom
         </div>)}
       </section>}
 
+      {variableBySale.size > 0 && <p className={s.flash} data-tone="warn" data-variable-agreements>
+        <strong>{pick(lang, "Acuerdos variables", "Variable agreements")}: {variableBySale.size}</strong> — {pick(lang, "participación en ingresos o comisión; el importe se reconoce con cada liquidación verificada y no se incluye en «Contratado».", "revenue share or commission; the amount is recognised with each verified settlement and is not included in “Contracted”.")}</p>}
+
       <ClientWorkspace supabase={supabase} clientId={c.id} lang={lang} sales={sales.slice(0, SALES_SHOWN)}
         financeAllowed={financeAllowed} finance={finance} ledgerAvailable={ledger?.ok === true}
         />
@@ -181,7 +188,7 @@ export default async function Client360({ params, searchParams }: { params: Prom
         <section className={s.panel} aria-labelledby="sales"><header><h2 id="sales">{pick(lang, "Ventas y servicios", "Sales and services")}</h2></header>
           {!financeAllowed ? <p className={s.muted}>{pick(lang, "Los importes de ventas se muestran solo al responsable financiero.", "Sales amounts are available only to the finance administrator.")}</p> : salesLoaded.failed ? <p className={s.flash} data-tone="error" role="alert">{pick(lang, "No se pudieron leer las ventas.", "Sales could not be read.")}</p> : sales.length === 0 ? <p className={s.muted}>{pick(lang, "Sin ventas registradas.", "No sales recorded.")}</p> :
           <div className={s.tableWrap}><table className={s.table}><thead><tr><th>{pick(lang, "Venta", "Sale")}</th><th>{pick(lang, "Fecha", "Date")}</th><th className={s.num}>Total</th><th className={s.num}>{pick(lang, "Cobrado", "Collected")}</th><th>{pick(lang, "Contrato", "Contract")}</th><th>{pick(lang, "Entrega", "Delivery")}</th></tr></thead>
-            <tbody>{sales.slice(0, SALES_SHOWN).map(x => <tr key={x.id}><td><Link href={`/admin/workspace/crm/sales/${x.id}`}>{x.sale_number}</Link><br /><span className={s.muted}>{x.crm_sale_lines.length} {pick(lang, "servicio(s)", "service(s)")}</span></td><td>{formatDate(lang, x.sold_on)}</td><td className={s.num}>{money(lang, x.total, x.currency)}</td><td className={s.num}>{money(lang, x.crm_payments.reduce((a, b) => a + Number(b.amount), 0), x.currency)}</td><td><Tag lang={lang} value={x.contract_status} /></td><td><Tag lang={lang} value={x.delivery_status} /></td></tr>)}</tbody></table>{sales.length > SALES_SHOWN && <p className={s.muted}>{pick(lang, `Se muestran las ${SALES_SHOWN} ventas más recientes de ${sales.length}; los totales incluyen todas.`, `Showing the ${SALES_SHOWN} most recent of ${sales.length} sales; totals include all of them.`)}</p>}</div>}
+            <tbody>{sales.slice(0, SALES_SHOWN).map(x => <tr key={x.id}><td><Link href={`/admin/workspace/crm/sales/${x.id}`}>{x.sale_number}</Link><br /><span className={s.muted}>{x.crm_sale_lines.length} {pick(lang, "servicio(s)", "service(s)")}</span></td><td>{formatDate(lang, x.sold_on)}</td><td className={s.num} data-variable={variableBySale.has(x.id) || undefined}>{variableBySale.has(x.id) && Number(x.total) === 0 ? `${pick(lang, "Variable", "Variable")} · ${Number(variableBySale.get(x.id)!.pct)}%` : money(lang, x.total, x.currency)}{variableBySale.has(x.id) && Number(x.total) !== 0 && <><br /><span className={s.muted}>+ {Number(variableBySale.get(x.id)!.pct)}% {pick(lang, "variable", "variable")}</span></>}</td><td className={s.num}>{money(lang, x.crm_payments.reduce((a, b) => a + Number(b.amount), 0), x.currency)}</td><td><Tag lang={lang} value={x.contract_status} /></td><td><Tag lang={lang} value={x.delivery_status} /></td></tr>)}</tbody></table>{sales.length > SALES_SHOWN && <p className={s.muted}>{pick(lang, `Se muestran las ${SALES_SHOWN} ventas más recientes de ${sales.length}; los totales incluyen todas.`, `Showing the ${SALES_SHOWN} most recent of ${sales.length} sales; totals include all of them.`)}</p>}</div>}
           <h3>{pick(lang, "Próximos pasos", "Next steps")}</h3>
           {nextSteps.length === 0 ? <p className={s.muted}>{pick(lang, "Sin tareas próximas.", "No upcoming tasks.")}</p> : <ul className={s.list}>{nextSteps.map(t => <li key={t.id}><Link href={`/admin/workspace/crm/tasks?task=${t.id}`}>{t.title}</Link><span className={s.muted}>{t.due_at ? formatDate(lang, t.due_at, true) : pick(lang, "sin fecha", "no date")} · {ownerName(ownerList, t.assignee_id)}</span></li>)}</ul>}
         </section>

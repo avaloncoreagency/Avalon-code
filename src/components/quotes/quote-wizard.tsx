@@ -62,7 +62,9 @@ export function QuoteWizard({ lang, mode, action, hidden, initial, initialIntern
     "model.hybrid": t("Híbrido: combina al menos dos componentes (pago único, mensualidad o comisión)", "Hybrid: combine at least two components (one-time, monthly or commission)"),
     "commission.pct": t("Porcentaje de comisión (0–100, o déjalo «por acordar»)", "Commission percentage (0–100, or leave it «to be agreed»)"),
     "commission.trigger": t("Qué evento genera la comisión", "What earns the commission"), "commission.evidence": t("Evidencia requerida", "Required evidence"),
-    "commission.baseNote": t("Describe la otra base de cálculo", "Describe the other calculation base"), "lines.zero": t("Los importes suman cero", "Amounts add up to zero"),
+    "commission.baseNote": t("Describe la otra base de cálculo", "Describe the other calculation base"),
+    "commission.kind": t("Tipo de acuerdo variable no válido", "Invalid variable agreement type"), "commission.effectiveDate": t("Fecha efectiva no válida", "Invalid effective date"),
+    "commission.durationMonths": t("Duración entre 1 y 120 meses", "Duration between 1 and 120 months"), "lines.zero": t("Los importes suman cero", "Amounts add up to zero"),
   } as Record<string, string>)[e] ?? (e.startsWith("lines.") ? t("Revisa el concepto ", "Check item ") + (Number(e.split(".")[1]) + 1) + ` (${e.split(".")[2] ?? ""})` : e);
 
   const addCatalog = (item: CatalogItem) => {
@@ -147,12 +149,20 @@ export function QuoteWizard({ lang, mode, action, hidden, initial, initialIntern
       {step === 2 && <fieldset className={s.fieldset}><legend>{steps[2]}</legend>
         <div className={s.choice} role="radiogroup" aria-label={steps[2]}>
           {BILLING_MODELS.map(m => <label key={m}><input type="radio" name="model-choice" checked={c.model === m} onChange={() => setModel(m)} />
-            {{ fixed: t("Precio fijo", "Fixed price"), monthly: t("Suscripción mensual", "Monthly subscription"), commission: t("Comisión por resultados", "Performance commission"), hybrid: t("Híbrido", "Hybrid") }[m]}</label>)}
+            {{ fixed: t("Precio fijo", "Fixed price"), monthly: t("Suscripción mensual", "Monthly subscription"), commission: t("Porcentaje o comisión (variable)", "Percentage or commission (variable)"), hybrid: t("Híbrido", "Hybrid") }[m]}</label>)}
         </div>
         {cm && <div className={w.commission}>
           <div className={s.choice} role="radiogroup" aria-label={t("Estado del porcentaje", "Percentage status")}>
             <label><input type="radio" name="cm-status" checked={cm.status === "to_negotiate"} onChange={() => setCm({ status: "to_negotiate", pct: "" })} />{t("Porcentaje por acordar", "Percentage to be agreed")}</label>
             <label><input type="radio" name="cm-status" checked={cm.status === "proposed"} onChange={() => setCm({ status: "proposed" })} />{t("Porcentaje propuesto", "Proposed percentage")}</label>
+          </div>
+          <div className={s.row}>
+            <label className={s.field}>{t("Tipo de acuerdo variable", "Variable agreement type")}<select value={cm.kind ?? "revenue_share"} onChange={e => setCm({ kind: e.target.value as QuoteCommission["kind"] })}>
+              <option value="revenue_share">{t("Participación en ingresos del cliente", "Share of the client's revenue")}</option>
+              <option value="sale_commission">{t("Comisión por venta generada", "Commission per generated sale")}</option>
+              <option value="outcome_commission">{t("Comisión por resultado contractual", "Commission per contractual outcome")}</option></select></label>
+            <label className={s.field}>{t("Fecha efectiva", "Effective date")}<input type="date" value={cm.effectiveDate ?? ""} onChange={e => setCm({ effectiveDate: e.target.value })} /></label>
+            <label className={s.field}>{t("Duración (meses, opcional)", "Duration (months, optional)")}<input type="number" min={1} max={120} value={cm.durationMonths ?? ""} onChange={e => setCm({ durationMonths: e.target.value ? Math.trunc(Number(e.target.value)) : null })} /></label>
           </div>
           {cm.status === "to_negotiate" && <p className={w.hint}>{t("Una cotización con porcentaje por acordar puede enviarse, pero no puede marcarse como aceptada.", "A quote with a percentage to be agreed can be sent but cannot be marked as accepted.")}</p>}
           <div className={s.row}>
@@ -205,7 +215,7 @@ export function QuoteWizard({ lang, mode, action, hidden, initial, initialIntern
           : <p className={s.flash} data-tone="ok" role="status">{t("Todo listo. Al guardar se crea una versión inmutable; podrás ver el PDF antes de descargarlo.", "All set. Saving creates an immutable version; you can preview the PDF before downloading it.")}</p>}
         <dl className={w.review}>
           <div><dt>{t("Prospecto", "Prospect")}</dt><dd>{c.client.company || "—"}</dd></div>
-          <div><dt>{t("Modelo", "Model")}</dt><dd>{{ fixed: t("Precio fijo", "Fixed price"), monthly: t("Suscripción mensual", "Monthly subscription"), commission: t("Comisión por resultados", "Performance commission"), hybrid: t("Híbrido", "Hybrid") }[c.model]}</dd></div>
+          <div><dt>{t("Modelo", "Model")}</dt><dd>{{ fixed: t("Precio fijo", "Fixed price"), monthly: t("Suscripción mensual", "Monthly subscription"), commission: t("Porcentaje o comisión (variable)", "Percentage or commission (variable)"), hybrid: t("Híbrido", "Hybrid") }[c.model]}</dd></div>
           <div><dt>{t("Conceptos", "Items")}</dt><dd>{c.lines.length}</dd></div>
           <div><dt>{t("Válida hasta", "Valid until")}</dt><dd>{c.validUntil}</dd></div>
         </dl>
