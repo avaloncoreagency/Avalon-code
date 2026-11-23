@@ -123,7 +123,7 @@ export async function confirmSale(_prev: SaleFormState, form: FormData): Promise
     "/admin/workspace/crm/sales", "/admin/workspace/crm/quotes",
     "/admin/workspace/crm/tasks", "/admin/workspace/crm/clients",
     "/admin/workspace/crm/leads", "/admin/workspace/crm/activity",
-    "/admin/workspace/crm/kpis", "/admin/dashboard",
+    "/admin/workspace/crm/overview", "/admin/dashboard",
   ]) revalidatePath(path);
   if (request.client_id) revalidatePath(`/admin/workspace/crm/clients/${request.client_id}`);
   if (request.lead_id) revalidatePath(`/admin/workspace/crm/lead/${request.lead_id}`);
@@ -146,15 +146,16 @@ export async function recordPayment(form: FormData) {
   if (!/^[0-9]{1,13}(\.[0-9]{1,2})?$/.test(amount) || Number(amount) <= 0) back(path, { error: "sale_invalid_amount" });
   if (!/^\d{4}-\d{2}-\d{2}$/.test(received_on)) back(path, { error: "sale_invalid_date" });
   if ((channel && !(SALE_PAYMENT_METHODS as readonly string[]).includes(channel)) || !(PAYMENT_METHODS as readonly string[]).includes(method) || reference.length > 120) back(path, { error: "sale_invalid" });
-  const sale = await supabase.from("crm_sales").select("currency").eq("id", saleId).maybeSingle();
+  const sale = await supabase.from("crm_sales").select("currency,client_id").eq("id", saleId).maybeSingle();
   if (sale.error || !sale.data) back(path, { error: sale.error ? saleErrorCode(sale.error) : "sale_invalid" });
   const { error } = await supabase.from("crm_payments").insert({ sale_id: saleId, amount, currency: sale.data.currency, received_on, method, reference });
   if (error) back(path, { error: saleErrorCode(error) });
   // Recorded receipts change client finance and agency KPIs, not the contract total.
   for (const affected of [
     path, "/admin/workspace/crm/sales", "/admin/workspace/crm/clients",
-    "/admin/workspace/crm/kpis", "/admin/workspace/crm/activity", "/admin/dashboard",
+    "/admin/workspace/crm/overview", "/admin/workspace/crm/activity", "/admin/dashboard",
   ]) revalidatePath(affected);
+  if (sale.data.client_id) revalidatePath(`/admin/workspace/crm/clients/${sale.data.client_id}`);
   back(path, { ok: "payment" });
 }
 
