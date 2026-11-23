@@ -21,6 +21,12 @@ export async function confirmSale(_prev: SaleFormState, form: FormData): Promise
   try { request = parseSaleForm(form); }
   catch (e) { return { error: e instanceof SaleInputError ? e.code : "sale_invalid", values }; }
 
+  // Never silently use a catalog default that has not been explicitly
+  // reviewed on this sale. The catalog controls suggestions, not acceptance.
+  if (request.lines.some(line => line.unit_price === undefined)) {
+    return { error: "sale_missing_price", values };
+  }
+
   // Optional versioned payment AGREEMENT. It is not a payment, credit agreement
   // or change to the atomic crm_confirm_sale RPC. Stored in its existing private
   // notes field until a separate, reviewed migration normalizes this metadata.
@@ -29,6 +35,16 @@ export async function confirmSale(_prev: SaleFormState, form: FormData): Promise
     try {
       if (typeof rawPaymentTerms !== "string" || rawPaymentTerms.length > 1600) throw Error("invalid");
       const terms = validateSalePaymentTerms(JSON.parse(rawPaymentTerms));
+      if (terms.schedule === "installments") {
+        // A subscription cannot be silently financed as a one-off contract.
+        const catalog = await supabase.from("crm_service_catalog").select("code,billing_type")
+          .in("code", request.lines.map(line => line.service_code));
+        if (catalog.error) return { error: saleErrorCode(catalog.error), values };
+        const kinds = new Map((catalog.data ?? []).map(row => [row.code, row.billing_type]));
+        if (request.lines.some(line => kinds.get(line.service_code) !== "one_time")) {
+          return { error: "sale_invalid_payment_terms", values };
+        }
+      }
       if ((terms.schedule === "installments" && request.billing_mode !== "installments")
         || (terms.schedule === "subscription" && !["monthly", "mixed"].includes(request.billing_mode))) throw Error("invalid");
       request.notes = attachSalePaymentTerms(request.notes ?? "", terms);
