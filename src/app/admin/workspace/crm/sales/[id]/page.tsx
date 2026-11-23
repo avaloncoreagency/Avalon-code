@@ -7,7 +7,8 @@ import { getLang } from "@/lib/i18n-server";
 import { pick, formatDate } from "@/lib/i18n";
 import { run } from "@/lib/os/data";
 import { SERVICES, isService } from "@/lib/os/client-hud";
-import { label, money, PAYMENT_METHODS, WORK_ORDER_STATUSES } from "@/lib/sales/domain";
+import { label, money, WORK_ORDER_STATUSES } from "@/lib/sales/domain";
+import { readSalePaymentTerms, salePaymentMethodLabel, salePaymentScheduleLabel, installmentPreview, SALE_PAYMENT_METHODS } from "@/lib/sales/payment-terms";
 import { recordPayment, updateContract, updateWorkOrder } from "../actions";
 import s from "@/components/sales/sales.module.css";
 import { SaleCorePanels } from "@/components/sales/core-panels";
@@ -37,6 +38,9 @@ export default async function SaleDetail({ params, searchParams }: { params: Pro
   const events = sale.data ? await run<Event[]>(supabase.from("crm_timeline").select("id,event_type,module,detail,result,from_state,to_state,actor_id,created_at").or(`correlation_id.eq.${sale.data.correlation_id},sale_id.eq.${id}`).order("id").limit(200)) : null;
   const ownerList = owners.data ?? [];
   const d = sale.data;
+  const paymentTerms = readSalePaymentTerms(d?.notes);
+  const installment = d && paymentTerms.terms?.schedule === "installments"
+    ? installmentPreview(Number(d.total), Number(d.upfront_amount), paymentTerms.terms.installments) : null;
   const paid = (payments.data ?? []).filter(x=>x.status !== "reversed").reduce((sum, x) => sum + Number(x.amount), 0);
   const progress = (woId: string) => {
     const list = (tasks.data ?? []).filter(t => t.work_order_id === woId);
@@ -58,6 +62,20 @@ export default async function SaleDetail({ params, searchParams }: { params: Pro
             <select id="contract_status" name="contract_status" defaultValue={d.contract_status}>{["pending_signature", "signed", "cancelled"].map(x => <option key={x} value={x}>{label(lang, x)}</option>)}</select>
             <button className={s.button}>{pick(lang, "Guardar", "Save")}</button></form></div>
       </section>
+
+      {paymentTerms.terms && <section className={s.panel} aria-labelledby="sale-payment-plan">
+        <header><h2 id="sale-payment-plan">{pick(lang, "Plan de pago acordado", "Agreed payment plan")}</h2></header>
+        <p className={s.muted}>{pick(lang, "Estas condiciones se registraron con la venta. No representan pagos recibidos, aprobación de financiación ni un débito automático.", "These terms were recorded with the sale. They are not received payments, financing approval or automatic debits.")}</p>
+        <div className={s.row}>
+          <p><strong>{pick(lang, "Método preferido", "Preferred method")}:</strong> {salePaymentMethodLabel(paymentTerms.terms.method, lang)}</p>
+          <p><strong>{pick(lang, "Modalidad", "Arrangement")}:</strong> {salePaymentScheduleLabel(paymentTerms.terms.schedule, lang)}</p>
+          <p><strong>{pick(lang, "Vence en", "Due in")}:</strong> {paymentTerms.terms.netDays} {pick(lang, "días", "days")}</p>
+        </div>
+        {installment && <p>{pick(lang, "Saldo después del anticipo", "Balance after deposit")}: <strong>{money(lang, installment.remaining, d.currency)}</strong> · {paymentTerms.terms.installments - 1} × {money(lang, installment.regular, d.currency)} + {pick(lang, "cuota final", "final installment")} {money(lang, installment.final, d.currency)} · {pick(lang, "Desde", "From")} {paymentTerms.terms.firstDue} · {paymentTerms.terms.frequency}</p>}
+        {paymentTerms.terms.milestones && <p style={{whiteSpace:"pre-wrap"}}><strong>{pick(lang, "Hitos", "Milestones")}:</strong> {paymentTerms.terms.milestones}</p>}
+        {paymentTerms.terms.externalProvider && <p><strong>{pick(lang, "Proveedor externo propuesto", "Proposed external provider")}:</strong> {paymentTerms.terms.externalProvider} · {pick(lang, "pendiente de aprobación", "approval pending")}</p>}
+        {paymentTerms.terms.notes && <p style={{whiteSpace:"pre-wrap"}}><strong>{pick(lang, "Condiciones adicionales", "Additional terms")}:</strong> {paymentTerms.terms.notes}</p>}
+      </section>}
 
       <section className={s.panel} aria-labelledby="orders"><header><h2 id="orders">{pick(lang, "Servicios, órdenes de trabajo y proyectos", "Services, work orders and projects")}</h2></header>
         {lines.error || orders.error ? <Unavailable lang={lang} code={(lines.error ?? orders.error)!} /> :
@@ -94,12 +112,12 @@ export default async function SaleDetail({ params, searchParams }: { params: Pro
               <label className={s.field}>{pick(lang, "Fecha de cobro", "Received on")}<input name="received_on" type="date" required defaultValue={new Date().toISOString().slice(0, 10)} /></label>
             </div>
             <div className={s.row}>
-              <label className={s.field}>{pick(lang, "Método", "Method")}<select name="method">{PAYMENT_METHODS.map(m => <option key={m} value={m}>{label(lang, m)}</option>)}</select></label>
+              <label className={s.field}>{pick(lang, "Canal de cobro recibido", "Received payment channel")}<select name="channel">{SALE_PAYMENT_METHODS.map(m => <option key={m} value={m}>{salePaymentMethodLabel(m, lang)}</option>)}</select><input type="hidden" name="method" value="other" /></label>
               <label className={s.field}>{pick(lang, "Referencia (sin datos bancarios)", "Reference (no bank details)")}<input name="reference" maxLength={120} /></label>
             </div>
             <button className={s.button}>{pick(lang, "Registrar cobro", "Record payment")}</button>
           </form>}
-          {d.notes && <><h3>{pick(lang, "Notas", "Notes")}</h3><p className={s.muted} style={{ whiteSpace: "pre-wrap" }}>{d.notes}</p></>}
+          {paymentTerms.notes && <><h3>{pick(lang, "Notas", "Notes")}</h3><p className={s.muted} style={{ whiteSpace: "pre-wrap" }}>{paymentTerms.notes}</p></>}
         </section>
       </div>
     </>}
