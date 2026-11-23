@@ -20,3 +20,13 @@
 .bridge summary { cursor: pointer; padding: 10px 0; }
 .muted { color: #adb8d1; font-size: .85rem; }
 @media(max-width:950px) { .sources, .workspaces { grid-template-columns: 1fr; } .card,.section { padding: 20px; } }
+.now { margin: 0 0 24px; }
+.nowHead { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 16px; }
+.nowHead h2 { margin: 0 0 8px; font-size: 1.1rem; }
+.nowGrid { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: 12px; }
+.nowCard { border: 1px solid #333c61; background: #0d1426; border-radius: 14px; padding: 12px 16px; min-width: 0; }
+.nowCard h3 { margin: 0 0 4px; font-size: 1rem; display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.nowCard p { margin: 2px 0; }
+.live, .idle { font-size: .72rem; font-weight: 500; padding: 2px 10px; border-radius: 999px; border: 1px solid #3b4672; color: #adb8d1; }
+.live { border-color: #39d98a; color: #9ff0c4; }
+@media(max-width:700px) { .nowGrid { grid-template-columns: 1fr; } }
