@@ -20,8 +20,8 @@ const frequencyName = (v: string, lang: Lang) => ({
  * A payment AGREEMENT, not a payment collection or consumer-credit application.
  * Submitted as versioned, validated JSON inside the existing sale confirmation.
  */
-export function SalePaymentEditor({ lang, initial, total, recurring, upfront, currency }: {
-  lang: Lang; initial?: string; total: number; recurring: number; upfront: string; currency: string;
+export function SalePaymentEditor({ lang, initial, total, recurring, upfront, currency, onScheduleChange }: {
+  lang: Lang; initial?: string; total: number; recurring: number; upfront: string; currency: string; onScheduleChange?: (schedule: SalePaymentTerms["schedule"]) => void;
 }) {
   const [terms, setTerms] = useState<SalePaymentTerms>(() => {
     try { return initial ? validateSalePaymentTerms(JSON.parse(initial)) : { ...DEFAULT_SALE_PAYMENT_TERMS }; }
@@ -45,7 +45,11 @@ export function SalePaymentEditor({ lang, initial, total, recurring, upfront, cu
         </select>
       </label>
       <label className={s.field}>{t(lang, "Modalidad acordada", "Agreed payment arrangement")}
-        <select value={terms.schedule} onChange={e => set("schedule", e.target.value as SalePaymentTerms["schedule"])}>
+        <select value={terms.schedule} onChange={e => {
+          const schedule = e.target.value as SalePaymentTerms["schedule"];
+          set("schedule", schedule);
+          onScheduleChange?.(schedule);
+        }}>
           {SALE_PAYMENT_SCHEDULES.map(x => <option value={x} key={x}>{salePaymentScheduleLabel(x, lang)}</option>)}
         </select>
       </label>
