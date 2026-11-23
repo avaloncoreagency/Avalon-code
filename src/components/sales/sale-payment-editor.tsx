@@ -55,6 +55,10 @@ export function SalePaymentEditor({ lang, initial, total, recurring, upfront }: 
       </label>
     </div>
 
+    {terms.schedule === "to_agree" && <p className={s.muted}>{t(lang,
+      "Todavía no se ha confirmado una modalidad de pago. No se asumen condiciones ni se registran cobros.",
+      "No payment arrangement has been confirmed. No payment terms or receipts are assumed.")}</p>}
+
     {terms.schedule === "deposit_balance" && <p className={s.muted}>{t(lang,
       "Indica el anticipo en «Condiciones»; el saldo se calcula a partir del total contratado. No representa un cobro.",
       "Enter the deposit under Terms; the balance is calculated from the contracted total. This is not a receipt.")}</p>}
