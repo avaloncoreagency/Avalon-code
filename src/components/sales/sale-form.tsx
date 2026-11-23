@@ -82,7 +82,7 @@ export function SaleForm({ lang, idempotencyKey, services, clients, leads, owner
     const free = Array.from({ length: MAX_LINES }, (_, i) => i)
       .find(i => !snapshot?.get(`line_${i}_service`) && !snapshot?.get(`line_${i}_description`));
     if (free === undefined) {
-      setStudioError(t(lang, "Máximo seis líneas por venta. Divide el proyecto en ventas relacionadas si necesitas más servicios.", "Maximum six lines per sale. Split into related sales if you need more services."));
+      setStudioError(t(lang, "Máximo veinte líneas por venta. Divide el proyecto en ventas relacionadas si necesitas más servicios.", "Maximum twenty lines per sale. Split into related sales if you need more services."));
       return;
     }
     const description = [
