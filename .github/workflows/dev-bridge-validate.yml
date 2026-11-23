@@ -29,4 +29,18 @@ jobs:
       - run: npm run typecheck
       - run: npm run build
       - run: npm run test:integration
+      # Dev Bridge 3.0 ledger: SQL (PGlite, RLS, definer RPCs) and the end-to-end page → API route → session CLI path.
+      - run: npm ci --prefix tests/qa --no-audit --no-fund
+      - run: node tests/qa/node_modules/playwright/cli.js install chromium
+      - run: node --test tests/dev-bridge-ledger.database.cjs tests/dev-bridge-ledger.browser.cjs
+        env:
+          NODE_PATH: ./tests/qa/node_modules
+          DEV_BRIDGE_BROWSER: '1'
+          EVIDENCE_DIR: evidence/dev-bridge-ledger
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        if: always()
+        with:
+          name: dev-bridge-ledger-evidence
+          path: evidence/dev-bridge-ledger
+          retention-days: 7
       - run: echo 'Unit and synthetic HTTP checks passed. Live owner login and provider health require separate verification.' >> "$GITHUB_STEP_SUMMARY"
