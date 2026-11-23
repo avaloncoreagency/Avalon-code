@@ -20,7 +20,7 @@ export default async function StaffPortal({ searchParams }: {
   searchParams: Promise<{ status?: string }>;
 }) {
   const { supabase, userId, user, permissions } = await requireStaff();
-  const [assigned, files, people, mail] = await Promise.all([
+  const [assigned, files, people, mail, myLeads] = await Promise.all([
     supabase.from("staff_client_grants").select("user_id,client_id,client_name,access_level")
       .eq("user_id", userId).eq("active", true).order("client_name").limit(150),
     supabase.from("staff_casefiles").select("id,title,contact_name,notes,status,linked_client_id,updated_at")
@@ -29,6 +29,7 @@ export default async function StaffPortal({ searchParams }: {
       .order("display_name").limit(100),
     supabase.from("staff_private_messages").select("id,sender_id,recipient_id,body,created_at,read_at")
       .order("created_at",{ascending:false}).limit(100),
+    supabase.rpc("staff_my_leads"),
   ]);
   const { status } = await searchParams;
   const grants = (assigned.data ?? []) as Grant[];
@@ -37,6 +38,8 @@ export default async function StaffPortal({ searchParams }: {
   const messages = (mail.data ?? []) as Message[];
   const byId = new Map(contacts.map(p => [p.user_id, p.display_name]));
   const available = !(assigned.error || files.error || people.error || mail.error);
+  // Seller leads (migration 20261123190000). Optional: absent → section hidden, never partial CRM data.
+  const leads = (myLeads.error ? [] : myLeads.data ?? []) as { lead_id: string; company: string; contact: string; email: string | null; phone: string | null; stage: string; access_level: string; next_activity_at: string | null }[];
   return <main className={s.hud} style={{maxWidth:1220,margin:"0 auto",padding:"20px 16px"}}>
     <header className={s.header}>
       <div><p className={s.eyebrow}>AVALON / PORTAL DE EMPLEADOS</p>
@@ -48,6 +51,16 @@ export default async function StaffPortal({ searchParams }: {
     {status && Object.hasOwn(statuses,status) && <p role="status" className={s.flash}>{statuses[status]}</p>}
     {!available && <p role="alert" className={s.flash}>El portal no está disponible en este entorno. No se mostrará información parcial.</p>}
     {available && <>
+      {!myLeads.error && <section className={s.panel} aria-labelledby="staff-leads">
+        <h2 id="staff-leads">Mis leads</h2>
+        <p className={s.muted}>Solo los leads que la dirección te asignó. Sin valores, pipeline completo ni finanzas.</p>
+        {leads.length === 0 ? <p>Por ahora no tienes leads asignados.</p> :
+          <ul className={s.list}>{leads.map(l => <li key={l.lead_id} data-lead>
+            <strong>{l.company}</strong>{l.contact ? ` · ${l.contact}` : ""} · {l.stage}
+            {l.access_level === "work" && (l.email || l.phone) ? <><br /><span className={s.muted}>{[l.email, l.phone].filter(Boolean).join(" · ")}</span></> : null}
+            <br /><span className={s.muted}>{l.next_activity_at ? `Próximo seguimiento: ${new Date(l.next_activity_at).toLocaleDateString("es")}` : "Sin seguimiento programado"}</span>
+          </li>)}</ul>}
+      </section>}
       <section className={s.panel} aria-labelledby="staff-assigned">
         <h2 id="staff-assigned">Clientes asignados</h2>
         <p className={s.muted}>Solo se muestra el nombre autorizado. El CRM completo, las ventas y las finanzas siguen reservados a la dirección.</p>

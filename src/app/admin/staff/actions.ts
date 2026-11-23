@@ -3,6 +3,7 @@ import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { requireOwner } from "@/lib/auth/session";
 import { getAppOrigin } from "@/lib/auth/policy";
+import { isJobTitle } from "@/lib/auth/staff-roles";
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 function get(form: FormData, field: string) {
@@ -42,14 +43,15 @@ export async function setStaffAccess(form: FormData) {
   const active = get(form, "active") === "yes";
   const can_create_casefiles = active && get(form, "can_create_casefiles") === "yes";
   const can_message = active && get(form, "can_message") === "yes";
-  if (!UUID.test(employeeId) || displayName.length > 80 || !displayName)
+  const job_title = get(form, "job_title") || "operator";
+  if (!UUID.test(employeeId) || displayName.length > 80 || !displayName || !isJobTitle(job_title))
     done("invalid");
   const { data: directory, error: directoryError } = await supabase.rpc("office_directory");
   if (directoryError || !Array.isArray(directory) ||
       !directory.some(m => m.user_id === employeeId && m.role === "operator"))
     done("denied");
   const saved = await supabase.from("staff_portal_access").upsert({
-    user_id: employeeId, active, can_create_casefiles, can_message,
+    user_id: employeeId, active, can_create_casefiles, can_message, job_title,
     granted_by: userId, updated_at: new Date().toISOString(),
   }, { onConflict: "user_id" });
   if (saved.error) done("failed");
@@ -95,4 +97,30 @@ export async function revokeStaffClient(form: FormData) {
     .eq("user_id", employeeId).eq("client_id", clientId).eq("active", true)
     .select("client_id").maybeSingle();
   done(error || !data ? "failed" : "client-revoked");
+}
+
+/** Seller base: an owner grants ONE lead to an active operator. Employees read it only through the redacted
+ * staff_my_leads() projection; crm_leads RLS stays owner-only. */
+export async function grantStaffLead(form: FormData) {
+  const { supabase, userId } = await requireOwner();
+  const employeeId = get(form, "employee_id"), leadId = get(form, "lead_id"), access_level = get(form, "access_level");
+  if (!UUID.test(employeeId) || !UUID.test(leadId) || !["view", "work"].includes(access_level)) done("invalid");
+  const active = await supabase.from("staff_portal_access").select("active").eq("user_id", employeeId).maybeSingle();
+  if (active.error || active.data?.active !== true) done("denied");
+  const lead = await supabase.from("crm_leads").select("id").eq("id", leadId).eq("archived", false).maybeSingle();
+  if (lead.error || !lead.data) done("invalid");
+  const { error } = await supabase.from("staff_lead_grants").upsert({
+    user_id: employeeId, lead_id: leadId, access_level, active: true, granted_by: userId, updated_at: new Date().toISOString(),
+  }, { onConflict: "user_id,lead_id" });
+  done(error ? "failed" : "lead-granted");
+}
+
+export async function revokeStaffLead(form: FormData) {
+  const { supabase, userId } = await requireOwner();
+  const employeeId = get(form, "employee_id"), leadId = get(form, "lead_id");
+  if (!UUID.test(employeeId) || !UUID.test(leadId)) done("invalid");
+  const { data, error } = await supabase.from("staff_lead_grants")
+    .update({ active: false, granted_by: userId, updated_at: new Date().toISOString() })
+    .eq("user_id", employeeId).eq("lead_id", leadId).eq("active", true).select("lead_id").maybeSingle();
+  done(error || !data ? "failed" : "lead-revoked");
 }

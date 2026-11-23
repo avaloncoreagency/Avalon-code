@@ -28,6 +28,8 @@ function makeEdge({role="owner",missingOrigin=false,roster=0,inviteFails=false,e
     if(u.pathname==="/auth/v1/user") data={id:OWNER,factors:enrolledMfa?[{status:"verified",factor_type:"totp"}]:[]};
     else if(u.pathname==="/rest/v1/agency_memberships"&&init.method==="POST") {
       data=null; status=201;
+    } else if(u.pathname==="/rest/v1/staff_permission_events"&&init.method==="POST") {
+      data=null; status=201;
     } else if(u.pathname==="/rest/v1/agency_memberships"&&u.searchParams.get("role")==="eq.operator") {
       data=Array.from({length:roster},(_,i)=>({user_id:String(i)}));
     } else if(u.pathname==="/rest/v1/agency_memberships") data=[{role}];
@@ -52,12 +54,17 @@ test("pending operator invite is strictly owner-verified and never activated",as
   const edge=makeEdge();
   const resp=await edge.handler(request({email:" NEW.Employee@Example.invalid "}));
   assert.equal(resp.status,200);
-  assert.deepEqual(await resp.json(),{invited:true,requires_owner_activation:true});
+  assert.deepEqual(await resp.json(),{invited:true,requires_owner_activation:true,audited:true});
   assert.deepEqual(edge.calls.map(x=>x.path),[
     "/auth/v1/user","/rest/v1/agency_memberships",
     "/rest/v1/agency_memberships","/auth/v1/invite",
-    "/rest/v1/agency_memberships",
+    "/rest/v1/agency_memberships","/rest/v1/staff_permission_events",
   ]);
+  // Retry-safe enrollment that can never overwrite an existing (owner) membership.
+  assert.equal(new URL(edge.calls[4].url).searchParams.get("on_conflict"),"user_id");
+  assert.match(edge.calls[4].headers.Prefer,/resolution=ignore-duplicates/);
+  assert.doesNotMatch(edge.calls[4].headers.Prefer,/merge-duplicates/);
+  assert.deepEqual(JSON.parse(edge.calls[5].body),{actor_id:OWNER,user_id:INVITED,action:"invitation_sent"},"audited without email or token");
   const sent=JSON.parse(edge.calls[3].body);
   assert.equal(sent.email,"new.employee@example.invalid");
   assert.equal(new URL(edge.calls[3].url).searchParams.get("redirect_to"),"https://avaloncoreagency.com/admin/signup");

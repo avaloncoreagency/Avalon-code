@@ -1,12 +1,15 @@
 import Link from "next/link";
 import { Suite } from "@/components/suite/suite";
 import { requireOwner } from "@/lib/auth/session";
-import { inviteStaffEmployee, setStaffAccess, grantStaffClient, revokeStaffClient } from "./actions";
+import { inviteStaffEmployee, setStaffAccess, grantStaffClient, revokeStaffClient, grantStaffLead, revokeStaffLead } from "./actions";
+import { JOB_TITLES } from "@/lib/auth/staff-roles";
 import { sendStaffMessage, readStaffMessage } from "@/app/staff/actions";
 import s from "@/components/sales/sales.module.css";
 export const dynamic = "force-dynamic";
 type StaffMember = { user_id:string; role:string; email:string; display_name:string };
-type Access = { user_id:string; active:boolean; can_create_casefiles:boolean; can_message:boolean };
+type Access = { user_id:string; active:boolean; can_create_casefiles:boolean; can_message:boolean; job_title:string };
+type LeadGrant = { user_id:string; lead_id:string; access_level:string; active:boolean };
+type LeadOption = { id:string; company:string };
 type Grant = { user_id:string; client_id:string; client_name:string; access_level:string; active:boolean };
 type Client = { id:string; legal_name:string };
 type Contact = { user_id:string; display_name:string };
@@ -20,6 +23,7 @@ const statuses: Record<string,string> = {
  "invite-sent":"Invitación enviada. La cuenta queda bloqueada hasta que un propietario active los permisos.",
  "invite-failed":"No se envió la invitación. Revisa la configuración de invitaciones de Supabase o si ya existe esa cuenta.",
  "client-granted":"Cliente asignado.","client-revoked":"Acceso al cliente revocado.",
+ "lead-granted":"Lead asignado.","lead-revoked":"Acceso al lead revocado.",
  sent:"Mensaje privado enviado.",read:"Mensaje marcado como leído.",
 };
 
@@ -27,9 +31,9 @@ export default async function StaffAdministration({searchParams}:{
  searchParams:Promise<{status?:string}>;
 }) {
  const {supabase,userId} = await requireOwner();
- const [roster,access,grants,clients,casefiles,contacts,messages,audit] = await Promise.all([
+ const [roster,access,grants,clients,casefiles,contacts,messages,audit,leadGrants,leads] = await Promise.all([
    supabase.rpc("office_directory"),
-   supabase.from("staff_portal_access").select("user_id,active,can_create_casefiles,can_message"),
+   supabase.from("staff_portal_access").select("user_id,active,can_create_casefiles,can_message,job_title"),
    supabase.from("staff_client_grants").select("user_id,client_id,client_name,access_level,active")
      .order("updated_at",{ascending:false}).limit(200),
    supabase.from("crm_clients").select("id,legal_name").neq("status","archived")
@@ -41,9 +45,13 @@ export default async function StaffAdministration({searchParams}:{
      .order("created_at",{ascending:false}).limit(100),
    supabase.from("staff_permission_events").select("id,actor_id,user_id,action,client_id,recorded_at")
      .order("recorded_at",{ascending:false}).limit(40),
+   supabase.from("staff_lead_grants").select("user_id,lead_id,access_level,active").eq("active",true).limit(300),
+   supabase.from("crm_leads").select("id,company").eq("archived",false).order("updated_at",{ascending:false}).limit(300),
  ]);
  const {status} = await searchParams;
- const ready = ![roster,access,grants,clients,casefiles,contacts,messages,audit].some(x=>x.error);
+ const ready = ![roster,access,grants,clients,casefiles,contacts,messages,audit,leadGrants,leads].some(x=>x.error);
+ const lg=(leadGrants.data ?? []) as LeadGrant[], leadOptions=(leads.data ?? []) as LeadOption[];
+ const leadName=new Map(leadOptions.map(l=>[l.id,l.company]));
  const members = ((roster.data ?? []) as StaffMember[]).filter(m=>m.role==="operator");
  const a = (access.data ?? []) as Access[], g = (grants.data ?? []) as Grant[];
  const options=(clients.data ?? []) as Client[], f=(casefiles.data ?? []) as Casefile[];
@@ -88,6 +96,9 @@ export default async function StaffAdministration({searchParams}:{
             <label className={s.field}>Acceso al portal <select name="active" defaultValue={current?.active?"yes":"no"}>
               <option value="no">Revocado / inactivo</option><option value="yes">Activo</option>
             </select></label>
+            <label className={s.field}>Cargo (no concede permisos por sí solo) <select name="job_title" defaultValue={current?.job_title ?? "operator"}>
+              {JOB_TITLES.map(([v,l])=><option key={v} value={v}>{l}</option>)}
+            </select></label>
             <label><input type="checkbox" name="can_create_casefiles" value="yes" defaultChecked={current?.can_create_casefiles} /> Crear expedientes privados</label>
             <label><input type="checkbox" name="can_message" value="yes" defaultChecked={current?.can_message} /> Mensajería privada</label>
             <button className={s.button} type="submit">Guardar permisos</button>
@@ -119,6 +130,30 @@ export default async function StaffAdministration({searchParams}:{
           <input type="hidden" name="employee_id" value={row.user_id}/>
           <input type="hidden" name="client_id" value={row.client_id}/>
           <button className={s.button} type="submit">Revocar acceso</button>
+        </form>
+      </li>)}</ul>
+    </section>
+    <section className={s.panel} aria-labelledby="staff-leads"><h2 id="staff-leads">Asignar leads (vendedores)</h2>
+      <p className={s.muted}>El vendedor ve solo sus leads asignados: empresa, contacto, etapa y próximo seguimiento. «Trabajar» añade email y teléfono. Nunca ve valores, el pipeline completo ni finanzas.</p>
+      <form action={grantStaffLead} className={s.form}>
+        <label className={s.field}>Empleado activo <select name="employee_id" required defaultValue="">
+          <option value="" disabled>Seleccionar empleado</option>
+          {members.filter(m=>a.some(x=>x.user_id===m.user_id&&x.active)).map(m=><option value={m.user_id} key={m.user_id}>{m.display_name||m.email}</option>)}
+        </select></label>
+        <label className={s.field}>Lead <select name="lead_id" required defaultValue="">
+          <option value="" disabled>Seleccionar lead</option>
+          {leadOptions.map(l=><option key={l.id} value={l.id}>{l.company}</option>)}
+        </select></label>
+        <label className={s.field}>Alcance <select name="access_level" defaultValue="view">
+          <option value="view">Ver resumen</option><option value="work">Ver + datos de contacto</option>
+        </select></label>
+        <button className={s.button} type="submit">Asignar lead</button>
+      </form>
+      <ul className={s.list}>{lg.map(row=><li key={row.user_id+row.lead_id} className={s.notice}>
+        <strong>{display.get(row.user_id)??"Empleado"}</strong> · {leadName.get(row.lead_id)??"Lead"} · {row.access_level}
+        <form action={revokeStaffLead} className={s.inline}>
+          <input type="hidden" name="employee_id" value={row.user_id}/><input type="hidden" name="lead_id" value={row.lead_id}/>
+          <button className={s.button} type="submit">Revocar lead</button>
         </form>
       </li>)}</ul>
     </section>

@@ -113,17 +113,30 @@ Deno.serve(async (request: Request) => {
 
     // Pending operator membership only. staff_portal_access is intentionally
     // NOT inserted: account remains completely locked until explicit owner activation.
-    const enrollment = await fetchJSON(`${url}/rest/v1/agency_memberships`, {
+    // Idempotent: a retry after a partial failure completes the enrollment, and an existing membership
+    // (an owner, or an operator already enrolled) is NEVER changed — ignore-duplicates, not merge.
+    const enrollment = await fetchJSON(`${url}/rest/v1/agency_memberships?on_conflict=user_id`, {
+      method: "POST",
+      headers: {
+        apikey: serviceKey, Authorization: `Bearer ${serviceKey}`,
+        "Content-Type": "application/json",
+        Prefer: "resolution=ignore-duplicates,return=minimal",
+      },
+      body: JSON.stringify({ user_id: invitedId, role: "operator" }),
+    });
+    if (!enrollment.ok) return reply(503, { error: "invitation_sent_enrollment_pending" });
+    // Owner-only audit trail (no email or token stored). Best effort: the invitation itself already succeeded,
+    // but the result tells the owner when the audit row is missing instead of claiming full success.
+    const audit = await fetchJSON(`${url}/rest/v1/staff_permission_events`, {
       method: "POST",
       headers: {
         apikey: serviceKey, Authorization: `Bearer ${serviceKey}`,
         "Content-Type": "application/json",
         Prefer: "return=minimal",
       },
-      body: JSON.stringify({ user_id: invitedId, role: "operator" }),
+      body: JSON.stringify({ actor_id: ownerId, user_id: invitedId, action: "invitation_sent" }),
     });
-    if (!enrollment.ok) return reply(503, { error: "invitation_sent_enrollment_pending" });
-    return reply(200, { invited: true, requires_owner_activation: true });
+    return reply(200, { invited: true, requires_owner_activation: true, audited: audit.ok });
   } catch {
     return reply(503, { error: "temporarily_unavailable" });
   }

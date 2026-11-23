@@ -90,3 +90,59 @@ test("staff portal: owner-granted clients, isolated personal dossiers, private D
  assert.equal(await n("staff_permission_events"),0);
  await assert.rejects(db.query("insert into staff_portal_access(user_id,active) values($1,true)",[OUT]),/row-level security|policy|permission denied/i);
 });
+
+test("staff v1.1: job title is not authorization; seller sees only own granted leads, redacted and live; audit", {timeout:120000}, async t=>{
+ const db=new PGlite();t.after(()=>db.close());
+ await db.exec(fs.readFileSync("tests/sql/00_supabase_stub.sql","utf8"));
+ await db.exec(`insert into auth.users(id,email) values ('${MIGUEL}','m@example.invalid'),('${EMP1}','a@example.invalid'),('${EMP2}','b@example.invalid'),('${OUT}','o@example.invalid')`);
+ for(const file of fs.readdirSync("supabase/migrations").filter(f=>f.endsWith(".sql")).sort()){
+   await db.exec(fs.readFileSync("supabase/migrations/"+file,"utf8"));
+   if(file.startsWith("20261102053022")) await db.exec(`insert into agency_memberships(user_id,role) values ('${MIGUEL}','owner'),('${EMP1}','operator'),('${EMP2}','operator')`);
+ }
+ const as=u=>db.exec(`reset role;set request.jwt.claim.sub='${u}';set role authenticated;`);
+ const q=(sql,p)=>db.query(sql,p).then(r=>r.rows);
+ await as(MIGUEL);
+ const [lead]=await q("insert into crm_leads(company,contact,email,phone,source,owner_id,value) values('Lead Sintético','Ana','ana@example.invalid','+10000000','Test',$1,9999) returning id",[MIGUEL]);
+ const [other]=await q("insert into crm_leads(company,contact,source,owner_id) values('Otro Lead','Bo','Test',$1) returning id",[MIGUEL]);
+ await q("insert into staff_portal_access(user_id,active,job_title) values($1,true,'seller'),($2,true,'operator')",[EMP1,EMP2]);
+ // A job title can only be one of the defined profiles.
+ await assert.rejects(q("update staff_portal_access set job_title='owner' where user_id=$1",[EMP1]),/check/i);
+ await q("insert into staff_lead_grants(user_id,lead_id,access_level) values($1,$2,'view')",[EMP1,lead.id]);
+
+ await as(EMP1);
+ let mine=await q("select * from staff_my_leads()");
+ assert.deepEqual(mine.map(r=>[r.company,r.email,r.phone]),[["Lead Sintético",null,null]],"view grant: no contact channels, no other leads");
+ assert.ok(!("value" in mine[0]) && !("owner_id" in mine[0]),"no value/owner exposed");
+ assert.equal((await q("select count(*)::int n from crm_leads"))[0].n,0,"crm_leads RLS stays owner-only");
+ await assert.rejects(q("insert into staff_lead_grants(user_id,lead_id,access_level) values($1,$2,'work')",[EMP1,other.id]),/row-level security|policy/i,"no self-assignment");
+ assert.equal((await db.query("update staff_portal_access set job_title='seller', active=true where user_id=$1",[EMP2])).affectedRows,0,"cannot change another worker's access");
+ assert.equal((await db.query("update staff_portal_access set job_title='account_executive' where user_id=$1",[EMP1])).affectedRows,0,"cannot change own job title/capabilities");
+ await as(EMP2);
+ assert.equal((await q("select count(*)::int n from staff_my_leads()"))[0].n,0,"horizontal isolation");
+ assert.equal((await q("select count(*)::int n from staff_lead_grants"))[0].n,0);
+ await as(OUT);
+ assert.equal((await q("select count(*)::int n from staff_my_leads()"))[0].n,0,"unknown user");
+
+ await as(MIGUEL);
+ await q("update staff_lead_grants set access_level='work' where user_id=$1",[EMP1]);
+ await as(EMP1);
+ mine=await q("select email,phone from staff_my_leads()");
+ assert.deepEqual(mine,[{email:"ana@example.invalid",phone:"+10000000"}],"work grant shows contact channels");
+ await as(MIGUEL);
+ await q("update staff_portal_access set active=false where user_id=$1",[EMP1]);
+ await as(EMP1);
+ assert.equal((await q("select count(*)::int n from staff_my_leads()"))[0].n,0,"suspended account loses leads immediately");
+ await as(MIGUEL);
+ await q("update staff_portal_access set active=true where user_id=$1",[EMP1]);
+ await q("update staff_lead_grants set active=false where user_id=$1",[EMP1]);
+ await as(EMP1);
+ assert.equal((await q("select count(*)::int n from staff_my_leads()"))[0].n,0,"revoked lead disappears");
+ await as(MIGUEL);
+ const ev=(await q("select action from staff_permission_events where lead_id is not null order by id")).map(r=>r.action);
+ assert.deepEqual(ev,["lead_granted","lead_changed","lead_revoked"]);
+ await as(EMP1);
+ assert.equal((await q("select count(*)::int n from staff_permission_events"))[0].n,0,"audit is owner-only");
+ await db.exec("reset role");
+ const anon=(await q("select has_function_privilege('anon','public.staff_my_leads()','execute') x"))[0].x;
+ assert.equal(anon,false,"anon cannot call staff_my_leads");
+});
