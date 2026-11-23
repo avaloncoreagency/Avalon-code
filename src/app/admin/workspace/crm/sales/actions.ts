@@ -4,6 +4,8 @@ import { revalidatePath } from "next/cache";
 import { ownerForAction, back, field, uuidField } from "@/lib/os/actions";
 import { PAYMENT_METHODS, WORK_ORDER_STATUSES, SaleInputError, parseSaleForm, readConfirmResult, saleErrorCode, type SaleErrorCode } from "@/lib/sales/domain";
 import { attachSalePaymentTerms, readSalePaymentTerms, validateSalePaymentTerms, paymentChannelToStoredMethod, SALE_PAYMENT_METHODS, type SalePaymentMethod } from "@/lib/sales/payment-terms";
+import { saleMatchesAcceptedQuote } from "@/lib/sales/quote-acceptance";
+import { isQuoteContent } from "@/lib/quotes/model";
 
 export type SaleFormState = { error: SaleErrorCode | null; values: Record<string, string>; existingClientId?: string };
 
@@ -74,8 +76,22 @@ export async function confirmSale(_prev: SaleFormState, form: FormData): Promise
     const quoteId = uuidField(form, "source_quote_id");
     if (!quoteId) return { error: "sale_invalid_quote", values };
     const { data: quote, error: quoteError } = await supabase.from("crm_quotes")
-      .select("id,quote_number,lead_id,status").eq("id", quoteId).maybeSingle();
+      .select("id,quote_number,lead_id,status,current_version").eq("id", quoteId).maybeSingle();
     if (quoteError || !quote || quote.status !== "accepted" || quote.lead_id !== request.lead_id) {
+      return { error: "sale_invalid_quote", values };
+    }
+    // An accepted quote is versioned evidence: do not claim it is the source
+    // of a sale if any service, scope, quantity, price, discount or tax changed.
+    // A modified deal needs a revised accepted quote and signed agreement.
+    const [versionR, catalogR] = await Promise.all([
+      supabase.from("crm_quote_versions").select("content")
+        .eq("quote_id", quote.id).eq("version_no", quote.current_version).maybeSingle(),
+      supabase.from("crm_service_catalog").select("code,billing_type")
+        .in("code", request.lines.map(line => line.service_code)).eq("active", true),
+    ]);
+    if (versionR.error || catalogR.error || !versionR.data || !isQuoteContent(versionR.data.content)
+      || versionR.data.content.commission !== null
+      || !saleMatchesAcceptedQuote(request.lines, versionR.data.content.lines, catalogR.data ?? [], request.discount, request.tax_rate)) {
       return { error: "sale_invalid_quote", values };
     }
     const prior = readSalePaymentTerms(request.notes);
