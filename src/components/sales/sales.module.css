@@ -255,3 +255,14 @@ a.stat span, a.stat small { color:var(--muted); }
   .saleSteps a { flex:0 0 auto; white-space:nowrap; scroll-snap-align:start; }
   .planSummary { padding:10px; }
 }
+
+
+.saleReviewAction {
+  display:grid; gap:7px; justify-items:end; min-width:min(100%,240px); max-width:360px;
+}
+.saleReviewAction p { margin:0; text-align:right; }
+@media (max-width:700px) {
+  .saleReviewAction { width:100%; min-width:0; max-width:none; justify-items:stretch; }
+  .saleReviewAction p { text-align:left; }
+  .saleReviewAction button { width:100%; min-height:50px; }
+}
