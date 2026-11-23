@@ -1,9 +1,11 @@
 "use client";
-import { useActionState, useState, useCallback, useMemo, useRef, type FormEvent } from "react";
+import { useActionState, useState, useCallback, useEffect, useMemo, useRef, type FormEvent } from "react";
 import { useFormStatus } from "react-dom";
 import { confirmSale, type SaleFormState } from "@/app/admin/workspace/crm/sales/actions";
 import { MAX_CONTACTS, MAX_LINES, money, previewTotals, saleErrorText, label } from "@/lib/sales/domain";
 import type { Lang } from "@/lib/i18n";
+import { ServiceStudio, type StudioResult } from "@/components/quotes/service-studio";
+import { SalePaymentEditor } from "./sale-payment-editor";
 import s from "./sales.module.css";
 
 export type CatalogService = { code: string; name: string; name_en: string; billing_type: string; suggested_price: string | null; department: string };
@@ -37,6 +39,10 @@ export function SaleForm({ lang, idempotencyKey, services, clients, leads, owner
   const selected = clients.find(c => c.id === clientId);
   const [totals, setTotals] = useState(() => previewTotals([]));
   const [currency, setCurrency] = useState("USD");
+  const [upfrontAmount, setUpfrontAmount] = useState(v("upfront_amount", "0"));
+  const formRef = useRef<HTMLFormElement>(null);
+  const [studioError, setStudioError] = useState("");
+  const [studioRows, setStudioRows] = useState<Record<number, { service: string; price: string; qty: string; description: string; nonce: number }>>({});
   const [filled, setFilled] = useState<boolean[]>(() => Array.from({ length: MAX_LINES }, (_, i) => i === 0));
   const byCode = useMemo(() => new Map(services.map(x => [x.code, x])), [services]);
 
@@ -49,21 +55,62 @@ export function SaleForm({ lang, idempotencyKey, services, clients, leads, owner
       }));
     setFilled(Array.from({ length: MAX_LINES }, (_, i) => Boolean(f.get(`line_${i}_service`))));
     setCurrency(String(f.get("currency") || "USD").toUpperCase().slice(0, 3));
+    setUpfrontAmount(String(f.get("upfront_amount") || "0"));
     const valid = lines.every(l => /^\d*(\.\d{0,2})?$/.test(l.unit_price) && /^\d*(\.\d{0,2})?$/.test(l.quantity) && /^\d*(\.\d{0,2})?$/.test(l.discount));
     if (valid) setTotals(previewTotals(lines, String(f.get("discount") ?? "0"), String(f.get("tax_rate") ?? "0")));
   }, [byCode]);
 
+  useEffect(() => {
+    if (formRef.current) recompute({ currentTarget: formRef.current } as FormEvent<HTMLFormElement>);
+  }, [studioRows, recompute, attempt]);
+
+  const addConfiguredService = (result: StudioResult) => {
+    const svc = result.line.code ? byCode.get(result.line.code) : null;
+    if (!svc) {
+      setStudioError(t(lang, "Este configurador es una propuesta: para registrar la venta selecciona un servicio activo del catálogo. No se añadió ninguna línea.", "This configurator is a proposal: recording a sale requires a matching active catalog service. No line was added."));
+      return;
+    }
+    if (svc.billing_type !== result.line.kind && svc.billing_type !== "annual") {
+      setStudioError(t(lang, "El tipo de facturación del configurador no coincide con el catálogo. Revisa el servicio antes de vender.", "Configurator billing type differs from the catalog. Review the service before selling."));
+      return;
+    }
+    const snapshot = formRef.current ? new FormData(formRef.current) : null;
+    const free = Array.from({ length: MAX_LINES }, (_, i) => i)
+      .find(i => !snapshot?.get(`line_${i}_service`) && !snapshot?.get(`line_${i}_description`));
+    if (free === undefined) {
+      setStudioError(t(lang, "Máximo seis líneas por venta. Divide el proyecto en ventas relacionadas si necesitas más servicios.", "Maximum six lines per sale. Split into related sales if you need more services."));
+      return;
+    }
+    const description = [
+      result.line.description, result.scope, result.exclusions,
+      result.thirdParty ? t(lang, "Costos externos (no incluidos en ingreso de Avalon): ", "External costs (not Avalon revenue): ") + result.thirdParty : "",
+    ].filter(Boolean).join("\\n").slice(0, 2000);
+    setStudioRows(prev => ({ ...prev, [free]: {
+      service: svc.code, qty: String(result.line.qty), price: result.line.unitPrice, description,
+      nonce: (prev[free]?.nonce ?? 0) + 1,
+    } }));
+    setFilled(prev => prev.map((x, i) => i <= free || x));
+    setStudioError("");
+  };
+
   const fmt = (n: number) => /^[A-Z]{3}$/.test(currency) ? money(lang, n, currency) : n.toFixed(2);
   const ownerOptions = owners.map(o => <option key={o.id} value={o.id}>{o.label}</option>);
 
-  return <form key={attempt} action={action} className={s.form} onChange={recompute} noValidate={false}>
+  return <form ref={formRef} key={attempt} action={action} className={s.form} onChange={recompute} noValidate={false}>
+    <nav className={s.inline} aria-label={t(lang, "Secciones del registro de venta", "Sale registration sections")}>
+      <a className={s.button} href="#sale-client">{t(lang, "1 Cliente", "1 Client")}</a>
+      <a className={s.button} href="#sale-services">{t(lang, "2 Servicios", "2 Services")}</a>
+      <a className={s.button} href="#sale-terms">{t(lang, "3 Condiciones", "3 Terms")}</a>
+      <a className={s.button} href="#sale-payment">{t(lang, "4 Pagos", "4 Payments")}</a>
+      <a className={s.button} href="#sale-review">{t(lang, "5 Revisar", "5 Review")}</a>
+    </nav>
     <input type="hidden" name="idempotency_key" value={idempotencyKey} />
     {state.error && <div className={s.flash} data-tone="error" role="alert">
       <span>{saleErrorText(lang, state.error)}</span>
       {state.existingClientId && <button type="button" className={s.button} onClick={() => setMode("existing")}>{t(lang, "Usar cliente existente", "Use existing client")}</button>}
     </div>}
 
-    <fieldset className={s.fieldset}>
+    <fieldset id="sale-client" className={s.fieldset}>
       <legend>{t(lang, "1 · Cliente", "1 · Client")}</legend>
       <div className={s.choice} role="radiogroup" aria-label={t(lang, "Tipo de cliente", "Client type")}>
         <label><input type="radio" name="client_mode" value="existing" checked={mode === "existing"} onChange={() => setMode("existing")} disabled={!clients.length} />{t(lang, "Cliente existente", "Existing client")}</label>
@@ -112,29 +159,32 @@ export function SaleForm({ lang, idempotencyKey, services, clients, leads, owner
       </details>
     </fieldset>
 
-    <fieldset className={s.fieldset}>
+    <fieldset id="sale-services" className={s.fieldset}>
       <legend>{t(lang, "2 · Servicios vendidos", "2 · Sold services")}</legend>
+      <p className={s.muted}>{t(lang, "Usa los configuradores de Quotes para definir el alcance. Solo los conceptos que coincidan con un servicio activo del catálogo pueden convertirse en ventas.", "Use the Quotes configurators to define the scope. Only items mapped to an active catalog service may become sales.")}</p>
+      <ServiceStudio lang={lang} catalog={services.map(x => ({ code: x.code, name: t(lang, x.name, x.name_en || x.name), suggested_price: x.suggested_price }))} onAdd={addConfiguredService} />
+      {studioError && <p className={s.flash} data-tone="warn" role="alert">{studioError}</p>}
       <p className={s.muted}>{t(lang, "Cada línea crea su orden de trabajo y, según el departamento, un proyecto con tareas iniciales.", "Each line creates its work order and, per department, a project with starter tasks.")}</p>
-      {Array.from({ length: MAX_LINES }, (_, i) => (i === 0 || filled[i - 1] || filled[i] || v(`line_${i}_service`)) && <div className={s.line} key={i} data-filled={filled[i] || undefined}>
+      {Array.from({ length: MAX_LINES }, (_, i) => (i === 0 || filled[i - 1] || filled[i] || v(`line_${i}_service`)) && <div className={s.line} key={`${i}-${studioRows[i]?.nonce ?? 0}`} data-filled={filled[i] || undefined}>
         <div className={s.row}>
           <label className={s.field}>{t(lang, `Servicio ${i + 1}`, `Service ${i + 1}`)}
-            <select name={`line_${i}_service`} required={i === 0} defaultValue={v(`line_${i}_service`)}>
+            <select name={`line_${i}_service`} required={i === 0} defaultValue={v(`line_${i}_service`, studioRows[i]?.service ?? "")}>
               <option value="">{i === 0 ? t(lang, "Selecciona…", "Select…") : t(lang, "— Ninguno —", "— None —")}</option>
               {services.map(x => <option key={x.code} value={x.code}>{t(lang, x.name, x.name_en || x.name)} · {x.department} · {label(lang, x.billing_type)}</option>)}
             </select></label>
-          <label className={s.field}>{t(lang, "Precio", "Price")}<input name={`line_${i}_price`} inputMode="decimal" pattern="\d{1,13}(\.\d{1,2})?" placeholder="0.00" defaultValue={v(`line_${i}_price`)} /></label>
-          <label className={s.field}>{t(lang, "Cantidad", "Qty")}<input name={`line_${i}_qty`} inputMode="decimal" pattern="\d{1,7}(\.\d{1,2})?" placeholder="1" defaultValue={v(`line_${i}_qty`)} /></label>
+          <label className={s.field}>{t(lang, "Precio", "Price")}<input name={`line_${i}_price`} inputMode="decimal" pattern="\d{1,13}(\.\d{1,2})?" placeholder="0.00" defaultValue={v(`line_${i}_price`, studioRows[i]?.price ?? "")} /></label>
+          <label className={s.field}>{t(lang, "Cantidad", "Qty")}<input name={`line_${i}_qty`} inputMode="decimal" pattern="\d{1,7}(\.\d{1,2})?" placeholder="1" defaultValue={v(`line_${i}_qty`, studioRows[i]?.qty ?? "")} /></label>
           <label className={s.field}>{t(lang, "Descuento", "Discount")}<input name={`line_${i}_discount`} inputMode="decimal" pattern="\d{1,13}(\.\d{1,2})?" placeholder="0.00" defaultValue={v(`line_${i}_discount`)} /></label>
         </div>
         <div className={s.row}>
           <label className={s.field}>{t(lang, "Responsable", "Assignee")}<select name={`line_${i}_assignee`} defaultValue={v(`line_${i}_assignee`)}><option value="">{t(lang, "Por defecto del servicio / vendedor", "Service default / seller")}</option>{ownerOptions}</select></label>
           <label className={s.field}>{t(lang, "Inicio", "Start")}<input name={`line_${i}_start`} type="date" defaultValue={v(`line_${i}_start`)} /></label>
         </div>
-        <label className={s.field}>{t(lang, "Alcance", "Scope")}<textarea name={`line_${i}_description`} maxLength={2000} rows={2} defaultValue={v(`line_${i}_description`)} /></label>
+        <label className={s.field}>{t(lang, "Alcance", "Scope")}<textarea name={`line_${i}_description`} maxLength={2000} rows={2} defaultValue={v(`line_${i}_description`, studioRows[i]?.description ?? "")} /></label>
       </div>)}
     </fieldset>
 
-    <fieldset className={s.fieldset}>
+    <fieldset id="sale-terms" className={s.fieldset}>
       <legend>{t(lang, "3 · Condiciones", "3 · Terms")}</legend>
       <div className={s.row}>
         <label className={s.field}>{t(lang, "Fecha de venta", "Sale date")}<input name="sold_on" type="date" defaultValue={v("sold_on", initialDate)} /></label>
@@ -152,7 +202,10 @@ export function SaleForm({ lang, idempotencyKey, services, clients, leads, owner
       <p className={s.muted}>{t(lang, "El pago inicial es lo acordado, no lo cobrado. Los cobros reales se registran después en la ficha de la venta.", "The upfront payment is what was agreed, not collected. Actual payments are recorded later on the sale.")}</p>
     </fieldset>
 
-    <div className={s.summary} aria-live="polite" role="region" aria-label={t(lang, "Resumen de la venta", "Sale summary")}>
+    <div id="sale-payment"><SalePaymentEditor lang={lang} initial={v("payment_terms_json")} total={totals.total} recurring={totals.recurring} upfront={upfrontAmount} /></div>
+
+    <div id="sale-review" className={s.summary} aria-live="polite" role="region" aria-label={t(lang, "5 · Revisar y confirmar venta", "5 · Review and confirm sale")}>
+      <h2>{t(lang, "5 · Revisar y confirmar", "5 · Review and confirm")}</h2>
       <dl>
         <div><dt>Subtotal</dt><dd>{fmt(totals.subtotal)}</dd></div>
         <div><dt>{t(lang, "Impuesto", "Tax")}</dt><dd>{fmt(totals.tax)}</dd></div>
