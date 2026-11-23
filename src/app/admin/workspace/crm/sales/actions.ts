@@ -76,8 +76,8 @@ export async function confirmSale(_prev: SaleFormState, form: FormData): Promise
     const quoteId = uuidField(form, "source_quote_id");
     if (!quoteId) return { error: "sale_invalid_quote", values };
     const { data: quote, error: quoteError } = await supabase.from("crm_quotes")
-      .select("id,quote_number,lead_id,status,current_version").eq("id", quoteId).maybeSingle();
-    if (quoteError || !quote || quote.status !== "accepted" || quote.lead_id !== request.lead_id) {
+      .select("id,quote_number,lead_id,client_id,status,current_version").eq("id", quoteId).maybeSingle();
+    if (quoteError || !quote || quote.status !== "accepted" || quote.lead_id !== request.lead_id || (quote.client_id && quote.client_id !== request.client_id) || request.currency !== "USD") {
       return { error: "sale_invalid_quote", values };
     }
     // An accepted quote is versioned evidence: do not claim it is the source
