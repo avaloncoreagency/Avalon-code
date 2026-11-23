@@ -5,7 +5,7 @@
  */
 import type { Lang } from "@/lib/i18n";
 
-export const MAX_LINES = 6;
+export const MAX_LINES = 20; // Matches crm_confirm_sale DB cap; shared with Sales form.
 export const MAX_CONTACTS = 3;
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const AMOUNT = /^[0-9]{1,13}(\.[0-9]{1,2})?$/;
