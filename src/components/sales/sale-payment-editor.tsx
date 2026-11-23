@@ -4,7 +4,7 @@ import { useState } from "react";
 import type { Lang } from "@/lib/i18n";
 import {
   DEFAULT_SALE_PAYMENT_TERMS, SALE_PAYMENT_METHODS, SALE_PAYMENT_SCHEDULES,
-  SALE_PAYMENT_FREQUENCIES, installmentPreview, salePaymentMethodLabel,
+  SALE_PAYMENT_FREQUENCIES, installmentPreview, installmentSchedule, salePaymentMethodLabel,
   salePaymentScheduleLabel, validateSalePaymentTerms, type SalePaymentTerms,
 } from "@/lib/sales/payment-terms";
 import { money } from "@/lib/sales/domain";
@@ -31,6 +31,7 @@ export function SalePaymentEditor({ lang, initial, total, recurring, upfront, cu
     setTerms(prev => ({ ...prev, [key]: value }));
   const estimate = installmentPreview(total, Number(upfront || 0), terms.installments);
   const installmentAllowed = recurring <= 0 && Number.isFinite(total) && total > 0;
+  const scheduleRows = installmentAllowed ? installmentSchedule(total, Number(upfront || 0), terms) : null;
 
   return <fieldset className={s.fieldset}>
     <legend>{t(lang, "4 · Plan de pago acordado", "4 · Agreed payment plan")}</legend>
@@ -63,9 +64,14 @@ export function SalePaymentEditor({ lang, initial, total, recurring, upfront, cu
       "Todavía no se ha confirmado una modalidad de pago. No se asumen condiciones ni se registran cobros.",
       "No payment arrangement has been confirmed. No payment terms or receipts are assumed.")}</p>}
 
-    {terms.schedule === "deposit_balance" && <p className={s.muted}>{t(lang,
-      "Indica el anticipo en «Condiciones»; el saldo se calcula a partir del total contratado. No representa un cobro.",
-      "Enter the deposit under Terms; the balance is calculated from the contracted total. This is not a receipt.")}</p>}
+    {terms.schedule === "full" && <p className={s.muted}>{t(lang, "Pago total previsto:", "Expected full amount:")} <strong>{money(lang, total, currency)}</strong>. {t(lang, "No está cobrado.", "Not collected.")}</p>}
+
+    {terms.schedule === "deposit_balance" && <div className={s.planSummary}>
+      <p>{t(lang, "Anticipo acordado", "Agreed deposit")}: <strong>{money(lang, Number(upfront || 0), currency)}</strong></p>
+      <p>{t(lang, "Saldo previsto", "Expected balance")}: <strong>{money(lang, Math.max(0, total - Number(upfront || 0)), currency)}</strong></p>
+      {Number(upfront || 0) > total && <p className={s.flash} data-tone="error">{t(lang, "El anticipo supera el total contratado.", "The deposit exceeds the contracted total.")}</p>}
+      <p className={s.muted}>{t(lang, "Importes acordados, NO recibidos. Fecha y condiciones finales según contrato firmado.", "Agreed, NOT received. Final due dates and terms follow the signed agreement.")}</p>
+    </div>}
 
     {terms.schedule === "installments" && <>
       <div className={s.row}>
@@ -85,7 +91,17 @@ export function SalePaymentEditor({ lang, initial, total, recurring, upfront, cu
       {!installmentAllowed ? <p className={s.flash} data-tone="warn">{t(lang,
         "Las cuotas necesitan un total positivo sin mensualidades recurrentes mezcladas. Separa servicios recurrentes antes de confirmar.",
         "Installments require a positive total without recurring lines mixed in. Separate recurring services before confirming.")}</p>
-      : estimate ? <p className={s.muted} aria-live="polite">{t(lang, "Saldo después del anticipo:", "Balance after deposit:")} <strong>{money(lang, estimate.remaining, currency)}</strong> · {terms.installments - 1} × {money(lang, estimate.regular, currency)} + {t(lang, "última cuota", "last installment")} {money(lang, estimate.final, currency)}. {t(lang, "Solo cálculo ilustrativo, sin intereses ni cobros automáticos.", "Illustrative only, without interest or automatic charges.")}</p>
+      : estimate ? <div className={s.planSummary} aria-live="polite">
+          <p>{t(lang, "Saldo después del anticipo:", "Balance after deposit:")} <strong>{money(lang, estimate.remaining, currency)}</strong> · {terms.installments - 1} × {money(lang, estimate.regular, currency)} + {t(lang, "última cuota", "last installment")} {money(lang, estimate.final, currency)}</p>
+          {scheduleRows && <details>
+            <summary>{t(lang, "Ver calendario de vencimientos propuesto", "View proposed payment due-date schedule")} ({scheduleRows.length})</summary>
+            <div className={s.tableWrap}><table className={s.table}>
+              <thead><tr><th>#</th><th>{t(lang, "Fecha", "Date")}</th><th className={s.num}>{t(lang, "Importe", "Amount")}</th></tr></thead>
+              <tbody>{scheduleRows.map(row => <tr key={row.number}><td>{row.number}</td><td>{row.dueOn}</td><td className={s.num}>{money(lang, row.amount, currency)}</td></tr>)}</tbody>
+            </table></div>
+          </details>}
+          <p className={s.muted}>{t(lang, "CALENDARIO ILUSTRATIVO: no registra facturas, cobros, vencimientos exigibles ni financiación aprobada. Requiere acuerdo firmado y revisión legal.", "ILLUSTRATIVE SCHEDULE: does not create invoices, receipts, enforceable due dates or approved financing. Requires a signed agreement and legal review.")}</p>
+        </div>
         : <p className={s.flash} data-tone="warn">{t(lang, "El anticipo no puede superar el total.", "Deposit cannot exceed the total.")}</p>}
     </>}
 
