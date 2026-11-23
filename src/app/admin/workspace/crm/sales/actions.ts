@@ -3,6 +3,7 @@ import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { ownerForAction, back, field, uuidField } from "@/lib/os/actions";
 import { PAYMENT_METHODS, WORK_ORDER_STATUSES, SaleInputError, parseSaleForm, readConfirmResult, saleErrorCode, type SaleErrorCode } from "@/lib/sales/domain";
+import { attachSalePaymentTerms, validateSalePaymentTerms } from "@/lib/sales/payment-terms";
 
 export type SaleFormState = { error: SaleErrorCode | null; values: Record<string, string>; existingClientId?: string };
 
@@ -19,6 +20,22 @@ export async function confirmSale(_prev: SaleFormState, form: FormData): Promise
   let request;
   try { request = parseSaleForm(form); }
   catch (e) { return { error: e instanceof SaleInputError ? e.code : "sale_invalid", values }; }
+
+  // Optional versioned payment AGREEMENT. It is not a payment, credit agreement
+  // or change to the atomic crm_confirm_sale RPC. Stored in its existing private
+  // notes field until a separate, reviewed migration normalizes this metadata.
+  const rawPaymentTerms = form.get("payment_terms_json");
+  if (rawPaymentTerms !== null) {
+    try {
+      if (typeof rawPaymentTerms !== "string" || rawPaymentTerms.length > 1600) throw Error("invalid");
+      const terms = validateSalePaymentTerms(JSON.parse(rawPaymentTerms));
+      if ((terms.schedule === "installments" && request.billing_mode !== "installments")
+        || (terms.schedule === "subscription" && !["monthly", "mixed"].includes(request.billing_mode))) throw Error("invalid");
+      request.notes = attachSalePaymentTerms(request.notes ?? "", terms);
+    } catch {
+      return { error: "sale_invalid_payment_terms", values };
+    }
+  }
 
   // Confirmed sales belong to the selected company. Never mark an unrelated
   // opportunity as won just because its ID was present in a different form.
