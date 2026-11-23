@@ -140,15 +140,16 @@ export async function recordPayment(form: FormData) {
   const channel = field(form, "channel").trim();
   const directMethod = field(form, "method");
   const method = channel ? paymentChannelToStoredMethod(channel as SalePaymentMethod) : directMethod;
-  const originalReference = field(form, "reference").trim();
-  // A channel label documents a receipt, not an actual processor integration.
-  const reference = channel ? `[${channel}] ${originalReference}`.trim() : originalReference;
+  // The DB enum now stores the real manual channel (20261123150000): no "[channel]" prefix in the reference any more.
+  // Recording a receipt documents money received; it never charges anyone or talks to a processor.
+  const reference = field(form, "reference").trim();
+  const installmentId = uuidField(form, "installment_id");
   if (!/^[0-9]{1,13}(\.[0-9]{1,2})?$/.test(amount) || Number(amount) <= 0) back(path, { error: "sale_invalid_amount" });
   if (!/^\d{4}-\d{2}-\d{2}$/.test(received_on)) back(path, { error: "sale_invalid_date" });
   if ((channel && !(SALE_PAYMENT_METHODS as readonly string[]).includes(channel)) || !(PAYMENT_METHODS as readonly string[]).includes(method) || reference.length > 120) back(path, { error: "sale_invalid" });
   const sale = await supabase.from("crm_sales").select("currency,client_id").eq("id", saleId).maybeSingle();
   if (sale.error || !sale.data) back(path, { error: sale.error ? saleErrorCode(sale.error) : "sale_invalid" });
-  const { error } = await supabase.from("crm_payments").insert({ sale_id: saleId, amount, currency: sale.data.currency, received_on, method, reference });
+  const { error } = await supabase.from("crm_payments").insert({ sale_id: saleId, amount, currency: sale.data.currency, received_on, method, reference, installment_id: installmentId });
   if (error) back(path, { error: saleErrorCode(error) });
   // Recorded receipts change client finance and agency KPIs, not the contract total.
   for (const affected of [
@@ -185,4 +186,62 @@ export async function updateContract(form: FormData) {
   if (error || !data) back(path, { error: error ? saleErrorCode(error) : "sale_invalid" });
   revalidatePath(path);
   back(path, { ok: "saved" });
+}
+
+const SALE_MONEY_PATHS = ["/admin/workspace/crm/sales", "/admin/workspace/crm/clients", "/admin/workspace/crm/overview", "/admin/workspace/crm/activity", "/admin/dashboard"];
+function refreshSaleMoney(saleId: string, clientId?: string | null) {
+  for (const path of [`/admin/workspace/crm/sales/${saleId}`, ...SALE_MONEY_PATHS]) revalidatePath(path);
+  if (clientId) revalidatePath(`/admin/workspace/crm/clients/${clientId}`);
+}
+
+/** Replace the live payment schedule (database enforces exact total, funded rows kept, optimistic version). */
+export async function setSaleSchedule(form: FormData) {
+  const { supabase } = await ownerForAction();
+  const saleId = uuidField(form, "sale_id");
+  if (!saleId) back("/admin/workspace/crm/sales", { error: "sale_invalid" });
+  const path = `/admin/workspace/crm/sales/${saleId}`;
+  const version = Number(field(form, "schedule_version"));
+  let items: unknown;
+  try { items = JSON.parse(field(form, "items") || "[]"); } catch { back(path, { error: "schedule_invalid" }); }
+  if (!Number.isInteger(version) || version < 0 || !Array.isArray(items) || items.length > 60
+    || items.some(i => !i || typeof i !== "object" || Array.isArray(i) || Object.keys(i).some(k => !["kind", "due_on", "amount", "label"].includes(k))))
+    back(path, { error: "schedule_invalid" });
+  const { error } = await supabase.rpc("crm_sale_schedule_set", {
+    p_sale: saleId, p_items: items, p_expected_version: version, p_reason: field(form, "reason").trim().slice(0, 500) || null,
+  });
+  if (error) back(path, { error: saleErrorCode(error) });
+  refreshSaleMoney(saleId);
+  back(path, { ok: "schedule" });
+}
+
+/** Record a refund or chargeback against a verified receipt. The idempotency key is rendered with the form. */
+export async function refundPayment(form: FormData) {
+  const { supabase } = await ownerForAction();
+  const saleId = uuidField(form, "sale_id"), paymentId = uuidField(form, "payment_id"), key = uuidField(form, "idempotency_key");
+  if (!saleId) back("/admin/workspace/crm/sales", { error: "sale_invalid" });
+  const path = `/admin/workspace/crm/sales/${saleId}`;
+  const kind = field(form, "kind"), amount = field(form, "amount").trim(), occurred = field(form, "occurred_on").trim();
+  if (!paymentId || !key || !["refund", "chargeback"].includes(kind)) back(path, { error: "refund_invalid" });
+  if (!/^[0-9]{1,13}(\.[0-9]{1,2})?$/.test(amount) || Number(amount) <= 0) back(path, { error: "refund_invalid_amount" });
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(occurred)) back(path, { error: "refund_invalid" });
+  const { error } = await supabase.rpc("crm_payment_refund", { request: {
+    idempotency_key: key, payment_id: paymentId, kind, amount, occurred_on: occurred,
+    reason: field(form, "reason").trim().slice(0, 500), reference: field(form, "reference").trim().slice(0, 120),
+  } });
+  if (error) back(path, { error: saleErrorCode(error) });
+  refreshSaleMoney(saleId);
+  back(path, { ok: "refund" });
+}
+
+export async function resolveChargeback(form: FormData) {
+  const { supabase } = await ownerForAction();
+  const saleId = uuidField(form, "sale_id"), refundId = uuidField(form, "refund_id");
+  if (!saleId) back("/admin/workspace/crm/sales", { error: "sale_invalid" });
+  const path = `/admin/workspace/crm/sales/${saleId}`;
+  const outcome = field(form, "outcome");
+  if (!refundId || !["won", "lost"].includes(outcome)) back(path, { error: "chargeback_invalid" });
+  const { error } = await supabase.rpc("crm_chargeback_resolve", { p_refund: refundId, p_outcome: outcome, p_note: field(form, "note").trim().slice(0, 500) });
+  if (error) back(path, { error: saleErrorCode(error) });
+  refreshSaleMoney(saleId);
+  back(path, { ok: "chargeback" });
 }

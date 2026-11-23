@@ -18,7 +18,9 @@ test("sale payment terms: safe defaults and every offered channel are parseable"
     const parsed = d.validateSalePaymentTerms({ ...base(), method });
     assert.equal(parsed.method, method);
     const channel = d.paymentChannelToStoredMethod(method);
-    assert.ok(["transfer", "card", "cash", "other"].includes(channel));
+    // Must be a value of the crm_payments.method DB enum (widened in 20261123150000); the channel is no longer
+    // squeezed into "other" and the reference text.
+    assert.ok(["transfer", "ach", "wire", "zelle", "check", "card", "cash", "paypal", "payment_link", "financing_external", "other"].includes(channel), channel);
     assert.ok(d.salePaymentMethodLabel(method, "es"));
   }
 });

@@ -156,10 +156,7 @@ export function installmentSchedule(total: number, upfront: number, terms: SaleP
   return rows;
 }
 
-/** Existing crm_payments.method DB enum remains unchanged; channel is retained in reference. */
-export function paymentChannelToStoredMethod(channel: SalePaymentMethod): "transfer" | "card" | "cash" | "other" {
-  if (["bank_transfer", "ach", "wire", "zelle"].includes(channel)) return "transfer";
-  if (channel === "card") return "card";
-  if (channel === "cash") return "cash";
-  return "other";
+/** Receipt channel → stored crm_payments.method (enum widened in 20261123150000; bank_transfer keeps "transfer"). */
+export function paymentChannelToStoredMethod(channel: SalePaymentMethod): "transfer" | "ach" | "wire" | "zelle" | "check" | "card" | "cash" | "paypal" | "payment_link" | "other" {
+  return channel === "bank_transfer" ? "transfer" : channel;
 }

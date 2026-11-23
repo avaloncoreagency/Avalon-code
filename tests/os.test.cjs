@@ -143,7 +143,10 @@ test('every module server action re-verifies the owner before touching data', ()
     // Attribution record/transition: SECURITY DEFINER, check auth.uid + owner + finance_access; no direct DML grants.
     // Quoting Studio create/revise/transition: SECURITY DEFINER, raise unless auth.uid() is an owner, validate content and
     // compute totals in SQL, append-only versions, no direct DML grants (tests/quotes.database.cjs).
-    const REVIEWED_RPCS = new Set(['crm_quote_create', 'crm_quote_revise', 'crm_quote_transition', 'crm_confirm_sale', 'crm_record_sale_failure', 'crm_owner_directory', 'os_project_restore_version', 'os_code_review', 'crm_assessment_save', 'crm_lead_duplicate_candidates', 'crm_attribution_record', 'crm_attribution_transition', 'crm_attribution_advance', 'crm_register_client_with_opportunity', 'crm_ensure_client_opportunity', 'crm_register_client_with_opportunity', 'crm_ensure_client_opportunity']);
+    // Sales Pro schedule/refund/chargeback (20261123150000): SECURITY DEFINER, raise unless auth.uid() is an owner WITH
+    // finance access, validate money in SQL (exact total, caps, verified-only refunds, idempotency, optimistic version),
+    // no direct DML grants on the new tables (tests/sales-schedule.database.cjs).
+    const REVIEWED_RPCS = new Set(['crm_sale_schedule_set', 'crm_payment_refund', 'crm_chargeback_resolve', 'crm_quote_create', 'crm_quote_revise', 'crm_quote_transition', 'crm_confirm_sale', 'crm_record_sale_failure', 'crm_owner_directory', 'os_project_restore_version', 'os_code_review', 'crm_assessment_save', 'crm_lead_duplicate_candidates', 'crm_attribution_record', 'crm_attribution_transition', 'crm_attribution_advance', 'crm_register_client_with_opportunity', 'crm_ensure_client_opportunity', 'crm_register_client_with_opportunity', 'crm_ensure_client_opportunity']);
     for (const call of text.matchAll(/\.rpc\(\s*(['"])?([\w]*)\1?/g)) {
       assert.ok(REVIEWED_RPCS.has(call[2]), `${file} calls unreviewed RPC ${call[2] || '(dynamic)'}`);
     }

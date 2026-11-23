@@ -42,6 +42,9 @@ const OK: Record<string, [string, string]> = {
   replayed: ["Esta venta ya estaba confirmada: no se duplicó nada.", "This sale was already confirmed: nothing was duplicated."],
   saved: ["Cambios guardados.", "Changes saved."],
   payment: ["Cobro registrado.", "Payment recorded."],
+  schedule: ["Calendario de pagos guardado.", "Payment schedule saved."],
+  refund: ["Reembolso o contracargo registrado. No se movió dinero desde Avalon.", "Refund or chargeback recorded. No money was moved from Avalon."],
+  chargeback: ["Contracargo resuelto.", "Chargeback resolved."],
   created: ["Creado correctamente.", "Created."],
 };
 export function OkFlash({ lang, code }: { lang: Lang; code?: string }) {

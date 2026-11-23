@@ -36,7 +36,7 @@
 .card h3 { margin:0; font-size:17px; overflow-wrap:anywhere; }
 .card p { margin:0; }
 .muted { color:var(--muted); font-size:13px; line-height:1.55; overflow-wrap:anywhere; }
-.tableWrap { overflow-x:auto; border:1px solid var(--line); border-radius:14px; }
+.tableWrap { overflow-x:auto; border:1px solid var(--line); border-radius:14px; position:relative; /* contains .srOnly labels so they cannot widen the page */ }
 .table { width:100%; border-collapse:collapse; font-size:14px; min-width:620px; }
 .table th { text-align:left; font-weight:600; color:var(--muted); font-size:12px; letter-spacing:.06em; text-transform:uppercase; padding:10px 12px; background:#0c1730; border-bottom:1px solid var(--line); }
 .table td { padding:10px 12px; border-bottom:1px solid #1b2a46; vertical-align:top; overflow-wrap:anywhere; }
@@ -308,3 +308,4 @@ a.stat span, a.stat small { color:var(--muted); }
   .salesFilterGroups nav::-webkit-scrollbar { display:none; }
   .salesFilterGroups nav a,.salesFilterGroups nav span { flex:none; white-space:nowrap; }
 }
+.warn { color:#ffcf7a; font-size:13px; line-height:1.55; overflow-wrap:anywhere; }
