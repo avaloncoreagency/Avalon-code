@@ -45,6 +45,14 @@ export function SaleForm({ lang, idempotencyKey, services, clients, leads, owner
   const [currency, setCurrency] = useState("USD");
   const [upfrontAmount, setUpfrontAmount] = useState(v("upfront_amount", "0"));
   const [billingMode, setBillingMode] = useState(v("billing_mode", quoteSource?.compatible ? quoteSource.billingMode : "mixed"));
+  const [activeSection, setActiveSection] = useState("sale-client");
+  const saleSteps = [
+    { id: "sale-client", es: "Cliente", en: "Client" },
+    { id: "sale-services", es: "Servicios y precios", en: "Services and pricing" },
+    { id: "sale-terms", es: "Alcance y condiciones", en: "Scope and terms" },
+    { id: "sale-payment", es: "Formas de pago", en: "Payment options" },
+    { id: "sale-review", es: "Revisión", en: "Review" },
+  ];
   const formRef = useRef<HTMLFormElement>(null);
   const [studioError, setStudioError] = useState("");
   const [studioRows, setStudioRows] = useState<Record<number, { service: string; price: string; qty: string; description: string; nonce: number }>>({});
@@ -102,12 +110,15 @@ export function SaleForm({ lang, idempotencyKey, services, clients, leads, owner
   const ownerOptions = owners.map(o => <option key={o.id} value={o.id}>{o.label}</option>);
 
   return <form ref={formRef} key={attempt} action={action} className={s.form} onChange={recompute} noValidate={false}>
-    <nav className={s.saleSteps} aria-label={t(lang, "Secciones del registro de venta", "Sale registration sections")}>
-      <a className={s.button} href="#sale-client">{t(lang, "1 Cliente", "1 Client")}</a>
-      <a className={s.button} href="#sale-services">{t(lang, "2 Servicios", "2 Services")}</a>
-      <a className={s.button} href="#sale-terms">{t(lang, "3 Condiciones", "3 Terms")}</a>
-      <a className={s.button} href="#sale-payment">{t(lang, "4 Pagos", "4 Payments")}</a>
-      <a className={s.button} href="#sale-review">{t(lang, "5 Revisar", "5 Review")}</a>
+    <nav aria-label={t(lang, "Etapas de la venta", "Sale stages")}>
+      <ol className={s.saleSteps}>
+        {saleSteps.map((step, i) => <li key={step.id}>
+          <a href={`#${step.id}`} aria-current={activeSection === step.id ? "step" : undefined}
+            onClick={() => setActiveSection(step.id)}>
+            <span aria-hidden="true">{i + 1}</span>{t(lang, step.es, step.en)}
+          </a>
+        </li>)}
+      </ol>
     </nav>
     <input type="hidden" name="idempotency_key" value={idempotencyKey} />
     {quoteSource?.compatible && <input type="hidden" name="source_quote_id" value={quoteSource.id} />}
