@@ -7,27 +7,45 @@ import { pick, formatDate } from "@/lib/i18n";
 import { run } from "@/lib/os/data";
 import { createClientRecord } from "./actions";
 import s from "@/components/sales/sales.module.css";
+import directory from "./directory.module.css";
 export const dynamic = "force-dynamic";
 
 type Client = { id: string; client_code: string; legal_name: string; trade_name: string; industry: string; location: string; status: string; owner_id: string; updated_at: string; crm_sales: { id: string }[]; os_projects: { id: string; status: string }[] };
 const PAGE = 30;
+const MAX_PAGE = 2000;
+const DIRECTORY = "/admin/workspace/crm/clients";
 
 export default async function ClientsPage({ searchParams }: { searchParams: Promise<Query> }) {
   const { supabase } = await requireOwner();
   const lang = await getLang();
   const p = await searchParams;
   const search = (q(p, "q") ?? "").trim().slice(0, 80);
-  const page = Math.min(Number(/^\d{1,4}$/.test(q(p, "page") ?? "") ? q(p, "page") : 0), 2000);
+  const pageParam = q(p, "page") ?? "";
+  const page = /^\d{1,4}$/.test(pageParam) ? Math.min(Number(pageParam), MAX_PAGE) : 0;
+  const includeArchived = q(p, "archived") === "1";
   let query = supabase.from("crm_clients").select("id,client_code,legal_name,trade_name,industry,location,status,owner_id,updated_at,crm_sales(id),os_projects(id,status)", { count: "exact" });
   // PostgREST filter values are escaped by quoting; strip characters with filter meaning.
   const safe = search.replace(/[%_,()*\\"]/g, " ").trim();
   if (safe) query = query.or(`legal_name.ilike."%${safe}%",trade_name.ilike."%${safe}%",client_code.ilike."%${safe}%"`);
-  if (q(p, "archived") !== "1") query = query.neq("status", "archived");
+  if (!includeArchived) query = query.neq("status", "archived");
   const [clients, owners] = await Promise.all([
-    run<Client[]>(query.order("updated_at", { ascending: false }).range(page * PAGE, page * PAGE + PAGE - 1)),
+    run<Client[]>(query.order("updated_at", { ascending: false }).order("id").range(page * PAGE, page * PAGE + PAGE - 1)),
     run<{ user_id: string; email: string }[]>(supabase.rpc("crm_owner_directory")),
   ]);
-  const next = (n: number) => `?${new URLSearchParams({ ...(safe ? { q: safe } : {}), page: String(n) })}`;
+  const pageHref = (target: number) => {
+    const params = new URLSearchParams();
+    if (search) params.set("q", search);
+    if (includeArchived) params.set("archived", "1");
+    if (target > 0) params.set("page", String(target));
+    return params.size ? `${DIRECTORY}?${params}` : DIRECTORY;
+  };
+  const hasPrevious = page > 0;
+  const hasNext = page < MAX_PAGE && (page + 1) * PAGE < (clients.count ?? 0);
+  const empty = hasPrevious
+    ? pick(lang, "No hay empresas en esta página.", "There are no companies on this page.")
+    : search
+      ? pick(lang, "Ninguna empresa coincide con la búsqueda.", "No companies match your search.")
+      : pick(lang, "No hay empresas en esta vista.", "There are no companies in this view.");
   return <Suite active="crm"><div className={s.hud}>
     <OpsHeader lang={lang} active="clients" eyebrow="CRM / Clientes" title={pick(lang, "Clientes 360°", "Clients 360°")}
       lead={pick(lang, "Cada empresa tiene una ficha única con su identidad, contactos, ventas, proyectos por departamento, tareas e historial.", "Every company has one profile with identity, contacts, sales, departmental projects, tasks and history.")}
@@ -35,15 +53,27 @@ export default async function ClientsPage({ searchParams }: { searchParams: Prom
     <OkFlash lang={lang} code={q(p, "ok")} /><ErrorFlash lang={lang} code={q(p, "error")} />
     <div className={s.columns}>
       <section className={s.panel} aria-labelledby="clients"><header><h2 id="clients">{pick(lang, "Empresas", "Companies")}</h2>
-        <form className={s.toolbar} role="search"><label>{pick(lang, "Buscar por nombre o código", "Search by name or code")}<input name="q" defaultValue={search} maxLength={80} /></label><button className={s.button}>{pick(lang, "Buscar", "Search")}</button></form></header>
-        {clients.error ? <Unavailable lang={lang} code={clients.error} /> : clients.data.length === 0 ? <p className={s.empty}>{pick(lang, "Sin clientes todavía. Se crean al registrar una venta o desde el formulario.", "No clients yet. They are created when recording a sale or with the form.")}</p> :
-        <div className={s.grid}>{clients.data.map(c => <Link key={c.id} href={`/admin/workspace/crm/clients/${c.id}`} className={s.card}>
+        <form className={s.toolbar} role="search" action={DIRECTORY} method="get" key={JSON.stringify([search, includeArchived])}>
+          <label>{pick(lang, "Buscar por nombre o código", "Search by name or code")}<input name="q" type="search" defaultValue={search} maxLength={80} /></label>
+          <label><span id="archived-filter-label">{pick(lang, "Archivados", "Archived")}</span>
+          <select name="archived" aria-labelledby="archived-filter-label" defaultValue={includeArchived ? "1" : "0"}>
+            <option value="0">{pick(lang, "Excluir archivados", "Exclude archived")}</option>
+            <option value="1">{pick(lang, "Incluir archivados", "Include archived")}</option>
+          </select></label>
+          <button className={s.button}>{pick(lang, "Buscar", "Search")}</button>
+          {(search || includeArchived || hasPrevious) && <Link className={`${s.button} ${s.ghost}`} href={DIRECTORY}>{pick(lang, "Limpiar filtros", "Clear filters")}</Link>}
+        </form></header>
+        {clients.error ? <Unavailable lang={lang} code={clients.error} /> : clients.data.length === 0 ? <p className={s.empty}>{empty}</p> :
+        <div className={s.grid}>{clients.data.map(c => <Link key={c.id} href={`${DIRECTORY}/${c.id}`} className={`${s.card} ${directory.card}`}>
           <span className={s.muted}>{c.client_code}</span><h3>{c.legal_name}</h3>
           <p className={s.muted}>{[c.trade_name, c.industry, c.location].filter(Boolean).join(" · ") || "—"}</p>
           <p className={s.inline}><Tag lang={lang} value={c.status} /><span className={s.tag}>{c.crm_sales.length} {pick(lang, "venta(s)", "sale(s)")}</span><span className={s.tag}>{c.os_projects.filter(x => x.status === "active").length} {pick(lang, "proyecto(s) activos", "active project(s)")}</span></p>
           <small className={s.muted}>{pick(lang, "Responsable", "Owner")}: {ownerName(owners.data ?? [], c.owner_id)} · {formatDate(lang, c.updated_at)}</small>
         </Link>)}</div>}
-        <div className={s.actions} style={{ marginTop: 12 }}>{page > 0 && <Link className={s.button} href={next(page - 1)}>{pick(lang, "Anterior", "Previous")}</Link>}{(page + 1) * PAGE < (clients.count ?? 0) && <Link className={s.button} href={next(page + 1)}>{pick(lang, "Siguiente", "Next")}</Link>}</div>
+        {(hasPrevious || hasNext) && <nav className={`${s.actions} ${directory.pagination}`} aria-label={pick(lang, "Páginas de empresas", "Company pages")}>
+          {hasPrevious && <Link className={s.button} href={pageHref(page - 1)}>{pick(lang, "Anterior", "Previous")}</Link>}
+          {hasNext && <Link className={s.button} href={pageHref(page + 1)}>{pick(lang, "Siguiente", "Next")}</Link>}
+        </nav>}
       </section>
       <section className={s.panel} aria-labelledby="new-client"><h2 id="new-client">{pick(lang, "Nuevo cliente sin venta", "New client without a sale")}</h2>
         <form action={createClientRecord} className={s.form}>
