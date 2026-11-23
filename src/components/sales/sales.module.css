@@ -48,7 +48,8 @@
 .tag[data-tone="warn"] { color:#ffe6b0; border-color:#9d7a37; background:#3a2e14; }
 .tag[data-tone="danger"] { color:#ffd3dc; border-color:#b25b70; background:#47202d; }
 .tag[data-tone="neutral"] { color:#c3cfdf; border-color:#4a5a72; background:#1a2436; }
-.form { display:grid; gap:14px; }
+.form { display:grid; grid-template-columns:minmax(0,1fr); gap:14px; min-width:0; max-width:100%; }
+.form > nav { min-width:0; max-width:100%; overflow:hidden; }
 .fieldset { border:1px solid var(--line); border-radius:14px; padding:14px; display:grid; gap:12px; min-width:0; }
 .fieldset legend { padding:0 6px; color:var(--accent); font-size:13px; letter-spacing:.08em; text-transform:uppercase; }
 .row { display:grid; grid-template-columns:repeat(auto-fit,minmax(min(100%,160px),1fr)); gap:10px; }
@@ -218,8 +219,8 @@ a.stat span, a.stat small { color:var(--muted); }
 
 /* Same five-stage language and layout as Quotes; Sales adds payment/contract stages. */
 .saleSteps {
-  list-style:none; margin:0; padding:0; display:grid;
-  grid-template-columns:repeat(5,minmax(0,1fr)); gap:8px; min-width:0;
+  list-style:none; margin:0; padding:0; display:grid; box-sizing:border-box;
+  grid-template-columns:repeat(5,minmax(0,1fr)); gap:8px; min-width:0; max-width:100%; width:100%;
 }
 .saleSteps li { min-width:0; }
 .saleSteps a {
