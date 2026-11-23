@@ -153,6 +153,7 @@ export const SALE_ERRORS = {
   sale_invalid_discount: ["El descuento no puede superar el importe.", "The discount cannot exceed the amount."],
   sale_invalid_upfront: ["El pago inicial no puede superar el total.", "The upfront payment cannot exceed the total."],
   sale_invalid_payment_terms: ["Revisa el método y calendario de pago. Para cuotas selecciona facturación por plazos; para suscripción elige mensual o mixta. No se guardó nada.", "Review the payment method and schedule. Installments require installment billing; subscriptions require monthly or mixed billing. Nothing was saved."],
+  sale_invalid_quote: ["La cotización de origen no está aceptada o no corresponde a esta oportunidad. No se registró ninguna venta.", "The source quote is not accepted or does not match this opportunity. No sale was recorded."],
   sale_invalid_member: ["El responsable debe ser un propietario autorizado.", "The assignee must be an authorized owner."],
   sale_invalid_date: ["Fecha no válida.", "Invalid date."],
   sale_invalid_currency: ["Moneda no válida (código ISO de 3 letras).", "Invalid currency (3-letter ISO code)."],
