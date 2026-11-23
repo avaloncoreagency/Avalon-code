@@ -294,3 +294,17 @@ a.stat span, a.stat small { color:var(--muted); }
 .quoteReferenceGrid dt { color:var(--muted); font-size:12px; }
 .quoteReferenceGrid dd { margin:6px 0 0; white-space:pre-wrap;
   overflow-wrap:anywhere; font-size:13px; }
+
+
+/* Shared Quotes filter pills + Sales-specific multi-axis navigation. */
+.salesFilterGroups { display:grid; gap:10px; margin-bottom:14px; min-width:0; }
+.salesFilterGroups nav { gap:7px; align-items:center; min-width:0; }
+.salesFilterLabel { color:var(--muted); font-size:12px; font-weight:700;
+  letter-spacing:.06em; text-transform:uppercase; padding:8px 4px; }
+@media (max-width:700px) {
+  .salesFilterGroups nav { overflow-x:auto; flex-wrap:nowrap;
+    overscroll-behavior-x:contain; -webkit-overflow-scrolling:touch;
+    scrollbar-width:none; max-width:100%; }
+  .salesFilterGroups nav::-webkit-scrollbar { display:none; }
+  .salesFilterGroups nav a,.salesFilterGroups nav span { flex:none; white-space:nowrap; }
+}
