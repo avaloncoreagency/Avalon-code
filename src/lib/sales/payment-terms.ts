@@ -52,8 +52,8 @@ export function validateSalePaymentTerms(value: unknown): SalePaymentTerms {
   if (Object.keys(o).some(k => !allowed.has(k)) || o.version !== 1
     || !included(SALE_PAYMENT_METHODS, o.method) || !included(SALE_PAYMENT_SCHEDULES, o.schedule)
     || !included(SALE_PAYMENT_FREQUENCIES, o.frequency)
-    || !Number.isInteger(o.installments) || (o.installments as number) < 2 || (o.installments as number) > 36
-    || !Number.isInteger(o.netDays) || (o.netDays as number) < 0 || (o.netDays as number) > 365)
+    || typeof o.installments !== "number" || !Number.isInteger(o.installments) || o.installments < 2 || o.installments > 36
+    || typeof o.netDays !== "number" || !Number.isInteger(o.netDays) || o.netDays < 0 || o.netDays > 365)
     throw Error("sale_invalid_payment_terms");
   const firstDue = clean(o.firstDue, 10);
   const milestones = clean(o.milestones, 700);
