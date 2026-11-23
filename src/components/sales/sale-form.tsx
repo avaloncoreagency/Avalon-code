@@ -102,7 +102,7 @@ export function SaleForm({ lang, idempotencyKey, services, clients, leads, owner
   const ownerOptions = owners.map(o => <option key={o.id} value={o.id}>{o.label}</option>);
 
   return <form ref={formRef} key={attempt} action={action} className={s.form} onChange={recompute} noValidate={false}>
-    <nav className={s.inline} aria-label={t(lang, "Secciones del registro de venta", "Sale registration sections")}>
+    <nav className={s.saleSteps} aria-label={t(lang, "Secciones del registro de venta", "Sale registration sections")}>
       <a className={s.button} href="#sale-client">{t(lang, "1 Cliente", "1 Client")}</a>
       <a className={s.button} href="#sale-services">{t(lang, "2 Servicios", "2 Services")}</a>
       <a className={s.button} href="#sale-terms">{t(lang, "3 Condiciones", "3 Terms")}</a>
@@ -198,6 +198,17 @@ export function SaleForm({ lang, idempotencyKey, services, clients, leads, owner
           <label className={s.field}>{t(lang, "Inicio", "Start")}<input name={`line_${i}_start`} type="date" defaultValue={v(`line_${i}_start`)} /></label>
         </div>
         <label className={s.field}>{t(lang, "Alcance", "Scope")}<textarea name={`line_${i}_description`} maxLength={2000} rows={2} defaultValue={v(`line_${i}_description`, studioRows[i]?.description ?? quoteSource?.lines[i]?.description ?? "")} /></label>
+        {i > 0 && <div className={s.inline}><button type="button" className={s.button} onClick={() => {
+          const form = formRef.current;
+          if (!form) return;
+          for (const field of ["service", "price", "qty", "discount", "assignee", "start", "description"]) {
+            const el = form.elements.namedItem(`line_${i}_${field}`) as HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement | null;
+            if (el) el.value = "";
+          }
+          setStudioRows(prev => { const next = { ...prev }; delete next[i]; return next; });
+          recompute({ currentTarget: form } as FormEvent<HTMLFormElement>);
+          setStudioError("");
+        }}>{t(lang, "Quitar este servicio", "Remove this service")}</button></div>}
       </div>)}
     </fieldset>
 
