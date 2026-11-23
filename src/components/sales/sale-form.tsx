@@ -15,6 +15,8 @@ export type ClientOption = Option & { lead?: Option | null };
 export type QuoteSalePreset = {
   id: string; number: string; compatible: boolean; billingMode: "one_time" | "monthly" | "mixed";
   lines: { service: string; price: string; qty: string; description: string }[];
+  /** Read-only scope from the accepted proposal; Quotes remains the source of truth. */
+  brief?: Record<"objectives" | "problem" | "solution" | "scope" | "deliverables" | "exclusions" | "dependencies" | "timeline" | "support" | "terms" | "thirdPartyCosts", string>;
 };
 const t = (lang: Lang, es: string, en: string) => (lang === "es" ? es : en);
 
@@ -225,6 +227,29 @@ export function SaleForm({ lang, idempotencyKey, services, clients, leads, owner
 
     <fieldset id="sale-terms" className={s.fieldset}>
       <legend>{t(lang, "3 · Condiciones", "3 · Terms")}</legend>
+      {quoteSource?.brief && <details className={s.quoteReference} open>
+        <summary>{t(lang, "Alcance heredado de la cotización aceptada", "Scope from accepted quote")} {quoteSource.number}</summary>
+        <p className={s.muted}>{t(lang,
+          "Referencia de lectura: conserva objetivos, alcance, exclusiones y costos externos exactamente como están en Quotes. Para cambiar condiciones, genera una nueva revisión aprobada de la cotización. No convierte esto en contrato firmado.",
+          "Read-only reference: objectives, scope, exclusions and external costs stay in Quotes. To change terms, create a new approved quote version. This is not a signed agreement.")}</p>
+        <dl className={s.quoteReferenceGrid}>
+          {([
+            ["objectives", "Objetivos", "Objectives"],
+            ["problem", "Problema", "Problem"],
+            ["solution", "Solución", "Solution"],
+            ["scope", "Alcance", "Scope"],
+            ["deliverables", "Entregables", "Deliverables"],
+            ["exclusions", "Exclusiones", "Exclusions"],
+            ["dependencies", "Dependencias", "Dependencies"],
+            ["timeline", "Cronograma", "Timeline"],
+            ["support", "Soporte", "Support"],
+            ["terms", "Condiciones", "Commercial terms"],
+            ["thirdPartyCosts", "Costos de terceros (no ingreso)", "Third-party costs (not revenue)"],
+          ] as const).filter(([k]) => Boolean(quoteSource.brief?.[k])).map(([k, es, en]) =>
+            <div key={k}><dt>{t(lang, es, en)}</dt><dd>{quoteSource.brief?.[k]}</dd></div>)}
+        </dl>
+        <a href={`/admin/workspace/crm/quotes/${quoteSource.id}`}>{t(lang, "Ver versión y evidencia en Quotes", "View version and evidence in Quotes")}</a>
+      </details>}
       <div className={s.row}>
         <label className={s.field}>{t(lang, "Fecha de venta", "Sale date")}<input name="sold_on" type="date" defaultValue={v("sold_on", initialDate)} /></label>
         <label className={s.field}>{t(lang, "Moneda", "Currency")}<input name="currency" maxLength={3} pattern="[A-Za-z]{3}" defaultValue={v("currency", "USD")} /></label>
