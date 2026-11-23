@@ -123,6 +123,39 @@ export function installmentPreview(total: number, upfront: number, count: number
     final: (remainingCents - base * (count - 1)) / 100 };
 }
 
+/**
+ * A read-only indicative schedule for the SALE'S one-time balance.
+ * No accounts receivable, invoice, credit, charge, due status or payment is created.
+ * Recompute using the signed contract before presenting to a client.
+ * Dates use UTC calendar arithmetic so local DST cannot shift due dates.
+ */
+export type ScheduledInstallment = {
+  number: number;
+  dueOn: string;
+  amount: number;
+};
+export function installmentSchedule(total: number, upfront: number, terms: SalePaymentTerms): ScheduledInstallment[] | null {
+  if (terms.schedule !== "installments" || !actualDate(terms.firstDue)) return null;
+  const estimate = installmentPreview(total, upfront, terms.installments);
+  if (!estimate) return null;
+  const [year, month, day] = terms.firstDue.split("-").map(Number);
+  const first = new Date(Date.UTC(year, month - 1, day));
+  const rows: ScheduledInstallment[] = [];
+  for (let i = 0; i < terms.installments; i++) {
+    let due: Date;
+    if (terms.frequency === "monthly") {
+      const firstDay = new Date(Date.UTC(year, month - 1 + i, 1));
+      const maxDay = new Date(Date.UTC(firstDay.getUTCFullYear(), firstDay.getUTCMonth() + 1, 0)).getUTCDate();
+      due = new Date(Date.UTC(firstDay.getUTCFullYear(), firstDay.getUTCMonth(), Math.min(day, maxDay)));
+    } else {
+      due = new Date(first.getTime() + i * (terms.frequency === "weekly" ? 7 : 14) * 86_400_000);
+    }
+    rows.push({ number: i + 1, dueOn: due.toISOString().slice(0, 10),
+      amount: i === terms.installments - 1 ? estimate.final : estimate.regular });
+  }
+  return rows;
+}
+
 /** Existing crm_payments.method DB enum remains unchanged; channel is retained in reference. */
 export function paymentChannelToStoredMethod(channel: SalePaymentMethod): "transfer" | "card" | "cash" | "other" {
   if (["bank_transfer", "ach", "wire", "zelle"].includes(channel)) return "transfer";
