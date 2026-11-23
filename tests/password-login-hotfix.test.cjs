@@ -18,6 +18,7 @@ function loadActions(client, authorize) {
     '@/lib/supabase/server': { createClient: async () => client },
     // Login uses the MFA-aware owner state; a verified owner without MFA is "ok".
     '@/lib/auth/access': { getOwnerState: async c => { const m = await authorize(c); return m ? { state: 'ok', ...m } : { state: 'none' }; } },
+    '@/lib/auth/staff': { getStaffState: async () => ({ state: 'none' }) },
     'next/headers': { headers: async () => new Headers() },
     '@/lib/security/rate-limit': loadRateLimit(),
     '@/lib/security/turnstile': { verifyLoginHuman: async () => 'ok' },
