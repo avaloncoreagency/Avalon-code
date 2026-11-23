@@ -109,7 +109,7 @@ export function SaleForm({ lang, idempotencyKey, services, clients, leads, owner
       <a className={s.button} href="#sale-review">{t(lang, "5 Revisar", "5 Review")}</a>
     </nav>
     <input type="hidden" name="idempotency_key" value={idempotencyKey} />
-    {quoteSource && <input type="hidden" name="source_quote_id" value={quoteSource.id} />}
+    {quoteSource?.compatible && <input type="hidden" name="source_quote_id" value={quoteSource.id} />}
     {quoteSource && <p className={s.flash} data-tone={quoteSource.compatible ? "ok" : "warn"}>
       <a href={`/admin/workspace/crm/quotes/${quoteSource.id}`}>{t(lang, "Cotización aceptada", "Accepted quote")} {quoteSource.number}</a>.
       {" "}{quoteSource.compatible
