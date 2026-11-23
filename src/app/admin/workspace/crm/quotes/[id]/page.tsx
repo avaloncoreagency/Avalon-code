@@ -70,6 +70,7 @@ export default async function QuoteDetail({ params, searchParams }: { params: Pr
       actions={<>
         {REVISABLE.includes(quote.status) && <Link className={`${s.button} ${s.primary}`} href={`/admin/workspace/crm/quotes/${id}/edit`}>{pick(lang, "Editar (nueva revisión)", "Edit (new revision)")}</Link>}
         <Link className={s.button} href={`/admin/workspace/crm/quotes/new?lead=${quote.lead_id}`}>{pick(lang, "Nueva cotización", "New quote")}</Link>
+        {quote.status === "accepted" && <Link className={s.button} href={`/admin/workspace/crm/sales/new?quote=${quote.id}`}>{pick(lang, "Preparar venta desde cotización", "Prepare sale from quote")}</Link>}
       </>} />
     {ok && <p className={s.flash} data-tone="ok" role="status">{pick(lang, ...ok)}</p>}
     {err && <p className={s.flash} data-tone="error" role="alert">{pick(lang, ...err)}</p>}
