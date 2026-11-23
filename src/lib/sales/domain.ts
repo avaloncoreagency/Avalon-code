@@ -152,6 +152,7 @@ export const SALE_ERRORS = {
   sale_invalid_amount: ["Importe no válido: usa números con hasta 2 decimales.", "Invalid amount: use numbers with up to 2 decimals."],
   sale_invalid_discount: ["El descuento no puede superar el importe.", "The discount cannot exceed the amount."],
   sale_invalid_upfront: ["El pago inicial no puede superar el total.", "The upfront payment cannot exceed the total."],
+  sale_invalid_payment_terms: ["Revisa el método y calendario de pago. Para cuotas selecciona facturación por plazos; para suscripción elige mensual o mixta. No se guardó nada.", "Review the payment method and schedule. Installments require installment billing; subscriptions require monthly or mixed billing. Nothing was saved."],
   sale_invalid_member: ["El responsable debe ser un propietario autorizado.", "The assignee must be an authorized owner."],
   sale_invalid_date: ["Fecha no válida.", "Invalid date."],
   sale_invalid_currency: ["Moneda no válida (código ISO de 3 letras).", "Invalid currency (3-letter ISO code)."],
