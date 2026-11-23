@@ -8,7 +8,7 @@ import { pick, formatDate } from "@/lib/i18n";
 import { run } from "@/lib/os/data";
 import { SERVICES, isService } from "@/lib/os/client-hud";
 import { label, money, WORK_ORDER_STATUSES } from "@/lib/sales/domain";
-import { readSalePaymentTerms, salePaymentMethodLabel, salePaymentScheduleLabel, installmentPreview, SALE_PAYMENT_METHODS, type SalePaymentMethod } from "@/lib/sales/payment-terms";
+import { readSalePaymentTerms, salePaymentMethodLabel, salePaymentScheduleLabel, installmentPreview, installmentSchedule, SALE_PAYMENT_METHODS, type SalePaymentMethod } from "@/lib/sales/payment-terms";
 import { recordPayment, updateContract, updateWorkOrder } from "../actions";
 import s from "@/components/sales/sales.module.css";
 import { SaleCorePanels } from "@/components/sales/core-panels";
@@ -41,6 +41,8 @@ export default async function SaleDetail({ params, searchParams }: { params: Pro
   const paymentTerms = readSalePaymentTerms(d?.notes);
   const installment = d && paymentTerms.terms?.schedule === "installments"
     ? installmentPreview(Number(d.total), Number(d.upfront_amount), paymentTerms.terms.installments) : null;
+  const installmentRows = d && paymentTerms.terms?.schedule === "installments"
+    ? installmentSchedule(Number(d.total), Number(d.upfront_amount), paymentTerms.terms) : null;
   const paid = (payments.data ?? []).filter(x=>x.status !== "reversed").reduce((sum, x) => sum + Number(x.amount), 0);
   const progress = (woId: string) => {
     const list = (tasks.data ?? []).filter(t => t.work_order_id === woId);
@@ -71,7 +73,17 @@ export default async function SaleDetail({ params, searchParams }: { params: Pro
           <p><strong>{pick(lang, "Modalidad", "Arrangement")}:</strong> {salePaymentScheduleLabel(paymentTerms.terms.schedule, lang)}</p>
           <p><strong>{pick(lang, "Vence en", "Due in")}:</strong> {paymentTerms.terms.netDays} {pick(lang, "días", "days")}</p>
         </div>
-        {installment && <p>{pick(lang, "Saldo después del anticipo", "Balance after deposit")}: <strong>{money(lang, installment.remaining, d.currency)}</strong> · {paymentTerms.terms.installments - 1} × {money(lang, installment.regular, d.currency)} + {pick(lang, "cuota final", "final installment")} {money(lang, installment.final, d.currency)} · {pick(lang, "Desde", "From")} {paymentTerms.terms.firstDue} · {paymentTerms.terms.frequency}</p>}
+        {installment && <div className={s.planSummary}>
+          <p>{pick(lang, "Saldo previsto tras el anticipo", "Expected balance after deposit")}: <strong>{money(lang, installment.remaining, d.currency)}</strong> · {pick(lang, "NO se cuenta como cobrado", "NOT counted as collected")}</p>
+          {installmentRows && <details>
+            <summary>{pick(lang, "Calendario ilustrativo de cuotas", "Illustrative installment schedule")} ({installmentRows.length})</summary>
+            <div className={s.tableWrap}><table className={s.table}>
+              <thead><tr><th scope="col">#</th><th scope="col">{pick(lang, "Vencimiento previsto", "Proposed due date")}</th><th scope="col" className={s.num}>{pick(lang, "Cuota prevista", "Planned amount")}</th></tr></thead>
+              <tbody>{installmentRows.map(row => <tr key={row.number}><td>{row.number}</td><td>{row.dueOn}</td><td className={s.num}>{money(lang, row.amount, d.currency)}</td></tr>)}</tbody>
+            </table></div>
+          </details>}
+          <p className={s.muted}>{pick(lang, "Referencia interna, no es factura ni crédito aprobado. Consulta el contrato para plazos exigibles. Los cobros reales figuran por separado.", "Internal planning only, not an invoice or approved credit. Consult the contract for enforceable dates. Actual receipts are recorded separately.")}</p>
+        </div>}
         {paymentTerms.terms.milestones && <p style={{whiteSpace:"pre-wrap"}}><strong>{pick(lang, "Hitos", "Milestones")}:</strong> {paymentTerms.terms.milestones}</p>}
         {paymentTerms.terms.externalProvider && <p><strong>{pick(lang, "Proveedor externo propuesto", "Proposed external provider")}:</strong> {paymentTerms.terms.externalProvider} · {pick(lang, "pendiente de aprobación", "approval pending")}</p>}
         {paymentTerms.terms.notes && <p style={{whiteSpace:"pre-wrap"}}><strong>{pick(lang, "Condiciones adicionales", "Additional terms")}:</strong> {paymentTerms.terms.notes}</p>}
