@@ -37,13 +37,15 @@ export async function confirmSale(_prev: SaleFormState, form: FormData): Promise
     try {
       if (typeof rawPaymentTerms !== "string" || rawPaymentTerms.length > 1600) throw Error("invalid");
       const terms = validateSalePaymentTerms(JSON.parse(rawPaymentTerms));
-      if (terms.schedule === "installments") {
-        // A subscription cannot be silently financed as a one-off contract.
+      if (terms.schedule === "installments" || terms.schedule === "subscription") {
+        // Do not finance subscriptions as one-off installments or record a
+        // fictitious monthly arrangement on a sale without monthly services.
         const catalog = await supabase.from("crm_service_catalog").select("code,billing_type")
-          .in("code", request.lines.map(line => line.service_code));
+          .in("code", request.lines.map(line => line.service_code)).eq("active", true);
         if (catalog.error) return { error: saleErrorCode(catalog.error), values };
         const kinds = new Map((catalog.data ?? []).map(row => [row.code, row.billing_type]));
-        if (request.lines.some(line => kinds.get(line.service_code) !== "one_time")) {
+        if ((terms.schedule === "installments" && request.lines.some(line => kinds.get(line.service_code) !== "one_time"))
+          || (terms.schedule === "subscription" && !request.lines.some(line => kinds.get(line.service_code) === "monthly"))) {
           return { error: "sale_invalid_payment_terms", values };
         }
       }
