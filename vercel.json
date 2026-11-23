@@ -1,4 +1,9 @@
 {
   "$schema": "https://openapi.vercel.sh/vercel.json",
-  "ignoreCommand": "node scripts/ci/vercel-ignore-build.cjs"
+  "ignoreCommand": "node scripts/ci/vercel-ignore-build.cjs",
+  "git": {
+    "deploymentEnabled": {
+      "codex/crm-client-directory-20261123": false
+    }
+  }
 }
