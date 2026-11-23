@@ -68,6 +68,12 @@ export default async function NewSalePage({ searchParams }: { searchParams: Prom
       service: line.code!, price: line.unitPrice, qty: String(line.qty), description: line.description,
     })) : [],
     compatible: canUseQuote,
+    brief: content ? {
+      objectives: content.objectives, problem: content.problem, solution: content.solution,
+      scope: content.scope, deliverables: content.deliverables, exclusions: content.exclusions,
+      dependencies: content.dependencies, timeline: content.timeline, support: content.support,
+      terms: content.terms, thirdPartyCosts: content.thirdPartyCosts,
+    } : undefined,
     billingMode: sourceLines.every(line => line.kind === "monthly") ? "monthly"
       : sourceLines.every(line => line.kind === "one_time") ? "one_time" : "mixed",
   } : undefined;
