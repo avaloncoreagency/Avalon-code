@@ -7,7 +7,7 @@ export const SALE_PAYMENT_METHODS = [
   "bank_transfer", "ach", "card", "cash", "check", "wire", "zelle", "paypal", "payment_link", "other",
 ] as const;
 export const SALE_PAYMENT_SCHEDULES = [
-  "full", "deposit_balance", "milestones", "installments", "subscription", "external_financing",
+  "to_agree", "full", "deposit_balance", "milestones", "installments", "subscription", "external_financing",
 ] as const;
 export const SALE_PAYMENT_FREQUENCIES = ["weekly", "biweekly", "monthly"] as const;
 export type SalePaymentMethod = typeof SALE_PAYMENT_METHODS[number];
@@ -28,7 +28,7 @@ export type SalePaymentTerms = {
 };
 
 export const DEFAULT_SALE_PAYMENT_TERMS: SalePaymentTerms = {
-  version: 1, method: "bank_transfer", schedule: "full", installments: 3,
+  version: 1, method: "other", schedule: "to_agree", installments: 3,
   frequency: "monthly", firstDue: "", netDays: 0, milestones: "",
   externalProvider: "", notes: "",
 };
@@ -106,7 +106,7 @@ export const salePaymentMethodLabel = (method: SalePaymentMethod, lang: "es" | "
 })[method][lang === "es" ? 0 : 1];
 
 export const salePaymentScheduleLabel = (schedule: SalePaymentSchedule, lang: "es" | "en") => ({
-  full: ["Pago completo", "Pay in full"], deposit_balance: ["Anticipo y saldo", "Deposit and balance"],
+  to_agree: ["Pendiente de acordar", "To be agreed"], full: ["Pago completo", "Pay in full"], deposit_balance: ["Anticipo y saldo", "Deposit and balance"],
   milestones: ["Pagos por hitos", "Milestone payments"], installments: ["Cuotas sin interés (propuesta)", "Interest-free installments (proposal)"],
   subscription: ["Mensualidades", "Subscription / recurring"], external_financing: ["Financiación externa pendiente", "External financing pending"],
 })[schedule][lang === "es" ? 0 : 1];
