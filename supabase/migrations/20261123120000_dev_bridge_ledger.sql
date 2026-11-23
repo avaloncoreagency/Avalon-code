@@ -445,7 +445,8 @@ revoke all on function public.dev_bridge_claim_owner(text), public.dev_bridge_ag
   public.dev_bridge_agent_event(text, jsonb), public.dev_bridge_declare_time(date, integer, text, integer, text, uuid, text),
   public.dev_bridge_record(jsonb), public.dev_bridge_import_github(jsonb),
   public.dev_bridge_commitment_create(text, text, text, date, date, text, integer),
-  public.dev_bridge_commitment_transition(uuid, text, text, text, date, integer) from public;
+  public.dev_bridge_commitment_transition(uuid, text, text, text, date, integer) from public, anon;
+-- `from anon` too: Supabase default privileges give anon EXECUTE on every new public function.
 grant execute on function public.dev_bridge_claim_owner(text), public.dev_bridge_agent_token(text, text, text, integer),
   public.dev_bridge_declare_time(date, integer, text, integer, text, uuid, text), public.dev_bridge_record(jsonb),
   public.dev_bridge_import_github(jsonb), public.dev_bridge_commitment_create(text, text, text, date, date, text, integer),
