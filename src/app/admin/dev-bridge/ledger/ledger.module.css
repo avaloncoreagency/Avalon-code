@@ -1,0 +1,35 @@
+/* Dev Bridge 3.0 ledger — compact, responsive (320/390 px), built on the Dev Bridge 2.0 look. */
+.grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 300px), 1fr)); gap: 16px; }
+.stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 150px), 1fr)); gap: 10px; margin: 12px 0; }
+.stat { border: 1px solid #333c61; border-radius: 12px; padding: 10px 12px; background: #0d1426; }
+.stat small { display: block; color: #9fb0d0; font-size: .75rem; }
+.stat strong { font-size: 1.15rem; }
+.filters { display: flex; flex-wrap: wrap; gap: 8px; align-items: flex-end; margin: 10px 0; }
+.filters label, .form label { display: grid; gap: 4px; font-size: .85rem; color: #bac5de; }
+.form { display: grid; gap: 10px; }
+.row { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 160px), 1fr)); gap: 10px; }
+.form input, .form textarea, .form select, .filters select, .inline input { min-height: 44px; border-radius: 10px; border: 1px solid #3b4672; background: #0b1222; color: #e5eafd; padding: 8px 10px; font: inherit; font-size: 16px; width: 100%; box-sizing: border-box; }
+.form textarea { min-height: 96px; }
+.form button, .filters button, .inline button, .chip { min-height: 44px; border-radius: 10px; border: 1px solid #5b6bb0; background: #182447; color: #e5eafd; padding: 8px 14px; font: inherit; cursor: pointer; }
+.form button:focus-visible, .filters button:focus-visible, .inline button:focus-visible, .chip:focus-visible, .form input:focus-visible, .form textarea:focus-visible, .form select:focus-visible, .filters select:focus-visible { outline: 2px solid #d4aeff; outline-offset: 2px; }
+.chip[aria-current="page"] { border-color: #8ee5ff; background: #0f3348; }
+.inline { display: flex; flex-wrap: wrap; gap: 8px; align-items: flex-end; }
+.inline label { display: grid; gap: 4px; font-size: .8rem; max-width: 140px; }
+.timeline { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
+.timeline li { border-left: 3px solid #5b6bb0; padding: 6px 10px; background: #0d1426; border-radius: 0 10px 10px 0; }
+.timeline li[data-evidence="VERIFIED"] { border-left-color: #39d98a; }
+.timeline li[data-evidence="UNKNOWN"] { border-left-color: #6b7280; }
+.timeline li[data-evidence="SELF_REPORTED"] { border-left-color: #f5b74e; }
+.meta { font-size: .8rem; color: #9fb0d0; }
+.badge { display: inline-block; font-size: .72rem; padding: 1px 8px; border-radius: 999px; border: 1px solid #3b4672; margin-right: 4px; }
+.cal { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 4px; }
+.day { border: 1px solid #333c61; border-radius: 8px; padding: 6px; min-height: 64px; font-size: .75rem; background: #0d1426; }
+.day strong { display: block; color: #e5eafd; }
+.error { color: #ffb4c1; }
+.ok { color: #9ff0c4; }
+.secret { border: 1px dashed #8ee5ff; border-radius: 10px; padding: 10px; margin-top: 8px; }
+.secret code { display: block; word-break: break-all; padding: 6px; background: #050a16; border-radius: 6px; user-select: all; }
+@media (max-width: 480px) { .cal { grid-template-columns: repeat(4, minmax(0, 1fr)); } }
+.agents { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 320px), 1fr)); gap: 10px; }
+.agents > li { display: grid; gap: 8px; padding: 12px; background: #0d1426; border: 1px solid #26305a; border-radius: 12px; min-width: 0; }
+.agents code { overflow-wrap: anywhere; }

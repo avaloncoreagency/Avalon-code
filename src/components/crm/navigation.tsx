@@ -42,6 +42,8 @@ const tools = [
   ["kpis", "/admin/workspace/crm/kpis", "Estadísticas", "Analytics"],
   ["notifications", "/admin/workspace/crm/notifications", "Avisos", "Notifications"],
   ["activity", "/admin/workspace/crm/activity", "Centro de actividad", "Activity center"],
+  // Development work ledger (Dev Bridge 3.0) — separate from the commercial activity center above.
+  ["dev-ledger", "/admin/dev-bridge/ledger", "Registro de desarrollo", "Development ledger"],
   ["settings", "/admin/workspace/crm/settings", "Configuración", "Settings"],
   ["ai-usage", "/admin/workspace/crm/ai-usage", "Uso de IA", "AI usage"],
 ] as const;

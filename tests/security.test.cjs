@@ -275,6 +275,10 @@ test('every migration table has RLS enabled and anon revoked (default privileges
     // docs/handoff/CRM_BACKEND_CONTRACT.md §6; locked by tests/growth-funnel.database.cjs and tests/crm-titan.database.cjs.
     'grant execute on function public.crm_growth_funnel_view(text) to anon;',
     'grant execute on function public.crm_growth_funnel_submit(jsonb) to anon;',
+    // Reviewed (Dev Bridge 3.0, 2026-11-23): agent ingestion. Requires a valid, unexpired, unrevoked per-agent token hash
+    // issued by that agent's owner; writes only that agent's own sessions/events (state machine + idempotency + 600/h).
+    // No table grants to anon; locked by tests/dev-bridge-ledger.database.cjs.
+    'grant execute on function public.dev_bridge_agent_event(text, jsonb) to anon, authenticated;',
   ], 'no grants to anon except the reviewed public inquiry, AI control, Project Bridge inbox and funnel intake RPCs');
   // The control RPC may expose ONLY these four switches; any other key needs a new review.
   const ctl = fs.readFileSync('supabase/migrations/20261106090000_ai_engine.sql', 'utf8');
