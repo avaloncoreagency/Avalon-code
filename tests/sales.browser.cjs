@@ -184,6 +184,18 @@ test('Nova Restaurant through the real app: one form, three departments, no dupl
   await page.waitForURL(origin + '/admin/workspace/crm/sales?client=' + clientId);
   await page.getByRole('heading', { name: 'Ventas registradas' }).waitFor();
   assert.match(await page.locator('#main').innerText(), /Mostrando únicamente ventas vinculadas a/);
+  // Sales Pro inherits Quotes' server-side status filters and preserves the
+  // canonical client scope across contract, delivery and pagination.
+  await page.getByRole('navigation', { name: 'Filtrar ventas por contrato' })
+    .getByRole('link', { name: 'Por firmar' }).click();
+  assert.equal(new URL(page.url()).searchParams.get('client'), clientId);
+  assert.equal(new URL(page.url()).searchParams.get('contract'), 'pending_signature');
+  await page.getByRole('navigation', { name: 'Filtrar ventas por entrega' })
+    .getByRole('link', { name: 'Sin iniciar' }).click();
+  assert.equal(new URL(page.url()).searchParams.get('client'), clientId);
+  assert.equal(new URL(page.url()).searchParams.get('contract'), 'pending_signature');
+  assert.equal(new URL(page.url()).searchParams.get('delivery'), 'not_started');
+  assert.match(await page.locator('#main').innerText(), /Nova Restaurant/, 'filtered Sales list retains its recorded client');
   await page.goto(`${origin}/admin/workspace/crm/clients/${clientId}`);
   await page.getByRole('heading', { name: 'Proyectos por departamento' }).waitFor();
   // Avalon Contracts: actual Next.js Client 360 + Server Action + isolated PostgreSQL + private PDF.
