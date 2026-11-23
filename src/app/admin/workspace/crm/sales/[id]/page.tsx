@@ -51,7 +51,7 @@ export default async function SaleDetail({ params, searchParams }: { params: Pro
   return <Suite active="crm"><div className={s.hud}>
     <OpsHeader lang={lang} active="sales" crm="sales" eyebrow={`CRM / Ventas / ${d?.sale_number ?? ""}`} title={d ? `${d.sale_number} · ${d.crm_clients?.legal_name ?? ""}` : pick(lang, "Venta", "Sale")}
       lead={d ? `${formatDate(lang, d.sold_on)} · ${label(lang, d.billing_mode)} · ${pick(lang, "Vendedor", "Seller")}: ${ownerName(ownerList, d.seller_id)}` : undefined}
-      actions={d && <><Link className={s.button} href={`/admin/workspace/crm/clients/${d.client_id}`}>{pick(lang, "Ficha 360° del cliente", "Client 360° profile")}</Link><Link className={s.button} href={`/admin/workspace/crm/activity?sale=${d.id}`}>{pick(lang, "Auditoría", "Audit")}</Link></>} />
+      actions={d && <><Link className={s.button} href={`/admin/workspace/crm/clients/${d.client_id}`}>{pick(lang, "Ficha 360° del cliente", "Client 360° profile")}</Link><Link className={s.button} href={`/admin/workspace/crm/clients/${d.client_id}/contracts`}>{pick(lang, "Contratos", "Agreements")}</Link><Link className={s.button} href="/admin/workspace/crm/quotes">{pick(lang, "Cotizaciones", "Quotes")}</Link><Link className={s.button} href={`/admin/workspace/crm/activity?sale=${d.id}`}>{pick(lang, "Auditoría", "Audit")}</Link></>} />
     <OkFlash lang={lang} code={q(p, "ok")} /><ErrorFlash lang={lang} code={q(p, "error")} />
     {sale.error ? <Unavailable lang={lang} code={sale.error} /> : d && <>
       <section className={s.stats}>
