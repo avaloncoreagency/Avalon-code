@@ -64,7 +64,7 @@ export async function confirmSale(_prev: SaleFormState, form: FormData): Promise
     }
     const prior = readSalePaymentTerms(request.notes);
     const combined = [prior.notes, `Cotización aceptada: ${quote.quote_number} (ID: ${quote.id}). Verificar importes y contrato firmado.`]
-      .filter(Boolean).join("\\n\\n");
+      .filter(Boolean).join("\n\n");
     try {
       request.notes = prior.terms ? attachSalePaymentTerms(combined, prior.terms) : combined;
       if (request.notes.length > 4000) throw Error("too_long");
