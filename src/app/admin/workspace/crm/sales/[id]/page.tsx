@@ -8,7 +8,7 @@ import { pick, formatDate } from "@/lib/i18n";
 import { run } from "@/lib/os/data";
 import { SERVICES, isService } from "@/lib/os/client-hud";
 import { label, money, WORK_ORDER_STATUSES } from "@/lib/sales/domain";
-import { readSalePaymentTerms, salePaymentMethodLabel, salePaymentScheduleLabel, installmentPreview, SALE_PAYMENT_METHODS } from "@/lib/sales/payment-terms";
+import { readSalePaymentTerms, salePaymentMethodLabel, salePaymentScheduleLabel, installmentPreview, SALE_PAYMENT_METHODS, type SalePaymentMethod } from "@/lib/sales/payment-terms";
 import { recordPayment, updateContract, updateWorkOrder } from "../actions";
 import s from "@/components/sales/sales.module.css";
 import { SaleCorePanels } from "@/components/sales/core-panels";
@@ -105,7 +105,13 @@ export default async function SaleDetail({ params, searchParams }: { params: Pro
         </section>
         <section className={s.panel} aria-labelledby="payments"><header><h2 id="payments">{pick(lang, "Cobros registrados", "Recorded payments")}</h2></header>
           {payments.error ? <Unavailable lang={lang} code={payments.error} /> : payments.data.length === 0 ? <p className={s.muted}>{pick(lang, "Sin cobros registrados. El pago inicial acordado no cuenta como cobrado.", "No payments recorded. The agreed upfront payment does not count as collected.")}</p> :
-            <ul className={s.list}>{payments.data.map(x => <li key={x.id}><strong>{money(lang, x.amount, d.currency)}</strong><span className={s.muted}>{formatDate(lang, x.received_on)} · {label(lang, x.method)}{x.reference ? ` · ${x.reference}` : ""}</span></li>)}</ul>}
+            <ul className={s.list}>{payments.data.map(x => {
+              const tagged = /^\\[([a-z_]+)\\]\\s*(.*)$/.exec(x.reference ?? "");
+              const known = tagged && (SALE_PAYMENT_METHODS as readonly string[]).includes(tagged[1]) ? tagged[1] as SalePaymentMethod : null;
+              const methodText = known ? salePaymentMethodLabel(known, lang) : label(lang, x.method);
+              const detail = known ? tagged?.[2] : x.reference;
+              return <li key={x.id}><strong>{money(lang, x.amount, d.currency)}</strong><span className={s.muted}>{formatDate(lang, x.received_on)} · {methodText}{detail ? ` · ${detail}` : ""}</span></li>;
+            })}</ul>}
           {d.contract_status !== "cancelled" && Number(d.total) - paid > 0 && <form action={recordPayment} className={s.form} style={{ marginTop: 14 }}><input type="hidden" name="sale_id" value={d.id} />
             <div className={s.row}>
               <label className={s.field}>{pick(lang, "Importe", "Amount")} ({d.currency})<input name="amount" required inputMode="decimal" pattern="\d{1,13}(\.\d{1,2})?" /></label>
