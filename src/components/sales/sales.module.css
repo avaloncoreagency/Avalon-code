@@ -275,3 +275,21 @@ a.stat span, a.stat small { color:var(--muted); }
   .saleReviewAction p { text-align:left; }
   .saleReviewAction button { width:100%; min-height:50px; }
 }
+
+
+/* Accepted quote details are displayed as immutable reference, never as a second editable contract. */
+.quoteReference {
+  min-width:0; border:1px solid #33507a; border-radius:14px;
+  padding:12px 14px; background:#0d1b30; display:grid; gap:12px;
+}
+.quoteReference summary {
+  cursor:pointer; min-height:44px; display:flex; align-items:center;
+  color:#d7eaff; font-weight:650;
+}
+.quoteReferenceGrid { margin:0; display:grid; gap:10px;
+  grid-template-columns:repeat(auto-fit,minmax(min(100%,250px),1fr)); }
+.quoteReferenceGrid div { min-width:0; padding:10px 12px; border:1px solid var(--line);
+  border-radius:12px; background:var(--panel); }
+.quoteReferenceGrid dt { color:var(--muted); font-size:12px; }
+.quoteReferenceGrid dd { margin:6px 0 0; white-space:pre-wrap;
+  overflow-wrap:anywhere; font-size:13px; }
