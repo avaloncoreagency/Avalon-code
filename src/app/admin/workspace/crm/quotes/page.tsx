@@ -58,6 +58,7 @@ export default async function QuotesPage({ searchParams }: { searchParams: Promi
     <OpsHeader lang={lang} active="quotes" eyebrow={pick(lang, "CRM / Ventas / Cotizaciones", "CRM / Sales / Quotes")} title="Avalon Quoting Studio"
       lead={pick(lang, "Cotizaciones y propuestas PDF con versiones inmutables. Una cotización aceptada no es una venta: el siguiente paso es el contrato.", "Quotes and PDF proposals with immutable versions. An accepted quote is not a sale: the next step is the agreement.")}
       actions={<><Link className={`${s.button} ${s.primary}`} href={newHref}>{pick(lang, "+ Nueva cotización", "+ New quote")}</Link>
+        <Link className={s.button} href={clientId ? `/admin/workspace/crm/sales?client=${clientId}` : "/admin/workspace/crm/sales"}>{pick(lang, "Ver ventas", "View sales")}</Link>
         <Link className={s.button} href="/admin/workspace/crm/leads">{pick(lang, "Ver pipeline", "View pipeline")}</Link></>} />
     {summary.error ? null :
       <section className={s.stats} aria-label={pick(lang, "Estado de cotizaciones", "Quote status")}>
