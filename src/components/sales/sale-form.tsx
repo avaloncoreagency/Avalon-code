@@ -44,6 +44,7 @@ export function SaleForm({ lang, idempotencyKey, services, clients, leads, owner
   const [totals, setTotals] = useState(() => previewTotals([]));
   const [currency, setCurrency] = useState("USD");
   const [upfrontAmount, setUpfrontAmount] = useState(v("upfront_amount", "0"));
+  const [billingMode, setBillingMode] = useState(v("billing_mode", quoteSource?.compatible ? quoteSource.billingMode : "mixed"));
   const formRef = useRef<HTMLFormElement>(null);
   const [studioError, setStudioError] = useState("");
   const [studioRows, setStudioRows] = useState<Record<number, { service: string; price: string; qty: string; description: string; nonce: number }>>({});
@@ -205,7 +206,7 @@ export function SaleForm({ lang, idempotencyKey, services, clients, leads, owner
       <div className={s.row}>
         <label className={s.field}>{t(lang, "Fecha de venta", "Sale date")}<input name="sold_on" type="date" defaultValue={v("sold_on", initialDate)} /></label>
         <label className={s.field}>{t(lang, "Moneda", "Currency")}<input name="currency" maxLength={3} pattern="[A-Za-z]{3}" defaultValue={v("currency", "USD")} /></label>
-        <label className={s.field}>{t(lang, "Facturación", "Billing")}<select name="billing_mode" defaultValue={v("billing_mode", quoteSource?.compatible ? quoteSource.billingMode : "mixed")}>{["mixed", "one_time", "installments", "monthly"].map(b => <option key={b} value={b}>{label(lang, b)}</option>)}</select></label>
+        <label className={s.field}>{t(lang, "Facturación", "Billing")}<select name="billing_mode" value={billingMode} onChange={event => setBillingMode(event.target.value)}>{["mixed", "one_time", "installments", "monthly"].map(b => <option key={b} value={b}>{label(lang, b)}</option>)}</select></label>
         <label className={s.field}>{t(lang, "Responsable comercial", "Sales owner")}<select name="seller_id" defaultValue={v("seller_id", me)}>{ownerOptions}</select></label>
       </div>
       <div className={s.row}>
@@ -218,7 +219,10 @@ export function SaleForm({ lang, idempotencyKey, services, clients, leads, owner
       <p className={s.muted}>{t(lang, "El pago inicial es lo acordado, no lo cobrado. Los cobros reales se registran después en la ficha de la venta.", "The upfront payment is what was agreed, not collected. Actual payments are recorded later on the sale.")}</p>
     </fieldset>
 
-    <div id="sale-payment"><SalePaymentEditor lang={lang} initial={v("payment_terms_json")} total={totals.total} recurring={totals.recurring} upfront={upfrontAmount} currency={currency} /></div>
+    <div id="sale-payment"><SalePaymentEditor lang={lang} initial={v("payment_terms_json")} total={totals.total} recurring={totals.recurring} upfront={upfrontAmount} currency={currency} onScheduleChange={schedule => {
+      if (schedule === "installments") setBillingMode("installments");
+      if (schedule === "subscription") setBillingMode(totals.recurring > 0 && Math.abs(totals.total - totals.recurring) < 0.01 ? "monthly" : "mixed");
+    }} /></div>
 
     <div id="sale-review" className={s.summary} aria-live="polite" role="region" aria-label={t(lang, "5 · Revisar y confirmar venta", "5 · Review and confirm sale")}>
       <h2>{t(lang, "5 · Revisar y confirmar", "5 · Review and confirm")}</h2>
