@@ -218,7 +218,7 @@ export function SaleForm({ lang, idempotencyKey, services, clients, leads, owner
       <p className={s.muted}>{t(lang, "El pago inicial es lo acordado, no lo cobrado. Los cobros reales se registran después en la ficha de la venta.", "The upfront payment is what was agreed, not collected. Actual payments are recorded later on the sale.")}</p>
     </fieldset>
 
-    <div id="sale-payment"><SalePaymentEditor lang={lang} initial={v("payment_terms_json")} total={totals.total} recurring={totals.recurring} upfront={upfrontAmount} /></div>
+    <div id="sale-payment"><SalePaymentEditor lang={lang} initial={v("payment_terms_json")} total={totals.total} recurring={totals.recurring} upfront={upfrontAmount} currency={currency} /></div>
 
     <div id="sale-review" className={s.summary} aria-live="polite" role="region" aria-label={t(lang, "5 · Revisar y confirmar venta", "5 · Review and confirm sale")}>
       <h2>{t(lang, "5 · Revisar y confirmar", "5 · Review and confirm")}</h2>
