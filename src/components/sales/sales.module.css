@@ -214,3 +214,44 @@ a.stat span, a.stat small { color:var(--muted); }
 .stats > * { animation: avalon-enter 0.5s var(--ease) both; }
 .stats > *:nth-child(2) { animation-delay: 0.05s; } .stats > *:nth-child(3) { animation-delay: 0.1s; } .stats > *:nth-child(n + 4) { animation-delay: 0.15s; }
 @media (prefers-reduced-motion: reduce) { .stat:hover, .card:hover { transform: none; } .stats > * { animation: none; } }
+
+
+/* Guided Sales Deal Studio: five accessible destinations, compact on iPhone. */
+.saleSteps {
+  display:flex; gap:8px; flex-wrap:wrap; align-items:center;
+  padding:8px; border:1px solid var(--line); border-radius:14px;
+  background:var(--crm-nav-bg); max-width:100%; min-width:0;
+}
+.saleSteps a {
+  flex:1 1 130px; display:inline-flex; justify-content:center; align-items:center;
+  text-decoration:none; text-align:center; min-height:44px; padding:9px 12px;
+  font-size:13px; font-weight:600; line-height:1.25; color:var(--text)!important;
+  border:1px solid transparent; border-radius:10px;
+}
+.saleSteps a:hover,.saleSteps a:focus-visible {
+  border-color:var(--accent); background:var(--crm-active-bg);
+}
+#sale-client,#sale-services,#sale-terms,#sale-payment,#sale-review { scroll-margin-top:18px; }
+.planSummary {
+  display:grid; gap:10px; min-width:0; padding:12px 14px;
+  border-radius:12px; border:1px solid var(--line); background:var(--crm-panel-bg);
+}
+.planSummary p { margin:0; }
+.planSummary strong { color:var(--text); font-variant-numeric:tabular-nums; }
+.planSummary details { min-width:0; }
+.planSummary summary {
+  color:var(--accent); font-weight:600; cursor:pointer; min-height:44px;
+  display:flex; align-items:center;
+}
+.planSummary .tableWrap { margin-top:8px; }
+.planSummary .table { min-width:380px; }
+@media (max-width:700px) {
+  .saleSteps {
+    flex-wrap:nowrap; gap:5px; width:100%; box-sizing:border-box;
+    overflow-x:auto; overscroll-behavior-x:contain; scroll-snap-type:x proximity;
+    -webkit-overflow-scrolling:touch; scrollbar-width:none;
+  }
+  .saleSteps::-webkit-scrollbar { display:none; }
+  .saleSteps a { flex:0 0 auto; white-space:nowrap; scroll-snap-align:start; }
+  .planSummary { padding:10px; }
+}
