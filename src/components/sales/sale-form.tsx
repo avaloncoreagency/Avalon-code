@@ -88,7 +88,7 @@ export function SaleForm({ lang, idempotencyKey, services, clients, leads, owner
     const description = [
       result.line.description, result.scope, result.exclusions,
       result.thirdParty ? t(lang, "Costos externos (no incluidos en ingreso de Avalon): ", "External costs (not Avalon revenue): ") + result.thirdParty : "",
-    ].filter(Boolean).join("\\n").slice(0, 2000);
+    ].filter(Boolean).join("\n").slice(0, 2000);
     setStudioRows(prev => ({ ...prev, [free]: {
       service: svc.code, qty: String(result.line.qty), price: result.line.unitPrice, description,
       nonce: (prev[free]?.nonce ?? 0) + 1,
