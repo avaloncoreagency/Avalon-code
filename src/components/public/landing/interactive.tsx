@@ -1,5 +1,5 @@
 "use client";
-import { useEffect, useRef, useState, type ReactNode } from "react";
+import { useEffect, useRef, useState, type KeyboardEvent, type MouseEvent, type ReactNode } from "react";
 import { COPY, type Lang } from "./copy";
 import s from "./landing.module.css";
 
@@ -19,7 +19,22 @@ export function HeaderShell({ children }: { children: ReactNode }) {
     on(); window.addEventListener("scroll", on, { passive: true });
     return () => window.removeEventListener("scroll", on);
   }, []);
-  return <header className={s.header} data-scrolled={scrolled}>{children}</header>;
+  const closeOnLink = (event: MouseEvent<HTMLElement>) => {
+    if (event.defaultPrevented || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
+    const target = event.target;
+    if (!(target instanceof Element)) return;
+    const menu = target.closest("a[href]")?.closest<HTMLDetailsElement>("details[open]");
+    if (menu) menu.open = false;
+  };
+  const closeOnEscape = (event: KeyboardEvent<HTMLElement>) => {
+    if (event.key !== "Escape" || event.defaultPrevented) return;
+    const menu = event.currentTarget.querySelector<HTMLDetailsElement>("details[open]");
+    if (!menu) return;
+    event.preventDefault();
+    menu.open = false;
+    menu.querySelector("summary")?.focus();
+  };
+  return <header className={s.header} data-scrolled={scrolled} onClick={closeOnLink} onKeyDown={closeOnEscape}>{children}</header>;
 }
 
 /** Scroll storytelling: each step lights up as it crosses the middle of the viewport. */

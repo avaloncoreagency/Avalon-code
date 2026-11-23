@@ -10,11 +10,13 @@ import i from "./intro.module.css";
  *  2. Acceleration: the camera pushes toward the golden light (film at 2.2×, plus a slow zoom).
  *  3. Birth: the light flares, particles converge and the authentic Avalon mark appears in polished metal.
  *  4. Transition: an iris opens from the light onto the homepage, which is already rendered underneath.
- * Never blocks content: the page is server-rendered below; Skip, Esc, scroll or a tap ends it at once.
+ * The page is interactive before the intro starts. Skip, Escape, Tab or scrolling ends the intro.
  * Reduced motion, a repeat visit in the same session, or data saver → no intro (a short static fade on data saver).
  * A tiny inline script hides it before first paint for repeat visits, so it never flashes.
  */
 const KEY = "avalon-intro-v2";
+// Once the visitor has had time to read the homepage, do not put the intro over it.
+const START_WINDOW_MS = 4000;
 export const INTRO_GUARD = `try{if(sessionStorage.getItem("${KEY}")||matchMedia("(prefers-reduced-motion: reduce)").matches){var s=document.createElement("style");s.textContent="#avalon-intro{display:none!important}";document.head.appendChild(s)}}catch(e){}`;
 
 /** The authentic Avalon Core Agency mark (same path as the site header), rendered as brushed metal with light. */
@@ -41,11 +43,15 @@ export function LaunchIntro({ lang }: { lang: Lang }) {
   const [portrait, setPortrait] = useState(false);
   const [film, setFilm] = useState(true);
   const video = useRef<HTMLVideoElement>(null), timers = useRef<number[]>([]);
+  const dismissed = useRef(false);
 
   const finish = useCallback(() => {
+    if (dismissed.current) return;
+    dismissed.current = true;
     timers.current.forEach(t => window.clearTimeout(t)); timers.current = [];
+    video.current?.pause();
     try { sessionStorage.setItem(KEY, "1"); } catch { /* private mode */ }
-    setPhase(p => (p === "done" ? p : "reveal"));
+    setPhase("reveal");
     timers.current.push(window.setTimeout(() => setPhase("done"), 700));
   }, []);
 
@@ -53,7 +59,10 @@ export function LaunchIntro({ lang }: { lang: Lang }) {
     let seen = false;
     try { seen = !!sessionStorage.getItem(KEY); } catch { /* ignore */ }
     const rm = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-    if (seen || rm) { setPhase("done"); return; }
+    if (seen || rm || window.scrollY > 0 || document.activeElement !== document.body || performance.now() > START_WINDOW_MS) {
+      setPhase("done");
+      return;
+    }
     const saver = (navigator as Navigator & { connection?: { saveData?: boolean; effectiveType?: string } }).connection;
     const slow = saver?.saveData === true || /(^|-)2g$/.test(saver?.effectiveType ?? "");
     setPortrait(window.matchMedia("(max-aspect-ratio: 1/1)").matches);
@@ -62,10 +71,22 @@ export function LaunchIntro({ lang }: { lang: Lang }) {
     const at = (ms: number, f: () => void) => timers.current.push(window.setTimeout(f, ms));
     at(slow ? 900 : 2500, () => setPhase("birth"));
     at(slow ? 2200 : 4100, finish);
-    const end = (e: Event) => { if (e.type !== "keydown" || (e as KeyboardEvent).key === "Escape") finish(); };
-    window.addEventListener("keydown", end); window.addEventListener("wheel", end, { passive: true }); window.addEventListener("touchmove", end, { passive: true });
-    return () => { timers.current.forEach(t => window.clearTimeout(t)); window.removeEventListener("keydown", end); window.removeEventListener("wheel", end); window.removeEventListener("touchmove", end); };
+    return () => { timers.current.forEach(t => window.clearTimeout(t)); };
   }, [finish]);
+
+  const active = phase === "tunnel" || phase === "birth";
+  useEffect(() => {
+    if (!active) return;
+    const controller = new AbortController();
+    const { signal } = controller;
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key === "Escape" || event.key === "Tab") finish();
+    };
+    window.addEventListener("keydown", onKey, { signal });
+    window.addEventListener("wheel", finish, { passive: true, signal });
+    window.addEventListener("touchmove", finish, { passive: true, signal });
+    return () => controller.abort();
+  }, [active, finish]);
 
   useEffect(() => {
     const v = video.current; if (!v || phase !== "tunnel" || !film) return;
@@ -74,20 +95,20 @@ export function LaunchIntro({ lang }: { lang: Lang }) {
   }, [phase, film]);
 
   if (phase === "done") return null;
-  const poster = portrait ? "/brand/u/launch-m-1080.webp" : "/brand/u/launch-2400.webp";
   return (
     <div id="avalon-intro" className={i.intro} data-phase={phase} role="presentation">
-      <div className={i.tunnel} aria-hidden="true">
-        <img className={i.poster} src={portrait ? "/brand/u/launch-m-720.webp" : "/brand/u/launch-1280.webp"} alt="" width={portrait ? 720 : 1280} height={portrait ? 1280 : 720} decoding="async" fetchPriority="high" />
-        {film && phase !== "idle" && <video ref={video} className={i.film} src={portrait ? "/brand/u/launch-intro-m.mp4" : "/brand/u/launch-intro.mp4"} poster={poster} muted playsInline preload="auto" />}
-      </div>
+      {phase !== "idle" && <div className={i.tunnel} aria-hidden="true">
+        <img className={i.poster} src={portrait ? "/brand/u/launch-m-720.webp" : "/brand/u/launch-1280.webp"} alt="" width={portrait ? 720 : 1280} height={portrait ? 1280 : 720} decoding="async" />
+        {film && <video ref={video} className={i.film} src={portrait ? "/brand/u/launch-intro-m.mp4" : "/brand/u/launch-intro.mp4"} muted playsInline preload="auto"
+          onPlaying={event => event.currentTarget.dataset.playing = "true"} />}
+      </div>}
       <div className={i.flare} aria-hidden="true" />
       <div className={i.sparks} aria-hidden="true">{Array.from({ length: 18 }, (_, k) => <span key={k} style={{ ["--a" as string]: `${k * 20}deg`, ["--d" as string]: `${(k % 6) * 40}ms` }} />)}</div>
       <div className={i.brand} aria-hidden="true">
         <AvalonMark className={i.mark} />
         <p className={i.word}><strong>AVALON</strong><small>CORE AGENCY</small></p>
       </div>
-      <button type="button" className={i.skip} onClick={finish}>{lang === "es" ? "Omitir intro" : "Skip intro"}</button>
+      <button type="button" className={i.skip} tabIndex={phase === "reveal" ? -1 : undefined} onClick={finish}>{lang === "es" ? "Omitir intro" : "Skip intro"}</button>
     </div>
   );
 }

@@ -3,11 +3,13 @@
   clip-path: circle(150% at 50% 50%); transition: clip-path .7s cubic-bezier(.6, 0, .2, 1), opacity .7s ease;
   animation: failsafe 0s linear 7s forwards; }
 /* If scripts never run, the page must still become usable. */
+.intro[data-phase="idle"] { visibility: hidden; pointer-events: none; }
 @keyframes failsafe { to { opacity: 0; visibility: hidden; pointer-events: none; } }
 
 .tunnel { position: absolute; inset: 0; filter: brightness(0) saturate(.6); transform: scale(1); }
 .poster, .film { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; display: block; }
-.film { z-index: 1; }
+.film { z-index: 1; opacity: 0; }
+.film[data-playing="true"] { opacity: 1; }
 .intro[data-phase="tunnel"] .tunnel { animation: lightsOn 1.1s cubic-bezier(.3, 0, .2, 1) forwards, accelerate 3.4s cubic-bezier(.5, 0, .9, .4) forwards; }
 .intro[data-phase="birth"] .tunnel, .intro[data-phase="reveal"] .tunnel { filter: brightness(1.15) saturate(1.1); transform: scale(1.32); transition: filter .8s; }
 @keyframes lightsOn { 0% { filter: brightness(0) saturate(.4); } 35% { filter: brightness(.35) saturate(.7); } 45% { filter: brightness(.18) saturate(.7); } 100% { filter: brightness(1) saturate(1); } }
