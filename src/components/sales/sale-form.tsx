@@ -12,6 +12,10 @@ export type CatalogService = { code: string; name: string; name_en: string; bill
 type Option = { id: string; label: string };
 /** Client choice with its canonical opportunity (crm_clients.origin_lead_id), resolved on the server. */
 export type ClientOption = Option & { lead?: Option | null };
+export type QuoteSalePreset = {
+  id: string; number: string; compatible: boolean; billingMode: "one_time" | "monthly" | "mixed";
+  lines: { service: string; price: string; qty: string; description: string }[];
+};
 const t = (lang: Lang, es: string, en: string) => (lang === "es" ? es : en);
 
 function Submit({ lang }: { lang: Lang }) {
@@ -21,9 +25,9 @@ function Submit({ lang }: { lang: Lang }) {
   </button>;
 }
 
-export function SaleForm({ lang, idempotencyKey, services, clients, leads, owners, me, defaults, initialDate }: {
+export function SaleForm({ lang, idempotencyKey, services, clients, leads, owners, me, defaults, initialDate, quoteSource }: {
   lang: Lang; idempotencyKey: string; initialDate: string; services: CatalogService[]; clients: ClientOption[]; leads: Option[]; owners: Option[]; me: string;
-  defaults: { client_id?: string; lead_id?: string; legal_name?: string };
+  defaults: { client_id?: string; lead_id?: string; legal_name?: string }; quoteSource?: QuoteSalePreset;
 }) {
   const [state, action] = useActionState<SaleFormState, FormData>(confirmSale, { error: null, values: {} });
   const v = (name: string, fallback = "") => state.values[name] ?? fallback;
@@ -43,7 +47,7 @@ export function SaleForm({ lang, idempotencyKey, services, clients, leads, owner
   const formRef = useRef<HTMLFormElement>(null);
   const [studioError, setStudioError] = useState("");
   const [studioRows, setStudioRows] = useState<Record<number, { service: string; price: string; qty: string; description: string; nonce: number }>>({});
-  const [filled, setFilled] = useState<boolean[]>(() => Array.from({ length: MAX_LINES }, (_, i) => i === 0));
+  const [filled, setFilled] = useState<boolean[]>(() => Array.from({ length: MAX_LINES }, (_, i) => i === 0 || Boolean(quoteSource?.lines[i])));
   const byCode = useMemo(() => new Map(services.map(x => [x.code, x])), [services]);
 
   const recompute = useCallback((e: FormEvent<HTMLFormElement>) => {
@@ -105,6 +109,13 @@ export function SaleForm({ lang, idempotencyKey, services, clients, leads, owner
       <a className={s.button} href="#sale-review">{t(lang, "5 Revisar", "5 Review")}</a>
     </nav>
     <input type="hidden" name="idempotency_key" value={idempotencyKey} />
+    {quoteSource && <input type="hidden" name="source_quote_id" value={quoteSource.id} />}
+    {quoteSource && <p className={s.flash} data-tone={quoteSource.compatible ? "ok" : "warn"}>
+      <a href={`/admin/workspace/crm/quotes/${quoteSource.id}`}>{t(lang, "Cotización aceptada", "Accepted quote")} {quoteSource.number}</a>.
+      {" "}{quoteSource.compatible
+        ? t(lang, "Sus conceptos y precios se precargaron para revisión. La venta exige además el contrato verificado.", "Its items and prices were prefilled for review. A verified agreement is still required to confirm the sale.")
+        : t(lang, "Incluye conceptos personalizados, comisiones, servicios no activos o más de seis líneas. No se importó parcialmente: revisa manualmente cada servicio antes de confirmar.", "Contains custom items, commissions, inactive services or more than six lines. No partial import was made: review every service before confirming.")}
+    </p>}
     {state.error && <div className={s.flash} data-tone="error" role="alert">
       <span>{saleErrorText(lang, state.error)}</span>
       {state.existingClientId && <button type="button" className={s.button} onClick={() => setMode("existing")}>{t(lang, "Usar cliente existente", "Use existing client")}</button>}
@@ -168,19 +179,19 @@ export function SaleForm({ lang, idempotencyKey, services, clients, leads, owner
       {Array.from({ length: MAX_LINES }, (_, i) => (i === 0 || filled[i - 1] || filled[i] || v(`line_${i}_service`)) && <div className={s.line} key={`${i}-${studioRows[i]?.nonce ?? 0}`} data-filled={filled[i] || undefined}>
         <div className={s.row}>
           <label className={s.field}>{t(lang, `Servicio ${i + 1}`, `Service ${i + 1}`)}
-            <select name={`line_${i}_service`} required={i === 0} defaultValue={v(`line_${i}_service`, studioRows[i]?.service ?? "")}>
+            <select name={`line_${i}_service`} required={i === 0} defaultValue={v(`line_${i}_service`, studioRows[i]?.service ?? quoteSource?.lines[i]?.service ?? "")}>
               <option value="">{i === 0 ? t(lang, "Selecciona…", "Select…") : t(lang, "— Ninguno —", "— None —")}</option>
               {services.map(x => <option key={x.code} value={x.code}>{t(lang, x.name, x.name_en || x.name)} · {x.department} · {label(lang, x.billing_type)}</option>)}
             </select></label>
-          <label className={s.field}>{t(lang, "Precio", "Price")}<input name={`line_${i}_price`} inputMode="decimal" pattern="\d{1,13}(\.\d{1,2})?" placeholder="0.00" defaultValue={v(`line_${i}_price`, studioRows[i]?.price ?? "")} /></label>
-          <label className={s.field}>{t(lang, "Cantidad", "Qty")}<input name={`line_${i}_qty`} inputMode="decimal" pattern="\d{1,7}(\.\d{1,2})?" placeholder="1" defaultValue={v(`line_${i}_qty`, studioRows[i]?.qty ?? "")} /></label>
+          <label className={s.field}>{t(lang, "Precio", "Price")}<input name={`line_${i}_price`} inputMode="decimal" pattern="\d{1,13}(\.\d{1,2})?" placeholder="0.00" defaultValue={v(`line_${i}_price`, studioRows[i]?.price ?? quoteSource?.lines[i]?.price ?? "")} /></label>
+          <label className={s.field}>{t(lang, "Cantidad", "Qty")}<input name={`line_${i}_qty`} inputMode="decimal" pattern="\d{1,7}(\.\d{1,2})?" placeholder="1" defaultValue={v(`line_${i}_qty`, studioRows[i]?.qty ?? quoteSource?.lines[i]?.qty ?? "")} /></label>
           <label className={s.field}>{t(lang, "Descuento", "Discount")}<input name={`line_${i}_discount`} inputMode="decimal" pattern="\d{1,13}(\.\d{1,2})?" placeholder="0.00" defaultValue={v(`line_${i}_discount`)} /></label>
         </div>
         <div className={s.row}>
           <label className={s.field}>{t(lang, "Responsable", "Assignee")}<select name={`line_${i}_assignee`} defaultValue={v(`line_${i}_assignee`)}><option value="">{t(lang, "Por defecto del servicio / vendedor", "Service default / seller")}</option>{ownerOptions}</select></label>
           <label className={s.field}>{t(lang, "Inicio", "Start")}<input name={`line_${i}_start`} type="date" defaultValue={v(`line_${i}_start`)} /></label>
         </div>
-        <label className={s.field}>{t(lang, "Alcance", "Scope")}<textarea name={`line_${i}_description`} maxLength={2000} rows={2} defaultValue={v(`line_${i}_description`, studioRows[i]?.description ?? "")} /></label>
+        <label className={s.field}>{t(lang, "Alcance", "Scope")}<textarea name={`line_${i}_description`} maxLength={2000} rows={2} defaultValue={v(`line_${i}_description`, studioRows[i]?.description ?? quoteSource?.lines[i]?.description ?? "")} /></label>
       </div>)}
     </fieldset>
 
@@ -189,7 +200,7 @@ export function SaleForm({ lang, idempotencyKey, services, clients, leads, owner
       <div className={s.row}>
         <label className={s.field}>{t(lang, "Fecha de venta", "Sale date")}<input name="sold_on" type="date" defaultValue={v("sold_on", initialDate)} /></label>
         <label className={s.field}>{t(lang, "Moneda", "Currency")}<input name="currency" maxLength={3} pattern="[A-Za-z]{3}" defaultValue={v("currency", "USD")} /></label>
-        <label className={s.field}>{t(lang, "Facturación", "Billing")}<select name="billing_mode" defaultValue={v("billing_mode", "mixed")}>{["mixed", "one_time", "installments", "monthly"].map(b => <option key={b} value={b}>{label(lang, b)}</option>)}</select></label>
+        <label className={s.field}>{t(lang, "Facturación", "Billing")}<select name="billing_mode" defaultValue={v("billing_mode", quoteSource?.compatible ? quoteSource.billingMode : "mixed")}>{["mixed", "one_time", "installments", "monthly"].map(b => <option key={b} value={b}>{label(lang, b)}</option>)}</select></label>
         <label className={s.field}>{t(lang, "Responsable comercial", "Sales owner")}<select name="seller_id" defaultValue={v("seller_id", me)}>{ownerOptions}</select></label>
       </div>
       <div className={s.row}>
