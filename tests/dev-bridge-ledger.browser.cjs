@@ -149,6 +149,33 @@ test('Dev Bridge 3.0: owner claims identity, issues own agent token, CLI session
   assert.match(text.split('\n')[0], /occurred_at_utc/); assert.match(text, /synthetic npm test 818\/0/);
   assert.equal((await fetch(origin + '/api/dev-bridge/export?kind=events')).status, 401, 'export is never public');
 
+  // 7b. Dev Bridge 2.0 stays the main screen: a compact "Ahora mismo" strip from the ledger, details one click away.
+  assert.equal((await run(['start', '--title', 'Dev Bridge 2.0 lean'])).code, 0);
+  for (const vp of [{ name: 'mobile-390', viewport: { width: 390, height: 844 }, mobile: true }, { name: 'desktop-1440', viewport: { width: 1440, height: 900 }, mobile: false }]) {
+    const ctx = await browser.newContext({ viewport: vp.viewport, isMobile: vp.mobile, hasTouch: vp.mobile, deviceScaleFactor: 1 });
+    await ctx.addCookies([cookieFor(m), { name: 'avalon-lang', value: 'es', url: origin }]);
+    const page = await ctx.newPage(), errors = [];
+    page.on('pageerror', e => errors.push(e.message));
+    page.setDefaultTimeout(30000);
+    await page.goto(origin + '/admin/dev-bridge');
+    const strip = page.getByRole('region', { name: 'Ahora mismo' });
+    await strip.waitFor();
+    const mig = strip.locator('[data-owner="miguel"]'), sam = strip.locator('[data-owner="samuel"]');
+    await mig.getByText('Trabajando ahora').waitFor();
+    await mig.getByText(/Claude Code · Dev Bridge 2\.0 lean · desde/).waitFor();
+    await sam.getByText('Sin sesión abierta').waitFor();
+    assert.match(await mig.textContent(), /7 días: .+ en sesiones · 0 min declaradas/);
+    assert.equal(await page.locator('details[aria-label="Guía de uso de Dev Bridge"]').getAttribute('open'), null, 'guide folded by default');
+    await page.getByRole('link', { name: /Registro detallado/ }).waitFor();
+    assert.equal(await page.locator('nav a[href="/admin/dev-bridge/ledger"]').count(), 0, 'the ledger is no longer a CRM menu entry');
+    const overflow = await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
+    assert.ok(overflow <= 1, `${vp.name}: no horizontal page scroll (overflow ${overflow}px)`);
+    await page.screenshot({ path: `${DIR}/bridge2-${vp.name}.png`, fullPage: false });
+    assert.deepEqual(errors, []);
+    await ctx.close();
+  }
+  assert.equal((await run(['stop', '--summary', 'lean check'])).code, 0);
+
   // 8. Miguel's dashboard at 1440 (Spanish) — screenshot evidence.
   const mg2 = await open(m, 'es');
   await mg2.page.locator('section[aria-labelledby="compare"]').waitFor();
