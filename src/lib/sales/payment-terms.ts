@@ -4,7 +4,7 @@
  * migration can normalize it. No bank/card details, APR or automatic charges.
  */
 export const SALE_PAYMENT_METHODS = [
-  "bank_transfer", "ach", "card", "cash", "check", "wire", "payment_link", "other",
+  "bank_transfer", "ach", "card", "cash", "check", "wire", "zelle", "paypal", "payment_link", "other",
 ] as const;
 export const SALE_PAYMENT_SCHEDULES = [
   "full", "deposit_balance", "milestones", "installments", "subscription", "external_financing",
@@ -101,7 +101,7 @@ export function readSalePaymentTerms(notes: string | null | undefined): {
 export const salePaymentMethodLabel = (method: SalePaymentMethod, lang: "es" | "en") => ({
   bank_transfer: ["Transferencia bancaria", "Bank transfer"], ach: ["ACH", "ACH"],
   card: ["Tarjeta", "Card"], cash: ["Efectivo", "Cash"], check: ["Cheque", "Check"],
-  wire: ["Transferencia wire", "Wire transfer"], payment_link: ["Enlace de pago", "Payment link"],
+  wire: ["Transferencia wire", "Wire transfer"], zelle: ["Zelle (registrado manualmente)", "Zelle (manual receipt)"], paypal: ["PayPal (registrado manualmente)", "PayPal (manual receipt)"], payment_link: ["Enlace de pago", "Payment link"],
   other: ["Otro (acordar)", "Other (to be agreed)"],
 })[method][lang === "es" ? 0 : 1];
 
@@ -121,4 +121,12 @@ export function installmentPreview(total: number, upfront: number, count: number
   const base = Math.floor(remainingCents / count);
   return { remaining: remainingCents / 100, regular: base / 100,
     final: (remainingCents - base * (count - 1)) / 100 };
+}
+
+/** Existing crm_payments.method DB enum remains unchanged; channel is retained in reference. */
+export function paymentChannelToStoredMethod(channel: SalePaymentMethod): "transfer" | "card" | "cash" | "other" {
+  if (["bank_transfer", "ach", "wire", "zelle"].includes(channel)) return "transfer";
+  if (channel === "card") return "card";
+  if (channel === "cash") return "cash";
+  return "other";
 }
