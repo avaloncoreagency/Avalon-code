@@ -114,7 +114,7 @@ export function SaleForm({ lang, idempotencyKey, services, clients, leads, owner
       <a href={`/admin/workspace/crm/quotes/${quoteSource.id}`}>{t(lang, "Cotización aceptada", "Accepted quote")} {quoteSource.number}</a>.
       {" "}{quoteSource.compatible
         ? t(lang, "Sus conceptos y precios se precargaron para revisión. La venta exige además el contrato verificado.", "Its items and prices were prefilled for review. A verified agreement is still required to confirm the sale.")
-        : t(lang, "Incluye conceptos personalizados, comisiones, servicios no activos o más de seis líneas. No se importó parcialmente: revisa manualmente cada servicio antes de confirmar.", "Contains custom items, commissions, inactive services or more than six lines. No partial import was made: review every service before confirming.")}
+        : t(lang, "Incluye conceptos personalizados, comisiones, servicios no activos o más de veinte líneas. No se importó parcialmente: revisa manualmente cada servicio antes de confirmar.", "Contains custom items, commissions, inactive services or more than twenty lines. No partial import was made: review every service before confirming.")}
     </p>}
     {state.error && <div className={s.flash} data-tone="error" role="alert">
       <span>{saleErrorText(lang, state.error)}</span>
@@ -179,11 +179,16 @@ export function SaleForm({ lang, idempotencyKey, services, clients, leads, owner
       {Array.from({ length: MAX_LINES }, (_, i) => (i === 0 || filled[i - 1] || filled[i] || v(`line_${i}_service`)) && <div className={s.line} key={`${i}-${studioRows[i]?.nonce ?? 0}`} data-filled={filled[i] || undefined}>
         <div className={s.row}>
           <label className={s.field}>{t(lang, `Servicio ${i + 1}`, `Service ${i + 1}`)}
-            <select name={`line_${i}_service`} required={i === 0} defaultValue={v(`line_${i}_service`, studioRows[i]?.service ?? quoteSource?.lines[i]?.service ?? "")}>
+            <select name={`line_${i}_service`} required={i === 0} defaultValue={v(`line_${i}_service`, studioRows[i]?.service ?? quoteSource?.lines[i]?.service ?? "")}
+              onChange={event => {
+                const priceField = formRef.current?.elements.namedItem(`line_${i}_price`) as HTMLInputElement | null;
+                const approved = byCode.get(event.target.value)?.suggested_price;
+                if (priceField && !priceField.value && approved) priceField.value = approved;
+              }}>
               <option value="">{i === 0 ? t(lang, "Selecciona…", "Select…") : t(lang, "— Ninguno —", "— None —")}</option>
               {services.map(x => <option key={x.code} value={x.code}>{t(lang, x.name, x.name_en || x.name)} · {x.department} · {label(lang, x.billing_type)}</option>)}
             </select></label>
-          <label className={s.field}>{t(lang, "Precio", "Price")}<input name={`line_${i}_price`} inputMode="decimal" pattern="\d{1,13}(\.\d{1,2})?" placeholder="0.00" defaultValue={v(`line_${i}_price`, studioRows[i]?.price ?? quoteSource?.lines[i]?.price ?? "")} /></label>
+          <label className={s.field}>{t(lang, "Precio", "Price")}<input name={`line_${i}_price`} required={Boolean(filled[i])} inputMode="decimal" pattern="\d{1,13}(\.\d{1,2})?" placeholder="0.00" defaultValue={v(`line_${i}_price`, studioRows[i]?.price ?? quoteSource?.lines[i]?.price ?? "")} /></label>
           <label className={s.field}>{t(lang, "Cantidad", "Qty")}<input name={`line_${i}_qty`} inputMode="decimal" pattern="\d{1,7}(\.\d{1,2})?" placeholder="1" defaultValue={v(`line_${i}_qty`, studioRows[i]?.qty ?? quoteSource?.lines[i]?.qty ?? "")} /></label>
           <label className={s.field}>{t(lang, "Descuento", "Discount")}<input name={`line_${i}_discount`} inputMode="decimal" pattern="\d{1,13}(\.\d{1,2})?" placeholder="0.00" defaultValue={v(`line_${i}_discount`)} /></label>
         </div>
