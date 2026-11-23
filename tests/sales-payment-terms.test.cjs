@@ -13,7 +13,7 @@ const base = () => ({ ...d.DEFAULT_SALE_PAYMENT_TERMS });
 const code = fn => { try { fn(); return "ok"; } catch (e) { return e.message; } };
 
 test("sale payment terms: safe defaults and every offered channel are parseable", () => {
-  assert.equal(d.validateSalePaymentTerms(base()).schedule, "full");
+  assert.equal(d.validateSalePaymentTerms(base()).schedule, "to_agree");
   for (const method of d.SALE_PAYMENT_METHODS) {
     const parsed = d.validateSalePaymentTerms({ ...base(), method });
     assert.equal(parsed.method, method);
