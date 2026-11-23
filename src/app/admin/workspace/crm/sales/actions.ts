@@ -3,7 +3,7 @@ import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { ownerForAction, back, field, uuidField } from "@/lib/os/actions";
 import { PAYMENT_METHODS, WORK_ORDER_STATUSES, SaleInputError, parseSaleForm, readConfirmResult, saleErrorCode, type SaleErrorCode } from "@/lib/sales/domain";
-import { attachSalePaymentTerms, validateSalePaymentTerms } from "@/lib/sales/payment-terms";
+import { attachSalePaymentTerms, readSalePaymentTerms, validateSalePaymentTerms } from "@/lib/sales/payment-terms";
 
 export type SaleFormState = { error: SaleErrorCode | null; values: Record<string, string>; existingClientId?: string };
 
@@ -50,6 +50,27 @@ export async function confirmSale(_prev: SaleFormState, form: FormData): Promise
       return { error: "sale_lead_other_client", values };
     }
     if (!request.lead_id && canonicalLead) request.lead_id = canonicalLead;
+  }
+
+  // Link an accepted quote by authenticated database evidence, never by a
+  // browser-provided number or an unchecked lead. Existing sales remain valid.
+  if (form.has("source_quote_id")) {
+    const quoteId = uuidField(form, "source_quote_id");
+    if (!quoteId) return { error: "sale_invalid_quote", values };
+    const { data: quote, error: quoteError } = await supabase.from("crm_quotes")
+      .select("id,quote_number,lead_id,status").eq("id", quoteId).maybeSingle();
+    if (quoteError || !quote || quote.status !== "accepted" || quote.lead_id !== request.lead_id) {
+      return { error: "sale_invalid_quote", values };
+    }
+    const prior = readSalePaymentTerms(request.notes);
+    const combined = [prior.notes, `Cotización aceptada: ${quote.quote_number} (ID: ${quote.id}). Verificar importes y contrato firmado.`]
+      .filter(Boolean).join("\\n\\n");
+    try {
+      request.notes = prior.terms ? attachSalePaymentTerms(combined, prior.terms) : combined;
+      if (request.notes.length > 4000) throw Error("too_long");
+    } catch {
+      return { error: "sale_too_long", values };
+    }
   }
 
   const { data, error } = await supabase.rpc("crm_confirm_sale", { request });
