@@ -20,8 +20,8 @@ const frequencyName = (v: string, lang: Lang) => ({
  * A payment AGREEMENT, not a payment collection or consumer-credit application.
  * Submitted as versioned, validated JSON inside the existing sale confirmation.
  */
-export function SalePaymentEditor({ lang, initial, total, recurring, upfront }: {
-  lang: Lang; initial?: string; total: number; recurring: number; upfront: string;
+export function SalePaymentEditor({ lang, initial, total, recurring, upfront, currency }: {
+  lang: Lang; initial?: string; total: number; recurring: number; upfront: string; currency: string;
 }) {
   const [terms, setTerms] = useState<SalePaymentTerms>(() => {
     try { return initial ? validateSalePaymentTerms(JSON.parse(initial)) : { ...DEFAULT_SALE_PAYMENT_TERMS }; }
@@ -81,7 +81,7 @@ export function SalePaymentEditor({ lang, initial, total, recurring, upfront }: 
       {!installmentAllowed ? <p className={s.flash} data-tone="warn">{t(lang,
         "Las cuotas necesitan un total positivo sin mensualidades recurrentes mezcladas. Separa servicios recurrentes antes de confirmar.",
         "Installments require a positive total without recurring lines mixed in. Separate recurring services before confirming.")}</p>
-      : estimate ? <p className={s.muted} aria-live="polite">{t(lang, "Saldo después del anticipo:", "Balance after deposit:")} <strong>{money(lang, estimate.remaining)}</strong> · {terms.installments - 1} × {money(lang, estimate.regular)} + {t(lang, "última cuota", "last installment")} {money(lang, estimate.final)}. {t(lang, "Solo cálculo ilustrativo, sin intereses ni cobros automáticos.", "Illustrative only, without interest or automatic charges.")}</p>
+      : estimate ? <p className={s.muted} aria-live="polite">{t(lang, "Saldo después del anticipo:", "Balance after deposit:")} <strong>{money(lang, estimate.remaining, currency)}</strong> · {terms.installments - 1} × {money(lang, estimate.regular, currency)} + {t(lang, "última cuota", "last installment")} {money(lang, estimate.final, currency)}. {t(lang, "Solo cálculo ilustrativo, sin intereses ni cobros automáticos.", "Illustrative only, without interest or automatic charges.")}</p>
         : <p className={s.flash} data-tone="warn">{t(lang, "El anticipo no puede superar el total.", "Deposit cannot exceed the total.")}</p>}
     </>}
 
@@ -96,7 +96,7 @@ export function SalePaymentEditor({ lang, initial, total, recurring, upfront }: 
     {terms.schedule === "subscription" && <p className={s.muted}>{t(lang,
       "Las mensualidades requieren un acuerdo de soporte o suscripción aprobado. No se activa ningún débito recurrente.",
       "Monthly payments require an approved subscription or support agreement. No recurring debit is activated.")}
-      {recurring > 0 ? " " + t(lang, "Recurrente del catálogo:", "Catalog recurring amount:") + " " + money(lang, recurring) : ""}</p>}
+      {recurring > 0 ? " " + t(lang, "Recurrente del catálogo:", "Catalog recurring amount:") + " " + money(lang, recurring, currency) : ""}</p>}
 
     {terms.schedule === "external_financing" && <>
       <label className={s.field}>{t(lang, "Proveedor externo (solo referencia)", "External provider (reference only)")}
