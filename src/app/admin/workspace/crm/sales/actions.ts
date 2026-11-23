@@ -118,7 +118,15 @@ export async function confirmSale(_prev: SaleFormState, form: FormData): Promise
     const detail = (error as { details?: string } | null)?.details;
     return { error: code, values, existingClientId: code === "sale_client_exists" && detail && /^[0-9a-f-]{36}$/i.test(detail) ? detail : undefined };
   }
-  for (const path of ["/admin/workspace/crm/sales", "/admin/workspace/crm/tasks", "/admin/workspace/crm/clients", "/admin/dashboard"]) revalidatePath(path);
+  // A confirmed sale affects commercial lifecycle, not just the Sales table.
+  for (const path of [
+    "/admin/workspace/crm/sales", "/admin/workspace/crm/quotes",
+    "/admin/workspace/crm/tasks", "/admin/workspace/crm/clients",
+    "/admin/workspace/crm/leads", "/admin/workspace/crm/activity",
+    "/admin/workspace/crm/kpis", "/admin/dashboard",
+  ]) revalidatePath(path);
+  if (request.client_id) revalidatePath(`/admin/workspace/crm/clients/${request.client_id}`);
+  if (request.lead_id) revalidatePath(`/admin/workspace/crm/lead/${request.lead_id}`);
   redirect(`/admin/workspace/crm/sales/${result.sale_id}?ok=${result.replayed ? "replayed" : "confirmed"}`);
 }
 
@@ -142,8 +150,11 @@ export async function recordPayment(form: FormData) {
   if (sale.error || !sale.data) back(path, { error: sale.error ? saleErrorCode(sale.error) : "sale_invalid" });
   const { error } = await supabase.from("crm_payments").insert({ sale_id: saleId, amount, currency: sale.data.currency, received_on, method, reference });
   if (error) back(path, { error: saleErrorCode(error) });
-  revalidatePath(path);
-  revalidatePath("/admin/workspace/crm/sales");
+  // Recorded receipts change client finance and agency KPIs, not the contract total.
+  for (const affected of [
+    path, "/admin/workspace/crm/sales", "/admin/workspace/crm/clients",
+    "/admin/workspace/crm/kpis", "/admin/workspace/crm/activity", "/admin/dashboard",
+  ]) revalidatePath(affected);
   back(path, { ok: "payment" });
 }
 
