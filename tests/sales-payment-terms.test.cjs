@@ -67,3 +67,28 @@ test("sale payment terms: installment previews use cents and do not invent inter
   assert.equal(d.installmentPreview(100, 0, 1), null);
   assert.equal(d.installmentPreview(100, 0, 37), null);
 });
+
+
+test("sale payment terms: monthly schedule anchors 31st, adjusts February, restores March", () => {
+  const terms = { ...base(), schedule: "installments", firstDue: "2028-01-31", frequency: "monthly", installments: 4 };
+  const rows = d.installmentSchedule(100, 0, terms);
+  assert.deepEqual(rows.map(x => x.dueOn), ["2028-01-31", "2028-02-29", "2028-03-31", "2028-04-30"]);
+  assert.deepEqual(rows.map(x => x.amount), [25, 25, 25, 25]);
+});
+
+test("sale payment terms: weekly and biweekly schedules have exact 7/14 day spacing", () => {
+  const terms = { ...base(), schedule: "installments", firstDue: "2026-10-31", frequency: "weekly", installments: 3 };
+  assert.deepEqual(d.installmentSchedule(100, 20, terms).map(x => x.dueOn), ["2026-10-31", "2026-11-07", "2026-11-14"]);
+  terms.frequency = "biweekly";
+  assert.deepEqual(d.installmentSchedule(100, 20, terms).map(x => x.dueOn), ["2026-10-31", "2026-11-14", "2026-11-28"]);
+});
+
+test("sale payment terms: schedule sums to remaining balance in cents with final adjustment", () => {
+  const terms = { ...base(), schedule: "installments", firstDue: "2026-12-01", installments: 3 };
+  const rows = d.installmentSchedule(100, 20, terms);
+  assert.deepEqual(rows.map(x => x.amount), [26.66, 26.66, 26.68]);
+  assert.equal(Math.round(rows.reduce((sum, x) => sum + x.amount, 0) * 100), 8000);
+  assert.equal(d.installmentSchedule(100, 0, { ...terms, schedule: "full" }), null);
+  assert.equal(d.installmentSchedule(100, 120, terms), null);
+  assert.equal(d.installmentSchedule(100, 0, { ...terms, firstDue: "2026-02-30" }), null);
+});
