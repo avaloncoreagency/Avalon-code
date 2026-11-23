@@ -3,7 +3,7 @@ import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { ownerForAction, back, field, uuidField } from "@/lib/os/actions";
 import { PAYMENT_METHODS, WORK_ORDER_STATUSES, SaleInputError, parseSaleForm, readConfirmResult, saleErrorCode, type SaleErrorCode } from "@/lib/sales/domain";
-import { attachSalePaymentTerms, readSalePaymentTerms, validateSalePaymentTerms } from "@/lib/sales/payment-terms";
+import { attachSalePaymentTerms, readSalePaymentTerms, validateSalePaymentTerms, paymentChannelToStoredMethod, SALE_PAYMENT_METHODS, type SalePaymentMethod } from "@/lib/sales/payment-terms";
 
 export type SaleFormState = { error: SaleErrorCode | null; values: Record<string, string>; existingClientId?: string };
 
@@ -95,11 +95,15 @@ export async function recordPayment(form: FormData) {
   const path = `/admin/workspace/crm/sales/${saleId}`;
   const amount = field(form, "amount").trim();
   const received_on = field(form, "received_on").trim();
-  const method = field(form, "method");
-  const reference = field(form, "reference").trim();
+  const channel = field(form, "channel").trim();
+  const directMethod = field(form, "method");
+  const method = channel ? paymentChannelToStoredMethod(channel as SalePaymentMethod) : directMethod;
+  const originalReference = field(form, "reference").trim();
+  // A channel label documents a receipt, not an actual processor integration.
+  const reference = channel ? `[${channel}] ${originalReference}`.trim() : originalReference;
   if (!/^[0-9]{1,13}(\.[0-9]{1,2})?$/.test(amount) || Number(amount) <= 0) back(path, { error: "sale_invalid_amount" });
   if (!/^\d{4}-\d{2}-\d{2}$/.test(received_on)) back(path, { error: "sale_invalid_date" });
-  if (!(PAYMENT_METHODS as readonly string[]).includes(method) || reference.length > 120) back(path, { error: "sale_invalid" });
+  if ((channel && !(SALE_PAYMENT_METHODS as readonly string[]).includes(channel)) || !(PAYMENT_METHODS as readonly string[]).includes(method) || reference.length > 120) back(path, { error: "sale_invalid" });
   const sale = await supabase.from("crm_sales").select("currency").eq("id", saleId).maybeSingle();
   if (sale.error || !sale.data) back(path, { error: sale.error ? saleErrorCode(sale.error) : "sale_invalid" });
   const { error } = await supabase.from("crm_payments").insert({ sale_id: saleId, amount, currency: sale.data.currency, received_on, method, reference });
