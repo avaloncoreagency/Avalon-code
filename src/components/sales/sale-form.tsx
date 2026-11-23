@@ -242,8 +242,17 @@ export function SaleForm({ lang, idempotencyKey, services, clients, leads, owner
         <div><dt>{t(lang, "Impuesto", "Tax")}</dt><dd>{fmt(totals.tax)}</dd></div>
         <div><dt>{t(lang, "Total contratado", "Contracted total")}</dt><dd><strong>{fmt(totals.total)}</strong></dd></div>
         <div><dt>{t(lang, "Recurrente / mes", "Recurring / mo")}</dt><dd>{fmt(totals.recurring)}</dd></div>
+        <div><dt>{t(lang, "Anticipo acordado", "Agreed deposit")}</dt><dd>{fmt(Number(upfrontAmount || 0))}</dd></div>
+        <div><dt>{t(lang, "Saldo previsto", "Expected balance")}</dt><dd>{Number(upfrontAmount || 0) > totals.total
+          ? t(lang, "Revisar anticipo", "Review deposit")
+          : fmt(Math.max(0, totals.total - Number(upfrontAmount || 0)))}</dd></div>
       </dl>
-      <Submit lang={lang} />
+      <div className={s.saleReviewAction}>
+        <p className={s.muted}>{t(lang,
+          "Resumen antes de confirmar. No se ha cobrado nada. Requiere contrato verificado para cerrar una oportunidad como Ganada.",
+          "Review before confirmation. No funds collected. A verified agreement is required to close an opportunity as Won.")}</p>
+        <Submit lang={lang} />
+      </div>
     </div>
     <p className={s.muted}>{t(lang, "Vista previa. La base de datos recalcula y valida los importes. Confirmar dos veces no duplica la venta.", "Preview. The database recalculates and validates amounts. Confirming twice does not duplicate the sale.")}</p>
   </form>;
