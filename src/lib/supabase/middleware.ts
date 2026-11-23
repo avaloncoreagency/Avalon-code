@@ -26,6 +26,9 @@ export async function updateSession(request: NextRequest) {
   // Exactly one external machine endpoint. It enforces its own HMAC, clock, payload,
   // environment and database gates; no cookie-based owner session is accepted.
   if (path === "/api/creative-bridge/deliveries" && request.method === "POST") return finish(response);
+  // Dev Bridge 3.0 agent ingestion: no cookie session either. The route accepts only `Bearer avd_…`, caps the body,
+  // and calls one reviewed definer RPC that checks the per-agent token hash, expiry/revocation, rate and ownership.
+  if (path === "/api/dev-bridge/v1/events" && request.method === "POST") return finish(response);
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const key = process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY;
   let owner: OwnerState = { state: "none" };

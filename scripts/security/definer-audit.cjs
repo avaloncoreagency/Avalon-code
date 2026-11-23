@@ -19,6 +19,7 @@ const PUBLIC_ALLOWLIST = {
   crm_ai_public_control: "returns only the global AI on/off flag",
   os_bridge_api_open_import: "Project Bridge API; requires hashed per-project token",
   os_bridge_api_import_status: "Project Bridge API; requires hashed per-project token",
+  dev_bridge_agent_event: "Dev Bridge 3.0 agent ingestion; requires the hashed per-agent avd_ token, own sessions only, idempotent, rate-limited",
 };
 
 function stripComments(sql) {
