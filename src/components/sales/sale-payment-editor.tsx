@@ -97,10 +97,15 @@ export function SalePaymentEditor({ lang, initial, total, recurring, upfront, cu
       <small>{t(lang, "Revisar que los hitos coincidan con el contrato firmado.", "Verify milestones against the signed contract.")}</small>
     </label>}
 
-    {terms.schedule === "subscription" && <p className={s.muted}>{t(lang,
-      "Las mensualidades requieren un acuerdo de soporte o suscripción aprobado. No se activa ningún débito recurrente.",
-      "Monthly payments require an approved subscription or support agreement. No recurring debit is activated.")}
-      {recurring > 0 ? " " + t(lang, "Recurrente del catálogo:", "Catalog recurring amount:") + " " + money(lang, recurring, currency) : ""}</p>}
+    {terms.schedule === "subscription" && <>
+      {recurring <= 0 && <p className={s.flash} data-tone="warn" role="alert">{t(lang,
+        "Añade al menos un servicio mensual del catálogo antes de confirmar una suscripción.",
+        "Add at least one monthly catalog service before confirming a subscription.")}</p>}
+      <p className={s.muted}>{t(lang,
+        "Las mensualidades requieren un acuerdo de soporte o suscripción aprobado. No se activa ningún débito recurrente.",
+        "Monthly payments require an approved subscription or support agreement. No recurring debit is activated.")}
+        {recurring > 0 ? " " + t(lang, "Recurrente del catálogo:", "Catalog recurring amount:") + " " + money(lang, recurring, currency) : ""}</p>
+    </>}
 
     {terms.schedule === "external_financing" && <>
       <label className={s.field}>{t(lang, "Proveedor externo (solo referencia)", "External provider (reference only)")}
