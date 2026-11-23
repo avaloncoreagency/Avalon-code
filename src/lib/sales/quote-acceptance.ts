@@ -9,7 +9,7 @@
 import type { SaleLineInput } from "./domain";
 
 export type AcceptedQuoteLine = {
-  code: string | null; qty: number; unitPrice: string; kind: "one_time" | "monthly";
+  code: string | null; qty: number; unitPrice: string; description: string; kind: "one_time" | "monthly";
 };
 export type SaleCatalogLine = { code: string; billing_type: string };
 
@@ -32,7 +32,7 @@ export function saleMatchesAcceptedQuote(
   return saleLines.every((sale, index) => {
     const quote = quoteLines[index];
     if (!quote || !quote.code || sale.service_code !== quote.code || byCode.get(quote.code) !== quote.kind) return false;
-    if (Number(sale.discount ?? "0") !== 0) return false;
+    if (Number(sale.discount ?? "0") !== 0 || (sale.description ?? "").trim() !== quote.description.trim()) return false;
     if (!Number.isFinite(quote.qty) || !Number.isInteger(quote.qty) || quote.qty < 1) return false;
     if (!sale.quantity || Number(sale.quantity) !== quote.qty || !sale.unit_price) return false;
     const salePrice = cents(sale.unit_price), quotePrice = cents(quote.unitPrice);
