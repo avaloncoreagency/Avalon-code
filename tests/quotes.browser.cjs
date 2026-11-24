@@ -162,9 +162,14 @@ test('Quoting Studio in the real app: wizard, PDF without internal data, states,
   // 2. The preview PDF carries the exact amounts and never the internal data; download is blocked while in draft.
   const preview = await m.request.get(origin + `/admin/workspace/crm/quotes/${quoteId}/pdf?v=1&view=inline`);
   assert.equal(preview.status(), 200);
-  const pdfText = Buffer.from(await preview.body()).toString('latin1');
+  const pdfBytes = Buffer.from(await preview.body());
+  const pdfText = pdfBytes.toString('latin1');
   assert.ok(pdfText.startsWith('%PDF-1.4') && pdfText.includes('($1,500.00)') && pdfText.includes('(10%)'));
   assert.equal(pdfText.includes(SECRET), false, 'internal costs never reach the PDF');
+  // Preserve the verified synthetic PDF for human visual QA in CI artifacts.
+  // No real client details or internal costs are present in this fixture.
+  fs.mkdirSync(EVIDENCE, { recursive: true });
+  fs.writeFileSync(`${EVIDENCE}/quote-preview-synthetic.pdf`, pdfBytes);
   assert.equal((await m.request.get(origin + `/admin/workspace/crm/quotes/${quoteId}/pdf?v=1`)).status(), 409, 'no client download before approval');
 
   // 3. States: review → approved → download (after explicit review) → manual send → acceptance with evidence.
