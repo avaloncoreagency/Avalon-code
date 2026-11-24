@@ -8,6 +8,7 @@ import { UUID_RE } from "@/components/sales/ui";
 import { AGREEMENT_VERSION, SERVICE_OPTIONS } from "@/lib/contracts/agreement";
 import { contractPrefill, isQuoteContent, type QuoteContent } from "@/lib/quotes/model";
 import { createClientAgreement } from "./actions";
+import { DEFAULT_MASTER_VERSION, REVIEW_LABEL, selectableVersions } from "@/lib/contracts/versions";
 import { ReviewBeforeDownload } from "./review-before-download";
 import g from "./guide.module.css";
 import s from "@/components/sales/sales.module.css";
@@ -163,6 +164,14 @@ export default async function ClientContracts({params, searchParams}:{
       </nav>
       <form action={createClientAgreement} className={s.form}>
         <input type="hidden" name="client_id" value={id}/>
+        <fieldset className={s.fieldset} data-master-versions>
+          <legend>{name(lang,"Versión del contrato maestro","Master agreement version")}</legend>
+          {selectableVersions().map(v => <label key={v.version} className={s.field} style={{display:"block"}}>
+            <span><input type="radio" name="template_version" value={v.version} defaultChecked={v.version===DEFAULT_MASTER_VERSION}/> <strong>{v.version}</strong> · {pick(lang,...REVIEW_LABEL[v.status])}</span>
+            {v.changeSummary.length>0 && <small className={s.muted}>{name(lang,"Novedades","Changes")}: {v.changeSummary.join(" · ")}</small>}
+          </label>)}
+          <p className={s.muted}>{name(lang,"Ninguna versión está aprobada por un abogado todavía. Los borradores ya creados conservan el texto de su versión.","No version has been approved by an attorney yet. Existing drafts keep the text of their version.")}</p>
+        </fieldset>
         {fromQuote && <input type="hidden" name="quote_version_id" value={fromQuote.versionId}/>}
         {fromQuote && <p className={s.flash} data-tone="ok">
           {name(lang,"Datos importados desde la cotización aceptada ","Imported from accepted quote ")}<strong>{fromQuote.label}</strong>
