@@ -172,3 +172,15 @@ test('testimonial consents: nothing preselected, explicit evidence, results need
   await as(AGENT);
   assert.equal(await n('select count(*) n from crm_testimonial_consents'), 0);
 });
+
+test('outbox lifecycle kinds (migration 20261124190000): new kinds accepted, unknown kinds refused, rules unchanged', { timeout: 240000 }, async t => {
+  const { db, one } = await setup();
+  t.after(() => db.close());
+  const a = await sale(db, one, 'Cafe Sintetico QA', '96000000-0000-4000-8000-000000000001');
+  const ins = (key, kind) => db.query(`insert into crm_email_outbox(idempotency_key,kind,client_id,to_email,from_email,reply_to,subject,body_html,body_text,lang)
+    values($1,$2,$3,'laura@example.invalid','avalonagencymh@gmail.com','avalonagencymh@gmail.com','Asunto QA','<p>Hola Laura, contenido QA.</p>','Hola Laura, contenido QA.','es') returning id`, [key, kind, a.client]);
+  for (const k of ['onboarding_confirmation', 'progress_update', 'delivery_notice', 'support_info', 'renewal_review']) await ins(`${k}:qa:0001`, k);
+  await assert.rejects(ins('mass_marketing:qa:0001', 'mass_marketing'), /crm_email_outbox_kind_check/);
+  const m = (await ins('progress_update:qa:0002', 'progress_update')).rows[0];
+  await assert.rejects(db.query("update crm_email_outbox set status='sent', sent_at=now() where id=$1", [m.id]), /check constraint/, 'still no "sent" without approval and message id');
+});
