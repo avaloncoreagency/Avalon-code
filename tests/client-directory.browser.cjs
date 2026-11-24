@@ -86,7 +86,7 @@ test('client directory retains search and archive scope across pages', { timeout
   }
   const browser = await chromium.launch({ executablePath: process.env.CHROME_PATH || undefined });
   t.after(() => browser.close());
-  for (const viewport of [{ width: 1440, height: 900 }, { width: 390, height: 844 }, { width: 320, height: 750 }]) {
+  for (const viewport of [320,375,390,430,768,1440].map(width => ({ width, height: width === 1440 ? 900 : 844 }))) {
     const mobile = viewport.width < 768;
     const context = await browser.newContext({ viewport, isMobile: mobile, hasTouch: mobile });
     await context.addCookies([

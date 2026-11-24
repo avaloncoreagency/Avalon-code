@@ -1,7 +1,7 @@
 'use strict';
 // Lead drawer scroll independence (V5 Phase 1). Synthetic PGlite + REST bridge + production build.
 // Runs with CRM_BROWSER=1. Scenarios A–E plus wheel/touch isolation, Escape/X close and focus return.
-// Desktop 1440 and mobile 390 are Chromium emulation, NOT physical Safari.
+// Six requested widths, 320–1440: Chromium emulation, NOT physical Safari.
 const { test } = require('node:test'), assert = require('node:assert/strict'), fs = require('node:fs');
 const { spawn } = require('node:child_process'), { createServer } = require('node:http');
 
@@ -52,7 +52,7 @@ test('lead drawer opens at the top from any Kanban scroll position and the board
   t.after(() => browser.close());
   const cookie = { name: 'sb-127-auth-token', value: 'base64-' + Buffer.from(JSON.stringify(session)).toString('base64url'), url: origin };
 
-  for (const vp of [{ name: 'desktop-1440', viewport: { width: 1440, height: 900 } }, { name: 'mobile-390', viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true }]) {
+  for (const vp of [320,375,390,430,768,1440].map(width => ({ name: width === 1440 ? 'desktop-1440' : `viewport-${width}`, viewport: { width, height: width === 1440 ? 900 : 844 }, isMobile: width < 768, hasTouch: width < 768 }))) {
     const ctx = await browser.newContext({ viewport: vp.viewport, isMobile: vp.isMobile, hasTouch: vp.hasTouch, deviceScaleFactor: 1 });
     await ctx.addCookies([cookie, { name: 'avalon-lang', value: 'es', url: origin }]);
     const page = await ctx.newPage(), errors = [];

@@ -1,5 +1,6 @@
 "use client";
 import Link from "next/link";
+import { inboxLocationQuery, readInboxLocation, type InboxLocation } from "@/lib/crm/inbound-location";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { pick, type Lang } from "@/lib/i18n";
 import { inquiryTriageReason } from "@/lib/crm/inquiry-triage";
@@ -16,16 +17,21 @@ const FOCUS = {"":["Todos","All"],pending:["Por revisar","To review"],possible_s
 type Focus = keyof typeof FOCUS;
 const inFocus=(focus:Focus,review:string)=>focus===""||(focus==="reviewed"?review==="legitimate"||review==="discarded":review===focus);
 const STATES = {pending:["Pendiente","Pending"],approved:["Aprobado","Approved"],rejected:["Descartado","Discarded"],converted:["En pipeline","In pipeline"]} as const;
-export function InboundInbox({lang}:{lang:Lang}) {
+export function InboundInbox({lang,initial=readInboxLocation(new URLSearchParams())}:{lang:Lang;initial?:InboxLocation}) {
   const t=(es:string,en:string)=>pick(lang,es,en);
-  const [rows,setRows]=useState<Inquiry[]>([]),[count,setCount]=useState<number|null>(null),[page,setPage]=useState(0);
-  const [status,setStatus]=useState(""),[query,setQuery]=useState(""),[search,setSearch]=useState("");
+  const [rows,setRows]=useState<Inquiry[]>([]),[count,setCount]=useState<number|null>(null),[page,setPage]=useState(initial.page);
+  const [status,setStatus]=useState(initial.status),[query,setQuery]=useState(initial.query),[search,setSearch]=useState(initial.query);
   const [loading,setLoading]=useState(true),[busy,setBusy]=useState(false),[error,setError]=useState(""),[notice,setNotice]=useState("");
   const [revision,setRevision]=useState(0),[lead,setLead]=useState<string|null>(null);
   const lock=useRef(false);
   const [duplicate,setDuplicate]=useState<{id:string;company:string;prospect:string}|null>(null);
   // Every stored message per prospect (P0.1). null = the database does not record message history yet.
-  const [messages,setMessages]=useState<Message[]|null>(null),[focus,setFocus]=useState<Focus>("");
+  const [messages,setMessages]=useState<Message[]|null>(null),[focus,setFocus]=useState<Focus>(initial.focus as Focus);
+  useEffect(()=>{
+    const href=window.location.pathname+inboxLocationQuery({query:search,status,focus,page})+window.location.hash;
+    if(href!==window.location.pathname+window.location.search+window.location.hash) window.history.replaceState(window.history.state,"",href);
+  },[search,status,focus,page]);
+  const visibleRows=rows.filter(row=>messages===null||focus===""||messages.some(m=>m.prospect_id===row.id&&inFocus(focus,m.review_status)));
   const reload=useCallback(()=>setRevision(x=>x+1),[]);
   useEffect(()=>{
     const controller=new AbortController();setLoading(true);setError("");
@@ -102,7 +108,8 @@ export function InboundInbox({lang}:{lang:Lang}) {
         {pick(lang,FOCUS[key][0],FOCUS[key][1])} ({messages.filter(m=>inFocus(key,m.review_status)).length})</button>)}
     </div>}
     {!loading&&!error&&rows.length===0&&<p className={s.empty}>{t("No hay solicitudes en esta vista.","No inquiries in this view.")}</p>}
-    {!loading&&<ul className={ui.cards}>{rows.filter(row=>messages===null||focus===""||messages.some(m=>m.prospect_id===row.id&&inFocus(focus,m.review_status))).map(row=>{
+    {!loading&&!error&&rows.length>0&&visibleRows.length===0&&<p className={s.empty}>{t("No hay mensajes con este filtro en esta página.","No messages match this filter on this page.")}</p>}
+    {!loading&&<ul className={ui.cards}>{visibleRows.map(row=>{
       const visibleMessages=messages?.filter(m=>m.prospect_id===row.id&&inFocus(focus,m.review_status))??[];
       const legacy=presentInquiry(row.opportunity,(row.crm_public_inquiries??[]).flatMap(x=>x.services),lang);
       const statusText=Object.hasOwn(STATES,row.status)?pick(lang,STATES[row.status as keyof typeof STATES][0],STATES[row.status as keyof typeof STATES][1]):row.status;
