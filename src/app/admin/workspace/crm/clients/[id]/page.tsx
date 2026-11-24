@@ -132,6 +132,10 @@ export default async function Client360({ params, searchParams }: { params: Prom
     : null;
   const canOpenOpportunity = linking?.data === true && !linking.error;
   // Variable agreements (revenue share / commissions, migration 20261123160000). Optional: absent → nothing shown.
+  // Invoices of this client (same crm_invoices records as Sales; finance RLS). Read-only links, no copies.
+  const clientInvoicesR = financePermitted ? await supabase.from("crm_invoices").select("id,sale_id,number,amount,currency,issued_on,due_on,status")
+    .eq("client_id", id).order("issued_on", { ascending: false }).limit(100) : null;
+  const clientInvoices = (clientInvoicesR?.error ? [] : clientInvoicesR?.data ?? []) as { id: string; sale_id: string; number: string; amount: string; currency: string; issued_on: string; due_on: string | null; status: string }[];
   const variableR = financePermitted ? await supabase.from("crm_sale_variable_terms").select("sale_id,kind,pct").eq("client_id", id) : null;
   const variableBySale = new Map(((variableR?.error ? [] : variableR?.data) ?? []).map(v => [(v as { sale_id: string }).sale_id, v as { sale_id: string; kind: string; pct: string }]));
 
@@ -166,6 +170,14 @@ export default async function Client360({ params, searchParams }: { params: Prom
       {variableBySale.size > 0 && <p className={s.flash} data-tone="warn" data-variable-agreements>
         <strong>{pick(lang, "Acuerdos variables", "Variable agreements")}: {variableBySale.size}</strong> — {pick(lang, "participación en ingresos o comisión; el importe se reconoce con cada liquidación verificada y no se incluye en «Contratado».", "revenue share or commission; the amount is recognised with each verified settlement and is not included in “Contracted”.")}</p>}
 
+      {clientInvoices.length > 0 && <section className={s.panel} aria-labelledby="client-invoices">
+        <h2 id="client-invoices">{pick(lang, "Facturas del cliente", "Client invoices")}</h2>
+        <ul className={s.list}>{clientInvoices.map(x => { const base = `/admin/workspace/crm/sales/${x.sale_id}/invoices/${x.id}`; return <li key={x.id} data-client-invoice>
+          <strong>{x.number}</strong> · {money(lang, x.amount, x.currency)} · {formatDate(lang, x.issued_on)}{x.status === "void" ? ` · ${pick(lang, "Anulada", "Void")}` : ""}
+          <span className={s.inline}><Link className={s.button} href={base}>{pick(lang, "Ver factura", "View invoice")}</Link>
+            <a className={s.button} href={`${base}/pdf`} download>{pick(lang, "Descargar PDF", "Download PDF")}</a>
+            <a className={s.button} href={`${base}#print`}>{pick(lang, "Imprimir", "Print")}</a></span></li>; })}</ul>
+      </section>}
       <ClientWorkspace supabase={supabase} clientId={c.id} lang={lang} sales={sales.slice(0, SALES_SHOWN)}
         financeAllowed={financeAllowed} finance={finance} ledgerAvailable={ledger?.ok === true}
         />

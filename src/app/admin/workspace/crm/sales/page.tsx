@@ -9,6 +9,7 @@ import { run } from "@/lib/os/data";
 import { money } from "@/lib/sales/domain";
 import { loadReceivables } from "@/lib/sales/schedule-server";
 import { paymentStatus } from "@/lib/sales/schedule";
+import { issueSaleInvoice } from "./actions";
 import s from "@/components/sales/sales.module.css";
 import w from "@/components/quotes/quotes.module.css";
 export const dynamic = "force-dynamic";
@@ -69,9 +70,18 @@ export default async function SalesPage({ searchParams }: { searchParams: Promis
   if (clientId && !filteredClient.error && !filteredClient.data) notFound();
   const receivables = sales.error ? null : await loadReceivables(supabase, sales.data.map(r => r.id));
   // Commercial model (migration 20261123160000). Optional: before it is applied every sale renders as fixed.
+  // Invoices of the listed sales (finance RLS). Same crm_invoices records the sale and Clients 360 use — no copies.
+  const invoicesR = sales.error || sales.data.length === 0 ? null
+    : await supabase.from("crm_invoices").select("id,sale_id,number,status,issued_on").in("sale_id", sales.data.map(r => r.id)).order("issued_on", { ascending: false });
+  const invoicesOf = new Map<string, { id: string; number: string; status: string }[]>();
+  for (const x of ((invoicesR?.error ? [] : invoicesR?.data) ?? []) as { id: string; sale_id: string; number: string; status: string }[])
+    invoicesOf.set(x.sale_id, [...(invoicesOf.get(x.sale_id) ?? []), x]);
   const models = sales.error || sales.data.length === 0 ? null
     : await supabase.from("crm_sales").select("id,commercial_model").in("id", sales.data.map(r => r.id));
   const modelOf = new Map(((models?.error ? [] : models?.data) ?? []).map(r => [(r as { id: string }).id, (r as { commercial_model: string | null }).commercial_model]));
+  // Closing percentage of variable agreements (how the sale was closed). Optional table: absent → no percentage shown.
+  const pctR = sales.error || sales.data.length === 0 ? null : await supabase.from("crm_sale_variable_terms").select("sale_id,pct").in("sale_id", sales.data.map(r => r.id));
+  const pctOf = new Map(((pctR?.error ? [] : pctR?.data) ?? []).map(r => [(r as { sale_id: string }).sale_id, Number((r as { pct: string }).pct)]));
   // Sales Center overview: the quote funnel and variable agreements live next to closed sales (one workspace).
   const [quoteRows, closedFromQuotes, variableTerms, pendingSettlements] = clientId ? [null, null, null, null] : await Promise.all([
     supabase.from("crm_quotes").select("status").in("status", ["draft", "internal_review", "approved", "sent", "accepted"]).limit(2000),
@@ -146,16 +156,26 @@ export default async function SalesPage({ searchParams }: { searchParams: Promis
       {paymentFilterUnavailable && <p className={s.muted} role="status">{pick(lang, "El filtro de cobranza requiere acceso financiero y la migración 20261123150000.", "The collections filter needs finance access and migration 20261123150000.")}</p>}
       {sales.error ? <Unavailable lang={lang} code={sales.error} /> : sales.data.length === 0 ? <p className={s.empty}>{pick(lang, "Todavía no hay ventas. Registra la primera para generar proyectos y tareas.", "No sales yet. Record the first one to generate projects and tasks.")}</p> :
       <div className={s.tableWrap}><table className={s.table} data-mobile-cards><thead><tr>
-        <th>{pick(lang, "Venta", "Sale")}</th><th>{pick(lang, "Cliente", "Client")}</th><th>{pick(lang, "Fecha", "Date")}</th><th className={s.num}>Total</th><th>{pick(lang, "Servicios", "Services")}</th><th>{pick(lang, "Contrato", "Contract")}</th><th>{pick(lang, "Entrega", "Delivery")}</th><th>{pick(lang, "Cobranza", "Collections")}</th><th>{pick(lang, "Vendedor", "Seller")}</th>
+        <th>{pick(lang, "Venta", "Sale")}</th><th>{pick(lang, "Factura", "Invoice")}</th><th>{pick(lang, "Cliente", "Client")}</th><th>{pick(lang, "Fecha", "Date")}</th><th className={s.num}>Total</th><th>{pick(lang, "Servicios", "Services")}</th><th>{pick(lang, "Contrato", "Contract")}</th><th>{pick(lang, "Entrega", "Delivery")}</th><th>{pick(lang, "Cobranza", "Collections")}</th><th>{pick(lang, "Responsable", "Sales rep")}</th>
       </tr></thead><tbody>{sales.data.map(r => <tr key={r.id}>
         <td data-label={pick(lang, "Venta", "Sale")}><Link href={`/admin/workspace/crm/sales/${r.id}`}>{r.sale_number}</Link></td>
+        <td data-label={pick(lang, "Factura", "Invoice")} data-invoices={(invoicesOf.get(r.id) ?? []).length}>{(() => { const list = invoicesOf.get(r.id) ?? []; const live = list.find(i => i.status === "issued") ?? list[0];
+          if (!live) return invoicesR?.error ? <span className={s.muted}>—</span> : modelOf.get(r.id) === "commission" || Number(r.total) <= 0
+            ? <span className={s.muted}>{pick(lang, "Se factura al verificar la liquidación", "Invoiced once the settlement is verified")}</span>
+            : <form action={issueSaleInvoice} className={s.inline} data-issue-invoice={r.sale_number}><input type="hidden" name="sale_id" value={r.id} /><input type="hidden" name="from" value="list" />
+              <span className={s.muted}>{pick(lang, "Sin factura", "Not invoiced")}</span><button type="submit" className={s.button}>{pick(lang, "Emitir factura", "Issue invoice")}</button></form>;
+          const base = `/admin/workspace/crm/sales/${r.id}/invoices/${live.id}`;
+          return <span className={s.inline}><Link href={base}>{live.number}{live.status === "void" ? ` (${pick(lang, "anulada", "void")})` : ""}</Link>
+            <a href={`${base}/pdf`} download aria-label={`${pick(lang, "Descargar PDF", "Download PDF")} ${live.number}`}>PDF</a>
+            <a href={`${base}#print`} aria-label={`${pick(lang, "Imprimir", "Print")} ${live.number}`}>{pick(lang, "Imprimir", "Print")}</a>
+            {list.length > 1 && <span className={s.muted}>+{list.length - 1}</span>}</span>; })()}</td>
         <td data-label={pick(lang, "Cliente", "Client")}>{r.crm_clients ? <Link href={`/admin/workspace/crm/clients/${r.crm_clients.id}`}>{r.crm_clients.legal_name}</Link> : "—"}</td>
         <td data-label={pick(lang, "Fecha", "Date")}>{formatDate(lang, r.sold_on)}</td><td data-label="Total" className={s.num} data-model={modelOf.get(r.id) ?? "fixed"}>{modelOf.get(r.id) === "commission"
-          ? pick(lang, "Variable · según liquidación", "Variable · per settlement")
-          : <>{money(lang, r.total, r.currency)}{modelOf.get(r.id) === "hybrid" && <><br /><span className={s.muted}>{pick(lang, "+ variable", "+ variable")}</span></>}</>}</td><td data-label={pick(lang, "Servicios", "Services")}>{r.crm_sale_lines.length}</td>
+          ? <>{pctOf.has(r.id) ? <strong data-closing-pct>{pctOf.get(r.id)}%</strong> : null} {pick(lang, "Variable · según liquidación", "Variable · per settlement")}</>
+          : <>{money(lang, r.total, r.currency)}{modelOf.get(r.id) === "hybrid" && <><br /><span className={s.muted}>+ {pctOf.has(r.id) ? `${pctOf.get(r.id)}% ` : ""}{pick(lang, "variable", "variable")}</span></>}</>}</td><td data-label={pick(lang, "Servicios", "Services")}>{r.crm_sale_lines.length}</td>
         <td data-label={pick(lang, "Contrato", "Contract")}><Tag lang={lang} value={r.contract_status} /></td><td data-label={pick(lang, "Entrega", "Delivery")}><Tag lang={lang} value={r.delivery_status} /></td>
         <td data-label={pick(lang, "Cobranza", "Collections")}>{(() => { const rec = receivables?.get(r.id); if (!rec) return <span className={s.muted}>—</span>;
-          return <><Tag lang={lang} value={paymentStatus(rec)} /><br /><span className={s.muted}>{pick(lang, "Saldo", "Balance")} {money(lang, rec.balance, r.currency)}{Number(rec.overdue) > 0 ? ` · ${pick(lang, "vencido", "overdue")} ${money(lang, rec.overdue, r.currency)}` : ""}</span></>; })()}</td><td data-label={pick(lang, "Vendedor", "Seller")}>{ownerName(ownerList, r.seller_id)}</td>
+          return <><Tag lang={lang} value={paymentStatus(rec)} /><br /><span className={s.muted}>{pick(lang, "Saldo", "Balance")} {money(lang, rec.balance, r.currency)}{Number(rec.overdue) > 0 ? ` · ${pick(lang, "vencido", "overdue")} ${money(lang, rec.overdue, r.currency)}` : ""}</span></>; })()}</td><td data-label={pick(lang, "Responsable", "Sales rep")}>{ownerName(ownerList, r.seller_id)}</td>
       </tr>)}</tbody></table></div>}
       <div className={s.actions} style={{ marginTop: 12 }}>{page > 0 && <Link className={s.button} href={filterHref(contract, delivery, page - 1)}>{pick(lang, "Anterior", "Previous")}</Link>}{(page + 1) * PAGE < (sales.count ?? 0) && <Link className={s.button} href={filterHref(contract, delivery, page + 1)}>{pick(lang, "Siguiente", "Next")}</Link>}</div>
     </section>

@@ -25,6 +25,8 @@ export type SalePaymentTerms = {
   milestones: string;
   externalProvider: string;
   notes: string;
+  /** Every channel the client may pay with (split payments allowed). Absent on older sales → only `method`. */
+  accepted?: SalePaymentMethod[];
 };
 
 export const DEFAULT_SALE_PAYMENT_TERMS: SalePaymentTerms = {
@@ -48,7 +50,9 @@ const actualDate = (value: string) => DATE.test(value) && !Number.isNaN(Date.par
 export function validateSalePaymentTerms(value: unknown): SalePaymentTerms {
   if (!value || typeof value !== "object" || Array.isArray(value)) throw Error("sale_invalid_payment_terms");
   const o = value as Record<string, unknown>;
-  const allowed = new Set(["version", "method", "schedule", "installments", "frequency", "firstDue", "netDays", "milestones", "externalProvider", "notes"]);
+  const allowed = new Set(["version", "method", "schedule", "installments", "frequency", "firstDue", "netDays", "milestones", "externalProvider", "notes", "accepted"]);
+  if (o.accepted !== undefined && (!Array.isArray(o.accepted) || o.accepted.length < 1 || o.accepted.length > SALE_PAYMENT_METHODS.length
+    || o.accepted.some(m => !included(SALE_PAYMENT_METHODS, m)) || new Set(o.accepted).size !== o.accepted.length)) throw Error("sale_invalid_payment_terms");
   if (Object.keys(o).some(k => !allowed.has(k)) || o.version !== 1
     || !included(SALE_PAYMENT_METHODS, o.method) || !included(SALE_PAYMENT_SCHEDULES, o.schedule)
     || !included(SALE_PAYMENT_FREQUENCIES, o.frequency)
@@ -68,8 +72,13 @@ export function validateSalePaymentTerms(value: unknown): SalePaymentTerms {
     version: 1, method: o.method as SalePaymentMethod, schedule: o.schedule as SalePaymentSchedule,
     installments: o.installments as number, frequency: o.frequency as SalePaymentFrequency,
     firstDue, netDays: o.netDays as number, milestones, externalProvider, notes,
+    // The preferred method is always one of the accepted ones.
+    ...(o.accepted === undefined ? {} : { accepted: [...new Set([o.method as SalePaymentMethod, ...(o.accepted as SalePaymentMethod[])])] }),
   };
 }
+
+/** Accepted channels of a sale (older sales: just the preferred one). */
+export const acceptedSaleMethods = (terms: SalePaymentTerms | null): SalePaymentMethod[] => !terms ? [] : terms.accepted ?? [terms.method];
 
 export function encodeSalePaymentTerms(terms: SalePaymentTerms): string {
   return JSON.stringify(validateSalePaymentTerms(terms));

@@ -59,6 +59,16 @@ export function SalePaymentEditor({ lang, initial, total, recurring, upfront, cu
           onChange={e => set("netDays", Math.min(365, Math.max(0, Math.trunc(Number(e.target.value) || 0))))} />
       </label>
     </div>
+    <div className={s.field} role="group" aria-label={t(lang, "Métodos de pago aceptados", "Accepted payment methods")} data-accepted-methods>
+      <span>{t(lang, "Métodos de pago aceptados (puede pagar con varios y combinarlos)", "Accepted payment methods (the client may combine several)")}</span>
+      <div className={s.inline} style={{ flexWrap: "wrap", gap: "6px 14px" }}>
+        {SALE_PAYMENT_METHODS.map(x => { const list = terms.accepted ?? [terms.method]; const on = x === terms.method || list.includes(x);
+          return <label key={x} style={{ display: "inline-flex", gap: 6, alignItems: "center", fontWeight: 400 }}>
+            <input type="checkbox" checked={on} disabled={x === terms.method} value={x}
+              onChange={e => set("accepted", e.target.checked ? [...new Set([...list, x])] : list.filter(m => m !== x))} />
+            {salePaymentMethodLabel(x, lang)}</label>; })}
+      </div>
+    </div>
 
     {terms.schedule === "to_agree" && <p className={s.muted}>{t(lang,
       "Todavía no se ha confirmado una modalidad de pago. No se asumen condiciones ni se registran cobros.",

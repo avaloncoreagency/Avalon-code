@@ -6,6 +6,8 @@ import { PAYMENT_METHODS, WORK_ORDER_STATUSES, SaleInputError, parseSaleForm, re
 import { attachSalePaymentTerms, readSalePaymentTerms, validateSalePaymentTerms, paymentChannelToStoredMethod, SALE_PAYMENT_METHODS, type SalePaymentMethod } from "@/lib/sales/payment-terms";
 import { saleMatchesAcceptedQuote } from "@/lib/sales/quote-acceptance";
 import { isQuoteContent } from "@/lib/quotes/model";
+import { nextSaleInvoice } from "@/lib/sales/invoice";
+import { recordInvoice } from "@/lib/sales/core-engine-server";
 
 export type SaleFormState = { error: SaleErrorCode | null; values: Record<string, string>; existingClientId?: string };
 
@@ -297,4 +299,38 @@ export async function moveSettlement(form: FormData) {
   if (error) back(path, { error: saleErrorCode(error) });
   refreshSaleMoney(saleId);
   back(path, { ok: "settlement" });
+}
+
+/**
+ * "Emitir factura": owner-only, explicit click. Issues ONE invoice for the part of the sale not invoiced yet, numbered
+ * from the real sale number, through crm_invoice_record (the database re-checks owner, sale status and the total cap).
+ * Viewing, printing or downloading an invoice never calls this.
+ */
+export async function issueSaleInvoice(form: FormData) {
+  const { supabase } = await ownerForAction();
+  const saleId = uuidField(form, "sale_id");
+  const from = field(form, "from") === "list" ? "/admin/workspace/crm/sales" : null;
+  if (!saleId) back("/admin/workspace/crm/sales", { error: "sale_invalid" });
+  const path = from ?? `/admin/workspace/crm/sales/${saleId}`;
+  const [sale, invoices] = await Promise.all([
+    supabase.from("crm_sales").select("sale_number,total,status,client_id,notes").eq("id", saleId).maybeSingle(),
+    supabase.from("crm_invoices").select("id,amount,status").eq("sale_id", saleId).order("created_at"),
+  ]);
+  if (sale.error || !sale.data || invoices.error) back(path, { error: sale.error ? saleErrorCode(sale.error) : "invoice_issue_failed" });
+  const s = sale.data as { sale_number: string; total: string; status: string; client_id: string; notes: string | null };
+  const list = (invoices.data ?? []) as { id: string; amount: string; status: string }[];
+  const next = s.status === "confirmed" ? nextSaleInvoice(s.sale_number, s.total, list) : null;
+  if (!next) {
+    const live = list.find(i => i.status === "issued");
+    if (live) redirect(`/admin/workspace/crm/sales/${saleId}/invoices/${live.id}`);
+    back(path, { error: "invoice_nothing_to_bill" });
+  }
+  const today = new Date().toISOString().slice(0, 10);
+  const terms = readSalePaymentTerms(s.notes).terms;
+  // Due date only from agreed terms (net days); otherwise none — never an invented deadline.
+  const due = terms && terms.netDays > 0 ? new Date(Date.parse(today + "T00:00:00Z") + terms.netDays * 86_400_000).toISOString().slice(0, 10) : undefined;
+  const r = await recordInvoice(supabase, { sale_id: saleId, number: next!.number, amount: next!.amount, issued_on: today, ...(due ? { due_on: due } : {}) });
+  if (!r.ok) back(path, { error: "invoice_issue_failed" });
+  refreshSaleMoney(saleId!, s.client_id);
+  redirect(`/admin/workspace/crm/sales/${saleId}/invoices/${(r as { data: { invoice_id: string } }).data.invoice_id}?ok=invoiced`);
 }

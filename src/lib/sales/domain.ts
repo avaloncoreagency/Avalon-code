@@ -145,6 +145,8 @@ export function previewTotals(lines: { quantity?: string; unit_price?: string; d
 
 export const SALE_ERRORS = {
   sale_invalid: ["Datos de venta no válidos.", "Invalid sale data."],
+  invoice_nothing_to_bill: ["Esta venta ya está facturada por completo (o su importe depende de una liquidación verificada). Descarga la factura existente.", "This sale is already fully invoiced (or its amount depends on a verified settlement). Download the existing invoice."],
+  invoice_issue_failed: ["No se pudo emitir la factura. No se creó nada; inténtalo de nuevo.", "The invoice could not be issued. Nothing was created; try again."],
   sale_invalid_key: ["El formulario caducó. Recarga la página y vuelve a confirmar.", "The form expired. Reload and confirm again."],
   sale_invalid_lines: ["Añade al menos un servicio vendido.", "Add at least one sold service."],
   sale_invalid_service: ["Selecciona un servicio activo del catálogo para cada línea.", "Choose an active catalog service for every line."],
