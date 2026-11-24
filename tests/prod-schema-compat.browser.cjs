@@ -32,7 +32,7 @@ test('new code on the production schema: no private page crashes before migratio
   await db.exec(fs.readFileSync('tests/sql/00_supabase_stub.sql', 'utf8'));
   await db.exec(`insert into auth.users(id,email) values('${MIGUEL}','miguel@example.invalid');`);
   const files = fs.readdirSync('supabase/migrations').filter(f => f.endsWith('.sql')).sort();
-  const applied = files.filter(f => f <= PRODUCTION_LAST_LOCAL_MIGRATION);
+  // This is a frozen 2026-11-20 production baseline, not proof of today's schema.\n  // The Staff portal migration is dated BEFORE this marker but remains unapplied in production.\n  // Never assume a migration was deployed merely because its filename sorts before the ledger marker.\n  const UNAPPLIED_AT_BASELINE = new Set(['20261117180500_staff_private_portal.sql']);\n  const applied = files.filter(f => f <= PRODUCTION_LAST_LOCAL_MIGRATION && !UNAPPLIED_AT_BASELINE.has(f));
   assert.ok(files.includes(PRODUCTION_LAST_LOCAL_MIGRATION) && applied.length === PRODUCTION_MIGRATIONS, `production state = ${PRODUCTION_MIGRATIONS} local files (${applied.length})`);
   for (const file of applied) {
     await db.exec(fs.readFileSync(`supabase/migrations/${file}`, 'utf8'));
