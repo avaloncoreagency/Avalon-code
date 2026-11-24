@@ -7,14 +7,17 @@ import { pick, formatDate } from "@/lib/i18n";
 import { run } from "@/lib/os/data";
 import { money } from "@/lib/sales/domain";
 import { QUOTE_STATUSES, type QuoteStatus } from "@/lib/quotes/model";
-import { STATUS_LABEL, STATUS_TONE } from "@/lib/quotes/text";
+import { ERROR_TEXT, OK_TEXT, STATUS_LABEL, STATUS_TONE } from "@/lib/quotes/text";
 import { QuoteUnavailable } from "@/components/quotes/unavailable";
+import { DeleteQuoteButton } from "@/components/quotes/delete-quote";
+import { quoteSoftDeleteReady } from "@/lib/quotes/soft-delete";
+import { deleteQuote } from "./actions";
 import s from "@/components/sales/sales.module.css";
 import w from "@/components/quotes/quotes.module.css";
 
 export const dynamic = "force-dynamic";
 const PAGE = 25;
-type Row = { id: string; quote_number: string; title: string; status: QuoteStatus; current_version: number; valid_until: string; updated_at: string;
+type Row = { id: string; quote_number: string; title: string; status: QuoteStatus; current_version: number; version: number; valid_until: string; updated_at: string;
   lead_id: string; client_id: string | null; crm_leads: { company: string } | null; crm_clients: { legal_name: string } | null };
 type Version = { quote_id: string; version_no: number; one_time_total: string; monthly_total: string; commission_pct: string | null; commission_status: string | null };
 type Summary = { draft: number; sent: number; overdue: number; accepted_without_contract: number };
@@ -28,9 +31,14 @@ export default async function QuotesPage({ searchParams }: { searchParams: Promi
   const lead = q(p, "lead"); const leadId = lead && UUID_RE.test(lead) ? lead : null;
   const client = q(p, "client"); const clientId = client && UUID_RE.test(client) ? client : null;
   const page = Math.min(Number(/^\d{1,4}$/.test(q(p, "page") ?? "") ? q(p, "page") : 0), 2000);
+  const softDelete = await quoteSoftDeleteReady(supabase);
+  const okCode = q(p, "ok"), errCode = q(p, "error");
+  const okMsg = okCode && Object.hasOwn(OK_TEXT, okCode) ? OK_TEXT[okCode] : null;
+  const errMsg = errCode ? (Object.hasOwn(ERROR_TEXT, errCode) ? ERROR_TEXT[errCode] : ERROR_TEXT.save) : null;
   let query = supabase.from("crm_quotes")
-    .select("id,quote_number,title,status,current_version,valid_until,updated_at,lead_id,client_id,crm_leads(company),crm_clients(legal_name)", { count: "exact" })
+    .select("id,quote_number,title,status,current_version,version,valid_until,updated_at,lead_id,client_id,crm_leads(company),crm_clients(legal_name)", { count: "exact" })
     .order("updated_at", { ascending: false }).order("id", { ascending: false });
+  if (softDelete) query = query.is("deleted_at", null);
   if (status) query = query.eq("status", status);
   if (leadId) query = query.eq("lead_id", leadId);
   if (clientId) {
@@ -60,6 +68,8 @@ export default async function QuotesPage({ searchParams }: { searchParams: Promi
       actions={<><Link className={`${s.button} ${s.primary}`} href={newHref}>{pick(lang, "+ Nueva cotización", "+ New quote")}</Link>
         <Link className={s.button} href={clientId ? `/admin/workspace/crm/sales?client=${clientId}` : "/admin/workspace/crm/sales"}>{pick(lang, "Ver ventas", "View sales")}</Link>
         <Link className={s.button} href="/admin/workspace/crm/leads">{pick(lang, "Ver pipeline", "View pipeline")}</Link></>} />
+    {okMsg && <p className={s.flash} data-tone="ok" role="status">{pick(lang, ...okMsg)}</p>}
+    {errMsg && <p className={s.flash} data-tone="error" role="alert">{pick(lang, ...errMsg)}</p>}
     {summary.error ? null :
       <section className={s.stats} aria-label={pick(lang, "Estado de cotizaciones", "Quote status")}>
         <div className={s.stat}><span>{pick(lang, "En preparación", "In preparation")}</span><strong>{summary.data.draft}</strong><small>{pick(lang, "Borrador, revisión o aprobadas", "Draft, review or approved")}</small></div>
@@ -80,7 +90,7 @@ export default async function QuotesPage({ searchParams }: { searchParams: Promi
         <p className={s.empty}>{pick(lang, "No hay cotizaciones con este filtro. ", "No quotes for this filter. ")}<Link href={newHref}>{pick(lang, "Crear la primera cotización", "Create the first quote")}</Link></p> :
         <div className={s.tableWrap}><table className={s.table} data-mobile-cards><thead><tr>
           <th>{pick(lang, "Cotización", "Quote")}</th><th>{pick(lang, "Prospecto / cliente", "Prospect / client")}</th><th>{pick(lang, "Estado", "Status")}</th>
-          <th className={s.num}>{pick(lang, "Pago único", "One-time")}</th><th className={s.num}>{pick(lang, "Mensual", "Monthly")}</th><th>{pick(lang, "Comisión", "Commission")}</th><th>{pick(lang, "Válida hasta", "Valid until")}</th>
+          <th className={s.num}>{pick(lang, "Pago único", "One-time")}</th><th className={s.num}>{pick(lang, "Mensual", "Monthly")}</th><th>{pick(lang, "Comisión", "Commission")}</th><th>{pick(lang, "Válida hasta", "Valid until")}</th><th>{pick(lang, "Acciones", "Actions")}</th>
         </tr></thead><tbody>{rows.data.map(r => { const v = current(r); const overdue = r.status === "sent" && r.valid_until < today; return <tr key={r.id}>
           <td data-label={pick(lang, "Cotización", "Quote")}><Link href={`/admin/workspace/crm/quotes/${r.id}`}><strong>{r.quote_number}</strong></Link> · v{r.current_version}<br /><small>{r.title}</small></td>
           <td data-label={pick(lang, "Prospecto / cliente", "Prospect / client")}>{r.client_id && r.crm_clients ? <Link href={`/admin/workspace/crm/clients/${r.client_id}`}>{r.crm_clients.legal_name}</Link> : <Link href={`/admin/workspace/crm/lead/${r.lead_id}`}>{r.crm_leads?.company ?? "—"}</Link>}</td>
@@ -89,6 +99,16 @@ export default async function QuotesPage({ searchParams }: { searchParams: Promi
           <td data-label={pick(lang, "Mensual", "Monthly")} className={s.num}>{v ? money(lang, v.monthly_total) : "—"}</td>
           <td data-label={pick(lang, "Comisión", "Commission")}>{!v?.commission_status ? "—" : v.commission_status === "proposed" ? v.commission_pct + "%" : pick(lang, "Por acordar", "To be agreed")}</td>
           <td data-label={pick(lang, "Válida hasta", "Valid until")}>{formatDate(lang, r.valid_until)}</td>
+          <td data-label={pick(lang, "Acciones", "Actions")}><span className={s.inline} data-quote-actions>
+            <Link href={`/admin/workspace/crm/quotes/${r.id}`}>{pick(lang, "Ver", "View")}</Link>
+            {["draft", "internal_review", "approved"].includes(r.status) && <Link href={`/admin/workspace/crm/quotes/${r.id}/edit`}>{pick(lang, "Editar", "Edit")}</Link>}
+            {["approved", "sent", "accepted"].includes(r.status) && <a href={`/admin/workspace/crm/quotes/${r.id}/pdf?v=${r.current_version}`} download>PDF</a>}
+            {["approved", "sent", "accepted"].includes(r.status) && <a href={`/admin/workspace/crm/quotes/${r.id}/pdf?v=${r.current_version}&view=inline`} target="_blank" rel="noopener">{pick(lang, "Imprimir", "Print")}</a>}
+            {softDelete && r.status !== "accepted" && <DeleteQuoteButton lang={lang} action={deleteQuote} quote={{ id: r.id, version: r.version, number: r.quote_number,
+              client: r.crm_clients?.legal_name ?? r.crm_leads?.company ?? "—", date: formatDate(lang, r.updated_at),
+              total: v ? `${money(lang, v.one_time_total)} + ${money(lang, v.monthly_total)}/${pick(lang, "mes", "mo")}${v.commission_status === "proposed" ? ` + ${v.commission_pct}%` : ""}` : "—",
+              status: pick(lang, ...STATUS_LABEL[r.status]) }} />}
+          </span></td>
         </tr>; })}</tbody></table></div>}
       {(rows.count ?? 0) > PAGE && <nav className={s.inline} aria-label={pick(lang, "Paginación", "Pagination")}>
         {page > 0 && <Link className={s.button} href={filterHref(status) + (filterHref(status).includes("?") ? "&" : "?") + "page=" + (page - 1)}>{pick(lang, "Anterior", "Previous")}</Link>}

@@ -21,6 +21,7 @@ export const TRANSITION_UI: Partial<Record<QuoteStatus, { label: Bi; note?: Bi }
   superseded: { label: ["Marcar como reemplazada", "Mark as superseded"], note: ["¿Qué cotización la reemplaza?", "Which quote replaces it?"] },
 };
 export const OK_TEXT: Record<string, Bi> = {
+  deleted: ["Cotización eliminada (archivada). Su historial se conserva para auditoría.", "Quote deleted (archived). Its history is kept for audit."],
   created: ["Cotización creada como borrador (v1). Revisa el PDF antes de descargarlo.", "Quote created as draft (v1). Review the PDF before downloading."],
   existing: ["Esta cotización ya se había guardado; no se creó un duplicado.", "This quote was already saved; no duplicate was created."],
   revised: ["Nueva revisión guardada. La cotización volvió a borrador para su aprobación.", "New revision saved. The quote is back in draft for approval."],
@@ -47,6 +48,11 @@ export const ERROR_TEXT: Record<string, Bi> = {
   quote_note_required: ["Escribe una nota de al menos 8 caracteres con la evidencia.", "Write a note of at least 8 characters with the evidence."],
   quote_commission_to_negotiate: ["El porcentaje de comisión sigue por acordar: emite una nueva cotización con el porcentaje acordado y marca esta como reemplazada.", "The commission percentage is still to be agreed: issue a new quote with the agreed percentage and mark this one as superseded."],
   quote_expired: ["La cotización está vencida; no puede aceptarse.", "The quote has expired; it cannot be accepted."],
+  quote_delete_forbidden: ["Solo Miguel y Samuel (owners) pueden eliminar cotizaciones.", "Only Miguel and Samuel (owners) can delete quotes."],
+  quote_delete_accepted: ["Una cotización aceptada no se elimina: es un documento consolidado. Márcala como reemplazada si hay nuevas condiciones.", "An accepted quote cannot be deleted: it is a consolidated document. Mark it superseded if terms changed."],
+  quote_delete_has_dependents: ["No se puede eliminar: tiene una venta, términos aceptados o un borrador de contrato vinculados. Esos registros se conservan.", "Cannot delete: a sale, accepted terms or an agreement draft depend on it. Those records are kept."],
+  quote_deleted: ["Esta cotización está eliminada (archivada) y ya no admite cambios.", "This quote is deleted (archived) and no longer accepts changes."],
+  quote_delete_invalid: ["El motivo de eliminación no es válido.", "The deletion reason is not valid."],
   quote_variable_terms_incomplete: ["Estándar Avalon: una propuesta con porcentaje o comisión no se aprueba, envía ni acepta sin todas sus condiciones esenciales. Edita la cotización (nueva revisión) y completa:", "Avalon standard: a percentage or commission proposal cannot be approved, sent or accepted without all its essential terms. Edit the quote (new revision) and complete:"],
   quote_invalid_model_shape: ["Los conceptos no coinciden con el modelo de cobro elegido.", "The items do not match the chosen billing model."],
   quote_invalid_lines: ["Algún concepto tiene precio o cantidad no válidos.", "An item has an invalid price or quantity."],

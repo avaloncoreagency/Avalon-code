@@ -11,7 +11,9 @@ import { QUOTE_TRANSITIONS, NOTE_REQUIRED, REVISABLE, acceptanceBlockers, isQuot
 import { VARIABLE_FIELD_LABEL } from "@/lib/sales/quote-close";
 import { ERROR_TEXT, OK_TEXT, STATUS_LABEL, STATUS_TONE, TRANSITION_UI } from "@/lib/quotes/text";
 import { ReviewBeforeDownload } from "@/components/quotes/review-download";
-import { transitionQuote } from "../actions";
+import { deleteQuote, transitionQuote } from "../actions";
+import { DeleteQuoteButton } from "@/components/quotes/delete-quote";
+import { quoteSoftDeleteReady } from "@/lib/quotes/soft-delete";
 import { QuoteUnavailable } from "@/components/quotes/unavailable";
 import { QuoteClosePanel } from "@/components/sales/quote-close-panel";
 import s from "@/components/sales/sales.module.css";
@@ -36,6 +38,10 @@ export default async function QuoteDetail({ params, searchParams }: { params: Pr
   if (quoteR.error) return <Suite active="crm"><div className={s.hud}><QuoteUnavailable lang={lang} code={quoteR.error} /></div></Suite>;
   const quote = quoteR.data;
   if (!quote) notFound();
+  // Logical deletion (migration 20261124110000): optional; a deleted quote is shown read-only with a clear banner.
+  const canDelete = await quoteSoftDeleteReady(supabase);
+  const deletedR = canDelete ? await supabase.from("crm_quotes").select("deleted_at,delete_reason").eq("id", quote.id).maybeSingle() : null;
+  const deleted = (deletedR?.data as { deleted_at: string | null; delete_reason: string } | null)?.deleted_at ? deletedR!.data as { deleted_at: string; delete_reason: string } : null;
   // A prospect registered as a client after the quote was issued is resolved through its opportunity.
   if (!quote.client_id) {
     const linked = await run<{ id: string; legal_name: string } | null>(supabase.from("crm_clients").select("id,legal_name").eq("origin_lead_id", quote.lead_id).neq("status", "archived").limit(1).maybeSingle());
@@ -73,7 +79,14 @@ export default async function QuoteDetail({ params, searchParams }: { params: Pr
         {REVISABLE.includes(quote.status) && <Link className={`${s.button} ${s.primary}`} href={`/admin/workspace/crm/quotes/${id}/edit`}>{pick(lang, "Editar (nueva revisión)", "Edit (new revision)")}</Link>}
         <Link className={s.button} href={`/admin/workspace/crm/quotes/new?lead=${quote.lead_id}`}>{pick(lang, "Nueva cotización", "New quote")}</Link>
         <a className={`${s.button} ${quote.status === "accepted" ? s.primary : ""}`} href="#close-sale">{pick(lang, "Cerrar venta", "Close sale")}</a>
+        {downloadable && <a className={s.button} href={pdf(quote.current_version, false)} download>{pick(lang, "Descargar PDF", "Download PDF")}</a>}
+        {downloadable && <a className={s.button} href={pdf(quote.current_version, true)} target="_blank" rel="noopener">{pick(lang, "Imprimir", "Print")}</a>}
+        {canDelete && !deleted && quote.status !== "accepted" && <DeleteQuoteButton className={s.button} lang={lang} action={deleteQuote} quote={{ id: quote.id, version: quote.version,
+          number: quote.quote_number, client: quote.crm_clients?.legal_name ?? quote.crm_leads?.company ?? "—", date: formatDate(lang, quote.created_at),
+          total: cur ? `${money(lang, cur.one_time_total)} + ${money(lang, cur.monthly_total)}/${pick(lang, "mes", "mo")}${cur.commission_status === "proposed" ? ` + ${cur.commission_pct}%` : ""}` : "—",
+          status: pick(lang, ...STATUS_LABEL[quote.status]) }} />}
       </>} />
+    {deleted && <p className={s.flash} data-tone="warn" role="status" data-quote-deleted>{pick(lang, "Cotización eliminada (archivada) el", "Quote deleted (archived) on")} {formatDate(lang, deleted.deleted_at)}{deleted.delete_reason ? ` — ${deleted.delete_reason}` : ""}. {pick(lang, "Se conserva solo para consulta y auditoría.", "Kept for reference and audit only.")}</p>}
     {ok && <p className={s.flash} data-tone="ok" role="status">{pick(lang, ...ok)}</p>}
     {err && <p className={s.flash} data-tone="error" role="alert">{pick(lang, ...err)}</p>}
 

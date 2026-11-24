@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import s from "@/components/sales/sales.module.css";
 import w from "./quotes.module.css";
 import { hasChatbotCatalogEntry, proposedChatbotLine } from "@/lib/quotes/chatbot-catalog";
@@ -35,6 +35,15 @@ export function QuoteWizard({ lang, mode, action, hidden, initial, initialIntern
   const [c, setC] = useState<QuoteContent>(initial);
   const [internal, setInternal] = useState<QuoteInternal>(initialInternal);
   const [note, setNote] = useState("");
+  // Unsaved-changes guard: warn before leaving once anything was edited; submitting the form clears it.
+  const [dirty, setDirty] = useState(false);
+  const submitting = useRef(false);
+  useEffect(() => {
+    if (!dirty) return;
+    const warn = (e: BeforeUnloadEvent) => { if (!submitting.current) { e.preventDefault(); e.returnValue = ""; } };
+    window.addEventListener("beforeunload", warn);
+    return () => window.removeEventListener("beforeunload", warn);
+  }, [dirty]);
   const set = <K extends keyof QuoteContent>(k: K, v: QuoteContent[K]) => setC(prev => ({ ...prev, [k]: v }));
   const setLine = (i: number, patch: Partial<QuoteLine>) => set("lines", c.lines.map((l, j) => (j === i ? { ...l, ...patch } : l)));
   const errors = useMemo(() => { try { return validateQuote(c); } catch { return ["lines"]; } }, [c]);
@@ -81,7 +90,8 @@ export function QuoteWizard({ lang, mode, action, hidden, initial, initialIntern
   );
 
   return (
-    <form action={action} className={s.form} aria-describedby="quote-steps">
+    <form action={action} className={s.form} aria-describedby="quote-steps" data-dirty={dirty ? "" : undefined}
+      onChange={() => setDirty(true)} onSubmit={() => { submitting.current = true; }}>
       {Object.entries(hidden).map(([k, v]) => <input key={k} type="hidden" name={k} value={v} />)}
       <input type="hidden" name="content" value={JSON.stringify(c)} />
       <input type="hidden" name="internal" value={JSON.stringify(internal)} />
