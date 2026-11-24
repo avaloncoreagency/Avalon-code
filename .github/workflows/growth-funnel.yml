@@ -17,6 +17,7 @@ on:
       - 'src/app/soluciones/**'
       - 'src/components/public/**'
       - 'tests/public-landing.http.cjs'
+      - 'tests/public-experience.browser.cjs'
       - 'tests/growth-funnel*'
       - '.github/workflows/growth-funnel.yml'
   workflow_dispatch:
@@ -63,6 +64,12 @@ jobs:
         run: node --test tests/public-landing.http.cjs
         env:
           NODE_PATH: ./tests/qa/node_modules
+          NEXT_TELEMETRY_DISABLED: '1'
+      - name: Intro navigation regressions (must execute)
+        run: node --test --test-concurrency=1 tests/public-experience.browser.cjs
+        env:
+          NODE_PATH: ./tests/qa/node_modules
+          PUBLIC_BROWSER: '1'
           NEXT_TELEMETRY_DISABLED: '1'
       - name: Save public desktop and mobile QA screenshots
         if: always()
