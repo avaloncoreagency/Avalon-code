@@ -8,7 +8,10 @@ import { formatUsd, quoteTotals, toCents, type Lang, type QuoteContent } from ".
 
 const W = 612, H = 792, M = 54;
 type Font = "F1" | "F2";
-type Op = { k: "t"; x: number; y: number; s: string; f: Font; z: number; c: string } | { k: "r"; x: number; y: number; w: number; h: number; c: string };
+type Point = readonly [number, number];
+type Op = { k: "t"; x: number; y: number; s: string; f: Font; z: number; c: string }
+  | { k: "r"; x: number; y: number; w: number; h: number; c: string }
+  | { k: "p"; points: Point[]; c: string };
 
 // Helvetica advance widths (AFM, 1/1000 em) for ASCII 32..126. Bold is approximated (+6 %) for layout only.
 const AFM = [278,278,355,556,556,889,667,191,333,333,389,584,278,333,278,278,556,556,556,556,556,556,556,556,556,556,278,278,584,584,584,556,1015,667,667,722,722,667,611,778,722,278,500,667,556,833,722,778,667,778,722,667,611,722,667,944,667,667,611,278,278,278,469,556,333,556,556,500,556,556,278,556,556,222,222,500,222,833,556,556,556,556,333,500,278,556,500,722,500,500,500,334,260,334,584];
@@ -39,8 +42,12 @@ function wrap(s: string, size: number, max: number, f: Font = "F1"): string[] {
   return out;
 }
 
-const NAVY = "0.035 0.067 0.161", INK = "0.118 0.153 0.243", MUTED = "0.42 0.45 0.53", ACCENT = "0.161 0.475 1", VIOLET = "0.42 0.29 0.70",
-  RULE = "0.88 0.9 0.94", TINT = "0.955 0.965 0.985", WHITE = "1 1 1", GOLD = "0.93 0.74 0.36";
+// Ivory paper, editorial typography and sand accents. The A icon uses the
+// official silhouette from src/components/public/landing/site-chrome.tsx.
+const PAPER = "0.992 0.985 0.973", SAND = "0.965 0.938 0.894";
+const INK = "0.165 0.157 0.153", MUTED = "0.422 0.408 0.388", ACCENT = "0.678 0.502 0.318";
+const RULE = "0.873 0.851 0.814", TINT = "0.977 0.965 0.946";
+const BRAND_BLUE = "0.208 0.329 1", BRAND_VIOLET = "0.478 0.361 1";
 
 const L = (lang: Lang) => lang === "es" ? {
   quote: "COTIZACIÓN", proposal: "PROPUESTA COMERCIAL", preparedFor: "PREPARADO PARA", issued: "EMITIDA", valid: "VÁLIDA HASTA",
@@ -86,50 +93,84 @@ export function renderQuotePdf(c: QuoteContent, meta: { number: string; version:
   const text = (p: Op[], x: number, y: number, s: string, z: number, f: Font = "F1", col = INK) => p.push({ k: "t", x, y, s: clean(s), f, z, c: col });
   const rect = (p: Op[], x: number, y: number, w: number, h: number, col: string) => p.push({ k: "r", x, y, w, h, c: col });
   const right = (p: Op[], xr: number, y: number, s: string, z: number, f: Font = "F1", col = INK) => text(p, xr - textWidth(s, z, f), y, s, z, f, col);
+  const polygon = (p: Op[], points: Point[], color: string) => p.push({ k: "p", points, c: color });
+  /** Faithful A silhouette from the public-site SVG, transformed into PDF points. */
+  const avalonMark = (p: Op[], x: number, y: number, size: number) => {
+    const point = (sx: number, sy: number): Point => [
+      Number((x + sx * size / 140).toFixed(2)),
+      Number((y + (130 - sy) * size / 130).toFixed(2)),
+    ];
+    polygon(p, [point(70, 12), point(131, 112), point(99, 112), point(70, 62), point(40, 112), point(9, 112)], BRAND_BLUE);
+    polygon(p, [point(70, 79), point(91, 115), point(49, 115)], BRAND_VIOLET);
+  };
 
   // ── Cover ──────────────────────────────────────────────────────────────────────────────────────────────
   const cover: Op[] = []; pages.push(cover);
-  rect(cover, 0, 300, W, H - 300, NAVY);
-  rect(cover, 0, 300, W, 4, ACCENT);
-  rect(cover, M, 712, 34, 3, GOLD);
-  text(cover, M, 680, "AVALON", 40, "F2", WHITE);
-  text(cover, M + 2, 660, "CORE AGENCY", 10, "F2", "0.74 0.8 0.95");
-  text(cover, M, 560, t.proposal, 10, "F2", GOLD);
-  let cy = 528;
-  for (const l of wrap(c.title, 28, W - 2 * M, "F2").slice(0, 3)) { text(cover, M, cy, l, 28, "F2", WHITE); cy -= 34; }
-  text(cover, M, 360, t.preparedFor, 9, "F2", "0.74 0.8 0.95");
-  text(cover, M, 338, wrap(c.client.company, 18, W - 2 * M, "F2")[0] ?? "", 18, "F2", WHITE);
-  if (c.client.contact) text(cover, M, 318, c.client.contact, 11, "F1", "0.85 0.89 1");
-  // Meta grid
-  const meta4: [string, string][] = [[t.number, meta.number], [t.version, "v" + meta.version], [t.issued, longDate(c.issueDate, c.lang, true)], [t.valid, longDate(c.validUntil, c.lang, true)]];
-  meta4.forEach(([k, v], i) => {
-    const x = M + i * ((W - 2 * M) / 4);
-    text(cover, x, 250, k, 8, "F2", MUTED); text(cover, x, 233, v, 11, "F2", INK);
+  // Ivory editorial cover replaces the old full-page dark-blue slab.
+  avalonMark(cover, M - 3, 678, 47);
+  text(cover, M + 55, 716, "AVALON", 17, "F2", INK);
+  text(cover, M + 56, 700, "CORE AGENCY", 8, "F2", MUTED);
+  right(cover, W - M, 712, t.proposal, 8, "F2", MUTED);
+  rect(cover, M, 671, W - 2 * M, 0.75, RULE);
+  rect(cover, M, 639, 32, 2, ACCENT);
+  text(cover, M, 609, t.quote, 10, "F2", ACCENT);
+  let cy = 567;
+  for (const line of wrap(c.title, 29, W - 2 * M, "F2").slice(0, 3)) {
+    text(cover, M, cy, line, 29, "F2", INK);
+    cy -= 36;
+  }
+  text(cover, M, 449, t.preparedFor, 9, "F2", MUTED);
+  text(cover, M, 423, wrap(c.client.company, 19, W - 2 * M, "F2")[0] ?? "", 19, "F2", INK);
+  if (c.client.contact) text(cover, M, 404, c.client.contact, 10.5, "F1", MUTED);
+  // Warm low-contrast metadata band.
+  rect(cover, M, 290, W - 2 * M, 93, TINT);
+  rect(cover, M, 290, 3, 93, ACCENT);
+  const meta4: [string, string][] = [
+    [t.number, meta.number], [t.version, "v" + meta.version],
+    [t.issued, longDate(c.issueDate, c.lang, true)], [t.valid, longDate(c.validUntil, c.lang, true)],
+  ];
+  meta4.forEach(([key, value], i) => {
+    const x = M + 16 + i * ((W - 2 * M - 26) / 4);
+    text(cover, x, 345, key, 7.2, "F2", MUTED);
+    text(cover, x, 323, value, 10, "F2", INK);
   });
-  rect(cover, M, 205, W - 2 * M, 1, RULE);
-  // Investment highlight
-  text(cover, M, 176, t.investment, 8, "F2", VIOLET);
-  let hx = M;
-  const highlight = (label: string, value: string) => {
-    text(cover, hx, 150, value, 22, "F2", NAVY); text(cover, hx, 134, label, 9, "F1", MUTED);
-    hx += Math.max(150, textWidth(value, 22, "F2") + 36);
-  };
-  if (totals.oneTimeCents) highlight(t.oneTime, formatUsd(totals.oneTimeCents, c.lang));
-  if (totals.monthlyCents) highlight(t.monthly, formatUsd(totals.monthlyCents, c.lang) + " " + t.perMonth);
-  if (c.commission) highlight(t.commission, c.commission.status === "proposed" ? c.commission.pct + "%" : t.pctToNegotiate);
-  text(cover, M, 82, c.issuer.name, 10, "F2", INK);
-  text(cover, M, 68, [c.issuer.email, c.issuer.phone].filter(Boolean).join("   |   "), 9, "F1", MUTED);
+  text(cover, M, 257, t.investment, 9, "F2", ACCENT);
+  const highlights: [string, string][] = [];
+  if (totals.oneTimeCents) highlights.push([t.oneTime, formatUsd(totals.oneTimeCents, c.lang)]);
+  if (totals.monthlyCents) highlights.push([t.monthly, formatUsd(totals.monthlyCents, c.lang) + " " + t.perMonth]);
+  if (c.commission) highlights.push([t.commission, c.commission.status === "proposed" ? c.commission.pct + "%" : t.pctToNegotiate]);
+  const columnWidth = (W - 2 * M) / Math.max(1, highlights.length);
+  highlights.forEach(([label, value], i) => {
+    const x = M + i * columnWidth;
+    const safeFont = Math.max(10, Math.min(21, (columnWidth - 13) / Math.max(0.1, textWidth(value, 1, "F2"))));
+    text(cover, x, 220, value, safeFont, "F2", INK);
+    text(cover, x, 199, label, 9, "F1", MUTED);
+  });
+  rect(cover, M, 130, W - 2 * M, 0.75, RULE);
+  text(cover, M, 111, c.issuer.name, 10, "F2", INK);
+  text(cover, M, 94, [c.issuer.email, c.issuer.phone].filter(Boolean).join("   |   "), 8.5, "F1", MUTED);
 
   // ── Interior flow ──────────────────────────────────────────────────────────────────────────────────────
-  let page: Op[] = []; pages.push(page);
-  let y = H - 86;
+  const interiorPage = (): Op[] => {
+    const sheet: Op[] = []; pages.push(sheet);
+    avalonMark(sheet, M - 2, H - 73, 26);
+    text(sheet, M + 32, H - 49, "AVALON", 11, "F2", INK);
+    text(sheet, M + 33, H - 62, "CORE AGENCY", 6.8, "F2", MUTED);
+    right(sheet, W - M, H - 53, meta.number + "  v" + meta.version, 8, "F1", MUTED);
+    rect(sheet, M, H - 81, W - 2 * M, 0.75, RULE);
+    return sheet;
+  };
+  let page: Op[] = interiorPage();
+  let y = H - 107;
   const bottom = 72;
-  const newPage = () => { page = []; pages.push(page); y = H - 86; };
+  const newPage = () => { page = interiorPage(); y = H - 107; };
   const need = (h: number) => { if (y - h < bottom) newPage(); };
   const heading = (s: string) => {
     need(44);
-    y -= 8; rect(page, M, y - 2, 3, 14, ACCENT);
-    text(page, M + 12, y, s, 13, "F2", NAVY); y -= 22;
+    y -= 7;
+    text(page, M, y, s, 13, "F2", INK);
+    rect(page, M, y - 10, 28, 1.35, ACCENT);
+    y -= 26;
   };
   const para = (s: string, z = 10, col = INK) => {
     for (const l of wrap(s, z, W - 2 * M)) { need(z + 4); text(page, M, y, l, z, "F1", col); y -= z + 4.5; }
@@ -156,10 +197,10 @@ export function renderQuotePdf(c: QuoteContent, meta: { number: string; version:
     heading(t.invest);
     const cols = { concept: M + 10, type: M + 262, qty: M + 352, unit: M + 432, amount: W - M - 10 };
     need(26);
-    rect(page, M, y - 7, W - 2 * M, 20, NAVY);
-    text(page, cols.concept, y, t.concept, 8.5, "F2", WHITE); text(page, cols.type, y, t.type, 8.5, "F2", WHITE);
-    right(page, cols.qty, y, t.qty, 8.5, "F2", WHITE); right(page, cols.unit, y, t.unit, 8.5, "F2", WHITE);
-    right(page, cols.amount, y, t.amount, 8.5, "F2", WHITE);
+    rect(page, M, y - 7, W - 2 * M, 21, SAND);
+    text(page, cols.concept, y, t.concept, 8.5, "F2", INK); text(page, cols.type, y, t.type, 8.5, "F2", INK);
+    right(page, cols.qty, y, t.qty, 8.5, "F2", INK); right(page, cols.unit, y, t.unit, 8.5, "F2", INK);
+    right(page, cols.amount, y, t.amount, 8.5, "F2", INK);
     y -= 22;
     c.lines.forEach((l, i) => {
       const desc = l.description ? wrap(l.description, 8.5, 240) : [];
@@ -177,8 +218,8 @@ export function renderQuotePdf(c: QuoteContent, meta: { number: string; version:
     });
     need(48);
     y -= 4; rect(page, W - M - 230, y - 4, 230, 1, RULE); y -= 16;
-    if (totals.oneTimeCents) { text(page, W - M - 230, y, t.total1, 10, "F2", MUTED); right(page, W - M - 10, y, formatUsd(totals.oneTimeCents, c.lang), 12, "F2", NAVY); y -= 18; }
-    if (totals.monthlyCents) { text(page, W - M - 230, y, t.totalM, 10, "F2", MUTED); right(page, W - M - 10, y, formatUsd(totals.monthlyCents, c.lang) + " " + t.perMonth, 12, "F2", NAVY); y -= 18; }
+    if (totals.oneTimeCents) { text(page, W - M - 230, y, t.total1, 10, "F2", MUTED); right(page, W - M - 10, y, formatUsd(totals.oneTimeCents, c.lang), 12, "F2", INK); y -= 18; }
+    if (totals.monthlyCents) { text(page, W - M - 230, y, t.totalM, 10, "F2", MUTED); right(page, W - M - 10, y, formatUsd(totals.monthlyCents, c.lang) + " " + t.perMonth, 12, "F2", INK); y -= 18; }
     y -= 8;
   }
 
@@ -187,7 +228,7 @@ export function renderQuotePdf(c: QuoteContent, meta: { number: string; version:
   if (c.commission) {
     const cm = c.commission;
     need(30);
-    text(page, M + 14, y, t.commission, 10.5, "F2", VIOLET); y -= 18;
+    text(page, M + 14, y, t.commission, 10.5, "F2", ACCENT); y -= 18;
     kv(t.pctLabel, cm.status === "proposed" ? cm.pct + "%" : t.pctToNegotiate);
     kv(t.base, cm.base === "other" ? cm.baseNote : t.bases[cm.base]);
     kv(t.trigger, cm.trigger);
@@ -220,16 +261,19 @@ export function renderQuotePdf(c: QuoteContent, meta: { number: string; version:
   const esc = (s: string) => s.replace(/\\/g, "\\\\").replace(/\(/g, "\\(").replace(/\)/g, "\\)");
   const kids: number[] = [];
   pages.forEach((ops, i) => {
-    const cmds: string[] = [];
-    if (i > 0) {
-      cmds.push("q", NAVY + " rg", `0 ${H - 34} ${W} 34 re f`, ACCENT + " rg", `0 ${H - 36} ${W} 2 re f`, "Q");
-      cmds.push("BT", "/F2 9 Tf", WHITE + " rg", `1 0 0 1 ${M} ${H - 22} Tm`, "(" + esc("AVALON  /  CORE AGENCY") + ") Tj", "ET");
-      const tag = clean(`${meta.number}  v${meta.version}`);
-      cmds.push("BT", "/F1 8.5 Tf", "0.74 0.8 0.95 rg", `1 0 0 1 ${W - M - textWidth(tag, 8.5)} ${H - 22} Tm`, "(" + esc(tag) + ") Tj", "ET");
-    }
+    // Near-white ivory paper background on every page, including printed PDFs.
+    const cmds: string[] = ["q", PAPER + " rg", `0 0 ${W} ${H} re f`, "Q"];
     for (const op of ops) {
       if (op.k === "r") cmds.push("q", op.c + " rg", `${op.x} ${op.y} ${op.w} ${op.h} re f`, "Q");
-      else cmds.push("BT", `/${op.f} ${op.z} Tf`, op.c + " rg", `1 0 0 1 ${op.x.toFixed(2)} ${op.y.toFixed(2)} Tm`, "(" + esc(op.s) + ") Tj", "ET");
+      else if (op.k === "p") {
+        const [first, ...rest] = op.points;
+        if (first) cmds.push(
+          "q", op.c + " rg",
+          `${first[0].toFixed(2)} ${first[1].toFixed(2)} m`,
+          ...rest.map(pt => `${pt[0].toFixed(2)} ${pt[1].toFixed(2)} l`),
+          "h f", "Q",
+        );
+      } else cmds.push("BT", `/${op.f} ${op.z} Tf`, op.c + " rg", `1 0 0 1 ${op.x.toFixed(2)} ${op.y.toFixed(2)} Tm`, "(" + esc(op.s) + ") Tj", "ET");
     }
     const foot = clean(`${t.footer}  |  ${t.page} ${i + 1} ${t.of} ${pages.length}`);
     cmds.push("q", RULE + " rg", `${M} 46 ${W - 2 * M} 0.6 re f`, "Q");
