@@ -305,6 +305,11 @@ export function RecordForm({
                   ? stages.map((x) => [x.id, x.label])
                   : field.options;
               const val = defaults[field.name];
+              // A missing directory must not clear an existing assignment or the signed-in user's default.
+              // Keep its immutable ID as the form value; the server still validates membership on save.
+              if (field.name === "owner_id" && val && !options?.some(([id]) => id === String(val))) {
+                options?.push([String(val), t("Responsable actual — nombre no disponible", "Current owner — name unavailable")]);
+              }
               return (
                 <label key={field.name} className={s.field}>
                   <span>

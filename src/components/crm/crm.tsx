@@ -375,8 +375,16 @@ export function Crm({ section = "leads", focusLeadId, lang = "es", radarEnabled 
                 <input name="q" defaultValue={filters.q} />
               </label>
               {section !== "hunter" && <label>
-                {t("Responsable (UUID)", "Owner (UUID)")}
-                <input name="owner" defaultValue={filters.owner} />
+                {t("Responsable", "Owner")}
+                <select name="owner" defaultValue={filters.owner ?? ""}>
+                  <option value="">{t("Todos", "All")}</option>
+                  {people.map(person => {
+                    const id = String(person.user_id ?? person.id);
+                    return <option key={id} value={id}>{directoryDisplayName(people, id)}</option>;
+                  })}
+                  {filters.owner && !people.some(person => (person.user_id ?? person.id) === filters.owner) &&
+                    <option value={filters.owner}>{t("Nombre no disponible", "Name unavailable")}</option>}
+                </select>
               </label>}
               <label>
                 {t("Origen exacto", "Exact source")}
