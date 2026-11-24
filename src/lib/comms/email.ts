@@ -182,3 +182,63 @@ export function supabaseInviteTemplate(company: CompanyContact = DEFAULT_COMPANY
   const fix = (s: string) => s.replaceAll("https://CONFIRMATION_URL.invalid", "{{ .ConfirmationURL }}");
   return `{{ if eq .Data.lang "en" }}${fix(en.html)}{{ else }}${fix(es.html)}{{ end }}`;
 }
+
+// ── Client lifecycle messages (onboarding → delivery → support → renewal) ─────────────────────────────────────────
+// Every line comes from recorded CRM data or from the owner's own note; nothing is promised that was not recorded.
+export const LIFECYCLE_KINDS = ["onboarding_confirmation", "progress_update", "delivery_notice", "support_info", "renewal_review"] as const;
+export type LifecycleKind = typeof LIFECYCLE_KINDS[number];
+export const isLifecycleKind = (v: string): v is LifecycleKind => (LIFECYCLE_KINDS as readonly string[]).includes(v);
+export type LifecycleInput = {
+  kind: LifecycleKind; lang: Lang; contactName: string; companyName: string; product: string; representative: Signer; company: CompanyContact; origin?: string;
+  stageLabel: string; progress: { done: number; total: number } | null; nextStep: string | null; note: string;
+  liveUrl: string | null; deliveredOn: string | null;
+};
+/** Returns null when the recorded facts do not support the message (e.g. a delivery notice without a recorded delivery). */
+export function renderLifecycle(i: LifecycleInput): Rendered | null {
+  const L = i.lang, name = oneLine(i.contactName, 80), product = oneLine(i.product, 120), note = i.note.trim().slice(0, 1000);
+  const supportLines = [T(L, `Correo de soporte: ${i.company.supportEmail}`, `Support e-mail: ${i.company.supportEmail}`),
+    ...(i.company.supportPhone ? [T(L, `Teléfono: ${i.company.supportPhone}`, `Phone: ${i.company.supportPhone}`)] : []),
+    ...(i.company.supportHours ? [T(L, `Horario: ${i.company.supportHours}`, `Hours: ${i.company.supportHours}`)] : [])];
+  let subject: string, heading: string, lines: string[];
+  switch (i.kind) {
+    case "onboarding_confirmation":
+      subject = T(L, `Avalon Core Agency — Confirmamos el inicio de ${product}`, `Avalon Core Agency — ${product} is officially underway`);
+      heading = T(L, "Incorporación confirmada", "Onboarding confirmed");
+      lines = [T(L, `Confirmamos que ${i.companyName} quedó incorporado y que el proyecto ${product} está en marcha.`, `We confirm ${i.companyName} is onboarded and the ${product} project is underway.`),
+        T(L, `Etapa actual: ${i.stageLabel}.`, `Current stage: ${i.stageLabel}.`),
+        ...(i.nextStep ? [T(L, `Próximo paso: ${i.nextStep}.`, `Next step: ${i.nextStep}.`)] : [])];
+      break;
+    case "progress_update":
+      if (!note) return null;
+      subject = T(L, `Avalon Core Agency — Avance de ${product}`, `Avalon Core Agency — ${product} progress update`);
+      heading = T(L, "Avance de tu proyecto", "Your project progress");
+      lines = [T(L, `Etapa actual: ${i.stageLabel}.`, `Current stage: ${i.stageLabel}.`),
+        ...(i.progress && i.progress.total ? [T(L, `Checklist: ${i.progress.done} de ${i.progress.total} puntos completados.`, `Checklist: ${i.progress.done} of ${i.progress.total} items completed.`)] : []),
+        note, ...(i.nextStep ? [T(L, `Próximo paso: ${i.nextStep}.`, `Next step: ${i.nextStep}.`)] : [])];
+      break;
+    case "delivery_notice":
+      if (!i.deliveredOn || !i.liveUrl || !safeUrl(i.liveUrl)) return null;
+      subject = T(L, `Avalon Core Agency — Entrega de ${product}`, `Avalon Core Agency — ${product} delivered`);
+      heading = T(L, "Tu producto fue entregado", "Your product has been delivered");
+      lines = [T(L, `El ${i.deliveredOn} registramos la entrega de ${product}, disponible en ${i.liveUrl}.`, `On ${i.deliveredOn} we recorded the delivery of ${product}, available at ${i.liveUrl}.`),
+        T(L, "Por favor, responde a este correo para confirmar que lo recibiste o para indicarnos cualquier observación.", "Please reply to this e-mail to confirm receipt or to share any observation."),
+        ...(note ? [note] : [])];
+      break;
+    case "support_info":
+      subject = T(L, "Avalon Core Agency — Cómo contactar a soporte", "Avalon Core Agency — How to reach support");
+      heading = T(L, "Información de soporte", "Support information");
+      lines = [T(L, `Para ${product}, estos son nuestros canales oficiales:`, `For ${product}, these are our official channels:`), ...supportLines,
+        T(L, "Al reportar un problema incluye: qué ocurrió, la URL o sección afectada, la fecha y, si puedes, capturas de pantalla.", "When reporting an issue include: what happened, the affected URL or section, the date and, if possible, screenshots."),
+        T(L, "El alcance del soporte y del mantenimiento es el indicado en tu contrato.", "Support and maintenance scope is the one stated in your agreement."), ...(note ? [note] : [])];
+      break;
+    case "renewal_review":
+      if (!note) return null;
+      subject = T(L, `Avalon Core Agency — Renovación de ${product} (para revisar)`, `Avalon Core Agency — ${product} renewal (for review)`);
+      heading = T(L, "Propuesta de renovación", "Renewal proposal");
+      lines = [note, T(L, "Nada se renueva ni se cobra automáticamente: cualquier renovación requiere tu aprobación expresa.", "Nothing renews or is charged automatically: any renewal requires your explicit approval.")];
+      break;
+  }
+  const html = layout(L, { preheader: subject, heading, bodyHtml: p(`${T(L, "Hola", "Hello")}, ${esc(name)}:`) + lines.map(l => p(esc(l))).join(""),
+    signer: i.representative, company: i.company, origin: i.origin });
+  return { subject, html, text: textLayout(L, [`${T(L, "Hola", "Hello")}, ${name}:`, "", ...lines], i.representative, i.company) };
+}

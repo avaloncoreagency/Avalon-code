@@ -189,7 +189,7 @@ test('Client experience pages degrade honestly before migration 20261124140000',
   const db = new PGlite(); t.after(() => db.close());
   await db.exec(fs.readFileSync('tests/sql/00_supabase_stub.sql', 'utf8'));
   await db.query('insert into auth.users(id,email) values($1,$2)', [OWNER, 'client-experience-qa@example.invalid']);
-  for (const f of fs.readdirSync('supabase/migrations').filter(f => f.endsWith('.sql') && !f.startsWith('20261124140000')).sort()) {
+  for (const f of fs.readdirSync('supabase/migrations').filter(f => f.endsWith('.sql') && !f.startsWith('20261124140000') && !f.startsWith('20261124190000')).sort()) {
     await db.exec(fs.readFileSync('supabase/migrations/' + f, 'utf8'));
     if (f.startsWith('20261102053022')) await db.query("insert into agency_memberships(user_id,role) values($1,'owner')", [OWNER]);
   }

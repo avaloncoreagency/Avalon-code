@@ -101,5 +101,6 @@ pendiente» and use the documented defaults; nothing is fabricated.
 | Invitation sender `avalonacoreagency@gmail.com` | BLOCKED until SMTP + evidence |
 | Client SMTP `avalonagencymh@gmail.com` | BLOCKED until env vars are set |
 | Support phone | Pending (no number invented) |
-| Migration 20261124140000 | Not applied (needs owner authorization + backup) |
+| Migration 20261124140000 | Applied to production 2026-11-24 with owner GO |
+| Migration 20261124190000 (lifecycle e-mail kinds) | Review only, NOT applied; until then those 5 message types show «requires migration» |
 | Contracts ACA-MSA-1.2 | Review only: shown for attorney review, NOT offered for new drafts; 1.1 remains the only selectable version |

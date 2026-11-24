@@ -192,3 +192,29 @@ test("agent invitations live in AGENT PORTAL, not in Configuración", () => {
   assert.match(inviteAction, /status === "verified" && evidence\.length < 10/, "«verified» needs evidence");
   assert.doesNotMatch(inviteAction, /support_|client_sender|reply_to/, "invite action only writes invitation columns");
 });
+
+test("lifecycle e-mails: only recorded facts, owner note required where needed, ES/EN, support channels from settings", () => {
+  const rep = { name: "Samuel Muñoz", title: "Cofundador" };
+  const base = { lang: "es", contactName: "Laura", companyName: "Café QA", product: "Sitio Café QA", representative: rep, company, stageLabel: "Construcción",
+    progress: { done: 4, total: 9 }, nextStep: "Revisión con el cliente", note: "", liveUrl: null, deliveredOn: null };
+  assert.equal(email.LIFECYCLE_KINDS.length, 5);
+  const conf = email.renderLifecycle({ ...base, kind: "onboarding_confirmation" });
+  assert.match(conf.subject, /Confirmamos el inicio de Sitio Café QA/);
+  assert.match(conf.text, /Etapa actual: Construcción\./);
+  assert.equal(email.renderLifecycle({ ...base, kind: "progress_update" }), null, "no auto-written progress");
+  const prog = email.renderLifecycle({ ...base, kind: "progress_update", note: "Terminamos la página de menú <b>hoy</b>." });
+  assert.match(prog.text, /4 de 9 puntos/);
+  assert.ok(!prog.html.includes("<b>hoy</b>"), "owner note is escaped");
+  assert.equal(email.renderLifecycle({ ...base, kind: "delivery_notice" }), null, "no delivery notice without a recorded delivery");
+  assert.equal(email.renderLifecycle({ ...base, kind: "delivery_notice", deliveredOn: "2026-11-24", liveUrl: "javascript:alert(1)" }), null);
+  const del = email.renderLifecycle({ ...base, lang: "en", kind: "delivery_notice", deliveredOn: "2026-11-24", liveUrl: "https://cafe.example" });
+  assert.match(del.subject, /delivered/);
+  assert.match(del.text, /reply to this e-mail to confirm receipt/);
+  const sup = email.renderLifecycle({ ...base, kind: "support_info" });
+  assert.match(sup.text, /avalonagencymh@gmail\.com/);
+  assert.ok(!/Teléfono/.test(sup.text), "no phone without an approved number");
+  assert.equal(email.renderLifecycle({ ...base, kind: "renewal_review" }), null);
+  const ren = email.renderLifecycle({ ...base, kind: "renewal_review", note: "Proponemos renovar el mantenimiento 12 meses." });
+  assert.match(ren.text, /Nada se renueva ni se cobra automáticamente/);
+  for (const r of [conf, prog, del, sup, ren]) { assert.match(r.html, /Samuel Muñoz/); assert.match(r.html, /avalon-mark\.png/); }
+});
