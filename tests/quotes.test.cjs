@@ -139,6 +139,23 @@ test("PDF: English, long text wraps across pages, special characters are safe", 
   assert.match(text, /This quote is valid until December 19, 2026/);
 });
 
+test("PDF: Avalon vector logo and ivory palette replace the blue corporate design", () => {
+  const content = model.clientSafe({ ...base(), model: "hybrid",
+    lines: [...base().lines, { code: "mantenimiento", name: "Monthly care", description: "", kind: "monthly", qty: 1, unitPrice: "150" }],
+    commission: commission() });
+  const text = Buffer.from(pdf.renderQuotePdf(content, { number: "Q-2026-0099", version: 1 })).toString("latin1");
+  const pageCount = Number(text.match(/\\/Count (\\d+)/)[1]);
+  assert.ok(pageCount >= 2);
+  assert.equal((text.match(/0\\.992 0\\.985 0\\.973 rg/g) || []).length, pageCount, "all sheets use ivory paper");
+  assert.match(text, /0\\.208 0\\.329 1 rg/, "official Avalon blue symbol is drawn");
+  assert.match(text, /0\\.478 0\\.361 1 rg/, "official Avalon violet symbol detail is drawn");
+  assert.match(text, /\\(AVALON\\) Tj/);
+  assert.match(text, /\\(CORE AGENCY\\) Tj/);
+  assert.match(text, /0 0 612 792 re f/, "US Letter sheets are tinted");
+  assert.doesNotMatch(text, /0 300 612 492 re f/, "old navy slab must be removed");
+  assert.match(text, /\\(\\$1,500\\.00\\)/, "commercial totals do not change");
+});
+
 test("contract prefill uses exact accepted amounts and references the quote version", () => {
   const c = model.clientSafe({ ...base(), model: "hybrid", commission: commission(),
     lines: [...base().lines, { code: null, name: "Soporte", description: "", kind: "monthly", qty: 1, unitPrice: "150" }] });
