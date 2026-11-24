@@ -176,7 +176,7 @@ test("agent invitations live in AGENT PORTAL, not in Configuración", () => {
   const inviteAction = fs.readFileSync("src/components/agents/invite-actions.ts", "utf8");
   const portal = load("src/lib/agents/portal.ts");
   assert.equal(portal.AGENT_PORTAL_PATH, "/admin/staff", "one Agent Portal: the Staff portal route, not a second agent area");
-  assert.deepEqual(portal.AGENT_PORTAL_LABEL, ["PORTAL DE AGENTES", "AGENT PORTAL"]);
+  assert.deepEqual(portal.AGENT_PORTAL_LABEL, ["AGENT PORTAL", "AGENT PORTAL"]);
   for (const forbidden of ["invite_sender", "renderAgentInvite", "data-preview=\"invite\""]) {
     assert.ok(!settings.includes(forbidden), `Configuración must not contain ${forbidden}`);
     assert.ok(!settingsAction.includes(forbidden), `settings action must not write ${forbidden}`);

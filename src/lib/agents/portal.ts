@@ -5,4 +5,4 @@
  * building a second agent area.
  */
 export const AGENT_PORTAL_PATH = "/admin/staff";
-export const AGENT_PORTAL_LABEL: [string, string] = ["PORTAL DE AGENTES", "AGENT PORTAL"];
+export const AGENT_PORTAL_LABEL: [string, string] = ["AGENT PORTAL", "AGENT PORTAL"];
