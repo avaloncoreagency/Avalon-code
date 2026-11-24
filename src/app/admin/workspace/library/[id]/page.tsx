@@ -1,3 +1,4 @@
+import { loadOwnerDirectory } from "@/lib/identity/directory";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { Suite } from "@/components/suite/suite";
@@ -33,7 +34,7 @@ export default async function LibraryProject({ params, searchParams }: { params:
     supabase.from("os_project_deployments").select("id,version_id,target,vercel_project,deployment_id,url,state,error_code,created_at,checked_at").eq("project_id", id).order("created_at", { ascending: false }).limit(50),
     supabase.from("os_project_events").select("id,action,detail,actor,created_at").eq("project_id", id).order("id", { ascending: false }).limit(40),
     supabase.from("crm_clients").select("id,legal_name,client_code").neq("status", "archived").order("legal_name").limit(500),
-    supabase.rpc("crm_owner_directory"),
+    loadOwnerDirectory(supabase),
     supabase.from("os_project_publish_approvals").select("version_id,expires_at,used_at").eq("project_id", id).is("used_at", null),
   ]);
   const vs = (versions.data ?? []) as Version[];

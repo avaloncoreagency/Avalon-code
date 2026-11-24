@@ -12,7 +12,8 @@ const BASE = "/admin/workspace/crm/quotes";
 /** Only these database error codes are echoed back to the URL; anything else becomes "save". */
 const KNOWN = new Set([
   "crm_forbidden", "quote_lead_missing", "quote_missing", "quote_version_conflict", "quote_not_revisable", "quote_invalid_transition",
-  "quote_note_required", "quote_commission_to_negotiate", "quote_expired", "quote_invalid_model_shape", "quote_invalid_lines",
+  "quote_note_required", "quote_commission_to_negotiate", "quote_variable_terms_incomplete", "quote_expired",
+  "quote_delete_forbidden", "quote_delete_accepted", "quote_delete_has_dependents", "quote_deleted", "quote_delete_invalid", "quote_invalid_model_shape", "quote_invalid_lines",
   "quote_invalid_commission", "quote_invalid_dates", "quote_invalid_content",
 ]);
 function dbCode(error: { message?: string; code?: string } | null): string {
@@ -88,4 +89,18 @@ export async function transitionQuote(form: FormData) {
   revalidatePath(here);
   revalidatePath(BASE);
   back(here, { ok: "status_" + to });
+}
+
+/** Owner-only LOGICAL deletion after explicit confirmation (the database re-checks owner, version and dependents).
+ * On failure the quote stays exactly as it was and the reason is shown; nothing is hidden optimistically. */
+export async function deleteQuote(form: FormData) {
+  const { supabase } = await ownerForAction();
+  const quoteId = uuidField(form, "quote_id");
+  const expected = Number(field(form, "expected_version"));
+  if (!quoteId || !Number.isInteger(expected) || expected < 1) back(BASE, { error: "invalid" });
+  const { error } = await supabase.rpc("crm_quote_delete", { p_quote: quoteId, p_expected_version: expected, p_reason: field(form, "reason").trim().slice(0, 500) });
+  if (error) back(BASE + "/" + quoteId, { error: dbCode(error) });
+  revalidatePath(BASE);
+  revalidatePath("/admin/workspace/crm/clients");
+  back(BASE, { ok: "deleted" });
 }

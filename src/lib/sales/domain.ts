@@ -5,7 +5,7 @@
  */
 import type { Lang } from "@/lib/i18n";
 
-export const MAX_LINES = 6;
+export const MAX_LINES = 20; // Matches crm_confirm_sale DB cap; shared with Sales form.
 export const MAX_CONTACTS = 3;
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const AMOUNT = /^[0-9]{1,13}(\.[0-9]{1,2})?$/;
@@ -145,6 +145,8 @@ export function previewTotals(lines: { quantity?: string; unit_price?: string; d
 
 export const SALE_ERRORS = {
   sale_invalid: ["Datos de venta no válidos.", "Invalid sale data."],
+  invoice_nothing_to_bill: ["Esta venta ya está facturada por completo (o su importe depende de una liquidación verificada). Descarga la factura existente.", "This sale is already fully invoiced (or its amount depends on a verified settlement). Download the existing invoice."],
+  invoice_issue_failed: ["No se pudo emitir la factura. No se creó nada; inténtalo de nuevo.", "The invoice could not be issued. Nothing was created; try again."],
   sale_invalid_key: ["El formulario caducó. Recarga la página y vuelve a confirmar.", "The form expired. Reload and confirm again."],
   sale_invalid_lines: ["Añade al menos un servicio vendido.", "Add at least one sold service."],
   sale_invalid_service: ["Selecciona un servicio activo del catálogo para cada línea.", "Choose an active catalog service for every line."],
@@ -152,6 +154,8 @@ export const SALE_ERRORS = {
   sale_invalid_amount: ["Importe no válido: usa números con hasta 2 decimales.", "Invalid amount: use numbers with up to 2 decimals."],
   sale_invalid_discount: ["El descuento no puede superar el importe.", "The discount cannot exceed the amount."],
   sale_invalid_upfront: ["El pago inicial no puede superar el total.", "The upfront payment cannot exceed the total."],
+  sale_invalid_payment_terms: ["Revisa el método y calendario de pago. Para cuotas selecciona facturación por plazos; para suscripción elige mensual o mixta. No se guardó nada.", "Review the payment method and schedule. Installments require installment billing; subscriptions require monthly or mixed billing. Nothing was saved."],
+  sale_invalid_quote: ["La cotización de origen no está aceptada o no corresponde a esta oportunidad. No se registró ninguna venta.", "The source quote is not accepted or does not match this opportunity. No sale was recorded."],
   sale_invalid_member: ["El responsable debe ser un propietario autorizado.", "The assignee must be an authorized owner."],
   sale_invalid_date: ["Fecha no válida.", "Invalid date."],
   sale_invalid_currency: ["Moneda no válida (código ISO de 3 letras).", "Invalid currency (3-letter ISO code)."],
@@ -167,6 +171,33 @@ export const SALE_ERRORS = {
   sale_lead_other_client: ["Esa oportunidad pertenece a otra empresa. Una venta solo puede cerrar la oportunidad vinculada al cliente seleccionado.", "That opportunity belongs to another company. A sale can only close the opportunity linked to the selected client."],
   crm_forbidden: ["No tienes permiso para registrar ventas.", "You are not allowed to record sales."],
   payment_exceeds_total: ["El cobro supera el total pendiente de la venta.", "The payment exceeds the sale's outstanding total."],
+  payment_exceeds_installment: ["El cobro supera lo pendiente de esa cuota. Regístralo sin cuota o reparte el importe.", "The payment exceeds what is left on that installment. Record it without an installment or split it."],
+  payment_invalid_installment: ["Esa cuota no pertenece a esta venta o ya no está vigente.", "That installment is not part of this sale or is no longer live."],
+  payment_has_refunds: ["Este pago tiene reembolsos o contracargos: no se puede revertir como error de captura.", "This payment has refunds or chargebacks: it cannot be reversed as a capture error."],
+  finance_forbidden: ["Necesitas acceso financiero para gestionar calendarios, reembolsos y contracargos.", "You need finance access to manage schedules, refunds and chargebacks."],
+  schedule_total_mismatch: ["El calendario debe sumar exactamente el total de la venta (incluidas las cuotas ya cobradas).", "The schedule must add up exactly to the sale total (including installments already paid)."],
+  schedule_invalid_date: ["Cada vencimiento debe ser una fecha real, no anterior a la fecha de venta.", "Every due date must be a real date, not before the sale date."],
+  schedule_invalid_amount: ["Cada cuota debe ser un importe positivo con hasta 2 decimales.", "Every installment must be a positive amount with up to 2 decimals."],
+  schedule_invalid: ["El calendario no es válido.", "The schedule is not valid."],
+  schedule_invalid_sale: ["Solo las ventas confirmadas tienen calendario de pagos.", "Only confirmed sales have a payment schedule."],
+  schedule_reason_required: ["Indica el motivo del cambio de calendario (mín. 5 caracteres).", "Give a reason for changing the schedule (min. 5 characters)."],
+  schedule_version_conflict: ["Otra persona cambió el calendario antes. Recarga y revisa.", "Someone changed the schedule first. Reload and review."],
+  refund_requires_verified_payment: ["Solo se reembolsa dinero verificado. Si el cobro fue un error de captura, revierte el registro.", "Only verified money can be refunded. If the receipt was a capture error, reverse it instead."],
+  refund_exceeds_payment: ["Los reembolsos y contracargos no pueden superar el importe del pago.", "Refunds and chargebacks cannot exceed the payment amount."],
+  refund_invalid_amount: ["Importe de reembolso no válido.", "Invalid refund amount."],
+  refund_invalid: ["Datos de reembolso no válidos (motivo de 5 a 500 caracteres; fecha no anterior al cobro).", "Invalid refund data (reason 5–500 characters; date not before the receipt)."],
+  refund_idempotency_conflict: ["Ese envío ya se registró con otros datos. Recarga la página.", "That submission was already recorded with different data. Reload the page."],
+  chargeback_invalid: ["Indica el resultado y una nota (mín. 5 caracteres).", "Give the outcome and a note (min. 5 characters)."],
+  chargeback_not_open: ["Ese contracargo ya está resuelto.", "That chargeback is already resolved."],
+  settlement_invalid: ["Datos de liquidación no válidos.", "Invalid settlement data."],
+  settlement_invalid_amount: ["La base elegible debe ser positiva y mayor que las exclusiones.", "The eligible base must be positive and above the exclusions."],
+  settlement_invalid_period: ["Periodo no válido: no puede empezar antes de la vigencia del acuerdo.", "Invalid period: it cannot start before the agreement is effective."],
+  settlement_period_overlap: ["Ese periodo ya tiene una liquidación vigente.", "That period already has a live settlement."],
+  settlement_evidence_required: ["Indica la evidencia (reporte, conciliación…).", "Give the evidence (report, reconciliation…)."],
+  settlement_reason_required: ["Indica el motivo de la anulación (mín. 5 caracteres).", "Give the reason for voiding (min. 5 characters)."],
+  settlement_has_payments: ["Hay cobros que dependen de esta liquidación: no puede anularse.", "Receipts depend on this settlement: it cannot be voided."],
+  settlement_invalid_transition: ["Ese cambio de estado no está permitido.", "That status change is not allowed."],
+  settlement_no_variable_terms: ["Esta venta no tiene acuerdo variable.", "This sale has no variable agreement."],
   payment_currency_mismatch: ["La moneda del cobro debe coincidir con la de la venta.", "The payment currency must match the sale."],
   payment_invalid_sale: ["La venta no admite cobros.", "This sale cannot receive payments."],
   duplicate: ["Ya existe un registro con ese identificador (por ejemplo, el mismo correo).", "A record with that identifier already exists (for example, the same e-mail)."],
@@ -181,7 +212,7 @@ export const saleErrorText = (lang: Lang, code: string) => SALE_ERRORS[isSaleErr
 /** Map a PostgREST/PostgreSQL error to a known code, never echoing raw DB text. */
 export function saleErrorCode(error: { code?: string; message?: string } | null | undefined): SaleErrorCode {
   const message = error?.message ?? "";
-  const known = message.match(/\b(sale_[a-z_]+|payment_[a-z_]+|crm_forbidden)\b/)?.[1];
+  const known = message.match(/\b(sale_[a-z_]+|payment_[a-z_]+|schedule_[a-z_]+|refund_[a-z_]+|chargeback_[a-z_]+|settlement_[a-z_]+|finance_forbidden|crm_forbidden)\b/)?.[1];
   if (known && isSaleError(known)) return known;
   if (message.includes("won_requires_verified_contract")) return "sale_contract_required";
   if (error?.code === "PGRST202" || error?.code === "PGRST205" || error?.code === "42P01" || error?.code === "42883") return "schema_pending";
@@ -203,7 +234,8 @@ export function readConfirmResult(value: unknown): ConfirmResult | null {
 export const TASK_STATUSES = ["todo", "in_progress", "blocked", "done", "cancelled"] as const;
 export const TASK_PRIORITIES = ["low", "normal", "high", "urgent"] as const;
 export const WORK_ORDER_STATUSES = ["open", "in_progress", "blocked", "delivered", "cancelled"] as const;
-export const PAYMENT_METHODS = ["transfer", "card", "cash", "other"] as const;
+/** Manual receipt channels (DB enum, 20261123150000). No processor is connected: these document money received. */
+export const PAYMENT_METHODS = ["transfer", "ach", "wire", "zelle", "check", "card", "cash", "paypal", "payment_link", "financing_external", "other"] as const;
 
 const LABELS: Record<string, [string, string]> = {
   todo: ["Pendiente", "To do"], in_progress: ["En curso", "In progress"], blocked: ["Bloqueada", "Blocked"], done: ["Hecha", "Done"], cancelled: ["Cancelada", "Cancelled"],
@@ -213,11 +245,18 @@ const LABELS: Record<string, [string, string]> = {
   pending_signature: ["Pendiente de firma", "Pending signature"], signed: ["Firmado", "Signed"],
   not_started: ["Sin iniciar", "Not started"], confirmed: ["Confirmada", "Confirmed"],
   transfer: ["Transferencia", "Transfer"], card: ["Tarjeta", "Card"], cash: ["Efectivo", "Cash"], other: ["Otro", "Other"],
+  ach: ["ACH", "ACH"], wire: ["Wire", "Wire"], zelle: ["Zelle", "Zelle"], check: ["Cheque", "Check"], paypal: ["PayPal", "PayPal"],
+  payment_link: ["Enlace de pago", "Payment link"], financing_external: ["Financiamiento externo (desembolso)", "External financing (disbursement)"],
+  deposit: ["Anticipo", "Deposit"], installment: ["Cuota", "Installment"], balance: ["Saldo", "Balance"], milestone: ["Hito", "Milestone"], recurring: ["Recurrente", "Recurring"],
+  pending: ["Pendiente de verificar", "Pending verification"], scheduled: ["Programada", "Scheduled"], paid: ["Pagada", "Paid"], partial: ["Pago parcial", "Partially paid"], overdue: ["Vencida", "Overdue"], due: ["Por vencer", "Upcoming"],
+  unpaid: ["Sin pagos", "Unpaid"], partially_paid: ["Pago parcial", "Partially paid"], refunded: ["Reembolsada", "Refunded"], disputed: ["En disputa", "Disputed"],
+  refund: ["Reembolso", "Refund"], chargeback: ["Contracargo", "Chargeback"], won: ["Ganado", "Won"], lost: ["Perdido", "Lost"],
+  recorded: ["Registrado", "Recorded"], verified: ["Verificado", "Verified"], reversed: ["Revertido", "Reversed"],
   none: ["Única", "One-off"], active: ["Activo", "Active"], inactive: ["Inactivo", "Inactive"], archived: ["Archivado", "Archived"],
 };
 export const label = (lang: Lang, key: string) => LABELS[key]?.[lang === "es" ? 0 : 1] ?? key;
 export const tone = (key: string) =>
-  ["done", "delivered", "signed", "active"].includes(key) ? "ok" : ["blocked", "urgent"].includes(key) ? "danger"
+  ["done", "delivered", "signed", "active", "paid", "verified", "won"].includes(key) ? "ok" : ["blocked", "urgent", "overdue", "disputed", "lost", "chargeback"].includes(key) ? "danger"
     : ["in_progress", "high"].includes(key) ? "info" : ["cancelled", "archived", "low"].includes(key) ? "neutral" : "warn";
 
 export function money(lang: Lang, value: number | string | null | undefined, currency = "USD") {

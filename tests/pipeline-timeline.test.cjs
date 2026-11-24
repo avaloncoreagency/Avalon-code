@@ -9,7 +9,7 @@ const { NextRequest, NextResponse } = require("next/server");
 const LEAD = "00000000-0000-4000-8000-0000000000a1";
 function route(session) {
   const mod = { exports: {} };
-  const deps = { "next/server": { NextResponse }, "@/lib/auth/session": { getOwnerSession: async () => session } };
+  const deps = { "@/lib/identity/directory": {loadOwnerDirectory: async () => { throw Error("timeline requests must not load owner directory"); }}, "next/server": { NextResponse }, "@/lib/auth/session": { getOwnerSession: async () => session } };
   const code = ts.transpileModule(fs.readFileSync("src/app/admin/workspace/crm/pipeline/route.ts", "utf8"), { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 } }).outputText;
   new Function("require", "module", "exports", code)(name => { assert.ok(name in deps, name); return deps[name]; }, mod, mod.exports);
   return mod.exports;

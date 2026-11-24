@@ -1,3 +1,5 @@
+import { loadOwnerDirectory } from "@/lib/identity/directory";
+import { personDisplayName } from "@/lib/identity/owners";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { Suite } from "@/components/suite/suite";
@@ -30,9 +32,9 @@ export default async function DiscoveryPage({ params, searchParams }: { params: 
   const industry = isIndustry(requested) ? requested : lead.data.industry_key;
   const [assessments, owners] = await Promise.all([
     run<{ industry_key: string; answers: Answers; status: string; progress: number }[]>(supabase.from("crm_lead_assessments").select("industry_key,answers,status,progress").eq("lead_id", id)),
-    run<{ user_id: string; email: string }[]>(supabase.rpc("crm_owner_directory")),
+    run<{ user_id: string; email: string }[]>(loadOwnerDirectory(supabase)),
   ]);
-  const ownerNames = Object.fromEntries((owners.data ?? []).map(o => [o.user_id, o.email.split("@")[0]]));
+  const ownerNames = Object.fromEntries((owners.data ?? []).map(o => [o.user_id, personDisplayName(o)]));
   const base = `/admin/workspace/crm/lead/${id}`;
   const otherWithAnswers = (assessments.data ?? []).filter(a => a.industry_key !== industry && Object.keys(a.answers).length > 0);
 

@@ -1,3 +1,4 @@
+import { personDisplayName, directoryDisplayName, authorDisplayName } from "@/lib/identity/owners";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { loadClientLedger, loadSaleOperations } from "@/lib/sales/core-engine-server";
 import { coreEngineMessage, type ClientLedger, type CatalogOffer } from "@/lib/sales/core-engine";
@@ -40,6 +41,9 @@ export async function SaleCorePanels({db,saleId,clientId,lang,currency,owners}:{
       </CoreForm>
       {bounded("invoices",data.invoices.length)}
       <ul className={s.list}>{data.invoices.map(x=><li key={x.id}><strong>{x.number} · {money(lang,x.amount,x.currency)}</strong><span>{status(lang,x.status)} · {formatDate(lang,x.issued_on)}{x.due_on ? ` → ${formatDate(lang,x.due_on)}` : ""}</span>
+        <span className={s.inline} data-invoice-actions><a className={s.button} href={`/admin/workspace/crm/sales/${saleId}/invoices/${x.id}`}>{t("Ver factura","View invoice")}</a>
+          <a className={s.button} href={`/admin/workspace/crm/sales/${saleId}/invoices/${x.id}/pdf`} download>{t("Descargar PDF","Download PDF")}</a>
+          <a className={s.button} href={`/admin/workspace/crm/sales/${saleId}/invoices/${x.id}#print`}>{t("Imprimir","Print")}</a></span>
         {x.status === "issued" ? <CoreForm action={action("void")} lang={lang} label={t("Anular factura","Void invoice")} confirmText={t("¿Anular esta factura? El historial se conserva.","Void this invoice? History is retained.")}><input type="hidden" name="id" value={x.id}/>{reason()}</CoreForm>:<p>{x.void_reason}</p>}</li>)}</ul>
     </section>
     <section className={s.panel} aria-label={t("Conciliación de pagos","Payment reconciliation")}><h2>{t("Conciliación de pagos","Payment reconciliation")}</h2>
@@ -55,13 +59,13 @@ export async function SaleCorePanels({db,saleId,clientId,lang,currency,owners}:{
       <p className={s.muted}>{t("Solo acuerdos reales. Marcar pagada registra un pago externo ya realizado; no transfiere dinero.","Real agreements only. Marking paid records an external payment already made; it does not transfer money.")}</p>
       <CoreForm action={action("agree")} lang={lang} label={t("Acordar comisión","Agree commission")}>
         <label className={s.field}>{t("Tipo","Type")}<select name="kind"><option value="sale">{t("Venta","Sale")}</option><option value="referral">{t("Referido","Referral")}</option></select></label>
-        <label className={s.field}>{t("Propietario beneficiario (o nombre externo)","Owner beneficiary (or external name)")}<select name="beneficiary_id"><option value="">{t("Referente externo","External referrer")}</option>{owners.map(o=><option key={o.user_id} value={o.user_id}>{o.email}</option>)}</select></label>
+        <label className={s.field}>{t("Propietario beneficiario (o nombre externo)","Owner beneficiary (or external name)")}<select name="beneficiary_id"><option value="">{t("Referente externo","External referrer")}</option>{owners.map(o=><option key={o.user_id} value={o.user_id}>{personDisplayName(o)}</option>)}</select></label>
         <label className={s.field}>{t("Nombre externo (solo si no eliges propietario)","External name (only when no owner selected)")}<input name="beneficiary_name" maxLength={160}/></label>
         <div className={s.row}><label className={s.field}>{t("Porcentaje (o importe fijo)","Percentage (or fixed amount)")}<input name="rate_pct" inputMode="decimal"/></label><label className={s.field}>{t("Importe fijo (o porcentaje)","Fixed amount (or percentage)")}<input name="fixed_amount" inputMode="decimal"/></label></div>
         <label className={s.field}>{t("Acuerdo escrito / referencia","Written agreement / reference")}<textarea name="basis" required minLength={10} maxLength={2000}/></label>
       </CoreForm>
       {bounded("commissions",data.commissions.length)}
-      <ul className={s.list}>{data.commissions.map(x=><li key={x.id}><strong>{x.beneficiary_name || owners.find(o=>o.user_id===x.beneficiary_id)?.email || t("Miembro","Member")} · {money(lang,x.amount,x.currency)}</strong><span>{status(lang,x.status)} · {x.basis}</span>
+      <ul className={s.list}>{data.commissions.map(x=><li key={x.id}><strong>{x.beneficiary_id ? directoryDisplayName(owners,x.beneficiary_id,t("Miembro","Member")) : authorDisplayName(x.beneficiary_name,t("Miembro","Member"))} · {money(lang,x.amount,x.currency)}</strong><span>{status(lang,x.status)} · {x.basis}</span>
         {x.status === "agreed" && <CoreForm lang={lang} action={action("accrued")} label={t("Devengar comisión","Accrue commission")}><input type="hidden" name="id" value={x.id}/></CoreForm>}
         {x.status === "accrued" && <CoreForm lang={lang} action={action("paid")} label={t("Registrar comisión pagada","Record commission paid")} confirmText={t("¿Confirmar que el pago externo ya fue realizado?","Confirm that the external payment has already been made?")}><input type="hidden" name="id" value={x.id}/><label className={s.field}>{t("Referencia del pago externo","External payment reference")}<input name="note" required maxLength={120}/></label></CoreForm>}
         {["agreed","accrued"].includes(x.status) && <CoreForm lang={lang} action={action("cancelled")} label={t("Cancelar comisión","Cancel commission")} confirmText={t("¿Cancelar este acuerdo?","Cancel this agreement?")}><input type="hidden" name="id" value={x.id}/>{reason("note")}</CoreForm>}

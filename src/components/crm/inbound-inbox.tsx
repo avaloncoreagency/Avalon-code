@@ -88,7 +88,7 @@ export function InboundInbox({lang,initial=readInboxLocation(new URLSearchParams
       {reason==="indexing_solicitation"
         ? t("Parece ofrecer inclusión en un índice de búsqueda; no es una cotización solicitada.", "Appears to offer search-index listing; this is not a requested quote.")
         : t("Parece ofrecer servicios comerciales a Avalon en lugar de solicitar nuestros servicios.", "Appears to pitch services to Avalon rather than request our services.")}
-      {" "}{t("Clasificación orientativa: solo Miguel o Samuel pueden decidir.", "Advisory only: Miguel or Samuel makes the decision.")}
+      {" "}{t("Clasificación orientativa: solo Miguel Hobaica o Samuel Muñoz pueden decidir.", "Advisory only: Miguel Hobaica or Samuel Muñoz makes the decision.")}
     </p>;
   };
   return <section className={`${s.panel} ${ui.inbox}`} aria-label={t("Bandeja de solicitudes","Inquiry inbox")} aria-busy={loading||busy}>

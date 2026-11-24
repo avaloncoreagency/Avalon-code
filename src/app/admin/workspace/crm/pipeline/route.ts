@@ -1,3 +1,4 @@
+import { loadOwnerDirectory } from "@/lib/identity/directory";
 import { NextRequest, NextResponse } from "next/server";
 import { getOwnerSession } from "@/lib/auth/session";
 
@@ -19,7 +20,7 @@ export async function GET(request: NextRequest) {
   const lead = request.nextUrl.searchParams.get("lead");
   if (!lead) {
     const [owners, pending] = await Promise.all([
-      db.rpc("crm_owner_directory"),
+      loadOwnerDirectory(db),
       db.from("crm_activities").select("lead_id,due_at").eq("status", "pending").not("lead_id", "is", null).order("due_at", { ascending: true, nullsFirst: false }).limit(2000),
     ]);
     const next: Record<string, string | null> = {};

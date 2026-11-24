@@ -1,3 +1,5 @@
+import { loadOwnerDirectory } from "@/lib/identity/directory";
+import { personDisplayName } from "@/lib/identity/owners";
 import Link from "next/link";
 import { Suite } from "@/components/suite/suite";
 import { SharedCalendar } from "@/components/crm/shared-calendar";
@@ -42,7 +44,7 @@ export default async function CalendarPage({ searchParams }: { searchParams: Pro
     run<{ id: string; title: string; due_at: string; status: string; assignee_id: string }[]>(tasks.limit(300)),
     run<{ id: string; sale_id: string; due_on: string; status: string; assignee_id: string; crm_departments: { label: string } | null; crm_clients: { legal_name: string } | null }[]>(orders.limit(200)),
     run<{ id: string; company: string; follow_up_at: string; owner_id: string }[]>(leads.limit(200)),
-    run<{ user_id: string; email: string }[]>(supabase.rpc("crm_owner_directory")),
+    run<{ user_id: string; email: string }[]>(loadOwnerDirectory(supabase)),
     run<CalendarEvent[]>(supabase.from("crm_events").select("id,title,owner_id,attendee_ids,starts_at,ends_at,timezone,all_day,kind,status,color,description,location,meeting_url,participants,lead_id,client_id,version").neq("status", "cancelled").lt("starts_at", rangeTo + "T00:00:00Z").gt("ends_at", rangeFrom + "T00:00:00Z").order("starts_at").limit(600)),
     run<DayBanner[]>(supabase.from("crm_calendar_banners").select("id,day,title,subtitle,emoji,theme,version").gte("day", rangeFrom).lt("day", rangeTo).order("day").limit(180)),
     run<{ id: string; legal_name: string }[]>(supabase.from("crm_clients").select("id,legal_name").neq("status", "archived").order("legal_name").limit(150)),
@@ -78,7 +80,7 @@ export default async function CalendarPage({ searchParams }: { searchParams: Pro
           <div className={s.actions}>
             <Link className={s.button} href={link({ owner: userId })} aria-current={who === userId ? "page" : undefined}>{pick(lang, "Mío", "Mine")}</Link>
             <Link className={s.button} href={link({ owner: "all" })} aria-current={who === null ? "page" : undefined}>{pick(lang, "Todos", "Everyone")}</Link>
-            {(owners.data ?? []).filter(x => x.user_id !== userId).map(x => <Link key={x.user_id} className={s.button} href={link({ owner: x.user_id })} aria-current={who === x.user_id ? "page" : undefined}>{x.email.split("@")[0]}</Link>)}
+            {(owners.data ?? []).filter(x => x.user_id !== userId).map(x => <Link key={x.user_id} className={s.button} href={link({ owner: x.user_id })} aria-current={who === x.user_id ? "page" : undefined}>{personDisplayName(x)}</Link>)}
             <Link className={`${s.button} ${s.ghost}`} href={link({ days: days === 30 ? "60" : "30" })}>{days === 30 ? pick(lang, "Ver 60 días", "Show 60 days") : pick(lang, "Ver 30 días", "Show 30 days")}</Link>
           </div>
         </header>

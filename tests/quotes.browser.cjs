@@ -136,6 +136,12 @@ test('Quoting Studio in the real app: wizard, PDF without internal data, states,
   await m.getByLabel('Porcentaje (%)').fill('10');
   await m.getByLabel('Qué genera el derecho a comisión').fill('Cita atribuida a la campaña y efectivamente cobrada');
   await m.getByLabel('Evidencia requerida').fill('Reporte del sistema de reservas y comprobante de cobro');
+  // Avalon standard: every essential variable term is explicit (type, start, duration, exclusions, refunds).
+  await m.getByLabel('Tipo de acuerdo variable').selectOption('revenue_share');
+  await m.getByLabel('Fecha efectiva').fill('2026-12-01');
+  await m.getByLabel('Duración (meses)').fill('12');
+  await m.getByLabel('Exclusiones', { exact: true }).fill('Clientes existentes antes del inicio y ventas sin cobro');
+  await m.getByLabel('Reembolsos y contracargos').fill('Se descuentan del periodo en que ocurren');
   await m.getByRole('button', { name: 'Siguiente' }).click();
   await m.getByLabel('Solución propuesta (obligatoria)').fill('Sitio web con reservas conectado a un CRM con recordatorios.');
   await m.getByText('Información interna de Avalon (nunca aparece en el PDF)').click();
