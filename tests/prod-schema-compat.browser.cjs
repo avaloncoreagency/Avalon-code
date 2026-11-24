@@ -17,7 +17,7 @@ const { startBridge } = require('./support/rest-bridge.cjs');
 // timestamps; the first 45 replayed source files are the baseline. Verify the remote ledger before moving this marker.
 const PRODUCTION_LAST_LOCAL_MIGRATION = '20261120130358_project_bridge_rls_initplan.sql';
 const PRODUCTION_MIGRATIONS = 48;
-const ROUTES = ['/admin/dashboard', '/admin/profile', '/admin/settings', '/admin/search', '/admin/security',
+const ROUTES = ['/admin/dashboard', '/admin/profile', '/admin/settings', '/admin/search', '/admin/security', '/admin/staff',
   '/admin/workspace/crm', '/admin/workspace/crm/desk', '/admin/workspace/crm/hunter', '/admin/workspace/crm/leads', '/admin/workspace/crm/activity',
   '/admin/workspace/crm/calendar', '/admin/workspace/crm/clients', '/admin/workspace/crm/notifications', '/admin/workspace/crm/sales', '/admin/workspace/crm/sales/new',
   '/admin/workspace/crm/settings', '/admin/workspace/crm/tasks', '/admin/workspace/crm/quotes', '/admin/workspace/crm/quotes/new', '/admin/workspace/library', '/admin/workspace/website-designer',
@@ -32,7 +32,11 @@ test('new code on the production schema: no private page crashes before migratio
   await db.exec(fs.readFileSync('tests/sql/00_supabase_stub.sql', 'utf8'));
   await db.exec(`insert into auth.users(id,email) values('${MIGUEL}','miguel@example.invalid');`);
   const files = fs.readdirSync('supabase/migrations').filter(f => f.endsWith('.sql')).sort();
-  const applied = files.filter(f => f <= PRODUCTION_LAST_LOCAL_MIGRATION);
+  // This is a frozen 2026-11-20 production baseline, not proof of today's schema.
+  // The Staff portal migration is dated BEFORE this marker but remains unapplied in production.
+  // Never assume a migration was deployed merely because its filename sorts before the ledger marker.
+  const UNAPPLIED_AT_BASELINE = new Set(['20261117180500_staff_private_portal.sql']);
+  const applied = files.filter(f => f <= PRODUCTION_LAST_LOCAL_MIGRATION && !UNAPPLIED_AT_BASELINE.has(f));
   assert.ok(files.includes(PRODUCTION_LAST_LOCAL_MIGRATION) && applied.length === PRODUCTION_MIGRATIONS, `production state = ${PRODUCTION_MIGRATIONS} local files (${applied.length})`);
   for (const file of applied) {
     await db.exec(fs.readFileSync(`supabase/migrations/${file}`, 'utf8'));
