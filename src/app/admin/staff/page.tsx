@@ -9,6 +9,8 @@ import { JOB_TITLES } from "@/lib/auth/staff-roles";
 import { personDisplayName } from "@/lib/identity/owners";
 import { sendStaffMessage, readStaffMessage } from "@/app/staff/actions";
 import s from "@/components/sales/sales.module.css";
+import { AgentInvitationPanel } from "@/components/agents/invitation-panel";
+import { getLang } from "@/lib/i18n-server";
 export const dynamic = "force-dynamic";
 type StaffMember = { user_id:string; role:string; email:string; display_name:string };
 type Access = { user_id:string; active:boolean; can_create_casefiles:boolean; can_message:boolean; can_create_events:boolean; job_title:string };
@@ -34,7 +36,7 @@ const statuses: Record<string,string> = {
 };
 
 export default async function StaffAdministration({searchParams}:{
- searchParams:Promise<{status?:string;view?:string;d?:string}>;
+ searchParams:Promise<{status?:string;view?:string;d?:string;invite_sender?:string}>;
 }) {
  const {supabase,userId} = await requireOwner();
  const [roster,access,grants,clients,casefiles,contacts,messages,audit,leadGrants,leads] = await Promise.all([
@@ -54,7 +56,8 @@ export default async function StaffAdministration({searchParams}:{
    supabase.from("staff_lead_grants").select("user_id,lead_id,access_level,active").eq("active",true).limit(300),
    supabase.from("crm_leads").select("id,company").eq("archived",false).order("updated_at",{ascending:false}).limit(300),
  ]);
- const {status, view: viewParam, d} = await searchParams;
+ const {status, view: viewParam, d, invite_sender: inviteSender} = await searchParams;
+ const lang = await getLang();
  // Staff work (migration 20261124100000). Owners supervise assignments; employees' personal notes are never listed here.
  const itemsR = await supabase.from("staff_work_items").select("id,kind,origin,assignee_id,created_by,title,instructions,starts_at,ends_at,due_at,time_zone,priority,status,lead_id,client_id,assignee_can_reschedule,completion_note,completed_at,version,updated_at")
    .order("updated_at",{ascending:false}).limit(1000);
@@ -74,8 +77,8 @@ export default async function StaffAdministration({searchParams}:{
  const display = new Map(((roster.data ?? []) as StaffMember[]).map(m=>[m.user_id,memberName(m)]));
  const names = new Map(contactsList.map(m=>[m.user_id,m.display_name]));
  return <Suite active="staff"><div className={s.hud}>
-   <header className={s.header}><div><p className={s.eyebrow}>AVALON / DIRECCIÓN</p>
-     <h1>Portal de Agentes</h1>
+   <header className={s.header}><div><p className={s.eyebrow}>AVALON / PORTAL DE AGENTES</p>
+     <h1>AGENT PORTAL</h1>
      <p>Solo Miguel y Samuel como propietarios pueden activar cuentas y asignar clientes.
        Los expedientes privados son visibles aquí; los mensajes privados siguen siendo solo de sus participantes.</p>
    </div><Link className={s.button} href="/admin/workspace/crm/clients">Volver a Clientes 360°</Link></header>
@@ -83,17 +86,27 @@ export default async function StaffAdministration({searchParams}:{
    {!ready && <p role="alert" className={s.flash}>El módulo aún no está disponible. Verifica la migración, permisos y conexión del entorno aislado.</p>}
    {ready && <>
     <section className={s.panel} aria-labelledby="staff-invite">
-      <h2 id="staff-invite">Invitar empleado</h2>
-      <p className={s.muted}>Solo los propietarios pueden enviar invitaciones. El acceso permanecerá desactivado hasta tu aprobación.</p>
-      <form action={inviteStaffEmployee} className={s.form}>
-        <label className={s.field}>Correo electrónico del empleado
+      <h2 id="staff-invite">Invitar agente</h2>
+      <p className={s.muted}>Solo los propietarios pueden enviar invitaciones. La invitación sale firmada por ti y el acceso permanece desactivado hasta tu aprobación.</p>
+      <form action={inviteStaffEmployee} className={s.form} data-agent-invite-form>
+        <label className={s.field}>Correo electrónico del agente
           <input type="email" name="employee_email" autoComplete="email" maxLength={254}
-            placeholder="empleado@empresa.com" required />
+            placeholder="agente@empresa.com" required />
+        </label>
+        <label className={s.field}>Nombre del agente (opcional)
+          <input name="invitee_name" maxLength={80} autoComplete="off" />
+        </label>
+        <label className={s.field}>Cargo
+          <select name="invite_job_title" defaultValue="seller">{JOB_TITLES.map(([k,label])=><option key={k} value={k}>{label}</option>)}</select>
+        </label>
+        <label className={s.field}>Idioma de la invitación
+          <select name="invite_lang" defaultValue="es"><option value="es">Español</option><option value="en">English</option></select>
         </label>
         <button className={s.button} type="submit">Enviar invitación segura</button>
       </form>
-      <p className={s.muted}>Requiere la función Supabase `staff-invite` habilitada en este entorno y el origen de invitación configurado. El empleado no recibe permisos por ser invitado.</p>
+      <p className={s.muted}>Requiere la función Supabase `staff-invite` habilitada en este entorno y el origen de invitación configurado. El agente no recibe permisos por ser invitado.</p>
     </section>
+    <AgentInvitationPanel supabase={supabase} userId={userId} lang={lang} status={inviteSender ?? null} />
     <section className={s.panel} aria-labelledby="staff-roster"><h2 id="staff-roster">Control de empleados</h2>
       <p className={s.muted}>Fase 1: solo empleados que ya existan en Auth y tengan membresía técnica <code>operator</code>. Activar un permiso no crea cuentas ni envía invitaciones.</p>
       {!members.length && <p>No hay empleados preaprobados. No se autoriza el registro público.</p>}

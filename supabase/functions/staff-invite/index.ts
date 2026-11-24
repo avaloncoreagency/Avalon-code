@@ -15,6 +15,14 @@ const fetchJSON = async (url: string, init: RequestInit) => {
 };
 const object = (value: unknown): Record<string, unknown> | null =>
   value && typeof value === "object" && !Array.isArray(value) ? value as Record<string, unknown> : null;
+// AGENT PORTAL signature (presentation only, never authorization). The inviter is the AUTHENTICATED owner returned by
+// /auth/v1/user; any inviter name sent in the request body is ignored. Mirrors src/lib/identity/owners.ts.
+const OFFICIAL_OWNERS: Readonly<Record<string, string>> = Object.freeze({
+  "avalonagencymh@gmail.com": "Miguel Hobaica", "avaloncoreagencysm@gmail.com": "Samuel Muñoz",
+});
+// One line, no markup or template delimiters: values are inserted into the Supabase Auth e-mail template.
+const plain = (value: unknown, max: number) => typeof value === "string"
+  ? value.normalize("NFC").replace(/[\u0000-\u001f\u007f<>{}]/g, " ").replace(/\s+/g, " ").trim().slice(0, max) : "";
 
 Deno.serve(async (request: Request) => {
   if (request.method !== "POST") return reply(405, { error: "method_not_allowed" });
@@ -91,6 +99,17 @@ Deno.serve(async (request: Request) => {
     if (typeof emailRaw !== "string") return reply(400, { error: "invalid_request" });
     const email = emailRaw.trim().toLowerCase();
     if (!EMAIL.test(email) || email.length > 254) return reply(400, { error: "invalid_request" });
+    // Template data (supabase/templates/invite.html). Every key is always present so the e-mail never shows blanks.
+    const lang = object(body)?.lang === "en" ? "en" : "es";
+    const inviterEmail = typeof identity.email === "string" ? identity.email.trim().toLowerCase() : "";
+    const official = Object.hasOwn(OFFICIAL_OWNERS, inviterEmail) ? OFFICIAL_OWNERS[inviterEmail] : "";
+    const templateData = {
+      inviter_name: official || "Avalon Core Agency",
+      inviter_title: official ? (lang === "en" ? "Co-founder" : "Cofundador") : (lang === "en" ? "Leadership" : "Dirección"),
+      invitee_name: plain(object(body)?.invitee_name, 80) || (lang === "en" ? "there" : "equipo"),
+      role_label: plain(object(body)?.role_label, 60) || (lang === "en" ? "team member" : "miembro del equipo"),
+      lang,
+    };
 
     // Limit total invited operators to avoid unbounded provisioning by a stolen owner session.
     const roster = await fetchJSON(
@@ -109,7 +128,7 @@ Deno.serve(async (request: Request) => {
           apikey: serviceKey, Authorization: `Bearer ${serviceKey}`,
           "Content-Type": "application/json",
         },
-        body: JSON.stringify({ email }),
+        body: JSON.stringify({ email, data: templateData }),
       });
     const invited = object(invite.data);
     const invitedId = invited?.id;

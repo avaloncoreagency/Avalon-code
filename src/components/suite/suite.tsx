@@ -19,7 +19,7 @@ const sectionNames: Record<string, { es: string; en: string }> = {
   settings: { es: "Configuración", en: "Settings" },
   profile: { es: "Perfil", en: "Profile" },
   "dev-bridge": { es: "Dev Bridge", en: "Dev Bridge" },
-  staff: { es: "Portal de Agentes", en: "Agent Portal" },
+  staff: { es: "AGENT PORTAL", en: "AGENT PORTAL" },
   search: { es: "Búsqueda", en: "Search" },
   security: { es: "Seguridad", en: "Security" },
   "ai-communications": { es: "COMMUNICATION HUB", en: "COMMUNICATION HUB" },
@@ -80,7 +80,7 @@ export async function Suite({ children, active = "dashboard" }: { children: Reac
         </Link>
       ))}
       <Link className={s.navItem} href="/admin/dev-bridge" aria-current={active === "dev-bridge" ? "page" : undefined}><Icon name="blueprint" /><span className={s.navLabel}>Dev Bridge</span></Link>
-      <Link className={s.navItem} href="/admin/staff" aria-current={active === "staff" ? "page" : undefined}><Icon name="profile" /><span className={s.navLabel}>{pick(lang, "PORTAL DE AGENTES", "AGENT PORTAL")}</span></Link>
+      <Link className={s.navItem} href="/admin/staff" aria-current={active === "staff" ? "page" : undefined}><Icon name="profile" /><span className={s.navLabel}>{"AGENT PORTAL"}</span></Link>
       <p className={s.navGroup}>{pick(lang, "Cuenta", "Account")}</p>
       <Link className={s.navItem} aria-current={active === "settings" ? "page" : undefined} href="/admin/settings" title={pick(lang, "Configuración", "Settings")}>
         <Icon name="settings" /><span className={s.navLabel}>{pick(lang, "Configuración", "Settings")}</span>
