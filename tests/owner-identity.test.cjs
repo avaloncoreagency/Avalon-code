@@ -16,6 +16,7 @@ test('all users use profile names; owner official email overrides stale editable
  assert.equal(names.personDisplayName({user_id:'uuid-employee',email:'technical@example.invalid',display_name:'Ana María Pérez'}),'Ana María Pérez');
  assert.equal(names.personDisplayName({email:'technical@example.invalid'},'Name pending'),'Name pending');
  assert.equal(names.personDisplayName({email:'another@example.invalid',display_name:'Miguel Pérez'}),'Miguel Pérez');
+ assert.equal(names.personDisplayName({email:'another@example.invalid',display_name:'avalonagencymh'},'Name pending'),'Name pending','a mutable nickname cannot claim founder identity');
  const directory=[{user_id:'immutable-id',email:'avaloncoreagencysm@gmail.com',display_name:'samuel'}];
  const before=JSON.stringify(directory);assert.equal(names.directoryDisplayName(directory,'immutable-id'),'Samuel Muñoz');assert.equal(JSON.stringify(directory),before);
  assert.equal(names.directoryDisplayName(directory,'00000000-0000-4000-8000-000000000001','Unavailable'),'Unavailable');

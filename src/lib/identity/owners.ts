@@ -14,10 +14,9 @@ export type DisplayIdentity = { id?: string; user_id?: string; email?: string | 
 /** An identified owner always wins over a mutable profile nickname. Unknown technical IDs never become names. */
 export function personDisplayName(person: DisplayIdentity | null | undefined, fallback = "—"): string {
   if (!person) return fallback;
-  const legacyHandle = [person.display_name, person.full_name, person.name].map(value).find(x => /^(avalonagencymh|avaloncoreagencysm)$/i.test(x));
-  const official = officialOwnerName(person.email) ?? officialOwnerName(legacyHandle);
+  const official = officialOwnerName(person.email);
   if (official) return official;
-  const candidate = [person.display_name, person.full_name, person.name].map(value).find(x => x && !x.includes("@") && !/^[a-f0-9-]{32,36}$/i.test(x));
+  const candidate = [person.display_name, person.full_name, person.name].map(value).find(x => x && !x.includes("@") && !/^(avalonagencymh|avaloncoreagencysm)$/i.test(x) && !/^[a-f0-9-]{32,36}$/i.test(x));
   return candidate?.slice(0, 160) || fallback;
 }
 /** Resolve an existing UUID against the current directory without modifying any stored record. */
