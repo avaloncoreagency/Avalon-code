@@ -21,6 +21,7 @@ type CommercialRecord = {
   status: string;
   amount: string | null;
   currency: string | null;
+  has_commission_agreement: boolean | null;
 };
 
 export async function StaffCommercialHistory({
@@ -49,6 +50,8 @@ export async function StaffCommercialHistory({
           <p>{label} · {formatDate(lang, record.recorded_on)}
             {record.amount && record.currency && <> · {money(lang, record.amount, record.currency)}</>}
           </p>
+          {record.record_kind === "sale" && record.status === "confirmed" && record.has_commission_agreement === false &&
+            <p className={s.muted}>{t("Comisión pendiente de definición", "Commission terms pending")}</p>}
         </li>;
       })}</ul>}
     {!error && (page > 0 || records.length > PAGE_SIZE) &&

@@ -51,6 +51,7 @@ test("commercial history returns the active agent's sales and commissions only, 
  assert.equal(new Set(own.map(r=>r.record_id)).size,32);
  assert.equal(own.filter(r=>r.record_kind==='sale').length,30);
  assert.ok(own.filter(r=>r.record_kind==='sale').every(r=>r.amount===null && r.currency===null));
+ assert.deepEqual(own.filter(r=>r.has_commission_agreement).map(r=>r.record_id),[ownSale.id]);
  assert.deepEqual(own.filter(r=>r.record_kind==='commission').map(r=>r.amount).sort(), ['18.45','2.22']);
  assert.equal(own.find(r=>r.amount==='2.22').sale_number,null);
  assert.ok(own.every(r=>r.sale_number!==otherSale.sale_number));

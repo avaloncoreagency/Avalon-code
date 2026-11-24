@@ -8,7 +8,7 @@ create index crm_commissions_beneficiary_history_idx
 create function crm_private.staff_own_commercial_history()
 returns table (
   record_kind text, record_id uuid, sale_number text, recorded_on date,
-  status text, amount text, currency text
+  status text, amount text, currency text, has_commission_agreement boolean
 )
 language sql stable security definer set search_path = '' as $$
   with caller as materialized (
@@ -22,12 +22,14 @@ language sql stable security definer set search_path = '' as $$
         )
       )
   )
-  select 'sale'::text, s.id, s.sale_number, s.sold_on, s.status, null::text, null::text
+  select 'sale'::text, s.id, s.sale_number, s.sold_on, s.status, null::text, null::text,
+    exists (select 1 from public.crm_commissions a
+      where a.sale_id = s.id and a.beneficiary_id = u.id and a.kind = 'sale' and a.status <> 'cancelled')
   from caller u join public.crm_sales s on s.seller_id = u.id
   where s.status in ('confirmed', 'cancelled')
   union all
   select 'commission'::text, c.id, visible_sale.sale_number, (c.agreed_at at time zone 'UTC')::date,
-    c.status, c.amount::text, c.currency
+    c.status, c.amount::text, c.currency, null::boolean
   from caller u join public.crm_commissions c on c.beneficiary_id = u.id
   left join public.crm_sales visible_sale on visible_sale.id = c.sale_id and visible_sale.seller_id = u.id
 $$;
@@ -38,7 +40,7 @@ grant execute on function crm_private.staff_own_commercial_history() to authenti
 create function public.staff_own_commercial_history(p_page integer default 0)
 returns table (
   record_kind text, record_id uuid, sale_number text, recorded_on date,
-  status text, amount text, currency text
+  status text, amount text, currency text, has_commission_agreement boolean
 )
 language sql stable security invoker set search_path = '' as $$
   select h.* from crm_private.staff_own_commercial_history() h
