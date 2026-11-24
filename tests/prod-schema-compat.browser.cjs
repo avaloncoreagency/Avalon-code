@@ -17,7 +17,7 @@ const { startBridge } = require('./support/rest-bridge.cjs');
 // timestamps; the first 45 replayed source files are the baseline. Verify the remote ledger before moving this marker.
 const PRODUCTION_LAST_LOCAL_MIGRATION = '20261120130358_project_bridge_rls_initplan.sql';
 const PRODUCTION_MIGRATIONS = 48;
-const ROUTES = ['/admin/dashboard', '/admin/profile', '/admin/settings', '/admin/search', '/admin/security',
+const ROUTES = ['/admin/dashboard', '/admin/profile', '/admin/settings', '/admin/search', '/admin/security', '/admin/staff',
   '/admin/workspace/crm', '/admin/workspace/crm/desk', '/admin/workspace/crm/hunter', '/admin/workspace/crm/leads', '/admin/workspace/crm/activity',
   '/admin/workspace/crm/calendar', '/admin/workspace/crm/clients', '/admin/workspace/crm/notifications', '/admin/workspace/crm/sales', '/admin/workspace/crm/sales/new',
   '/admin/workspace/crm/settings', '/admin/workspace/crm/tasks', '/admin/workspace/crm/quotes', '/admin/workspace/crm/quotes/new', '/admin/workspace/library', '/admin/workspace/website-designer',
