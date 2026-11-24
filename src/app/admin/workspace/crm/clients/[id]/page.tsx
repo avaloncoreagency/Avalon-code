@@ -1,3 +1,4 @@
+import { loadOwnerDirectory } from "@/lib/identity/directory";
 import Link from "next/link";
 import { groupOfStage } from "@/lib/crm/pipeline-groups";
 import { notFound } from "next/navigation";
@@ -74,7 +75,7 @@ export default async function Client360({ params, searchParams }: { params: Prom
     leadId ? run<ProjectRow[]>(supabase.from("os_projects").select(PROJECT_COLUMNS).is("client_id", null).eq("settings->operations->>client_lead_id", leadId).limit(100)) : Promise.resolve({ data: [] as ProjectRow[], error: null, count: null }),
     run<Task[]>(supabase.from("crm_tasks").select("id,title,status,priority,due_at,assignee_id,project_id").eq("client_id", id).order("due_at", { ascending: true, nullsFirst: false }).limit(300)),
     run<Event[]>(supabase.from("crm_timeline").select("id,event_type,module,detail,result,from_state,to_state,actor_id,created_at").eq("client_id", id).order("id", { ascending: false }).limit(40)),
-    run<{ user_id: string; email: string }[]>(supabase.rpc("crm_owner_directory")),
+    run<{ user_id: string; email: string }[]>(loadOwnerDirectory(supabase)),
     leadId ? run<{ id: string; company: string; stage_id: string; value: string; source: string; created_at: string; crm_stages: {label:string}|null } | null>(supabase.from("crm_leads").select("id,company,stage_id,value,source,created_at,crm_stages(label)").eq("id", leadId).maybeSingle()) : Promise.resolve(null),
     // Activities on the client (FK) and, for history, on its origin lead.
     run<{ id: string; body: string; status: string; kind?: string; due_at: string | null; created_by: string; created_at: string }[]>(supabase.from("crm_activities").select("id,body,status,kind,due_at,created_by,created_at").or(leadId ? `client_id.eq.${id},lead_id.eq.${leadId}` : `client_id.eq.${id}`).order("created_at", { ascending: false }).limit(25)),

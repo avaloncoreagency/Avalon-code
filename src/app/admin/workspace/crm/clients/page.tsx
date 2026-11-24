@@ -1,3 +1,4 @@
+import { loadOwnerDirectory } from "@/lib/identity/directory";
 import Link from "next/link";
 import { Suite } from "@/components/suite/suite";
 import { OpsHeader, OkFlash, ErrorFlash, Tag, Unavailable, ownerName, q, type Query } from "@/components/sales/ui";
@@ -25,7 +26,7 @@ export default async function ClientsPage({ searchParams }: { searchParams: Prom
   if (q(p, "archived") !== "1") query = query.neq("status", "archived");
   const [clients, owners] = await Promise.all([
     run<Client[]>(query.order("updated_at", { ascending: false }).range(page * PAGE, page * PAGE + PAGE - 1)),
-    run<{ user_id: string; email: string }[]>(supabase.rpc("crm_owner_directory")),
+    run<{ user_id: string; email: string }[]>(loadOwnerDirectory(supabase)),
   ]);
   const next = (n: number) => `?${new URLSearchParams({ ...(safe ? { q: safe } : {}), page: String(n) })}`;
   return <Suite active="crm"><div className={s.hud}>

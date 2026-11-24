@@ -1,4 +1,6 @@
 import { redirect } from "next/navigation";
+import { loadOwnerDirectory } from "@/lib/identity/directory";
+import { personDisplayName } from "@/lib/identity/owners";
 import { randomUUID } from "node:crypto";
 import Link from "next/link";
 import { Suite } from "@/components/suite/suite";
@@ -58,7 +60,7 @@ export default async function NewSalePage({ searchParams }: { searchParams: Prom
     run<ServiceRow[]>(supabase.from("crm_service_catalog").select("code,name,name_en,billing_type,suggested_price,monthly_price,offer_status,crm_departments(label)").eq("active", true).order("department_id").order("name")),
     run<ClientChoice[]>(supabase.from("crm_clients").select("id,legal_name,client_code,origin_lead_id").neq("status", "archived").order("legal_name").limit(500)),
     run<{ id: string; company: string; contact: string }[]>(supabase.from("crm_leads").select("id,company,contact").eq("archived", false).order("updated_at", { ascending: false }).limit(300)),
-    run<{ user_id: string; email: string }[]>(supabase.rpc("crm_owner_directory")),
+    run<{ user_id: string; email: string }[]>(loadOwnerDirectory(supabase)),
     leadId
       ? run<LeadChoice | null>(supabase.from("crm_leads").select("id,company,contact").eq("id", leadId).eq("archived", false).maybeSingle())
       : Promise.resolve({ data: null, error: null, count: null } as const),
@@ -162,7 +164,7 @@ export default async function NewSalePage({ searchParams }: { searchParams: Prom
         : null, department: x.crm_departments?.label ?? "" }))}
       clients={clientOptions}
       leads={freeLeads.map(l => ({ id: l.id, label: leadLabel.get(l.id) ?? l.company }))}
-      owners={(owners.data ?? []).map(o => ({ id: o.user_id, label: o.email }))}
+      owners={(owners.data ?? []).map(o => ({ id: o.user_id, label: personDisplayName(o) }))}
       quoteSource={quoteSource}
       defaults={{ client_id: sourceLead ? sourceClient?.id : selectedClient.data?.id ?? undefined, lead_id: sourceLead?.id ?? chosenLeadId, legal_name: sourceLead?.company }} />
       </details></>}

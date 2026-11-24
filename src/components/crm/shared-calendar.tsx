@@ -1,4 +1,6 @@
 "use client";
+import { directoryDisplayName } from "@/lib/identity/owners";
+
 
 import { useEffect, useMemo, useState, type CSSProperties, type FormEvent } from "react";
 import { useRouter } from "next/navigation";
@@ -93,7 +95,7 @@ export function SharedCalendar({ events, banners, owners, clients, leads, userId
     return () => window.clearInterval(timer);
   }, [router, draft, bannerDraft]);
 
-  const ownerName = (id: string) => owners.find(o => o.user_id === id)?.email.split("@")[0] || t("Propietario", "Owner");
+  const ownerName = (id: string) => directoryDisplayName(owners, id, t("Propietario", "Owner"));
   const filtered = useMemo(() => events.filter(e =>
     e.status !== "cancelled" && (filter === "all" || e.owner_id === filter || (e.attendee_ids || []).includes(filter))
   ), [events, filter]);

@@ -1,3 +1,4 @@
+import { authorDisplayName } from "../identity/owners";
 import { formatUsd, quoteTotals, toCents, type Lang, type QuoteContent } from "./model";
 
 /**
@@ -208,7 +209,7 @@ export function renderQuotePdf(c: QuoteContent, meta: { number: string; version:
   section(t.notes, c.notes);
   heading(t.next);
   para(t.nextText(longDate(c.validUntil, c.lang)));
-  if (c.seller) { need(16); text(page, M, y, t.contact + ": " + c.seller, 9.5, "F2", INK); y -= 16; }
+  if (c.seller) { need(16); text(page, M, y, t.contact + ": " + authorDisplayName(c.seller), 9.5, "F2", INK); y -= 16; }
 
   // ── Serialize ──────────────────────────────────────────────────────────────────────────────────────────
   const objects: string[] = [];

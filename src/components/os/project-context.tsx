@@ -1,3 +1,4 @@
+import { directoryDisplayName } from "@/lib/identity/owners";
 import Link from "next/link";
 import { formatDate, pick, type Lang } from "@/lib/i18n";
 import { label } from "@/lib/sales/domain";
@@ -8,7 +9,7 @@ import s from "./client-hud.module.css";
 export function ProjectContextPanel({ lang, context, owners }: { lang: Lang; context: ProjectContext | null; owners: { user_id: string; email: string }[] }) {
   if (!context) return null;
   const { client, order, tasks } = context;
-  const name = (id: string) => { const o = owners.find(x => x.user_id === id); return o ? o.email.split("@")[0] || o.email : id.slice(0, 8); };
+  const name = (id: string) => { return directoryDisplayName(owners, id); };
   const openTasks = tasks.filter(t => OPEN_TASK_STATUSES.includes(t.status));
   const now = Date.now();
   return (

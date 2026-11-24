@@ -1,4 +1,6 @@
 "use client";
+import { personDisplayName } from "@/lib/identity/owners";
+
 import Link from "next/link";
 import { useActionState, useRef } from "react";
 import { quickAddLead, type QuickAddState } from "@/app/admin/workspace/crm/lead/actions";
@@ -52,7 +54,7 @@ export function QuickAdd({ lang, owners, me }: { lang: Lang; owners: { user_id: 
                 .map(([v, es, en]) => <option key={v} value={v}>{t(lang, es, en)}</option>)}
             </select></label>
           <label className={s.field}><span>{t(lang, "Responsable", "Owner")}</span>
-            <select name="owner_id" defaultValue={v("owner_id", me)}>{owners.map(o => <option key={o.user_id} value={o.user_id}>{o.email.split("@")[0]}{o.user_id === me ? t(lang, " (yo)", " (me)") : ""}</option>)}</select></label>
+            <select name="owner_id" defaultValue={v("owner_id", me)}>{owners.map(o => <option key={o.user_id} value={o.user_id}>{personDisplayName(o)}{o.user_id === me ? t(lang, " (yo)", " (me)") : ""}</option>)}</select></label>
           <label className={s.field}><span>{t(lang, "Prioridad", "Priority")}</span>
             <select name="priority" defaultValue={v("priority", "normal")}><option value="low">{t(lang, "Baja", "Low")}</option><option value="normal">Normal</option><option value="high">{t(lang, "Alta", "High")}</option></select></label>
           <label className={s.field}><span>{t(lang, "Próximo contacto", "Next contact")}</span><input name="follow_up_at" defaultValue={v("follow_up_at")} type="datetime-local" /></label>

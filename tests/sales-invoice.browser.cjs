@@ -21,6 +21,8 @@ test('Invoices: view, PDF and print are read-only, correct, private and IDOR-saf
   }
   await db.query('insert into crm_private.finance_access(user_id) values($1)', [OWNER]);
   await db.exec(`set request.jwt.claim.sub='${OWNER}'; set role authenticated;`);
+  // OWNER-IDENTITY-001: the person responsible is shown by profile name, never by an e-mail prefix.
+  await db.query("insert into office_profiles(user_id, display_name) values($1,'Invoice QA Owner')", [OWNER]);
   const one = async (q, p) => (await db.query(q, p)).rows[0];
   const sale = async (name, n) => {
     const lead = (await one("insert into crm_leads(company,contact,email,source,owner_id) values($1,'QA',$2,'Manual',$3) returning id", [name, `inv${n}@example.invalid`, OWNER])).id;
@@ -62,7 +64,7 @@ test('Invoices: view, PDF and print are read-only, correct, private and IDOR-saf
   // 1. From the sale: closing summary (responsible person, closing basis), then View invoice.
   await page.goto(`${origin}/admin/workspace/crm/sales/${main.sale_id}`);
   const summary = page.locator('[data-closing-summary]');
-  assert.match(await summary.locator('[data-closing-seller]').textContent(), /invoice-qa/);
+  assert.match(await summary.locator('[data-closing-seller]').textContent(), /Invoice QA Owner/);
   assert.match(await summary.locator('[data-closing-basis]').textContent(), /Cerrada por \$1,000\.00/);
   assert.match(await summary.locator('[data-closing-invoice]').textContent(), /INV-QA-0001/);
   assert.equal(await summary.locator('[data-issue-invoice]').count(), 0, 'fully invoiced: nothing more to issue');
@@ -73,7 +75,7 @@ test('Invoices: view, PDF and print are read-only, correct, private and IDOR-saf
   assert.match(await sheet.locator('[data-invoice-amount]').textContent(), /1,000\.00/);
   assert.match(await sheet.locator('[data-invoice-balance]').textContent(), /600\.00/, 'balance = 1000 − verified 400');
   assert.equal(await sheet.getAttribute('data-invoice-state'), 'partially_paid');
-  assert.match(await sheet.locator('[data-invoice-seller]').textContent(), /invoice-qa/, 'invoice names the person responsible');
+  assert.match(await sheet.locator('[data-invoice-seller]').textContent(), /Invoice QA Owner/, 'invoice names the person responsible');
   assert.match(await sheet.locator('[data-invoice-closing]').textContent(), /Cerrada por \$1,000\.00/, 'invoice says how the sale closed');
   const html = await page.content();
   assert.ok(!html.includes('NOTA INTERNA QA'), 'internal invoice note never reaches the client document');
@@ -91,7 +93,7 @@ test('Invoices: view, PDF and print are read-only, correct, private and IDOR-saf
   assert.match(pdf.headers()['content-disposition'], /Avalon-Invoice-INV-QA-0001\.pdf/);
   const body = (await pdf.body()).toString('latin1');
   assert.ok(body.startsWith('%PDF-1.4') && body.includes('(INV-QA-0001)') && !body.includes('NOTA INTERNA'));
-  assert.ok(body.includes('Responsable de la venta: invoice-qa'), 'PDF names the person responsible');
+  assert.ok(body.includes('Responsable de la venta: Invoice QA Owner'), 'PDF names the person responsible');
   fs.writeFileSync(`${DIR}/Avalon-Invoice-INV-QA-0001.pdf`, await pdf.body());
   // 4. IDOR: the same invoice id under another sale is not served.
   assert.equal((await page.request.get(`${origin}/admin/workspace/crm/sales/${other.sale_id}/invoices/${inv.invoice_id}/pdf`)).status(), 404);

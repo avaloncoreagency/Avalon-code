@@ -1,3 +1,5 @@
+import { loadOwnerDirectory } from "@/lib/identity/directory";
+import { personDisplayName } from "@/lib/identity/owners";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { Suite } from "@/components/suite/suite";
@@ -36,7 +38,7 @@ export default async function SaleDetail({ params, searchParams }: { params: Pro
     run<Line[]>(supabase.from("crm_sale_lines").select("id,position,description,quantity,unit_price,discount,line_total,billing_type,crm_service_catalog(name,name_en)").eq("sale_id", id).order("position")),
     run<Order[]>(supabase.from("crm_work_orders").select("id,sale_line_id,department_id,project_id,assignee_id,recurrence,status,due_on,crm_departments(label,os_module),os_projects(name,module)").eq("sale_id", id).order("created_at").order("id")),
     run<Payment[]>(supabase.from("crm_payments").select("*").eq("sale_id", id).order("received_on")),
-    run<{ user_id: string; email: string }[]>(supabase.rpc("crm_owner_directory")),
+    run<{ user_id: string; email: string }[]>(loadOwnerDirectory(supabase)),
     run<{ work_order_id: string; status: string }[]>(supabase.from("crm_tasks").select("work_order_id,status").eq("sale_id", id).limit(1000)),
     // Finance-only via RLS; both are empty/errored (and ignored) without finance access or before migration 20261123150000.
     run<{ id: string; seq: number; kind: string; due_on: string; amount: string }[]>(supabase.from("crm_sale_installments").select("id,seq,kind,due_on,amount").eq("sale_id", id).eq("status", "scheduled").order("due_on").limit(120)),
@@ -158,7 +160,7 @@ export default async function SaleDetail({ params, searchParams }: { params: Pro
               <label className={s.srOnly} htmlFor={`st-${wo.id}`}>{pick(lang, "Estado", "Status")}</label>
               <select id={`st-${wo.id}`} name="status" defaultValue={wo.status}>{WORK_ORDER_STATUSES.map(x => <option key={x} value={x}>{label(lang, x)}</option>)}</select>
               <label className={s.srOnly} htmlFor={`as-${wo.id}`}>{pick(lang, "Responsable", "Assignee")}</label>
-              <select id={`as-${wo.id}`} name="assignee_id" defaultValue={wo.assignee_id}>{ownerList.map(o => <option key={o.user_id} value={o.user_id}>{o.email.split("@")[0]}</option>)}</select>
+              <select id={`as-${wo.id}`} name="assignee_id" defaultValue={wo.assignee_id}>{ownerList.map(o => <option key={o.user_id} value={o.user_id}>{personDisplayName(o)}</option>)}</select>
               <button className={s.button}>{pick(lang, "Guardar", "Save")}</button></form>}</td>
           </tr>; })}</tbody></table></div>}
       </section>

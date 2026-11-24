@@ -1,3 +1,5 @@
+import { loadOwnerDirectory } from "@/lib/identity/directory";
+import { personDisplayName } from "@/lib/identity/owners";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { Suite } from "@/components/suite/suite";
@@ -56,7 +58,7 @@ export default async function LeadPage({ params, searchParams }: { params: Promi
   const lead = leadRes.data;
   if (!lead) notFound();
   const [owners, stages, scores, assessments, recs, terms, contracts, files, acts, audit, revs, cevents, stageHist] = await Promise.all([
-    run<{ user_id: string; email: string }[]>(supabase.rpc("crm_owner_directory")),
+    run<{ user_id: string; email: string }[]>(loadOwnerDirectory(supabase)),
     run<{ id: string; label: string; kind: string; active: boolean }[]>(supabase.from("crm_stages").select("id,label,kind,active").order("position")),
     run<Score[]>(supabase.from("crm_lead_scores").select("*").eq("lead_id", id).order("created_at", { ascending: false }).limit(10)),
     run<{ industry_key: string; status: string; progress: number; answers: Answers; updated_at: string; updated_by: string | null }[]>(supabase.from("crm_lead_assessments").select("industry_key,status,progress,answers,updated_at,updated_by").eq("lead_id", id)),
@@ -189,7 +191,7 @@ export default async function LeadPage({ params, searchParams }: { params: Promi
                   </label>
                 </div>
                 <div className={s.row}>
-                  <label className={s.field}><span>{pick(lang, "Responsable", "Owner")}</span><select name="owner_id" defaultValue={lead.owner_id}>{ownerList.map(o => <option key={o.user_id} value={o.user_id}>{o.email.split("@")[0]}{o.user_id === userId ? pick(lang, " (yo)", " (me)") : ""}</option>)}</select></label>
+                  <label className={s.field}><span>{pick(lang, "Responsable", "Owner")}</span><select name="owner_id" defaultValue={lead.owner_id}>{ownerList.map(o => <option key={o.user_id} value={o.user_id}>{personDisplayName(o)}{o.user_id === userId ? pick(lang, " (yo)", " (me)") : ""}</option>)}</select></label>
                   <label className={s.field}><span>{pick(lang, "Prioridad", "Priority")}</span><select name="priority" defaultValue={lead.priority}><option value="low">{pick(lang, "Baja", "Low")}</option><option value="normal">Normal</option><option value="high">{pick(lang, "Alta", "High")}</option></select></label>
                   <label className={s.field}><span>{pick(lang, "Etapa (13 etapas existentes)", "Stage (existing 13 stages)")}</span><select name="stage_id" defaultValue={lead.stage_id}>
                     {(stages.data ?? []).filter(st => st.active || st.id === lead.stage_id).map(st => <option key={st.id} value={st.id} disabled={st.kind === "won" && !verified && lead.stage_id !== st.id}>

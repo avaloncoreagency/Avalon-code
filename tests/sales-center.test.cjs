@@ -9,7 +9,8 @@ const load = (file, deps = {}) => {
   new Function("module", "exports", "require", out)(m, m.exports, id => deps[id] ?? require(id));
   return m.exports;
 };
-const model = load("src/lib/quotes/model.ts");
+const owners = load("src/lib/identity/owners.ts");
+const model = load("src/lib/quotes/model.ts", { "../identity/owners": owners });
 const close = load("src/lib/sales/quote-close.ts", { "@/lib/quotes/model": model });
 
 const base = over => ({ schemaVersion: 1, lang: "es", currency: "USD", title: "Q", issueDate: "2026-11-23", validUntil: "2099-12-31",

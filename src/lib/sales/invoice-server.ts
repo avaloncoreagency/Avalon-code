@@ -1,21 +1,19 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { acceptedSaleMethods, readSalePaymentTerms, salePaymentMethodLabel } from "@/lib/sales/payment-terms";
 import type { InvoiceDoc } from "@/lib/sales/invoice";
+import { loadOwnerDirectory } from "@/lib/identity/directory";
+import { directoryDisplayName, type DisplayIdentity } from "@/lib/identity/owners";
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const BASIS: Record<string, [string, string]> = { gross_revenue: ["ingresos brutos", "gross revenue"], gross_profit: ["utilidad bruta", "gross profit"], other: ["la base acordada", "the agreed base"] };
 
-/** Display name of the person responsible for a sale: Office profile name, else the account's e-mail name. Read-only. */
+/** Display name of the person responsible for a sale, through the shared identity resolver (OWNER-IDENTITY-001):
+ * official owner names, else the authorized profile name; never an e-mail prefix or a UUID fragment. Read-only. */
 export async function sellerName(db: SupabaseClient, sellerId: string | null | undefined): Promise<string> {
   if (!sellerId || !UUID.test(sellerId)) return "";
-  const [profile, owners] = await Promise.all([
-    db.from("office_profiles").select("display_name").eq("user_id", sellerId).maybeSingle(),
-    db.rpc("crm_owner_directory"),
-  ]);
-  const name = (profile.data as { display_name?: string } | null)?.display_name?.trim();
-  if (name) return name;
-  const email = ((owners.data ?? []) as { user_id: string; email: string }[]).find(o => o.user_id === sellerId)?.email ?? "";
-  return email.split("@")[0] ?? "";
+  const directory = await loadOwnerDirectory(db);
+  const name = directoryDisplayName((directory.data ?? []) as DisplayIdentity[], sellerId, "");
+  return name;
 }
 
 /** How the sale closed, from stored records only (commercial model + variable agreement). Missing migration → fixed. */
