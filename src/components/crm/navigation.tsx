@@ -10,12 +10,14 @@ const daily = [
   ...crmNavigation.slice(1),
   { slug: "calendar", href: "/admin/workspace/crm/calendar", label: "Calendario" },
   { slug: "tasks", href: "/admin/workspace/crm/tasks", label: "Tareas" },
+  { slug: "messages", href: "/admin/workspace/crm/messages", label: "Mensajes internos" },
 ];
 const names: Record<string, [string, string]> = {
   leads: ["Leads Pipeline", "Leads Pipeline"], quotes: ["Cotizaciones", "Quotes"], sales: ["Ventas", "Sales"],
   clients: ["Clientes 360°", "Clients 360°"], calendar: ["Calendario", "Calendar"], tasks: ["Tareas", "Tasks"],
+  messages: ["Mensajes internos", "Internal messages"],
 };
-/** All six daily operations remain visible without opening a secondary menu. */
+/** Daily operations, including internal team messaging, remain visible without opening a secondary menu. */
 export function CrmNavigation({ active, lang = "es" }: { active?: string; lang?: Lang }) {
   const selected = active === "new" ? "sales" : active;
   return (
