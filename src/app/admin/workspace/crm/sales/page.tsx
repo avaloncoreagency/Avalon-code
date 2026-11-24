@@ -1,3 +1,4 @@
+import { loadOwnerDirectory } from "@/lib/identity/directory";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { Suite } from "@/components/suite/suite";
@@ -30,7 +31,7 @@ export default async function SalesPage({ searchParams }: { searchParams: Promis
   const [metrics, sales, owners, openOrders, overdue, filteredClient] = await Promise.all([
     clientId ? Promise.resolve({ data: [] as Metric[], error: null, count: 0 } as const) : run<Metric[]>(supabase.rpc("crm_sales_metrics")),
     run<SaleRow[]>(salesQuery.range(page * PAGE, page * PAGE + PAGE - 1)),
-    run<{ user_id: string; email: string }[]>(supabase.rpc("crm_owner_directory")),
+    run<{ user_id: string; email: string }[]>(loadOwnerDirectory(supabase)),
     run<null>(supabase.from("crm_work_orders").select("id", { count: "exact" }).in("status", ["open", "in_progress", "blocked"]).range(0, 0)),
     run<null>(supabase.from("crm_tasks").select("id", { count: "exact" }).in("status", ["todo", "in_progress", "blocked"]).lt("due_at", new Date().toISOString()).range(0, 0)),
     clientId ? run<{ id: string; legal_name: string } | null>(supabase.from("crm_clients").select("id,legal_name").eq("id", clientId).maybeSingle()) : Promise.resolve({ data: null, error: null, count: null } as const),

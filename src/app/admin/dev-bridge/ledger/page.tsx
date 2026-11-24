@@ -1,3 +1,4 @@
+import { OWNER_NAMES } from "@/lib/identity/owners";
 import Link from "next/link";
 import { Suite } from "@/components/suite/suite";
 import { requireOwner } from "@/lib/auth/session";
@@ -13,7 +14,7 @@ import s from "./ledger.module.css";
 export const dynamic = "force-dynamic";
 type Q = { period?: string; owner?: string; tool?: string; evidence?: string; ok?: string; error?: string; n?: string };
 const OWNERS: Owner[] = ["miguel", "samuel"];
-const NAME: Record<Owner, string> = { miguel: "Miguel", samuel: "Samuel" };
+const NAME: Record<Owner, string> = OWNER_NAMES;
 const PERIODS = ["today", "7d", "30d", "all"] as const;
 
 export default async function DevBridgeLedger({ searchParams }: { searchParams: Promise<Q> }) {
@@ -31,7 +32,7 @@ export default async function DevBridgeLedger({ searchParams }: { searchParams: 
   const header = <header className={b.hero}>
     <small>AVALON / ENGINEERING / LEDGER</small>
     <h1>Dev Bridge <span>3.0</span></h1>
-    <p>{t("Registro verificable de sesiones, contribuciones, horas declaradas y compromisos de Miguel y Samuel. Sin vigilancia oculta: solo se registra lo que cada agente o propietario envía.", "Verifiable record of sessions, contributions, declared hours and commitments for Miguel and Samuel. No hidden monitoring: only what each agent or owner sends is recorded.")}</p>
+    <p>{t("Registro verificable de sesiones, contribuciones, horas declaradas y compromisos de Miguel Hobaica y Samuel Muñoz. Sin vigilancia oculta: solo se registra lo que cada agente o propietario envía.", "Verifiable record of sessions, contributions, declared hours and commitments for Miguel Hobaica and Samuel Muñoz. No hidden monitoring: only what each agent or owner sends is recorded.")}</p>
     <p><Link href="/admin/dev-bridge">{t("← Dev Bridge 2.0 (GitHub, Vercel, Supabase)", "← Dev Bridge 2.0 (GitHub, Vercel, Supabase)")}</Link></p>
     {flash}
   </header>;
@@ -66,7 +67,7 @@ export default async function DevBridgeLedger({ searchParams }: { searchParams: 
     </nav>
 
     <section className={b.section} aria-labelledby="compare">
-      <h2 id="compare">{t("Miguel y Samuel", "Miguel and Samuel")} · {L2(p.label)}</h2>
+      <h2 id="compare">{t("Miguel Hobaica y Samuel Muñoz", "Miguel Hobaica and Samuel Muñoz")} · {L2(p.label)}</h2>
       <p className={b.muted}>{t("Las cifras se miden por separado y no se combinan en una puntuación. Horas declaradas = lo que cada propietario registró. Tiempo de sesión = intervalos entre eventos de agentes autenticados (hora del servidor), sin contar dos veces sesiones simultáneas. Sin registros no significa inactividad. Ninguna métrica decide propiedad, compensación ni valor económico.", "Figures are measured separately and never combined into a score. Declared hours = what each owner recorded. Session time = intervals between authenticated agent events (server time), without double counting concurrent sessions. No records does not mean inactivity. No metric decides ownership, compensation or economic value.")}</p>
       <div className={s.grid}>{OWNERS.map(o => { const st = stats[o]; return <article className={b.card} key={o} aria-label={NAME[o]}>
         <small>{claimed.has(o) ? t("IDENTIDAD REGISTRADA", "IDENTITY REGISTERED") : t("IDENTIDAD SIN REGISTRAR", "IDENTITY NOT REGISTERED")}</small>
@@ -88,7 +89,7 @@ export default async function DevBridgeLedger({ searchParams }: { searchParams: 
       <h2 id="timeline">{t("Timeline: quién → qué → cuándo → herramienta → resultado → evidencia", "Timeline: who → what → when → tool → result → evidence")}</h2>
       <form className={s.filters} method="get">
         <input type="hidden" name="period" value={q.period ?? "7d"} />
-        <label>{t("Propietario", "Owner")}<select name="owner" defaultValue={q.owner ?? ""}><option value="">{t("Todos", "All")}</option><option value="miguel">Miguel</option><option value="samuel">Samuel</option><option value="unknown">{t("Sin atribuir", "Unattributed")}</option></select></label>
+        <label>{t("Propietario", "Owner")}<select name="owner" defaultValue={q.owner ?? ""}><option value="">{t("Todos", "All")}</option><option value="miguel">{OWNER_NAMES.miguel}</option><option value="samuel">{OWNER_NAMES.samuel}</option><option value="unknown">{t("Sin atribuir", "Unattributed")}</option></select></label>
         <label>{t("Herramienta", "Tool")}<select name="tool" defaultValue={q.tool ?? ""}><option value="">{t("Todas", "All")}</option>{Object.keys(TOOL_LABEL).map(k => <option key={k} value={k}>{L2(TOOL_LABEL[k])}</option>)}</select></label>
         <label>{t("Evidencia", "Evidence")}<select name="evidence" defaultValue={q.evidence ?? ""}><option value="">{t("Toda", "All")}</option>{(Object.keys(EVIDENCE_LABEL) as Evidence[]).map(k => <option key={k} value={k}>{L2(EVIDENCE_LABEL[k])}</option>)}</select></label>
         <button type="submit">{t("Filtrar", "Filter")}</button>
@@ -108,7 +109,7 @@ export default async function DevBridgeLedger({ searchParams }: { searchParams: 
       <div className={s.cal}>{days.map(d => <div className={s.day} key={d}><strong>{d.slice(5)}</strong>{OWNERS.map(o => {
         const sess = l.sessions.filter(x => x.owner === o && dayOf(x.started_at) === d).length;
         const mins = entries.filter(x => x.owner === o && x.work_date === d).reduce((a, x) => a + x.minutes, 0);
-        return sess || mins ? <div key={o}>{NAME[o][0]}: {sess ? `${sess} ses.` : ""}{sess && mins ? " · " : ""}{mins ? duration(mins * 60000) : ""}</div> : null;
+        return sess || mins ? <div key={o}>{NAME[o]}: {sess ? `${sess} ses.` : ""}{sess && mins ? " · " : ""}{mins ? duration(mins * 60000) : ""}</div> : null;
       })}</div>)}</div>
     </section>
 

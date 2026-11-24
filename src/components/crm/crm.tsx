@@ -1,4 +1,5 @@
 "use client";
+import { directoryDisplayName, type DisplayIdentity } from "@/lib/identity/owners";
 import Link from "next/link";
 import { pick, type Lang } from "@/lib/i18n";
 import { useCallback, useEffect, useState } from "react";
@@ -83,6 +84,12 @@ export function Crm({ section = "leads", focusLeadId, lang = "es", radarEnabled 
         : section === "ai-usage"
           ? "usage"
           : "leads";
+  const [people, setPeople] = useState<DisplayIdentity[]>([]);
+  useEffect(() => {
+    const controller = new AbortController();
+    fetch("/admin/workspace/crm/pipeline", {signal:controller.signal}).then(r => r.ok ? r.json() : null).then(d => {if(d) setPeople(d.owners ?? []);}).catch(() => undefined);
+    return () => controller.abort();
+  }, []);
   const [data, setData] = useState<Payload | null>(null),
     [error, setError] = useState(""),
     [loading, setLoading] = useState(true),
@@ -236,7 +243,7 @@ export function Crm({ section = "leads", focusLeadId, lang = "es", radarEnabled 
                       <br />
                       {String(row.phone)}
                       <br />
-                      Responsable: {String(row.owner_id)}
+                      Responsable: {directoryDisplayName(people,row.owner_id)}
                       <br />
                       Seguimiento: {stamp(row.follow_up_at)}
                     </>
@@ -433,6 +440,7 @@ export function Crm({ section = "leads", focusLeadId, lang = "es", radarEnabled 
                 entity={editor.entity}
                 row={editor.row}
                 userId={editor.userId}
+                owners={people}
                 stages={stages}
                 busy={busy}
                 onClose={() => setEditor(null)}
@@ -806,7 +814,7 @@ export function Crm({ section = "leads", focusLeadId, lang = "es", radarEnabled 
                     <h2>{String(title)}</h2>
                     {(groups as Payload["byOwner"])?.map((g) => (
                       <p key={g.label}>
-                        {g.label}: {g.created} leads · {g.conversion.toFixed(1)}
+                        {directoryDisplayName(people,g.label,g.label)}: {g.created} leads · {g.conversion.toFixed(1)}
                         % conversión · {money(g.won)} ganado estimado
                       </p>
                     ))}

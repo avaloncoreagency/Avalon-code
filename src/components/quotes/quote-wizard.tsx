@@ -1,4 +1,5 @@
 "use client";
+import { authorDisplayName } from "@/lib/identity/owners";
 
 import { useMemo, useState } from "react";
 import s from "@/components/sales/sales.module.css";
@@ -112,7 +113,7 @@ export function QuoteWizard({ lang, mode, action, hidden, initial, initialIntern
           <label className={s.field}>{t("Correo del emisor", "Issuer e-mail")}<input type="email" value={c.issuer.email} maxLength={200} onChange={e => set("issuer", { ...c.issuer, email: e.target.value })} /></label>
           <label className={s.field}>{t("Teléfono del emisor", "Issuer phone")}<input type="tel" value={c.issuer.phone} maxLength={200} onChange={e => set("issuer", { ...c.issuer, phone: e.target.value })} /></label>
         </div>
-        <label className={s.field}>{t("Responsable comercial (aparece como contacto)", "Account owner (shown as contact)")}<input value={c.seller} maxLength={200} onChange={e => set("seller", e.target.value)} /></label>
+        <label className={s.field}>{t("Responsable comercial (aparece como contacto)", "Account owner (shown as contact)")}<input value={authorDisplayName(c.seller, "")} maxLength={200} onChange={e => set("seller", e.target.value)} /></label>
       </fieldset>}
 
       {step === 1 && <fieldset className={s.fieldset}><legend>{steps[1]}</legend>

@@ -47,6 +47,7 @@ test("OkFlash safely ignores inherited URL codes and renders only explicit succe
 
   const jsx = (tag, props) => ({ tag, props });
   const stubs = {
+    "@/lib/identity/owners": require("../scripts/creative-bridge/continuity-loader.cjs")("src/lib/identity/owners.ts"),
     "react/jsx-runtime": { jsx, jsxs: jsx },
     "next/link": () => null,
     "@/components/crm/navigation": { CrmNavigation: () => null },

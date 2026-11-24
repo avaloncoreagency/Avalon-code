@@ -1,3 +1,5 @@
+import { personDisplayName } from "@/lib/identity/owners";
+import { loadOwnerDirectory } from "@/lib/identity/directory";
 import Link from "next/link";
 import { Suite } from "@/components/suite/suite";
 import { OpsHeader, OkFlash, ErrorFlash, Tag, Unavailable, q, type Query } from "@/components/sales/ui";
@@ -23,7 +25,7 @@ export default async function CrmSettings({ searchParams }: { searchParams: Prom
   const [services, rules, owners, stages] = await Promise.all([
     run<Service[]>(supabase.from("crm_service_catalog").select("*,crm_departments(label)").order("department_id").order("name")),
     run<Rule[]>(supabase.from("crm_automation_rules").select("id,key,label,label_en,description,enabled,updated_at").order("key")),
-    run<{ user_id: string; email: string }[]>(supabase.rpc("crm_owner_directory")),
+    run<{ user_id: string; email: string }[]>(loadOwnerDirectory(supabase)),
     run<Stage[]>(supabase.from("crm_stages").select("id,label,kind,position").order("position")),
   ]);
   return <Suite active="crm"><div className={s.hud}>
@@ -37,7 +39,7 @@ export default async function CrmSettings({ searchParams }: { searchParams: Prom
           <div className={s.row}>
             <label className={s.field}>{pick(lang, "Nombre", "Name")}<input name="name" required maxLength={120} defaultValue={x.name} /></label>
             <label className={s.field}>{pick(lang, "Precio sugerido (opcional)", "Suggested price (optional)")}<input name="suggested_price" inputMode="decimal" pattern="\d{1,13}(\.\d{1,2})?" placeholder="—" defaultValue={x.suggested_price ?? ""} /></label>
-            <label className={s.field}>{pick(lang, "Responsable por defecto", "Default assignee")}<select name="default_assignee_id" defaultValue={x.default_assignee_id ?? ""}><option value="">{pick(lang, "El vendedor", "The seller")}</option>{(owners.data ?? []).map(o => <option key={o.user_id} value={o.user_id}>{o.email}</option>)}</select></label>
+            <label className={s.field}>{pick(lang, "Responsable por defecto", "Default assignee")}<select name="default_assignee_id" defaultValue={x.default_assignee_id ?? ""}><option value="">{pick(lang, "El vendedor", "The seller")}</option>{(owners.data ?? []).map(o => <option key={o.user_id} value={o.user_id}>{personDisplayName(o)}</option>)}</select></label>
           </div>
           <div className={s.actions} style={{ justifyContent: "space-between" }}>
             <label className={s.inline}><input type="checkbox" name="active" defaultChecked={x.active} />{pick(lang, "Activo en el formulario de venta", "Active in the sale form")}</label>

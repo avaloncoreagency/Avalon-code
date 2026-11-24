@@ -56,7 +56,7 @@ export const WORKFORCE: WorkerProfile[] = [
     executors: [sql("data_quality_cost"), { id: "kenji.ai_ledger", kind: "ai_analysis", effect: "read", ref: "ai_usage_ledger", requiresApproval: false }],
     ai: { requirements: { caps: ["json"], minQuality: 2, prefer: "speed" }, dataClasses: ["internal_aggregate", "synthetic"] } },
   ...[1, 2, 3, 4, 5].map((n): WorkerProfile => ({
-    key: `samuel_${n}`, name: `Puesto ${n + 5}`, department: "Próxima incorporación — Equipo de Samuel", status: "reserved",
+    key: `samuel_${n}`, name: `Puesto ${n + 5}`, department: "Próxima incorporación — Equipo de Samuel Muñoz", status: "reserved",
     objectives: [], executors: [], ai: null,
   })),
 ];

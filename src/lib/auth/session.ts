@@ -1,3 +1,4 @@
+import { personDisplayName } from "../identity/owners";
 import "server-only";
 import { cache } from "react";
 import { redirect } from "next/navigation";
@@ -27,9 +28,6 @@ export async function requireOwner() {
 }
 
 export function displayName(user: User) {
-  // Display only. Authorization never reads user_metadata.
   const meta = user.user_metadata ?? {};
-  const name = typeof meta.full_name === "string" ? meta.full_name : typeof meta.name === "string" ? meta.name : "";
-  if (name.trim()) return name.trim().slice(0, 80);
-  return (user.email ?? "").split("@")[0] || "Owner";
+  return personDisplayName({ email: user.email, full_name: meta.full_name, name: meta.name }, "Owner");
 }

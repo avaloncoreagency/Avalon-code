@@ -12,7 +12,7 @@ test('ten stations: five managers in zone A, five reserved for Samuel in zone B'
   assert.deepEqual(HQ_STATIONS.filter(s => s.zone === 'A').map(s => s.manager), ['ren', 'shin', 'haru', 'sora', 'kenji']);
   const b = HQ_STATIONS.filter(s => s.zone === 'B');
   assert.equal(b.length, 5);
-  assert.ok(b.every(s => s.kind === 'reserved' && !s.manager && s.role === 'Próxima incorporación — Equipo de Samuel'));
+  assert.ok(b.every(s => s.kind === 'reserved' && !s.manager && s.role === 'Próxima incorporación — Equipo de Samuel Muñoz'));
   assert.equal(new Set(HQ_STATIONS.map(s => `${s.x},${s.z}`)).size, 10, 'no two stations overlap');
 });
 
