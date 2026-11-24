@@ -23,6 +23,7 @@ import { DELIVERY_LABEL, DELIVERY_TONE, readDelivery } from "@/lib/os/delivery";
 import s from "@/components/sales/sales.module.css";
 import { loadClientLedger } from "@/lib/sales/core-engine-server";
 import { LedgerPanel } from "@/components/sales/core-panels";
+import { ClientExperience } from "@/components/crm/client-experience";
 export const dynamic = "force-dynamic";
 
 type Client = { id: string; client_code: string; legal_name: string; trade_name: string; website: string; industry: string; country: string; location: string; source: string; notes: string; owner_id: string; origin_lead_id: string | null; status: string; created_at: string; version: number };
@@ -179,6 +180,7 @@ export default async function Client360({ params, searchParams }: { params: Prom
             <a className={s.button} href={`${base}/pdf`} download>{pick(lang, "Descargar PDF", "Download PDF")}</a>
             <a className={s.button} href={`${base}#print`}>{pick(lang, "Imprimir", "Print")}</a></span></li>; })}</ul>
       </section>}
+      <ClientExperience supabase={supabase} clientId={c.id} lang={lang} projects={allProjects} sales={sales.map(x => ({ id: x.id, sale_number: x.sale_number }))} />
       <ClientWorkspace supabase={supabase} clientId={c.id} lang={lang} sales={sales.slice(0, SALES_SHOWN)}
         financeAllowed={financeAllowed} finance={finance} ledgerAvailable={ledger?.ok === true}
         />

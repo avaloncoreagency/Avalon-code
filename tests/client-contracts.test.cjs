@@ -36,7 +36,7 @@ test("download generates PDF from persisted snapshot and not browser content", (
 });
 test("sensitive agreement details are stored only in the database, not URL", () => {
   const action=read("src/app/admin/workspace/crm/clients/[id]/contracts/actions.ts");
-  assert.match(action,/makeAgreementSnapshot\(input\)/);
+  assert.match(action,/makeAgreementSnapshot\(input, master\.version\)/);
   assert.match(action,/snapshot,snapshot_sha256:digest/);
   assert.doesNotMatch(action,/JSON\.stringify\(input\).*back\(/);
 });

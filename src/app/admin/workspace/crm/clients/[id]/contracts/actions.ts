@@ -3,7 +3,8 @@
 import { createHash } from "node:crypto";
 import { revalidatePath } from "next/cache";
 import { back, ownerForAction, uuidField } from "@/lib/os/actions";
-import { AGREEMENT_VERSION, canonicalSnapshot, makeAgreementSnapshot, validateAgreement, type AgreementData } from "@/lib/contracts/agreement";
+import { canonicalSnapshot, makeAgreementSnapshot, validateAgreement, type AgreementData } from "@/lib/contracts/agreement";
+import { DEFAULT_MASTER_VERSION, masterVersion } from "@/lib/contracts/versions";
 
 const BASE = "/admin/workspace/crm/clients";
 const PROPS: (keyof AgreementData)[] = [
@@ -29,10 +30,15 @@ export async function createClientAgreement(form: FormData) {
   if (input.agencyLegalForm === "registered_entity" && form.get("entityExistsConfirm") !== "yes") errors.push("entityExistsConfirm");
   if (errors.length) back(here, { error: "fields" });
   const quoteVersionId = uuidField(form, "quote_version_id");
-  const snapshot = makeAgreementSnapshot(input);
+  // Owner-selected master version (registry only; retired, unknown or review-only versions are refused).
+  const version = String(form.get("template_version") ?? DEFAULT_MASTER_VERSION);
+  const master = masterVersion(version);
+  // A version pending attorney review is never offered as a contract: only versions available for new drafts.
+  if (!master || master.status === "retired" || !master.availableForNewDrafts) back(here, { error: "fields" });
+  const snapshot = makeAgreementSnapshot(input, master.version);
   const digest = createHash("sha256").update(canonicalSnapshot(snapshot)).digest("hex");
   const { data, error } = await supabase.from("crm_client_agreement_drafts")
-    .insert({client_id:clientId,template_version:AGREEMENT_VERSION,
+    .insert({client_id:clientId,template_version:master.version,
       snapshot,snapshot_sha256:digest,created_by:userId,status:"draft",
       ...(quoteVersionId ? { quote_version_id: quoteVersionId } : {})})
     .select("id").single();

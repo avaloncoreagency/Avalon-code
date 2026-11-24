@@ -1,5 +1,6 @@
 import master from "./master.json";
 import { SERVICE_SCHEDULES } from "./service-schedules";
+import { masterVersion } from "./versions";
 
 /** Only the real contracting person(s) or an actually formed legal entity may be named as Agency. */
 export type AgencyLegalForm = "individual" | "joint_individuals" | "registered_entity";
@@ -128,10 +129,13 @@ export function canonicalSnapshot(value: unknown): string {
     JSON.stringify(k) + ":" + canonicalSnapshot(record[k])).join(",") + "}";
 }
 
-export function makeAgreementSnapshot(data: AgreementData): AgreementSnapshot {
+/** Freezes the clause text of the chosen master version (default: the current one). Unknown versions are refused. */
+export function makeAgreementSnapshot(data: AgreementData, version: string = AGREEMENT_VERSION): AgreementSnapshot {
+  const master = masterVersion(version);
+  if (!master || master.status === "retired") throw Error("agreement_version_invalid");
   return {
-    schemaVersion: 1, templateVersion: AGREEMENT_VERSION, data,
-    clauses: AGREEMENT_CLAUSES.map(([heading, body]) => [heading, body]),
+    schemaVersion: 1, templateVersion: master.version, data,
+    clauses: master.clauses.map(([heading, body]) => [heading, body]),
     schedules: data.services.map(service => [service, SERVICE_SCHEDULES[service]]),
   };
 }
