@@ -24,11 +24,13 @@ export async function AgentInvitationPanel({ supabase, userId, lang, status }: {
     <div className={s.panelHead}><h2 id="agent-invite-identity">{t("Identidad de las invitaciones", "Invitation identity")}</h2></div>
     {status === "saved" && <p className={s.flash} data-tone="ok" role="status">{t("Remitente de invitaciones guardado.", "Invitation sender saved.")}</p>}
     {status === "invalid" && <p className={s.flash} data-tone="error" role="alert">{t("Revisa el remitente: «Verificado» exige evidencia técnica.", "Check the sender: «Verified» requires technical evidence.")}</p>}
-    <div className={s.tableWrap}><table className={s.table}><tbody>
-      <tr data-sender="invite"><td>{t("Remitente", "Sender")}</td><td><span style={{ overflowWrap: "anywhere" }}>{company.contact.inviteSender}</span><br />
-        <Badge tone={verified ? "ok" : "warn"}>{verified ? t("Verificado con evidencia", "Verified with evidence") : t("BLOQUEADO: sin verificar", "BLOCKED: unverified")}</Badge></td></tr>
-      <tr><td>{t("Firma", "Signature")}</td><td>{signer ? <><strong>{signer.name}</strong>{signer.title ? ` · ${signer.title} | Avalon Core Agency` : ""}</> : <Badge tone="warn">{t("Propietario no identificado", "Owner not identified")}</Badge>}</td></tr>
-    </tbody></table></div>
+    <dl data-invite-identity style={{ display: "grid", gap: 12, margin: "0 0 12px" }}>
+      <div data-sender="invite"><dt className={s.meta}>{t("Remitente", "Sender")}</dt>
+        <dd style={{ margin: 0, overflowWrap: "anywhere" }}>{company.contact.inviteSender}{" "}
+          <Badge tone={verified ? "ok" : "warn"}>{verified ? t("Verificado con evidencia", "Verified with evidence") : t("BLOQUEADO: sin verificar", "BLOCKED: unverified")}</Badge></dd></div>
+      <div><dt className={s.meta}>{t("Firma", "Signature")}</dt>
+        <dd style={{ margin: 0, overflowWrap: "anywhere" }}>{signer ? <><strong>{signer.name}</strong>{signer.title ? ` · ${signer.title} | Avalon Core Agency` : ""}</> : <Badge tone="warn">{t("Propietario no identificado", "Owner not identified")}</Badge>}</dd></div>
+    </dl>
     <p className={s.meta}>{t("Cada invitación la envía Supabase Auth una sola vez, con su enlace real de activación, firmada por el propietario que la crea. El agente queda inactivo hasta que Miguel o Samuel aprueben sus permisos. La marca amarilla de «importante» la decide Gmail: no se puede garantizar.",
       "Each invitation is sent once by Supabase Auth, with its real activation link, signed by the owner who creates it. The agent stays inactive until Miguel or Samuel approve their permissions. Gmail's yellow «important» marker is Gmail's decision: it cannot be guaranteed.")}</p>
     {!company.ready ? <p className={s.meta}>{t("El remitente se podrá editar cuando se aplique la migración 20261124140000.", "The sender becomes editable once migration 20261124140000 is applied.")}</p> :
