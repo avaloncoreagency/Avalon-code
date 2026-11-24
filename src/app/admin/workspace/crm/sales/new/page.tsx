@@ -6,6 +6,7 @@ import Link from "next/link";
 import { Suite } from "@/components/suite/suite";
 import { SaleForm, type CatalogService, type ClientOption, type QuoteSalePreset } from "@/components/sales/sale-form";
 import { MAX_LINES } from "@/lib/sales/domain";
+import { QUOTE_CANDIDATE_PAGE_SIZE, quoteCandidateQuery, type QuoteCandidate } from "@/lib/sales/quote-candidates";
 import { isQuoteContent } from "@/lib/quotes/model";
 import { OpsHeader, Unavailable, q, UUID_RE, type Query } from "@/components/sales/ui";
 import { requireOwner } from "@/lib/auth/session";
@@ -22,6 +23,7 @@ export default async function NewSalePage({ searchParams }: { searchParams: Prom
   const lang = await getLang();
   const p = await searchParams;
   const requestedLeadId = q(p, "lead");
+  const clientId = q(p, "client");
   const requestedQuoteId = q(p, "quote");
   const quoteId = requestedQuoteId && UUID_RE.test(requestedQuoteId) ? requestedQuoteId : null;
   // Sales Center: a sale from a quote is closed ON the accepted quote ("Cerrar venta"), never re-typed here.
@@ -29,17 +31,22 @@ export default async function NewSalePage({ searchParams }: { searchParams: Prom
   if (quoteId) redirect(`/admin/workspace/crm/quotes/${quoteId}#close-sale`);
   // "Crear venta desde cotización": search by number/title/company, filter by status. Draft/sent quotes are listed too,
   // so the owner sees what is missing instead of the quote silently not appearing.
-  const search = (q(p, "q") ?? "").trim().toLowerCase().slice(0, 80);
+  const search = (q(p, "q") ?? "").replace(/[\x00-\x1f\x7f]/g, "").trim().slice(0, 80);
   const statusFilter = (["accepted", "in_progress", "all"] as const).find(x => x === q(p, "qs")) ?? "accepted";
   const statuses = statusFilter === "accepted" ? ["accepted"] : statusFilter === "in_progress" ? ["draft", "internal_review", "approved", "sent"] : ["draft", "internal_review", "approved", "sent", "accepted"];
-  const [pendingQuotes, closedQuoteIds] = await Promise.all([
-    run<{ id: string; quote_number: string; title: string; status: string; current_version: number; accepted_at: string | null; crm_leads: { company: string } | null; crm_clients: { legal_name: string } | null }[]>(supabase.from("crm_quotes")
-      .select("id,quote_number,title,status,current_version,accepted_at,crm_leads(company),crm_clients(legal_name)").in("status", statuses).order("updated_at", { ascending: false }).limit(200)),
-    run<{ quote_id: string | null }[]>(supabase.from("crm_sales").select("quote_id").not("quote_id", "is", null).limit(1000)),
-  ]);
-  const closedSet = new Set((closedQuoteIds.error ? [] : closedQuoteIds.data ?? []).map(r => r.quote_id));
-  const toClose = (pendingQuotes.data ?? []).filter(x => !closedSet.has(x.id)).filter(x => !search
-    || [x.quote_number, x.title, x.crm_leads?.company, x.crm_clients?.legal_name].some(v => (v ?? "").toLowerCase().includes(search))).slice(0, 50);
+  const pageParam = q(p, "page") ?? "";
+  const page = /^\d{1,7}$/.test(pageParam) ? Number(pageParam) : 0;
+  const candidateHref = (targetPage: number) => {
+    const params = new URLSearchParams({ qs: statusFilter });
+    if (search) params.set("q", search);
+    if (requestedLeadId) params.set("lead", requestedLeadId);
+    if (clientId) params.set("client", clientId);
+    if (targetPage) params.set("page", String(targetPage));
+    return `/admin/workspace/crm/sales/new?${params}#close-from-quote`;
+  };
+  const candidates = await run<QuoteCandidate[]>(quoteCandidateQuery(supabase, statuses, search, page));
+  const toClose = candidates.data ?? [];
+  const candidateCount = candidates.count;
   const terms = toClose.length ? await supabase.from("crm_quote_versions").select("quote_id,version_no,model,commission_pct,commission_status,one_time_total,monthly_total")
     .in("quote_id", toClose.map(x => x.id)) : null;
   type Terms = { quote_id: string; version_no: number; model: string; commission_pct: string | null; commission_status: string | null; one_time_total: string; monthly_total: string };
@@ -68,7 +75,6 @@ export default async function NewSalePage({ searchParams }: { searchParams: Prom
       ? run<ClientChoice | null>(supabase.from("crm_clients").select("id,legal_name,client_code,origin_lead_id").eq("origin_lead_id", leadId).neq("status", "archived").maybeSingle())
       : Promise.resolve({ data: null, error: null, count: null } as const),
   ]);
-  const clientId = q(p, "client");
   // A Client 360 shortcut carries a canonical customer UUID, not a company-name guess.
   const selectedClient = clientId && UUID_RE.test(clientId)
     ? await run<{id:string;legal_name:string;client_code:string;origin_lead_id:string|null}|null>(
@@ -136,6 +142,8 @@ export default async function NewSalePage({ searchParams }: { searchParams: Prom
         <p className={s.muted}>{pick(lang, "Toda venta nace de una cotización aceptada: servicios, precios, porcentajes y condiciones se registran exactamente como el cliente los aceptó, sin volver a escribirlos.",
           "Every sale starts from an accepted quote: services, prices, percentages and terms are recorded exactly as the client accepted them, without typing them again.")}</p>
         <form method="get" className={s.inline} role="search" aria-label={pick(lang, "Buscar cotización", "Search quote")}>
+          {requestedLeadId && <input type="hidden" name="lead" value={requestedLeadId} />}
+          {clientId && <input type="hidden" name="client" value={clientId} />}
           <label className={s.srOnly} htmlFor="quote-search">{pick(lang, "Número, cliente o título", "Number, client or title")}</label>
           <input id="quote-search" name="q" defaultValue={search} maxLength={80} placeholder={pick(lang, "Q-2026-0001, cliente o título", "Q-2026-0001, client or title")} />
           <label className={s.srOnly} htmlFor="quote-status">{pick(lang, "Estado", "Status")}</label>
@@ -146,14 +154,21 @@ export default async function NewSalePage({ searchParams }: { searchParams: Prom
           </select>
           <button className={s.button}>{pick(lang, "Buscar", "Search")}</button>
         </form>
-        {toClose.length === 0 ? <p className={s.empty}>{statusFilter === "accepted"
+        {candidates.error ? <Unavailable lang={lang} code={candidates.error} /> :
+          toClose.length === 0 ? <p className={s.empty}>{statusFilter === "accepted" && !search && page === 0
             ? pick(lang, "No hay cotizaciones aceptadas sin venta. Busca en «En curso» para ver qué falta en las demás.", "No accepted quotes without a sale. Look in “In progress” to see what the others are missing.")
             : pick(lang, "Ninguna cotización coincide.", "No quote matches.")}</p> :
           <ul className={s.list} aria-label={pick(lang, "Cotizaciones pendientes de cierre", "Quotes waiting to be closed")}>{toClose.map(x => { const v = termOf.get(`${x.id}:${x.current_version}`); return <li key={x.id} data-quote-status={x.status}>
-            <strong>{x.crm_clients?.legal_name ?? x.crm_leads?.company ?? x.title}</strong>
+            <strong>{x.client?.legal_name ?? x.lead?.company ?? x.title}</strong>
             <span className={s.muted}>{x.quote_number} v{x.current_version} · {pick(lang, ...(STATUS_TEXT[x.status] ?? [x.status, x.status]))}
               {v ? ` · ${v.commission_status === "proposed" && v.commission_pct ? `${Number(v.commission_pct)}% ${pick(lang, "variable", "variable")}` : v.commission_status ? pick(lang, "% por acordar", "% to agree") : pick(lang, "precio fijo", "fixed price")}` : ""}</span>
             <Link className={s.button} href={`/admin/workspace/crm/quotes/${x.id}#close-sale`}>{x.status === "accepted" ? pick(lang, "Revisar y cerrar venta", "Review and close sale") : pick(lang, "Ver qué falta", "See what is missing")}</Link></li>; })}</ul>}
+        {(page > 0 || candidateCount !== null) && <nav className={s.inline} aria-label={pick(lang, "Páginas de cotizaciones", "Quote pages")}>
+          {page > 0 && <Link className={s.button} href={candidateHref(page - 1)}>{pick(lang, "Anterior", "Previous")}</Link>}
+          {candidateCount !== null && <span>{candidateCount} {pick(lang, "cotizaciones", "quotes")}</span>}
+          {candidateCount !== null && (page + 1) * QUOTE_CANDIDATE_PAGE_SIZE < candidateCount &&
+            <Link className={s.button} href={candidateHref(page + 1)}>{pick(lang, "Siguiente", "Next")}</Link>}
+        </nav>}
       </section>
       <details className={s.panel} open={Boolean(requestedLeadId || clientId)} data-manual-sale>
         <summary>{pick(lang, "Registro manual — solo ventas históricas o excepciones autorizadas", "Manual record — historical sales or authorised exceptions only")}</summary>
