@@ -26,5 +26,8 @@ export function directoryDisplayName(directory: readonly DisplayIdentity[], id: 
 }
 /** Historical explicit author/seller labels, not arbitrary legal text or client names. */
 export function authorDisplayName(label: unknown, fallback = "—"): string {
-  return officialOwnerName(label) ?? (value(label) || fallback);
+  const official = officialOwnerName(label);
+  if (official) return official;
+  const name = value(label);
+  return name && !name.includes("@") && !/^[a-f0-9-]{32,36}$/i.test(name) ? name : fallback;
 }

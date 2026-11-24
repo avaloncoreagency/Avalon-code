@@ -20,6 +20,8 @@ test('all users use profile names; owner official email overrides stale editable
  const directory=[{user_id:'immutable-id',email:'avaloncoreagencysm@gmail.com',display_name:'samuel'}];
  const before=JSON.stringify(directory);assert.equal(names.directoryDisplayName(directory,'immutable-id'),'Samuel Muñoz');assert.equal(JSON.stringify(directory),before);
  assert.equal(names.directoryDisplayName(directory,'00000000-0000-4000-8000-000000000001','Unavailable'),'Unavailable');
+ assert.equal(names.authorDisplayName('technical@example.invalid','Name pending'),'Name pending');
+ assert.equal(names.authorDisplayName('00000000-0000-4000-8000-000000000001','Name pending'),'Name pending');
 });
 test('historical quote digest and snapshot remain intact while regenerated PDF uses official author in ES/EN',()=>{
  const fixture={schemaVersion:1,lang:'es',currency:'USD',title:'Synthetic quote',issueDate:'2026-11-23',validUntil:'2099-12-31',client:{company:'QA Company',contact:'External Person',email:'qa@example.invalid',phone:'',address:''},issuer:{name:'Avalon Core Agency',email:'qa@example.invalid',phone:''},seller:'avaloncoreagencysm',objectives:'',problem:'',solution:'',scope:'',deliverables:'',exclusions:'',dependencies:'',timeline:'',support:'',terms:'',notes:'',thirdPartyCosts:'',model:'fixed',lines:[{code:'desarrollo-web',name:'Website',description:'',kind:'one_time',qty:1,unitPrice:'100'}],commission:null};
