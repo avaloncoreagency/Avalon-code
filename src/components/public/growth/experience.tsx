@@ -60,14 +60,27 @@ function Showroom({ lang }: { lang: Lang }) {
       {TABS.map((k, i) => <button key={k} ref={el => { refs.current[i] = el; }} type="button" role="tab" id={`tab-${k}`} aria-controls={`panel-${k}`} aria-selected={tab === k} tabIndex={tab === k ? 0 : -1}
         onClick={() => setTab(k)} onKeyDown={e => key(e, i)}><span>{labels[k][1]}</span>{labels[k][0]}</button>)}
     </div>
-    <div role="tabpanel" id={`panel-${tab}`} aria-labelledby={`tab-${tab}`} className={d.tabPanel}>
-      {tab === "chat" && <ChatDemo lang={lang} />}
-      {tab === "calendar" && <CalendarDemo lang={lang} />}
-      {tab === "crm" && <CrmDemo lang={lang} />}
-      {tab === "local" && <LocalDemo lang={lang} />}
-      {tab === "shop" && <ShopDemo lang={lang} />}
-      {tab === "ads" && <AdsDemo lang={lang} />}
-    </div>
+    {TABS.map(k => (
+      <div
+        key={k}
+        role="tabpanel"
+        id={`panel-${k}`}
+        aria-labelledby={`tab-${k}`}
+        hidden={tab !== k}
+        className={d.tabPanel}
+      >
+        {tab === k && (
+          <>
+            {k === "chat" && <ChatDemo lang={lang} />}
+            {k === "calendar" && <CalendarDemo lang={lang} />}
+            {k === "crm" && <CrmDemo lang={lang} />}
+            {k === "local" && <LocalDemo lang={lang} />}
+            {k === "shop" && <ShopDemo lang={lang} />}
+            {k === "ads" && <AdsDemo lang={lang} />}
+          </>
+        )}
+      </div>
+    ))}
   </div>;
 }
 
