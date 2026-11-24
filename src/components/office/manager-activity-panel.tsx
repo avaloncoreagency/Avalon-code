@@ -1,5 +1,6 @@
 "use client";
 import { useEffect, useState } from "react";
+import Link from "next/link";
 
 type Activity = {
  manager_key: string; run_id: string | null; status: string; task_title: string | null;
@@ -43,6 +44,7 @@ export function ManagerActivityPanel({lang}:{lang:string}) {
   <h2 id="manager-engine-title">{en?"Manager execution reports":"Informes de ejecución de managers"}</h2>
   <p>{en?"Deterministic checks. Each result belongs to a recorded execution.":"Comprobaciones deterministas. Cada resultado corresponde a una ejecución registrada."}</p>
   <button type="button" disabled={busy} onClick={()=>void refresh()}>{busy?(en?"Checking…":"Consultando…"):(en?"Refresh reports":"Actualizar informes")}</button>
+  <Link href="/admin/workspace/crm/office/manager-work/operations" style={{display:"inline-flex",alignItems:"center",margin:"0 0 10px 12px",minHeight:44}}>{en?"Open manager operations center":"Abrir panel operativo de managers"}</Link>
   {state==="disconnected" && <p role="status">{en?"Not connected. The execution backend is unavailable.":"No conectado. El backend de ejecución no está disponible."}</p>}
   <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(min(100%,240px),1fr))",gap:12}}>
   {keys.map(key=>{const run=runs.find(r=>r.manager_key===key);return <article key={key} style={{padding:12,border:"1px solid #526078",borderRadius:12,minWidth:0}}>
