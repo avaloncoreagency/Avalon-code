@@ -1,0 +1,447 @@
+{
+  "date": "2026-11-22",
+  "reference_sha": "82637e6e871f697368a3a52e68bfc69871b191b2",
+  "main_sha": "cb1d65b73636407e2c4ddc1dacaf3aebb98adda3",
+  "runtime_tree": "15e9a58ef41e6934f1004395be3fd07c57ce55ab",
+  "environment": {
+    "node": "22.23.5",
+    "database": "PGlite 0.3.14, disposable in-process",
+    "browser": "Chrome 157.0.8103.80; physical Safari NOT_RUN",
+    "remote_SQL": false,
+    "new_dependencies": false
+  },
+  "runs": [
+    {
+      "name": "unit",
+      "command": [
+        "npm",
+        "test"
+      ],
+      "exit": 0,
+      "seconds": 17.44
+    },
+    {
+      "name": "types",
+      "command": [
+        "npm",
+        "run",
+        "typecheck"
+      ],
+      "exit": 0,
+      "seconds": 29.79
+    },
+    {
+      "name": "lint",
+      "command": [
+        "npm",
+        "run",
+        "lint"
+      ],
+      "exit": 0,
+      "seconds": 17.85
+    },
+    {
+      "name": "database",
+      "command": [
+        "node",
+        "--test",
+        "--test-concurrency=1",
+        "tests/attribution-lifecycle.database.cjs",
+        "tests/client-opportunity-link.database.cjs",
+        "tests/crm-attribution.database.cjs",
+        "tests/definer-privileges.database.cjs",
+        "tests/fv2-migrations.database.cjs",
+        "tests/fv2-commercial-chain.database.cjs",
+        "tests/fv2-intake-matrix.database.cjs",
+        "tests/fv2-capacity.database.cjs",
+        "tests/independent-qa/integrity.database.cjs",
+        "tests/quotes.database.cjs",
+        "tests/core-engine.database.cjs",
+        "tests/sales.database.cjs",
+        "tests/pipeline-board.database.cjs"
+      ],
+      "exit": 0,
+      "seconds": 62.85
+    },
+    {
+      "name": "build",
+      "command": [
+        "npm",
+        "run",
+        "build"
+      ],
+      "exit": 0,
+      "seconds": 87.25
+    },
+    {
+      "name": "auth",
+      "command": [
+        "node",
+        "--test",
+        "tests/auth.integration.cjs"
+      ],
+      "exit": 0,
+      "seconds": 5.54
+    },
+    {
+      "name": "browser",
+      "command": [
+        "node",
+        "--test",
+        "--test-concurrency=1",
+        "tests/quotes.browser.cjs",
+        "tests/lead-drawer-scroll.browser.cjs",
+        "tests/stable-v1-independent/responsive.browser.cjs"
+      ],
+      "exit": 0,
+      "seconds": 136.88
+    }
+  ],
+  "logs": [
+    {
+      "file": "unit.log",
+      "sha256": "5ce743b95fd9bca28abf7cd91801e88ef4852c89d3d5587cc400af0860be7a89",
+      "bytes": 176763,
+      "tap": {
+        "tests": 803,
+        "pass": 803,
+        "fail": 0,
+        "skipped": 0,
+        "cancelled": 0
+      }
+    },
+    {
+      "file": "types.log",
+      "sha256": "9cd4ee805fc8f2b532ce1e56f73998a48a713f671a8e6d0a7c2720d02133cbe2",
+      "bytes": 45,
+      "tap": {}
+    },
+    {
+      "file": "lint.log",
+      "sha256": "7f9fbbbffc1d44387663cc050da09d2ea78517c3a99ba0ce47a8b359fb8ae5f3",
+      "bytes": 808,
+      "tap": {}
+    },
+    {
+      "file": "database.log",
+      "sha256": "5312d9462d4c99aca44a50f5bd20f4f6b3168f5a2d48f04adb6a56fa3d465b07",
+      "bytes": 7769,
+      "tap": {
+        "tests": 26,
+        "pass": 26,
+        "fail": 0,
+        "skipped": 0,
+        "cancelled": 0
+      }
+    },
+    {
+      "file": "extended-database.log",
+      "sha256": "b805c740843662c08f8570b21b5822b4326e67b08e744031d7ad49ae4c484e78",
+      "bytes": 4050,
+      "tap": {
+        "tests": 14,
+        "pass": 14,
+        "fail": 0,
+        "skipped": 0,
+        "cancelled": 0
+      }
+    },
+    {
+      "file": "build.log",
+      "sha256": "53b0633c0feabe7bd85537fb9adede0a2a06e7c8669dc712ec5b5765ca23fe54",
+      "bytes": 28389,
+      "tap": {}
+    },
+    {
+      "file": "auth.log",
+      "sha256": "75a808b79fefc34b3be01f0e6cb12ecf14591b8316b660a166bd8a4fde57212a",
+      "bytes": 1193,
+      "tap": {
+        "tests": 1,
+        "pass": 1,
+        "fail": 0,
+        "skipped": 0,
+        "cancelled": 0
+      }
+    },
+    {
+      "file": "browser.log",
+      "sha256": "2144347b88a65438c1f8ac7a951264dddb74d1813a9c13e0da5682b4436ece88",
+      "bytes": 905,
+      "tap": {
+        "tests": 3,
+        "pass": 3,
+        "fail": 0,
+        "skipped": 0,
+        "cancelled": 0
+      }
+    },
+    {
+      "file": "new-financial-final.log",
+      "sha256": "318afc5be3d6f3fc2b6227cd883c4cecfb48b96e4c4241227d6533a6119846ff",
+      "bytes": 4537,
+      "tap": {
+        "tests": 7,
+        "pass": 4,
+        "fail": 3,
+        "skipped": 0,
+        "cancelled": 0
+      }
+    },
+    {
+      "file": "security-tools.log",
+      "sha256": "600fbec94113d6997e260a14cf07088b404786da831e3faf6ac9a9f298c79bc9",
+      "bytes": 1611,
+      "tap": {
+        "tests": 8,
+        "pass": 8,
+        "fail": 0,
+        "skipped": 0,
+        "cancelled": 0
+      }
+    }
+  ],
+  "new_test_sha256": {
+    "tests/stable-v1-independent/financial-boundaries.database.cjs": "73e4f884dc709a899f7dd5718f02b0f26420dc167d5e5117c7ee0fd2d03a650d",
+    "tests/stable-v1-independent/fixture.cjs": "78321c7c5f4fd076379a41e64147c8def605da61f078c6db6565f41153f0312e",
+    "tests/stable-v1-independent/proposed-finite-guard.database.cjs": "660c963f89d4741fddb72589b16df0629285db08fee7f363ab9c807d61892edb",
+    "tests/stable-v1-independent/responsive.browser.cjs": "889224f048ce7eaecd5259e9d5fcac16a965eac7be96e0dfcae5ed2843fd2f99"
+  },
+  "financial_acceptance": {
+    "exit": 1,
+    "distinct_defects": 2,
+    "status": "HANDOFF TO CLAUDE"
+  },
+  "responsive": {
+    "browser": "157.0.8103.80",
+    "physicalSafari": "NOT_RUN",
+    "measurements": [
+      {
+        "width": 320,
+        "route": "/admin/workspace/crm/leads",
+        "overflow": 0,
+        "domContentLoadedMs": 431,
+        "responseMs": 284,
+        "resources": 35,
+        "reducedMotion": true
+      },
+      {
+        "width": 320,
+        "route": "/admin/workspace/crm/clients/<synthetic>",
+        "overflow": 0,
+        "domContentLoadedMs": 414,
+        "responseMs": 297,
+        "resources": 37,
+        "reducedMotion": true
+      },
+      {
+        "width": 320,
+        "route": "/admin/workspace/crm/inbound",
+        "overflow": 0,
+        "domContentLoadedMs": 146,
+        "responseMs": 84,
+        "resources": 32,
+        "reducedMotion": true
+      },
+      {
+        "width": 320,
+        "route": "/admin/workspace/crm/quotes/new",
+        "overflow": 0,
+        "domContentLoadedMs": 128,
+        "responseMs": 77,
+        "resources": 33,
+        "reducedMotion": true
+      },
+      {
+        "width": 320,
+        "route": "/admin/workspace/crm/clients/<synthetic>/results",
+        "overflow": 0,
+        "domContentLoadedMs": 141,
+        "responseMs": 98,
+        "resources": 29,
+        "reducedMotion": true
+      },
+      {
+        "width": 375,
+        "route": "/admin/workspace/crm/leads",
+        "overflow": 0,
+        "domContentLoadedMs": 366,
+        "responseMs": 153,
+        "resources": 36,
+        "reducedMotion": true
+      },
+      {
+        "width": 375,
+        "route": "/admin/workspace/crm/clients/<synthetic>",
+        "overflow": 0,
+        "domContentLoadedMs": 358,
+        "responseMs": 251,
+        "resources": 37,
+        "reducedMotion": true
+      },
+      {
+        "width": 375,
+        "route": "/admin/workspace/crm/inbound",
+        "overflow": 0,
+        "domContentLoadedMs": 123,
+        "responseMs": 61,
+        "resources": 32,
+        "reducedMotion": true
+      },
+      {
+        "width": 375,
+        "route": "/admin/workspace/crm/quotes/new",
+        "overflow": 0,
+        "domContentLoadedMs": 126,
+        "responseMs": 77,
+        "resources": 33,
+        "reducedMotion": true
+      },
+      {
+        "width": 375,
+        "route": "/admin/workspace/crm/clients/<synthetic>/results",
+        "overflow": 0,
+        "domContentLoadedMs": 184,
+        "responseMs": 120,
+        "resources": 29,
+        "reducedMotion": true
+      },
+      {
+        "width": 390,
+        "route": "/admin/workspace/crm/leads",
+        "overflow": 0,
+        "domContentLoadedMs": 259,
+        "responseMs": 132,
+        "resources": 36,
+        "reducedMotion": true
+      },
+      {
+        "width": 390,
+        "route": "/admin/workspace/crm/clients/<synthetic>",
+        "overflow": 0,
+        "domContentLoadedMs": 355,
+        "responseMs": 240,
+        "resources": 37,
+        "reducedMotion": true
+      },
+      {
+        "width": 390,
+        "route": "/admin/workspace/crm/inbound",
+        "overflow": 0,
+        "domContentLoadedMs": 102,
+        "responseMs": 61,
+        "resources": 32,
+        "reducedMotion": true
+      },
+      {
+        "width": 390,
+        "route": "/admin/workspace/crm/quotes/new",
+        "overflow": 0,
+        "domContentLoadedMs": 140,
+        "responseMs": 82,
+        "resources": 33,
+        "reducedMotion": true
+      },
+      {
+        "width": 390,
+        "route": "/admin/workspace/crm/clients/<synthetic>/results",
+        "overflow": 0,
+        "domContentLoadedMs": 127,
+        "responseMs": 90,
+        "resources": 29,
+        "reducedMotion": true
+      },
+      {
+        "width": 768,
+        "route": "/admin/workspace/crm/leads",
+        "overflow": 0,
+        "domContentLoadedMs": 179,
+        "responseMs": 128,
+        "resources": 37,
+        "reducedMotion": true
+      },
+      {
+        "width": 768,
+        "route": "/admin/workspace/crm/clients/<synthetic>",
+        "overflow": 0,
+        "domContentLoadedMs": 367,
+        "responseMs": 246,
+        "resources": 37,
+        "reducedMotion": true
+      },
+      {
+        "width": 768,
+        "route": "/admin/workspace/crm/inbound",
+        "overflow": 0,
+        "domContentLoadedMs": 120,
+        "responseMs": 69,
+        "resources": 32,
+        "reducedMotion": true
+      },
+      {
+        "width": 768,
+        "route": "/admin/workspace/crm/quotes/new",
+        "overflow": 0,
+        "domContentLoadedMs": 119,
+        "responseMs": 66,
+        "resources": 33,
+        "reducedMotion": true
+      },
+      {
+        "width": 768,
+        "route": "/admin/workspace/crm/clients/<synthetic>/results",
+        "overflow": 0,
+        "domContentLoadedMs": 127,
+        "responseMs": 85,
+        "resources": 26,
+        "reducedMotion": true
+      },
+      {
+        "width": 1440,
+        "route": "/admin/workspace/crm/leads",
+        "overflow": 0,
+        "domContentLoadedMs": 340,
+        "responseMs": 138,
+        "resources": 37,
+        "reducedMotion": true
+      },
+      {
+        "width": 1440,
+        "route": "/admin/workspace/crm/clients/<synthetic>",
+        "overflow": 0,
+        "domContentLoadedMs": 338,
+        "responseMs": 226,
+        "resources": 37,
+        "reducedMotion": true
+      },
+      {
+        "width": 1440,
+        "route": "/admin/workspace/crm/inbound",
+        "overflow": 0,
+        "domContentLoadedMs": 104,
+        "responseMs": 53,
+        "resources": 32,
+        "reducedMotion": true
+      },
+      {
+        "width": 1440,
+        "route": "/admin/workspace/crm/quotes/new",
+        "overflow": 0,
+        "domContentLoadedMs": 115,
+        "responseMs": 65,
+        "resources": 33,
+        "reducedMotion": true
+      },
+      {
+        "width": 1440,
+        "route": "/admin/workspace/crm/clients/<synthetic>/results",
+        "overflow": 0,
+        "domContentLoadedMs": 150,
+        "responseMs": 92,
+        "resources": 26,
+        "reducedMotion": true
+      }
+    ],
+    "errors": []
+  }
+}
