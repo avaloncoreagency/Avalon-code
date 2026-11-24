@@ -25,13 +25,24 @@ export default async function NewSalePage({ searchParams }: { searchParams: Prom
   // Sales Center: a sale from a quote is closed ON the accepted quote ("Cerrar venta"), never re-typed here.
   // Legacy links (?quote=…) keep working by landing on that review.
   if (quoteId) redirect(`/admin/workspace/crm/quotes/${quoteId}#close-sale`);
+  // "Crear venta desde cotización": search by number/title/company, filter by status. Draft/sent quotes are listed too,
+  // so the owner sees what is missing instead of the quote silently not appearing.
+  const search = (q(p, "q") ?? "").trim().toLowerCase().slice(0, 80);
+  const statusFilter = (["accepted", "in_progress", "all"] as const).find(x => x === q(p, "qs")) ?? "accepted";
+  const statuses = statusFilter === "accepted" ? ["accepted"] : statusFilter === "in_progress" ? ["draft", "internal_review", "approved", "sent"] : ["draft", "internal_review", "approved", "sent", "accepted"];
   const [pendingQuotes, closedQuoteIds] = await Promise.all([
-    run<{ id: string; quote_number: string; title: string; accepted_at: string | null; crm_leads: { company: string } | null }[]>(supabase.from("crm_quotes")
-      .select("id,quote_number,title,accepted_at,crm_leads(company)").eq("status", "accepted").order("accepted_at", { ascending: false }).limit(50)),
+    run<{ id: string; quote_number: string; title: string; status: string; current_version: number; accepted_at: string | null; crm_leads: { company: string } | null; crm_clients: { legal_name: string } | null }[]>(supabase.from("crm_quotes")
+      .select("id,quote_number,title,status,current_version,accepted_at,crm_leads(company),crm_clients(legal_name)").in("status", statuses).order("updated_at", { ascending: false }).limit(200)),
     run<{ quote_id: string | null }[]>(supabase.from("crm_sales").select("quote_id").not("quote_id", "is", null).limit(1000)),
   ]);
   const closedSet = new Set((closedQuoteIds.error ? [] : closedQuoteIds.data ?? []).map(r => r.quote_id));
-  const toClose = (pendingQuotes.data ?? []).filter(x => !closedSet.has(x.id));
+  const toClose = (pendingQuotes.data ?? []).filter(x => !closedSet.has(x.id)).filter(x => !search
+    || [x.quote_number, x.title, x.crm_leads?.company, x.crm_clients?.legal_name].some(v => (v ?? "").toLowerCase().includes(search))).slice(0, 50);
+  const terms = toClose.length ? await supabase.from("crm_quote_versions").select("quote_id,version_no,model,commission_pct,commission_status,one_time_total,monthly_total")
+    .in("quote_id", toClose.map(x => x.id)) : null;
+  type Terms = { quote_id: string; version_no: number; model: string; commission_pct: string | null; commission_status: string | null; one_time_total: string; monthly_total: string };
+  const termOf = new Map(((terms?.error ? [] : terms?.data) ?? []).map(v => [`${(v as Terms).quote_id}:${(v as Terms).version_no}`, v as Terms]));
+  const STATUS_TEXT: Record<string, [string, string]> = { draft: ["Borrador", "Draft"], internal_review: ["En revisión", "In review"], approved: ["Aprobada", "Approved"], sent: ["Enviada", "Sent"], accepted: ["Aceptada", "Accepted"] };
   const quoteR = quoteId ? await run<{ id: string; quote_number: string; status: string; lead_id: string; current_version: number } | null>(
     supabase.from("crm_quotes").select("id,quote_number,status,lead_id,current_version").eq("id", quoteId).maybeSingle()
   ) : null;
@@ -118,14 +129,29 @@ export default async function NewSalePage({ searchParams }: { searchParams: Prom
       ? <p className={s.flash} data-tone="error" role="alert">{pick(lang, "La oportunidad enlazada no está disponible. No se registró ninguna venta.", "The linked opportunity is unavailable. No sale was recorded.")} <Link href="/admin/workspace/crm/leads">{pick(lang, "Volver al pipeline", "Back to pipeline")}</Link></p>
       : <>
       <section className={s.panel} aria-labelledby="close-from-quote">
-        <header><h2 id="close-from-quote">{pick(lang, "Cerrar una cotización aceptada", "Close an accepted quote")}</h2>
+        <header><h2 id="close-from-quote">{pick(lang, "Crear venta desde cotización", "Create sale from quote")}</h2>
           <Link className={`${s.button} ${s.primary}`} href={leadId ? `/admin/workspace/crm/quotes/new?lead=${leadId}` : "/admin/workspace/crm/quotes/new"}>{pick(lang, "Crear cotización", "Create quote")}</Link></header>
         <p className={s.muted}>{pick(lang, "Toda venta nace de una cotización aceptada: servicios, precios, porcentajes y condiciones se registran exactamente como el cliente los aceptó, sin volver a escribirlos.",
           "Every sale starts from an accepted quote: services, prices, percentages and terms are recorded exactly as the client accepted them, without typing them again.")}</p>
-        {toClose.length === 0 ? <p className={s.empty}>{pick(lang, "No hay cotizaciones aceptadas pendientes de cierre. Crea una cotización y márcala como aceptada con su evidencia.", "No accepted quotes waiting to be closed. Create a quote and mark it accepted with its evidence.")}</p> :
-          <ul className={s.list} aria-label={pick(lang, "Cotizaciones pendientes de cierre", "Quotes waiting to be closed")}>{toClose.map(x => <li key={x.id}>
-            <strong>{x.crm_leads?.company ?? x.title}</strong><span className={s.muted}>{x.quote_number} · {x.title}</span>
-            <Link className={s.button} href={`/admin/workspace/crm/quotes/${x.id}#close-sale`}>{pick(lang, "Revisar y cerrar venta", "Review and close sale")}</Link></li>)}</ul>}
+        <form method="get" className={s.inline} role="search" aria-label={pick(lang, "Buscar cotización", "Search quote")}>
+          <label className={s.srOnly} htmlFor="quote-search">{pick(lang, "Número, cliente o título", "Number, client or title")}</label>
+          <input id="quote-search" name="q" defaultValue={search} maxLength={80} placeholder={pick(lang, "Q-2026-0001, cliente o título", "Q-2026-0001, client or title")} />
+          <label className={s.srOnly} htmlFor="quote-status">{pick(lang, "Estado", "Status")}</label>
+          <select id="quote-status" name="qs" defaultValue={statusFilter}>
+            <option value="accepted">{pick(lang, "Aceptadas (listas para revisar el cierre)", "Accepted (ready to review closing)")}</option>
+            <option value="in_progress">{pick(lang, "En curso (borrador → enviada)", "In progress (draft → sent)")}</option>
+            <option value="all">{pick(lang, "Todas las abiertas", "All open")}</option>
+          </select>
+          <button className={s.button}>{pick(lang, "Buscar", "Search")}</button>
+        </form>
+        {toClose.length === 0 ? <p className={s.empty}>{statusFilter === "accepted"
+            ? pick(lang, "No hay cotizaciones aceptadas sin venta. Busca en «En curso» para ver qué falta en las demás.", "No accepted quotes without a sale. Look in “In progress” to see what the others are missing.")
+            : pick(lang, "Ninguna cotización coincide.", "No quote matches.")}</p> :
+          <ul className={s.list} aria-label={pick(lang, "Cotizaciones pendientes de cierre", "Quotes waiting to be closed")}>{toClose.map(x => { const v = termOf.get(`${x.id}:${x.current_version}`); return <li key={x.id} data-quote-status={x.status}>
+            <strong>{x.crm_clients?.legal_name ?? x.crm_leads?.company ?? x.title}</strong>
+            <span className={s.muted}>{x.quote_number} v{x.current_version} · {pick(lang, ...(STATUS_TEXT[x.status] ?? [x.status, x.status]))}
+              {v ? ` · ${v.commission_status === "proposed" && v.commission_pct ? `${Number(v.commission_pct)}% ${pick(lang, "variable", "variable")}` : v.commission_status ? pick(lang, "% por acordar", "% to agree") : pick(lang, "precio fijo", "fixed price")}` : ""}</span>
+            <Link className={s.button} href={`/admin/workspace/crm/quotes/${x.id}#close-sale`}>{x.status === "accepted" ? pick(lang, "Revisar y cerrar venta", "Review and close sale") : pick(lang, "Ver qué falta", "See what is missing")}</Link></li>; })}</ul>}
       </section>
       <details className={s.panel} open={Boolean(requestedLeadId || clientId)} data-manual-sale>
         <summary>{pick(lang, "Registro manual — solo ventas históricas o excepciones autorizadas", "Manual record — historical sales or authorised exceptions only")}</summary>

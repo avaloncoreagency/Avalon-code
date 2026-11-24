@@ -45,10 +45,17 @@ test('Sales Center: accepted quote → Cerrar venta → variable sale → settle
   const lead = (await one("insert into crm_leads(company,contact,source,owner_id) values($1,'QA','manual',$2) returning id", [COMPANY, OWNER])).id;
   const sha = crypto.createHash('sha256').update(JSON.stringify(content)).digest('hex');
   const quoteId = (await one('select crm_quote_create($1,$2,$3::jsonb,$4::jsonb,$5) r', [lead, crypto.randomUUID(), JSON.stringify(content), '{}', sha])).r.quote_id;
-  for (const [to, note] of [['internal_review', ''], ['approved', ''], ['sent', 'Enviada por email sintético'], ['accepted', 'Aceptada por email del cliente (sintético)']]) {
-    const cur = await one('select version from crm_quotes where id=$1', [quoteId]);
-    await db.query('select crm_quote_transition($1,$2,$3,$4)', [quoteId, cur.version, to, note]);
-  }
+  // The main quote stays a DRAFT: review, approval, sending and acceptance are recorded through the UI below.
+  // A second, synthetic copy of the real Chino structure (33% of gross, biweekly, 150-day window, no start date,
+  // duration, agreement type or refund policy) must stay visibly blocked: nothing is inferred.
+  const chinoContent = { ...content, title: 'Propuesta QA-33 incompleta', client: { ...content.client, company: 'Barbería QA-33 Incompleta' },
+    lines: [{ code: 'crm-personalizado', name: 'CRM personalizado', description: '', kind: 'one_time', qty: 1, unitPrice: '0.00' },
+      { code: 'desarrollo-web', name: 'Desarrollo web', description: '', kind: 'one_time', qty: 1, unitPrice: '0.00' }],
+    commission: { status: 'proposed', pct: '33', base: 'gross_revenue', baseNote: '', trigger: 'Cliente cobrado a traves de AVALON', attributionWindowDays: 150,
+      evidence: 'Reporte del sistema y comprobante de pago', settlement: 'biweekly', exclusions: 'N/A', refunds: '', expiry: 'N/A' } };
+  const lead33 = (await one("insert into crm_leads(company,contact,source,owner_id) values('Barbería QA-33 Incompleta','QA','manual',$1) returning id", [OWNER])).id;
+  const sha33 = crypto.createHash('sha256').update(JSON.stringify(chinoContent)).digest('hex');
+  const quote33 = (await one('select crm_quote_create($1,$2,$3::jsonb,$4::jsonb,$5) r', [lead33, crypto.randomUUID(), JSON.stringify(chinoContent), '{}', sha33])).r.quote_id;
   await db.exec('reset role');
 
   const enc = x => Buffer.from(JSON.stringify(x)).toString('base64url'), exp = Math.floor(Date.now() / 1000) + 3600;
@@ -78,9 +85,42 @@ test('Sales Center: accepted quote → Cerrar venta → variable sale → settle
   const quoteUrl = `${origin}/admin/workspace/crm/quotes/${quoteId}`;
   const closePanel = () => page.locator('section[aria-labelledby="close-sale"]');
 
+  // 0a. "Crear venta desde cotización": search by number/client, in-progress filter; drafts show what is missing.
+  await page.goto(`${origin}/admin/workspace/crm/sales/new?qs=in_progress&q=QA-33`);
+  await page.getByRole('heading', { name: 'Crear venta desde cotización' }).waitFor();
+  const found = page.getByRole('list', { name: 'Cotizaciones pendientes de cierre' }).locator('li');
+  assert.equal(await found.count(), 1, 'search narrows to the synthetic Chino copy');
+  assert.match(await found.first().textContent(), /Borrador[\s\S]*33% variable/);
+  await found.first().getByRole('link', { name: 'Ver qué falta' }).click();
+  await page.waitForURL(new RegExp(`/quotes/${quote33}`));
+  // 0b. The path to sale is visible on a draft, with the exact missing terms and where to act.
+  await closePanel().waitFor();
+  assert.equal(await closePanel().getAttribute('data-close-state'), 'blocked');
+  for (const f of ['kind', 'effectiveDate', 'durationMonths', 'refunds']) await closePanel().locator(`[data-missing="${f}"]`).waitFor();
+  assert.equal(await closePanel().locator('[data-missing="exclusions"]').count(), 0, 'stated terms are not flagged');
+  await closePanel().getByRole('link', { name: 'Editar cotización (nueva revisión)' }).waitFor();
+  await closePanel().getByRole('link', { name: 'Abrir contrato de la oportunidad' }).waitFor();
+  assert.equal(await closePanel().getByRole('button', { name: 'Cerrar venta' }).isDisabled(), true);
+  await page.screenshot({ path: `${DIR}/chino-draft-blocked-1440.png`, fullPage: true });
+
+  // 0c. The complete quote goes draft → review → approved → sent → accepted THROUGH THE UI, with written evidence.
+  await page.goto(quoteUrl);
+  const actions = page.locator('section[aria-labelledby="quote-actions"]');
+  await actions.getByRole('button', { name: 'Enviar a revisión interna' }).click();
+  await actions.getByRole('button', { name: 'Aprobar internamente' }).waitFor();
+  await actions.getByRole('button', { name: 'Aprobar internamente' }).click();
+  await actions.getByRole('button', { name: 'Registrar envío manual' }).waitFor();
+  await actions.locator('form').filter({ has: page.getByRole('button', { name: 'Registrar envío manual' }) }).locator('textarea').fill('PDF enviado por email sintético el día de hoy');
+  await actions.getByRole('button', { name: 'Registrar envío manual' }).click();
+  await actions.getByRole('button', { name: 'Registrar aceptación' }).waitFor();
+  await actions.locator('form').filter({ has: page.getByRole('button', { name: 'Registrar aceptación' }) }).locator('textarea').fill('Aceptada por email del cliente (sintético), archivada en el expediente QA');
+  await actions.getByRole('button', { name: 'Registrar aceptación' }).click();
+  await page.waitForFunction(() => document.querySelector('[data-step="accepted"]')?.getAttribute('data-done') === 'true');
+  assert.equal((await one('select status from crm_quotes where id=$1', [quoteId])).status, 'accepted');
+
   // 1. "Nueva venta" starts from accepted quotes; the manual form is collapsed (history / exceptions only).
   await page.goto(`${origin}/admin/workspace/crm/sales/new`);
-  await page.getByRole('heading', { name: 'Cerrar una cotización aceptada' }).waitFor();
+  await page.getByRole('heading', { name: 'Crear venta desde cotización' }).waitFor();
   assert.equal(await page.locator('details[data-manual-sale]').getAttribute('open'), null, 'manual record is not the default path');
   const pendingList = page.getByRole('list', { name: 'Cotizaciones pendientes de cierre' });
   await pendingList.getByText(COMPANY, { exact: true }).waitFor();

@@ -11,7 +11,33 @@ export type CloseBlocker =
   | { code: "quote_needs_service_line" }
   | { code: "quote_line_not_in_catalog"; line: string }
   | { code: "quote_line_kind_mismatch"; line: string }
-  | { code: "quote_commission_to_negotiate" };
+  | { code: "quote_commission_to_negotiate" }
+  | { code: "quote_variable_terms_incomplete"; missing: VariableField[] };
+
+/** Essential terms of a variable agreement that are NEVER inferred: an empty field blocks the close until a new
+ * revision states it and the client accepts that revision. Mirrors crm_quote_close_sale. */
+export type VariableField = "kind" | "effectiveDate" | "durationMonths" | "exclusions" | "refunds" | "evidence" | "trigger";
+export function missingVariableTerms(cm: NonNullable<QuoteContent["commission"]>): VariableField[] {
+  const out: VariableField[] = [];
+  if (!cm.kind) out.push("kind");
+  if (!cm.effectiveDate) out.push("effectiveDate");
+  if (!cm.durationMonths) out.push("durationMonths");
+  const text = (v: string | undefined) => (v ?? "").trim().length >= 3;
+  if (!text(cm.exclusions)) out.push("exclusions");
+  if (!text(cm.refunds)) out.push("refunds");
+  if (!text(cm.evidence)) out.push("evidence");
+  if (!text(cm.trigger)) out.push("trigger");
+  return out;
+}
+export const VARIABLE_FIELD_LABEL: Record<VariableField, [string, string]> = {
+  kind: ["Tipo de acuerdo (participación, comisión por venta o por resultado)", "Agreement type (revenue share, per-sale or outcome commission)"],
+  effectiveDate: ["Fecha de inicio del acuerdo", "Agreement start date"],
+  durationMonths: ["Duración del contrato en meses (distinta de la ventana de atribución)", "Contract duration in months (not the attribution window)"],
+  exclusions: ["Qué se excluye de la base (impuestos, propinas, descuentos, gastos de procesamiento…)", "What is excluded from the base (taxes, tips, discounts, processing fees…)"],
+  refunds: ["Cómo se tratan devoluciones y contracargos", "How refunds and chargebacks are treated"],
+  evidence: ["Cómo se verifican los ingresos", "How revenue is verified"],
+  trigger: ["Qué hecho genera el derecho al porcentaje", "What event earns the percentage"],
+};
 
 export type CloseSummary = {
   model: QuoteContent["model"];
@@ -39,6 +65,7 @@ export function closeSummary(c: QuoteContent, opts: { status: string; contractVe
   }
   const cm = c.commission;
   if (cm && cm.status !== "proposed") blockers.push({ code: "quote_commission_to_negotiate" });
+  else if (cm) { const missing = missingVariableTerms(cm); if (missing.length) blockers.push({ code: "quote_variable_terms_incomplete", missing }); }
   return {
     model: c.model, oneTimeCents, monthlyCents, blockers,
     variable: cm && cm.status === "proposed" ? {
@@ -66,4 +93,5 @@ export const CLOSE_BLOCKER_TEXT: Record<CloseBlocker["code"], [string, string]> 
   quote_line_not_in_catalog: ["Concepto sin servicio activo del catálogo: no se puede operar ni entregar.", "Item without an active catalog service: it cannot be operated or delivered."],
   quote_line_kind_mismatch: ["El tipo de cobro del concepto no coincide con el del catálogo.", "The item's billing type differs from the catalog."],
   quote_commission_to_negotiate: ["El porcentaje sigue por acordar.", "The percentage is still to be agreed."],
+  quote_variable_terms_incomplete: ["Faltan condiciones esenciales del acuerdo variable. Edita la cotización (se crea una revisión nueva), envíala y registra la aceptación de esa revisión:", "Essential variable-agreement terms are missing. Edit the quote (a new revision is created), send it and record the acceptance of that revision:"],
 };

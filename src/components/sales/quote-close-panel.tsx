@@ -3,7 +3,8 @@ import Link from "next/link";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { pick, formatDate, type Lang } from "@/lib/i18n";
 import { formatUsd, type QuoteContent } from "@/lib/quotes/model";
-import { BASE_LABEL, CLOSE_BLOCKER_TEXT, VARIABLE_KIND_LABEL, closeSummary, type CatalogEntry } from "@/lib/sales/quote-close";
+import { BASE_LABEL, CLOSE_BLOCKER_TEXT, VARIABLE_FIELD_LABEL, VARIABLE_KIND_LABEL, closeSummary, type CatalogEntry } from "@/lib/sales/quote-close";
+import { REVISABLE, type QuoteStatus } from "@/lib/quotes/model";
 import { closeSaleFromQuote } from "@/app/admin/workspace/crm/sales/actions";
 import s from "./sales.module.css";
 
@@ -34,19 +35,43 @@ export async function QuoteClosePanel({ db, lang, quote, content, closeError }: 
   const summary = closeSummary(content, { status: quote.status, contractVerified: !!contract.data, catalog: (catalog.data ?? []) as CatalogEntry[] });
   const v = summary.variable;
   const errText = closeError ? CLOSE_ERRORS[closeError] ?? (CLOSE_BLOCKER_TEXT as Record<string, [string, string]>)[closeError] ?? ["No se pudo cerrar la venta.", "The sale could not be closed."] : null;
-  const head = <header><h2 id="close-sale">{t("Cerrar venta", "Close sale")}</h2></header>;
-  if (sale.data) return <section className={s.panel} aria-labelledby="close-sale">{head}
+  const head = <header><h2 id="close-sale">{t("Camino a la venta · Cerrar venta", "Path to sale · Close sale")}</h2></header>;
+  if (sale.data) return <section className={s.panel} aria-labelledby="close-sale" data-close-state="closed">{head}
     <p className={s.flash} data-tone="ok">{t("Esta cotización ya se cerró como venta.", "This quote was already closed as a sale.")}{" "}
-      <Link href={`/admin/workspace/crm/sales/${sale.data.id}`}>{sale.data.sale_number} →</Link></p></section>;
+      <Link href={`/admin/workspace/crm/sales/${sale.data.id}`}>{t("Ver venta", "View sale")} {sale.data.sale_number} →</Link></p></section>;
+  const status = quote.status as QuoteStatus;
+  if (["rejected", "expired", "superseded"].includes(status)) return <section className={s.panel} aria-labelledby="close-sale" data-close-state="final">{head}
+    <p className={s.flash} data-tone="warn">{t("Esta cotización está cerrada (rechazada, vencida o reemplazada) y no puede convertirse en venta. Para nuevas condiciones crea una nueva cotización.",
+      "This quote is closed (rejected, expired or superseded) and cannot become a sale. For new terms create a new quote.")}</p></section>;
+  const terms = summary.blockers.find(b => b.code === "quote_variable_terms_incomplete" || b.code === "quote_commission_to_negotiate"
+    || b.code === "quote_line_not_in_catalog" || b.code === "quote_line_kind_mismatch" || b.code === "quote_needs_service_line");
+  const reached = (...st: QuoteStatus[]) => st.includes(status);
+  const editHref = `/admin/workspace/crm/quotes/${quote.id}/edit`, contractHref = `/admin/workspace/crm/lead/${quote.lead_id}?tab=contract`;
+  // Ordered checklist: what is done, what is next and where to do it. Nothing is ever marked done automatically.
+  const steps: { key: string; done: boolean; label: [string, string]; action?: { href: string; label: [string, string] } }[] = [
+    { key: "terms", done: !terms, label: ["Condiciones completas (servicios, porcentaje, base, exclusiones, vigencia, verificación)", "Complete terms (services, percentage, base, exclusions, term, verification)"],
+      action: REVISABLE.includes(status) ? { href: editHref, label: ["Editar cotización (nueva revisión)", "Edit quote (new revision)"] } : undefined },
+    { key: "approved", done: reached("approved", "sent", "accepted"), label: ["Revisión y aprobación interna", "Internal review and approval"], action: { href: "#quote-actions", label: ["Ir a Acciones", "Go to Actions"] } },
+    { key: "sent", done: reached("sent", "accepted"), label: ["Enviada al cliente (registrar cómo se envió)", "Sent to the client (record how it was sent)"], action: { href: "#quote-actions", label: ["Ir a Acciones", "Go to Actions"] } },
+    { key: "accepted", done: reached("accepted"), label: ["Aceptación del cliente con evidencia (quién, cuándo, cómo)", "Client acceptance with evidence (who, when, how)"], action: { href: "#quote-actions", label: ["Registrar aceptación", "Record acceptance"] } },
+    { key: "contract", done: !!contract.data, label: ["Contrato firmado y verificado por un owner", "Agreement signed and verified by an owner"], action: { href: contractHref, label: ["Abrir contrato de la oportunidad", "Open the opportunity agreement"] } },
+  ];
+  const next = steps.find(x => !x.done);
 
-  return <section className={s.panel} aria-labelledby="close-sale" data-close-ready={summary.blockers.length === 0}>
+  return <section className={s.panel} aria-labelledby="close-sale" data-close-ready={summary.blockers.length === 0} data-close-state={summary.blockers.length ? "blocked" : "ready"}>
     {head}
+    <ol className={s.list} aria-label={t("Pasos para cerrar la venta", "Steps to close the sale")}>{steps.map((x, i) =>
+      <li key={x.key} data-step={x.key} data-done={x.done}>
+        <strong>{x.done ? "✓" : `${i + 1}.`} {pick(lang, ...x.label)}</strong>{" "}
+        {!x.done && x.action && <Link className={s.button} href={x.action.href} data-next={next?.key === x.key || undefined}>{pick(lang, ...x.action.label)}</Link>}
+      </li>)}</ol>
+    <p className={s.muted}>{t("Nada se marca como aceptado ni firmado automáticamente: cada paso lo registra un owner con su evidencia.", "Nothing is marked accepted or signed automatically: an owner records each step with its evidence.")}</p>
     <p className={s.muted}>{t("Revisión final. La venta se registrará exactamente con estos términos; no se vuelve a escribir nada.", "Final review. The sale is registered with exactly these terms; nothing is typed again.")}</p>
     {errText && <p role="alert" className={s.flash} data-tone="error">{pick(lang, ...errText)}</p>}
     <dl className={s.detail}>
       <div><dt>{t("Cliente", "Client")}</dt><dd>{content.client.company || "—"}{content.client.contact ? ` · ${content.client.contact}` : ""}</dd></div>
       <div><dt>{t("Modelo comercial", "Commercial model")}</dt><dd>{pick(lang, ...MODEL[content.model])}</dd></div>
-      <div><dt>{t("Versión aceptada", "Accepted version")}</dt><dd>{quote.quote_number} v{quote.current_version}{quote.accepted_at ? ` · ${formatDate(lang, quote.accepted_at)}` : ""}</dd></div>
+      <div><dt>{status === "accepted" ? t("Versión aceptada", "Accepted version") : t("Versión actual (no aceptada)", "Current version (not accepted)")}</dt><dd>{quote.quote_number} v{quote.current_version}{quote.accepted_at ? ` · ${formatDate(lang, quote.accepted_at)}` : ""}</dd></div>
       <div><dt>{t("Evidencia de aceptación", "Acceptance evidence")}</dt><dd>{acceptance.data?.note || "—"}</dd></div>
       <div><dt>{t("Contrato", "Contract")}</dt><dd>{contract.data ? `${contract.data.title} · ${t("verificado", "verified")}` : t("Sin contrato verificado", "No verified contract")}</dd></div>
     </dl>
@@ -64,13 +89,14 @@ export async function QuoteClosePanel({ db, lang, quote, content, closeError }: 
         <div><dt>{t("Genera derecho", "Earned when")}</dt><dd>{v.trigger}</dd></div>
         <div><dt>{t("Comprobación", "Verification")}</dt><dd>{v.evidence}</dd></div>
         <div><dt>{t("Liquidación", "Settlement")}</dt><dd>{pick(lang, ...(SETTLE[v.settlement] ?? [v.settlement, v.settlement]))}</dd></div>
-        <div><dt>{t("Vigencia", "Term")}</dt><dd>{v.effectiveDate ? `${t("desde", "from")} ${formatDate(lang, v.effectiveDate)}` : t("desde la fecha de venta", "from the sale date")}{v.durationMonths ? ` · ${v.durationMonths} ${t("meses", "months")}` : ""}</dd></div>
+        <div><dt>{t("Vigencia", "Term")}</dt><dd>{v.effectiveDate ? `${t("desde", "from")} ${formatDate(lang, v.effectiveDate)}` : t("sin fecha de inicio (falta)", "no start date (missing)")}{v.durationMonths ? ` · ${v.durationMonths} ${t("meses", "months")}` : ""}</dd></div>
         {v.exclusions && <div><dt>{t("Exclusiones", "Exclusions")}</dt><dd>{v.exclusions}</dd></div>}
         {v.refunds && <div><dt>{t("Reembolsos", "Refunds")}</dt><dd>{v.refunds}</dd></div>}
       </dl>
     </div>}
     {summary.blockers.length > 0 && <ul className={s.list} aria-label={t("Pendiente antes de cerrar", "Pending before closing")}>{summary.blockers.map((b, i) =>
-      <li key={i} data-blocker={b.code}>{pick(lang, ...CLOSE_BLOCKER_TEXT[b.code])}{"line" in b ? ` (${b.line})` : ""}</li>)}</ul>}
+      <li key={i} data-blocker={b.code}>{pick(lang, ...CLOSE_BLOCKER_TEXT[b.code])}{"line" in b ? ` (${b.line})` : ""}
+        {"missing" in b && <ul>{b.missing.map(f => <li key={f} data-missing={f}>{pick(lang, ...VARIABLE_FIELD_LABEL[f])}</li>)}</ul>}</li>)}</ul>}
     <form action={closeSaleFromQuote} className={s.inline}>
       <input type="hidden" name="quote_id" value={quote.id} />
       <input type="hidden" name="version_no" value={quote.current_version} />

@@ -176,6 +176,14 @@ begin
   c := v.content;
   cm := c -> 'commission';
   if jsonb_typeof(cm) = 'object' and cm ->> 'status' <> 'proposed' then raise exception 'quote_commission_to_negotiate' using errcode = '23514'; end if;
+  -- Essential variable terms are never inferred (start date, duration, exclusions, refunds, verification, trigger,
+  -- agreement type): an older or incomplete revision must be revised, sent and accepted again before closing.
+  if jsonb_typeof(cm) = 'object' and (
+       coalesce(cm ->> 'kind', '') = '' or coalesce(cm ->> 'effectiveDate', '') = '' or coalesce(cm ->> 'durationMonths', '') = ''
+    or length(btrim(coalesce(cm ->> 'exclusions', ''))) < 3 or length(btrim(coalesce(cm ->> 'refunds', ''))) < 3
+    or length(btrim(coalesce(cm ->> 'evidence', ''))) < 3 or length(btrim(coalesce(cm ->> 'trigger', ''))) < 3) then
+    raise exception 'quote_variable_terms_incomplete' using errcode = '23514';
+  end if;
 
   -- Lines 1:1 from the accepted revision. Every line must be an active catalog service of the same billing type
   -- (a custom concept has no operational template; it needs a catalog entry before it can be delivered).

@@ -17,7 +17,7 @@ const base = over => ({ schemaVersion: 1, lang: "es", currency: "USD", title: "Q
   objectives: "", problem: "", solution: "s", scope: "", deliverables: "", exclusions: "", dependencies: "", timeline: "", support: "", terms: "", notes: "", thirdPartyCosts: "",
   model: "commission", lines: [{ code: "marketing-mensual", name: "Marketing", description: "", kind: "monthly", qty: 1, unitPrice: "0" }],
   commission: { status: "proposed", kind: "revenue_share", pct: "12.5", base: "gross_revenue", baseNote: "", trigger: "Cita cobrada", attributionWindowDays: 30, evidence: "POS",
-    settlement: "monthly", exclusions: "Propinas", refunds: "", expiry: "", effectiveDate: "2026-11-01", durationMonths: 12 }, ...over });
+    settlement: "monthly", exclusions: "Propinas", refunds: "Se descuentan devoluciones", expiry: "", effectiveDate: "2026-11-01", durationMonths: 12 }, ...over });
 const catalog = [{ code: "marketing-mensual", billing_type: "monthly", active: true }, { code: "desarrollo-web", billing_type: "one_time", active: true }];
 
 test("revenue share quote: ready to close, variable component carried verbatim (no amounts invented)", () => {
@@ -26,7 +26,8 @@ test("revenue share quote: ready to close, variable component carried verbatim (
   assert.equal(sum.oneTimeCents + sum.monthlyCents, 0, "a variable sale is not a $0 fixed sale: the amount comes from settlements");
   assert.deepEqual({ kind: sum.variable.kind, pct: sum.variable.pct, base: sum.variable.base, effectiveDate: sum.variable.effectiveDate, durationMonths: sum.variable.durationMonths },
     { kind: "revenue_share", pct: "12.5", base: "gross_revenue", effectiveDate: "2026-11-01", durationMonths: 12 });
-  assert.equal(close.closeSummary(base({ commission: { ...base().commission, kind: undefined } }), { status: "accepted", contractVerified: true, catalog }).variable.kind, "revenue_share", "older quotes default to revenue share");
+  const legacy = close.closeSummary(base({ commission: { ...base().commission, kind: undefined } }), { status: "accepted", contractVerified: true, catalog });
+  assert.deepEqual(legacy.blockers.map(b => b.code), ["quote_variable_terms_incomplete"], "an older quote without an agreement type must be revised, not inferred");
 });
 
 test("blockers explain exactly why a quote cannot close yet", () => {
@@ -51,4 +52,19 @@ test("quote model accepts the new variable-agreement fields and rejects invalid 
   const legacy = { ...base().commission }; delete legacy.kind; delete legacy.effectiveDate; delete legacy.durationMonths;
   assert.deepEqual(model.validateQuote(base({ commission: legacy })).filter(e => e.startsWith("commission")), [], "quotes saved before V4 stay valid");
   assert.equal(model.clientSafe(base()).commission.kind, "revenue_share", "the PDF/client copy keeps the agreement type");
+});
+
+test("Chino-shaped proposal (33% gross, biweekly, 150-day window, no start/duration/type) cannot close: missing terms are listed, never inferred", () => {
+  const chino = base({ lines: [{ code: "crm-personalizado", name: "CRM", description: "", kind: "one_time", qty: 1, unitPrice: "0.00" },
+      { code: "desarrollo-web", name: "Web", description: "", kind: "one_time", qty: 1, unitPrice: "0.00" }],
+    commission: { status: "proposed", pct: "33", base: "gross_revenue", baseNote: "", trigger: "Cliente cobrado a traves de AVALON", attributionWindowDays: 150,
+      evidence: "Reporte del sistema y comprobante de pago", settlement: "biweekly", exclusions: "N/A", refunds: "", expiry: "N/A" } });
+  const cat = [{ code: "crm-personalizado", billing_type: "one_time", active: true }, { code: "desarrollo-web", billing_type: "one_time", active: true }];
+  const sum = close.closeSummary(chino, { status: "draft", contractVerified: false, catalog: cat });
+  const byCode = Object.fromEntries(sum.blockers.map(b => [b.code, b]));
+  assert.ok(byCode.quote_not_accepted && byCode.contract_not_verified, "draft without contract");
+  assert.deepEqual(byCode.quote_variable_terms_incomplete.missing, ["kind", "effectiveDate", "durationMonths", "refunds"]);
+  assert.equal(sum.oneTimeCents + sum.monthlyCents, 0);
+  const complete = base({ lines: chino.lines, commission: { ...chino.commission, kind: "revenue_share", effectiveDate: "2026-12-01", durationMonths: 12, refunds: "Se descuentan devoluciones y contracargos" } });
+  assert.deepEqual(close.closeSummary(complete, { status: "accepted", contractVerified: true, catalog: cat }).blockers, [], "a complete, accepted 33% revision with a verified contract can close");
 });

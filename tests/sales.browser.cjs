@@ -114,7 +114,7 @@ test('Nova Restaurant through the real app: one form, three departments, no dupl
   const page = await context(miguel);
   await page.goto(origin + '/admin/workspace/crm/sales/new');
   await page.getByRole('heading', { name: 'Nueva venta' }).waitFor();
-  await page.getByRole('heading', { name: 'Cerrar una cotización aceptada' }).waitFor();
+  await page.getByRole('heading', { name: 'Crear venta desde cotización' }).waitFor();
   await page.getByText('Registro manual — solo ventas históricas o excepciones autorizadas').click();
   await page.getByLabel('Cliente nuevo').check();
   await page.getByLabel('Nombre de empresa *').fill('Nova Restaurant');

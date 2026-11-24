@@ -166,3 +166,35 @@ test('guards — not accepted, no verified contract, custom concepts and kind mi
   assert.deepEqual(await one('select quote_version_id, commercial_model, total::text from crm_sales where id=$1', [legacy.sale_id]), { quote_version_id: null, commercial_model: null, total: '500.00' });
   assert.equal(String((await one('select balance from crm_sale_receivables where sale_id=$1', [legacy.sale_id])).balance), '500.00', 'receivables unchanged for legacy sales');
 });
+
+test('Chino case (synthetic copy of the real structure): draft blocked → incomplete v2 refused → complete revision accepted → ONE variable sale at 33% → $1,000 verified base = $330 due, no payment invented', { timeout: 240000 }, async t => {
+  const { db, one } = await setup(); t.after(() => db.close());
+  const chino = { status: 'proposed', pct: '33', base: 'gross_revenue', baseNote: '', trigger: 'Cliente cobrado a traves de AVALON', attributionWindowDays: 150,
+    evidence: 'Reporte del sistema y comprobante de pago', settlement: 'biweekly', exclusions: 'N/A', refunds: '', expiry: 'N/A' };
+  const lines = [{ code: 'crm-personalizado', name: 'CRM personalizado', description: '', kind: 'one_time', qty: 1, unitPrice: '0.00' },
+    { code: 'desarrollo-web', name: 'Desarrollo web', description: '', kind: 'one_time', qty: 1, unitPrice: '0.00' }];
+  const v2 = content('Barbería Sintética QA-33', { model: 'commission', lines, commission: chino });
+  // 1. A draft cannot be converted silently.
+  const lead = (await one("insert into crm_leads(company,contact,source,owner_id) values('Barbería Sintética QA-33','QA','manual',$1) returning id", [OWNER])).id;
+  const draft = (await one('select crm_quote_create($1,$2,$3::jsonb,$4::jsonb,$5) r', [lead, crypto.randomUUID(), JSON.stringify(v2), '{}', sha(v2)])).r;
+  await assert.rejects(close(db, draft.quote_id), /quote_not_accepted/);
+  // 2. Even if accepted with a verified contract, the proposal as written lacks essential terms: refused, nothing created.
+  const accepted = await acceptedQuote(db, one, 'Barbería Sintética QA-33 (v2 aceptada)', v2);
+  await assert.rejects(close(db, accepted.quoteId), /quote_variable_terms_incomplete/);
+  assert.equal((await one('select count(*)::int n from crm_sales where quote_id=$1', [accepted.quoteId])).n, 0);
+  // 3. A complete revision (stated, not inferred), accepted with evidence, closes into exactly ONE variable sale.
+  const v3 = content('Barbería Sintética QA-33 (v3)', { model: 'commission', lines, commission: { ...chino, kind: 'revenue_share', effectiveDate: '2026-11-01', durationMonths: 12,
+    exclusions: 'Impuestos, propinas, descuentos y gastos de procesamiento', refunds: 'Se descuentan devoluciones y contracargos del periodo' } });
+  const ok = await acceptedQuote(db, one, 'Barbería Sintética QA-33 (v3)', v3);
+  const [a, b] = await Promise.all([close(db, ok.quoteId), close(db, ok.quoteId)]);
+  assert.equal(a.sale_id, b.sale_id, 'retry/race returns the same sale');
+  assert.equal((await one('select count(*)::int n from crm_sales where quote_id=$1', [ok.quoteId])).n, 1);
+  const vt = await one('select pct::text, settlement, attribution_window_days, duration_months from crm_sale_variable_terms where sale_id=$1', [a.sale_id]);
+  assert.deepEqual(vt, { pct: '33.00', settlement: 'biweekly', attribution_window_days: 150, duration_months: 12 }, 'window (150 d) kept apart from contract duration (12 m)');
+  // 4. Synthetic settlement: $1,000 verified eligible base × 33% = $330 due; recording it creates NO payment.
+  const st = await settle(db, a.sale_id, { period_start: '2026-11-01', period_end: '2026-11-15', eligible_base: '1000.00', excluded_amount: '0' });
+  assert.equal(Number(st.amount_due), 330);
+  assert.equal((await one('select count(*)::int n from crm_payments where sale_id=$1', [a.sale_id])).n, 0, 'no payment invented');
+  await db.query("select crm_sale_settlement_transition($1,'verified','Conciliado con reporte sintético')", [st.settlement_id]);
+  assert.equal((await one('select balance::text from crm_sale_receivables where sale_id=$1', [a.sale_id])).balance, '330.00');
+});

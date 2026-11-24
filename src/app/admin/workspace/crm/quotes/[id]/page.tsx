@@ -71,7 +71,7 @@ export default async function QuoteDetail({ params, searchParams }: { params: Pr
       actions={<>
         {REVISABLE.includes(quote.status) && <Link className={`${s.button} ${s.primary}`} href={`/admin/workspace/crm/quotes/${id}/edit`}>{pick(lang, "Editar (nueva revisión)", "Edit (new revision)")}</Link>}
         <Link className={s.button} href={`/admin/workspace/crm/quotes/new?lead=${quote.lead_id}`}>{pick(lang, "Nueva cotización", "New quote")}</Link>
-        {quote.status === "accepted" && <a className={`${s.button} ${s.primary}`} href="#close-sale">{pick(lang, "Cerrar venta", "Close sale")}</a>}
+        <a className={`${s.button} ${quote.status === "accepted" ? s.primary : ""}`} href="#close-sale">{pick(lang, "Cerrar venta", "Close sale")}</a>
       </>} />
     {ok && <p className={s.flash} data-tone="ok" role="status">{pick(lang, ...ok)}</p>}
     {err && <p className={s.flash} data-tone="error" role="alert">{pick(lang, ...err)}</p>}
@@ -85,7 +85,7 @@ export default async function QuoteDetail({ params, searchParams }: { params: Pr
       <div className={s.stat}><span>{pick(lang, "Válida hasta", "Valid until")}</span><strong>{formatDate(lang, quote.valid_until)}</strong></div>
     </section>
 
-    {quote.status === "accepted" && content && <QuoteClosePanel db={supabase} lang={lang} quote={quote} content={content} closeError={q(p, "close_error")} />}
+    {content && <QuoteClosePanel db={supabase} lang={lang} quote={quote} content={content} closeError={q(p, "close_error")} />}
     {quote.status === "accepted" && <section className={s.panel} aria-labelledby="next-contract">
       <header><h2 id="next-contract">{pick(lang, "Siguiente paso: contrato", "Next step: agreement")}</h2></header>
       {contracts.length > 0 && <p className={s.flash} data-tone="ok">{pick(lang, "Ya existe un borrador de contrato basado en esta cotización.", "An agreement draft based on this quote already exists.")}{" "}
