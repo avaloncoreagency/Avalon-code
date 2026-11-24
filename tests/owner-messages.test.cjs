@@ -27,7 +27,7 @@ test("owner messages reuse participant-only Staff RLS and never fetch a global p
 test("send and mark-read actions require an owner, validate identity and fail closed", () => {
   assert.match(actions, /export async function sendInternalMessage/);
   assert.match(actions, /export async function markInternalMessageRead/);
-  assert.match(actions, /import \{ ownerForAction \} from "\@\/lib\/os\/actions"/);
+  assert.ok(actions.includes('import { ownerForAction } from "@/lib/os/actions";'));
   assert.equal((actions.match(/await ownerForAction\(\)/g) || []).length, 2);
   assert.match(actions, /recipient_id === userId/);
   assert.match(actions, /body\.length > 4000/);
