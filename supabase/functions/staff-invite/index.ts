@@ -53,7 +53,7 @@ Deno.serve(async (request: Request) => {
     });
     const identity = object(user.data);
     const ownerId = identity?.id;
-    if (!user.ok || typeof ownerId !== "string" || !UUID.test(ownerId))
+    if (!user.ok || !identity || typeof ownerId !== "string" || !UUID.test(ownerId))
       return reply(401, { error: "unauthorized" });
     // Respect the owners' MFA gate even for a direct Edge Function request.
     // /auth/v1/user verified the session signature above; only now may we
