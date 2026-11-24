@@ -167,12 +167,14 @@ export function QuoteWizard({ lang, mode, action, hidden, initial, initialIntern
             <label><input type="radio" name="cm-status" checked={cm.status === "proposed"} onChange={() => setCm({ status: "proposed" })} />{t("Porcentaje propuesto", "Proposed percentage")}</label>
           </div>
           <div className={s.row}>
-            <label className={s.field}>{t("Tipo de acuerdo variable", "Variable agreement type")}<select value={cm.kind ?? "revenue_share"} onChange={e => setCm({ kind: e.target.value as QuoteCommission["kind"] })}>
+            <label className={s.field}>{t("Tipo de acuerdo variable", "Variable agreement type")}<select value={cm.kind ?? ""} onChange={e => setCm({ kind: (e.target.value || undefined) as QuoteCommission["kind"] })}>
+              {/* Never pre-selected: the agreement type is an essential term and is not inferred. */}
+              <option value="" disabled>{t("Selecciona…", "Select…")}</option>
               <option value="revenue_share">{t("Participación en ingresos del cliente", "Share of the client's revenue")}</option>
               <option value="sale_commission">{t("Comisión por venta generada", "Commission per generated sale")}</option>
               <option value="outcome_commission">{t("Comisión por resultado contractual", "Commission per contractual outcome")}</option></select></label>
             <label className={s.field}>{t("Fecha efectiva", "Effective date")}<input type="date" value={cm.effectiveDate ?? ""} onChange={e => setCm({ effectiveDate: e.target.value })} /></label>
-            <label className={s.field}>{t("Duración (meses, opcional)", "Duration (months, optional)")}<input type="number" min={1} max={120} value={cm.durationMonths ?? ""} onChange={e => setCm({ durationMonths: e.target.value ? Math.trunc(Number(e.target.value)) : null })} /></label>
+            <label className={s.field}>{t("Duración (meses)", "Duration (months)")}<input type="number" min={1} max={120} value={cm.durationMonths ?? ""} onChange={e => setCm({ durationMonths: e.target.value ? Math.trunc(Number(e.target.value)) : null })} /></label>
           </div>
           {cm.status === "to_negotiate" && <p className={w.hint}>{t("Una cotización con porcentaje por acordar puede enviarse, pero no puede marcarse como aceptada.", "A quote with a percentage to be agreed can be sent but cannot be marked as accepted.")}</p>}
           <div className={s.row}>

@@ -79,7 +79,6 @@ export default async function QuoteDetail({ params, searchParams }: { params: Pr
         {REVISABLE.includes(quote.status) && <Link className={`${s.button} ${s.primary}`} href={`/admin/workspace/crm/quotes/${id}/edit`}>{pick(lang, "Editar (nueva revisión)", "Edit (new revision)")}</Link>}
         <Link className={s.button} href={`/admin/workspace/crm/quotes/new?lead=${quote.lead_id}`}>{pick(lang, "Nueva cotización", "New quote")}</Link>
         <a className={`${s.button} ${quote.status === "accepted" ? s.primary : ""}`} href="#close-sale">{pick(lang, "Cerrar venta", "Close sale")}</a>
-        {downloadable && <a className={s.button} href={pdf(quote.current_version, false)} download>{pick(lang, "Descargar PDF", "Download PDF")}</a>}
         {downloadable && <a className={s.button} href={pdf(quote.current_version, true)} target="_blank" rel="noopener">{pick(lang, "Imprimir", "Print")}</a>}
         {canDelete && !deleted && quote.status !== "accepted" && <DeleteQuoteButton className={s.button} lang={lang} action={deleteQuote} quote={{ id: quote.id, version: quote.version,
           number: quote.quote_number, client: quote.crm_clients?.legal_name ?? quote.crm_leads?.company ?? "—", date: formatDate(lang, quote.created_at),

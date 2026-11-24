@@ -1,5 +1,5 @@
 "use client";
-import { useRef } from "react";
+import { useRef, useState } from "react";
 import { useFormStatus } from "react-dom";
 
 type Summary = { id: string; version: number; number: string; client: string; date: string; total: string; status: string };
@@ -24,10 +24,12 @@ function Confirm({ label, working }: { label: string; working: string }) {
 /** Owner-only deletion with explicit confirmation. Closing / Cancel changes nothing; the server re-checks everything. */
 export function DeleteQuoteButton({ quote, lang, action, className }: { quote: Summary; lang: "es" | "en"; action: (form: FormData) => void; className?: string }) {
   const t = T[lang], ref = useRef<HTMLDialogElement>(null);
+  // The summary exists in the DOM only while the dialog is open: no hidden duplicate amounts or text on the page.
+  const [open, setOpen] = useState(false);
   return <>
-    <button type="button" className={className} onClick={() => ref.current?.showModal()} data-open-delete={quote.number}>{t.open}</button>
-    <dialog ref={ref} aria-labelledby={`del-${quote.id}`} style={{ maxWidth: 460, width: "calc(100% - 32px)", borderRadius: 16, border: "1px solid #33427a", background: "#0e1530", color: "#e7ecff", padding: 22 }}>
-      <form action={action}>
+    <button type="button" className={className} onClick={() => { setOpen(true); requestAnimationFrame(() => ref.current?.showModal()); }} data-open-delete={quote.number}>{t.open}</button>
+    <dialog ref={ref} onClose={() => setOpen(false)} aria-labelledby={`del-${quote.id}`} style={{ maxWidth: 460, width: "calc(100% - 32px)", borderRadius: 16, border: "1px solid #33427a", background: "#0e1530", color: "#e7ecff", padding: 22 }}>
+      {open && <form action={action}>
         <h2 id={`del-${quote.id}`} style={{ marginTop: 0, fontSize: 19 }}>{t.title}</h2>
         <p style={{ color: "#b9c4e4" }}>{t.body}</p>
         <dl style={{ display: "grid", gridTemplateColumns: "auto 1fr", gap: "6px 14px", margin: "14px 0" }}>
@@ -45,7 +47,7 @@ export function DeleteQuoteButton({ quote, lang, action, className }: { quote: S
             style={{ background: "transparent", color: "#e7ecff", border: "1px solid #33427a", borderRadius: 10, padding: "9px 14px" }}>{t.cancel}</button>
           <Confirm label={t.confirm} working={t.working} />
         </div>
-      </form>
+      </form>}
     </dialog>
   </>;
 }

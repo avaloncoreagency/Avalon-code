@@ -102,7 +102,8 @@ export default async function QuotesPage({ searchParams }: { searchParams: Promi
           <td data-label={pick(lang, "Acciones", "Actions")}><span className={s.inline} data-quote-actions>
             <Link href={`/admin/workspace/crm/quotes/${r.id}`}>{pick(lang, "Ver", "View")}</Link>
             {["draft", "internal_review", "approved"].includes(r.status) && <Link href={`/admin/workspace/crm/quotes/${r.id}/edit`}>{pick(lang, "Editar", "Edit")}</Link>}
-            {["approved", "sent", "accepted"].includes(r.status) && <a href={`/admin/workspace/crm/quotes/${r.id}/pdf?v=${r.current_version}`} download>PDF</a>}
+            {/* Download goes through the review step on the quote page (confirm the preview, then download). */}
+            {["approved", "sent", "accepted"].includes(r.status) && <Link href={`/admin/workspace/crm/quotes/${r.id}#quote-pdf`}>{pick(lang, "Descargar PDF", "Download PDF")}</Link>}
             {["approved", "sent", "accepted"].includes(r.status) && <a href={`/admin/workspace/crm/quotes/${r.id}/pdf?v=${r.current_version}&view=inline`} target="_blank" rel="noopener">{pick(lang, "Imprimir", "Print")}</a>}
             {softDelete && r.status !== "accepted" && <DeleteQuoteButton lang={lang} action={deleteQuote} quote={{ id: r.id, version: r.version, number: r.quote_number,
               client: r.crm_clients?.legal_name ?? r.crm_leads?.company ?? "—", date: formatDate(lang, r.updated_at),
