@@ -77,7 +77,7 @@ test('AGENT PORTAL: above Configuración, owns invitations and agent management'
   await page.locator('iframe[data-preview="invite"]').scrollIntoViewIfNeeded();
   await page.waitForTimeout(300);
   await page.locator('iframe[data-preview="invite"]').screenshot({ path: `${DIR}/agent-portal-invite-preview.png` });
-  await identity.locator('table').screenshot({ path: `${DIR}/agent-portal-identity.png` });
+  await identity.locator('dl[data-invite-identity]').screenshot({ path: `${DIR}/agent-portal-identity.png` });
 
   // 3. «Verified» without evidence is refused; with evidence it is recorded (and the sender keeps the exact address).
   await identity.locator('summary', { hasText: 'Cambiar remitente' }).click();
