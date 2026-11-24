@@ -155,7 +155,7 @@ test('Client experience: onboarding → manual → welcome e-mail → Clients 36
   assert.doesNotMatch(await page.locator('#main').innerText(), /avalonacoreagency@gmail\.com|Invitación de agente/, 'no agent invitation settings in Configuración');
   assert.equal(await page.locator('iframe[data-preview="invite"]').count(), 0);
   assert.equal(await page.locator('[data-agent-portal-link] a').getAttribute('href'), '/admin/staff');
-  assert.match(await page.locator('[data-agent-portal-link]').innerText(), /PORTAL DE AGENTES/);
+  assert.match(await page.locator('[data-agent-portal-link]').innerText(), /AGENT PORTAL/);
   assert.equal(await page.locator('input[name="support_phone"]').inputValue(), '', 'phone stays pending');
   assert.equal(await page.locator('input[name="invite_sender_email"]').count(), 0);
   await page.frameLocator('iframe[data-preview="welcome"]').getByText('Hola, Nombre del cliente', { exact: false }).first().waitFor();

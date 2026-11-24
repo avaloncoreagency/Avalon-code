@@ -3,7 +3,7 @@ import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { requireOwner } from "@/lib/auth/session";
 import { getAppOrigin } from "@/lib/auth/policy";
-import { isJobTitle } from "@/lib/auth/staff-roles";
+import { isJobTitle, JOB_TITLES } from "@/lib/auth/staff-roles";
 import { randomUUID } from "node:crypto";
 import { DEFAULT_TZ, isKind, isPriority, localToUtc, validTimeZone } from "@/lib/staff/work";
 
@@ -25,9 +25,15 @@ export async function inviteStaffEmployee(form: FormData) {
   const email = get(form, "employee_email").toLowerCase();
   if (!email || email.length > 254 || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email))
     done("invalid");
+  // Presentation data for the invitation e-mail. The inviter's name/title is NOT sent: the function resolves it from
+  // the authenticated owner. Role label comes from the fixed job-title list, never free text from the browser.
+  const lang = get(form, "invite_lang") === "en" ? "en" : "es";
+  const invitee_name = get(form, "invitee_name").replace(/[\u0000-\u001f<>{}]/g, " ").trim().slice(0, 80);
+  const jobTitle = get(form, "invite_job_title");
+  const role_label = JOB_TITLES.find(([k]) => k === jobTitle)?.[1] ?? "";
   try {
     const { data, error } = await supabase.functions.invoke("staff-invite", {
-      body: { email, origin: getAppOrigin() },
+      body: { email, origin: getAppOrigin(), lang, invitee_name, role_label },
     });
     if (error || !data || data.invited !== true ||
         data.requires_owner_activation !== true) done("invite-failed");
