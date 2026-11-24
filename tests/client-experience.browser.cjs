@@ -160,6 +160,12 @@ test('Client experience: onboarding → manual → welcome e-mail → Clients 36
   assert.equal(await page.locator('input[name="invite_sender_email"]').count(), 0);
   await page.frameLocator('iframe[data-preview="welcome"]').getByText('Hola, Nombre del cliente', { exact: false }).first().waitFor();
   await page.screenshot({ path: `${DIR}/settings-1440.png`, fullPage: true });
+  // Saving support details works and is signed by the owner; the invitation sender is untouched.
+  await page.locator('input[name="support_hours"]').fill('Lunes a viernes 9:00–17:00 (QA)');
+  await page.locator('form[data-company-settings]').getByRole('button', { name: 'Guardar' }).click();
+  await page.waitForURL(u => u.searchParams.get('ok') === 'settings', { waitUntil: 'commit' });
+  const cfg = await one('select support_hours, updated_by, invite_sender_email, invite_sender_status from avalon_company_settings');
+  assert.deepEqual([cfg.support_hours, cfg.updated_by, cfg.invite_sender_email, cfg.invite_sender_status], ['Lunes a viernes 9:00–17:00 (QA)', OWNER, 'avalonacoreagency@gmail.com', 'unverified']);
 
   // 9. Responsive: no horizontal page scroll.
   const pages = [`/admin/workspace/crm/onboarding`, `/admin/workspace/crm/onboarding/${onboardingId}`, `/admin/workspace/crm/clients/${client}`, `/admin/settings/communications`];

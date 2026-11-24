@@ -18,10 +18,15 @@ export async function updateInviteSender(form: FormData) {
   const evidence = field(form, "invite_sender_evidence").trim().slice(0, 1000);
   if (!EMAIL.test(email) || email.length > 254 || !["unverified", "verified", "failed"].includes(status) || (status === "verified" && evidence.length < 10))
     back(PAGE, { invite_sender: "invalid" });
+  const stamp = new Date().toISOString();
   const r = await supabase.from("avalon_company_settings").update({
-    invite_sender_email: email, invite_sender_status: status, invite_sender_evidence: evidence, updated_by: userId, updated_at: new Date().toISOString(),
-  }).eq("id", 1).select("id").maybeSingle();
-  if (r.error || !r.data) back(PAGE, { invite_sender: "invalid" });
+    invite_sender_email: email, invite_sender_status: status, invite_sender_evidence: evidence, updated_by: userId, updated_at: stamp,
+  }).eq("id", 1);
+  // RLS can filter an update to zero rows without an error: confirm by reading the row back.
+  const check = r.error ? null : await supabase.from("avalon_company_settings").select("invite_sender_status,updated_by,updated_at").eq("id", 1).maybeSingle();
+  const saved = check?.data as { invite_sender_status: string; updated_by: string | null; updated_at: string } | null | undefined;
+  if (r.error || !saved || saved.invite_sender_status !== status || saved.updated_by !== userId || Date.parse(saved.updated_at) !== Date.parse(stamp))
+    back(PAGE, { invite_sender: "invalid" });
   revalidatePath(AGENT_PORTAL_PATH);
   back(PAGE, { invite_sender: "saved" });
 }
