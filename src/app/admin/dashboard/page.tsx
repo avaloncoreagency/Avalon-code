@@ -36,7 +36,8 @@ export default async function DashboardPage() {
     countRows(supabase, "os_store_products", [["eq", "status", "active"]]),
     run<{ id: string; title: string; planned_for: string; status: string; project_id: string }[]>(supabase.from("os_marketing_items").select("id,title,planned_for,status,project_id").lte("planned_for", horizon).not("status", "in", "(published,cancelled)").order("planned_for").limit(8)),
     recentAudit(supabase, 8),
-    countRows(supabase, "crm_leads", [["eq", "archived", "false"]]),
+    run<unknown>(supabase.from("crm_leads").select("id,crm_stages!inner()", { count: "exact" })
+      .eq("archived", false).eq("crm_stages.kind", "open").range(0, 0)),
     run<{ currency: string; sales: number; contracted: string; collected: string; recurring_monthly: string }[]>(supabase.rpc("crm_sales_metrics")),
     countRows(supabase, "crm_clients", [["eq", "status", "active"]]),
     countRows(supabase, "crm_work_orders", [["not_in", "status", ["delivered", "cancelled"]]]),

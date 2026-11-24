@@ -57,6 +57,10 @@ test('Sales Center: accepted quote → Cerrar venta → variable sale → settle
   const sha33 = crypto.createHash('sha256').update(JSON.stringify(chinoContent)).digest('hex');
   const quote33 = (await one('select crm_quote_create($1,$2,$3::jsonb,$4::jsonb,$5) r', [lead33, crypto.randomUUID(), JSON.stringify(chinoContent), '{}', sha33])).r.quote_id;
   await db.exec('reset role');
+  // Put the searched draft behind more than 500 newer eligible candidates.
+  await db.query(`insert into crm_quotes(quote_number,title,lead_id,status,valid_until,request_key,created_by,updated_at)
+    select 'Q-2099-' || (10000+n)::text, 'Synthetic bulk draft', $1, 'draft', '2099-12-31', gen_random_uuid(), $2, now()+interval '1 day'
+    from generate_series(1,501) n`, [lead, OWNER]);
 
   const enc = x => Buffer.from(JSON.stringify(x)).toString('base64url'), exp = Math.floor(Date.now() / 1000) + 3600;
   const user = { id: OWNER, email: 'sales-center-qa@example.invalid', aud: 'authenticated', role: 'authenticated', app_metadata: { provider: 'email' }, user_metadata: {}, identities: [], created_at: '2026-01-01T00:00:00Z' };
@@ -89,7 +93,7 @@ test('Sales Center: accepted quote → Cerrar venta → variable sale → settle
   await page.goto(`${origin}/admin/workspace/crm/sales/new?qs=in_progress&q=QA-33`);
   await page.getByRole('heading', { name: 'Crear venta desde cotización' }).waitFor();
   const found = page.getByRole('list', { name: 'Cotizaciones pendientes de cierre' }).locator('li');
-  assert.equal(await found.count(), 1, 'search narrows to the synthetic Chino copy');
+  assert.equal(await found.count(), 1, 'search finds the synthetic Chino copy behind 501 newer drafts');
   assert.match(await found.first().textContent(), /Borrador[\s\S]*33% variable/);
   await found.first().getByRole('link', { name: 'Ver qué falta' }).click();
   await page.waitForURL(new RegExp(`/quotes/${quote33}`));
