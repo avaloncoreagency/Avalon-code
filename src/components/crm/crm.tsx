@@ -814,7 +814,7 @@ export function Crm({ section = "leads", focusLeadId, lang = "es", radarEnabled 
                     <h2>{String(title)}</h2>
                     {(groups as Payload["byOwner"])?.map((g) => (
                       <p key={g.label}>
-                        {directoryDisplayName(people,g.label,g.label)}: {g.created} leads · {g.conversion.toFixed(1)}
+                        {directoryDisplayName(people,g.label,t("Nombre no disponible", "Name unavailable"))}: {g.created} leads · {g.conversion.toFixed(1)}
                         % conversión · {money(g.won)} ganado estimado
                       </p>
                     ))}

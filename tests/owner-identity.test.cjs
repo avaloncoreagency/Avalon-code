@@ -40,3 +40,8 @@ test('directory loads existing profiles and preserves scope/error instead of exp
  const result=await mod.exports.loadOwnerDirectory(db);assert.deepEqual(result.data.map(p=>p.user_id),['owner-id']);assert.equal(names.personDisplayName(result.data[0]),'Carla López');assert.deepEqual(calls,['office_directory']);
  calls=[];const denied=await mod.exports.loadOwnerDirectory({rpc:async name=>{calls.push(name);return {data:null,error:{code:'42501'}}}});assert.equal(denied.data,null);assert.equal(denied.error.code,'42501');assert.deepEqual(calls,['office_directory'],'permission failures must not fall back around scope');
 });
+test('application display code cannot regress to email-prefix owner names or UUID labels',()=>{
+ const files=[];function walk(dir){for(const e of fs.readdirSync(dir,{withFileTypes:true})){const p=dir+'/'+e.name;if(e.isDirectory())walk(p);else if(/\.[jt]sx?$/.test(p))files.push(p)}}walk('src');
+ const bad=files.filter(f=>/\.split\(["']@["']\)\[0\]/.test(fs.readFileSync(f,'utf8')));assert.deepEqual(bad,[],'use central profile resolver for every user');
+ assert.doesNotMatch(fs.readFileSync('src/components/crm/crm.tsx','utf8'),/directoryDisplayName\(people,g.label,g.label\)/);
+});
