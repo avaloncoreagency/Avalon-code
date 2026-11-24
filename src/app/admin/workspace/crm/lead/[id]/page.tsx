@@ -1,3 +1,4 @@
+import { CommercialJourney } from "@/components/crm/commercial-journey";
 import { loadOwnerDirectory } from "@/lib/identity/directory";
 import { personDisplayName } from "@/lib/identity/owners";
 import Link from "next/link";
@@ -97,6 +98,7 @@ export default async function LeadPage({ params, searchParams }: { params: Promi
           actions={<><Link className={`${s.button} ${s.primary}`} href={`${base}?tab=summary&edit=1#lead-edit`}>{pick(lang, "Editar ficha completa", "Edit full profile")}</Link><Link className={s.button} href={`/admin/workspace/crm/quotes/new?lead=${id}`}>{pick(lang, "+ Crear cotización", "+ Create quote")}</Link><Link className={s.button} href={`/admin/workspace/crm/quotes?lead=${id}`}>{pick(lang, "Cotizaciones", "Quotes")}</Link><Link className={s.button} href={`${base}/discovery`}>{pick(lang, "Diagnóstico", "Discovery")}</Link><Link className={s.button} href={`${base}?tab=summary#lead-attachments`}>{pick(lang, "Archivos adjuntos", "Attachments")}{files.error ? "" : ` (${files.data?.length ?? 0})`}</Link><Link className={s.button} href="/admin/workspace/crm/desk">{pick(lang, "Mesa comercial", "Sales desk")}</Link></>} />
         {ok && <p className={s.flash} data-tone="ok" role="status">{ok === "created" ? pick(lang, "Lead creado. Completa el diagnóstico cuando tengas la información.", "Lead created. Complete the diagnosis when you have the information.") : pick(lang, "Cambios guardados en Avalon.", "Changes saved in Avalon.")}</p>}
         {err && <p className={s.flash} data-tone="error" role="alert">{intelErrorText(lang, err)}</p>}
+        <CommercialJourney supabase={supabase} lead={lead} lang={lang} verifiedContract={verified} contractError={Boolean(contracts.error)} stageLabel={(lead.crm_stages as {label:string}|null)?.label} stageKind={(lead.crm_stages as {kind:string}|null)?.kind} />
         <nav className={x.tabs} aria-label={pick(lang, "Secciones del lead", "Lead sections")}>
           {([["summary", "Resumen (Deal Review)", "Summary (Deal Review)"], ["recs", "Recomendaciones", "Recommendations"], ["terms", "Condiciones comerciales", "Commercial terms"], ["contract", "Contrato", "Contract"], ["history", "Historial", "History"]] as const)
             .map(([k, es, en]) => <Link key={k} href={`${base}?tab=${k}`} aria-current={tab === k ? "page" : undefined}>{pick(lang, es, en)}{k === "contract" ? <small>{pick(lang, ...CONTRACT_LABEL[lead.contract_status] ?? ["", ""])}</small> : null}</Link>)}

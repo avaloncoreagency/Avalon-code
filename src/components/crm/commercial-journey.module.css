@@ -1,0 +1,9 @@
+.journey {border:1px solid #405581;border-radius:14px;padding:16px;margin:16px 0;background:linear-gradient(120deg,#101b30,#1d1932);overflow-wrap:anywhere}
+.journey h2 {margin:0 0 12px;font-size:1.15rem}
+.facts {display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,210px),1fr));gap:12px;margin:12px 0}
+.facts div {border-left:2px solid #7879ed;padding-left:10px}.facts dt {color:#aebdd9;font-size:.85rem}.facts dd {margin:4px 0}
+.links {display:flex;flex-wrap:wrap;gap:12px}.links a {min-height:44px;display:inline-flex;align-items:center;color:#c8e5ff}
+.primary {background:#453784;border:1px solid #9387e8;border-radius:8px;padding:4px 14px}
+.list {padding-left:20px}.list li {margin:10px 0}.journey a:focus-visible {outline:2px solid #64e8ff;outline-offset:4px}
+
+.journey a {color:#c8e5ff}
