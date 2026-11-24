@@ -65,8 +65,8 @@ jobs:
         env:
           NODE_PATH: ./tests/qa/node_modules
           NEXT_TELEMETRY_DISABLED: '1'
-      - name: Intro navigation regressions (must execute)
-        run: node --test --test-concurrency=1 tests/public-experience.browser.cjs
+      - name: Intro navigation and shareable showroom regressions (must execute)
+        run: node --test --test-concurrency=1 tests/public-experience.browser.cjs src/components/public/growth/share-link.browser.mjs
         env:
           NODE_PATH: ./tests/qa/node_modules
           PUBLIC_BROWSER: '1'

@@ -1,3 +1,4 @@
+import { DemoLanguageLink } from "../growth/demo-language-link";
 import Link from "next/link";
 import type { ReactNode } from "react";
 import { COPY, SERVICE_ORDER, type Lang } from "./copy";
@@ -16,7 +17,6 @@ function Logo() {
 /** Shared public chrome: header (desktop links, mobile <details> menu without JS), main and footer. */
 export function SiteChrome({ lang, path = "/", scene = "ambient", children }: { lang: Lang; path?: string; scene?: "universe" | "ambient"; children: ReactNode }) {
   const t = COPY[lang], q = qs(lang), home = path === "/" ? "" : `/${q}`;
-  const other = lang === "es" ? `${path}?lang=en` : path;
   const links: [string, string][] = [[`${home}#arbol`, t.nav.industries], [`${home}#demos`, t.nav.showroom], [`${home}#soluciones`, t.nav.solutions], [`${home}#proyectos`, t.nav.work]];
   return <div className={s.root} data-landing lang={lang}>
     <LivingUniverse variant={scene} />
@@ -27,7 +27,7 @@ export function SiteChrome({ lang, path = "/", scene = "ambient", children }: { 
         <Link href={`/${q}`} className={s.logo} aria-label="Avalon Core Agency"><Logo /><span><strong>AVALON</strong><small>CORE AGENCY</small></span></Link>
         <nav className={s.navLinks} aria-label={lang === "es" ? "Principal" : "Main"}>{links.map(([h, l]) => <a key={h} href={h}>{l}</a>)}</nav>
         <div className={s.headerActions}>
-          <Link className={s.lang} href={other} hrefLang={lang === "es" ? "en" : "es"} aria-label={t.nav.langLabel}>{t.nav.lang}</Link>
+          <DemoLanguageLink className={s.lang} lang={lang} path={path} label={t.nav.langLabel}>{t.nav.lang}</DemoLanguageLink>
           <a className={`${s.btn} ${s.primary} ${s.small} ${s.headerQuote}`} href={`${home}#cotizacion`}>{t.nav.quote}<Icon name="arrow" size={16} /></a>
           <details className={s.menu}><summary aria-label={t.nav.menu}><span /></summary>
             <nav className={s.menuPanel} aria-label={t.nav.menu}>{links.map(([h, l]) => <a key={h} href={h}>{l}</a>)}<a href={`${home}#cotizacion`}>{t.nav.quote}</a></nav>

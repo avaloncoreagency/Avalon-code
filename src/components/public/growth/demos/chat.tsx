@@ -17,7 +17,10 @@ export function ChatDemo({ lang }: { lang: Lang }) {
   const log = useRef<HTMLDivElement>(null), n = useRef(0), timer = useRef(0);
   const name = pickName(visitor + 3);
 
-  useEffect(() => { setMsgs([]); setStep("start"); }, [state.industry]);
+  useEffect(() => {
+    window.clearTimeout(timer.current); setMsgs([]); setStep("start"); setTyping(false); setService(0);
+    return () => window.clearTimeout(timer.current);
+  }, [state.industry, state.resetEpoch]);
   useEffect(() => { const el = log.current; if (el) el.scrollTop = el.scrollHeight; }, [msgs, typing]);
   useEffect(() => () => window.clearTimeout(timer.current), []);
 
