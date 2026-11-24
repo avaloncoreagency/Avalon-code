@@ -30,6 +30,16 @@ test('shareable showroom: allowlists, language, clipboard, request, keyboard and
  const cta=page.locator('#panel-'+expected+' a').filter({hasText:'Quiero esto'});assert.match(await cta.getAttribute('href'),/services=.+#cotizacion/);
  assert.ok(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+1));
  }
+ await page.goto(origin+'/?lang=en&industry=barber&demo=chat#demos');
+ await page.locator('#panel-chat button').first().click();
+ await page.locator('#industria').getByRole('radio',{name:/Roofing/}).click();
+ await page.waitForTimeout(1000);
+ assert.doesNotMatch(await page.locator('#panel-chat').innerText(),/assistant for Northside/,'changing industry cancels old scripted replies');
+ await page.getByRole('button',{name:'Run the full journey',exact:true}).click();
+ await page.getByRole('button',{name:'Reset demos',exact:true}).click();
+ await page.waitForTimeout(1800);
+ assert.equal(await page.locator('#recorrido li[data-state=now]').count(),0,'reset cancels scheduled journey steps');
+ assert.ok(await page.getByRole('button',{name:'Run the full journey',exact:true}).isEnabled());
  await page.goto(origin+'/?lang=es&industry=dental&demo=calendar#demos');await page.locator('#tab-calendar[aria-selected=true]').waitFor();
  await page.locator('a[hreflang=en]').click();await page.getByRole('button',{name:'Copy demo link',exact:true}).waitFor();await page.locator('#tab-calendar[aria-selected=true]').waitFor();
  assert.equal(await page.getByRole('radio',{name:/Dental/}).getAttribute('aria-checked'),'true');

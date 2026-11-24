@@ -23,7 +23,7 @@ export type Sale = { id: number; amount: number; label: string; source: Source; 
 export type Fruit = { id: number; branch: number };
 
 export type DemoState = {
-  lang: Lang; industry: IndustryKey; seq: number;
+  lang: Lang; industry: IndustryKey; seq: number; resetEpoch: number;
   leads: Lead[]; bookings: Booking[]; sales: Sale[];
   inquiries: { received: number; answered: number; booked: number };
   /** Apples earned by demo sales that the tree has not yet placed on a branch. */
@@ -50,12 +50,12 @@ const STAGE_LABEL: Record<Lang, Record<Stage, string>> = {
 };
 export const stageLabel = (lang: Lang, s: Stage) => STAGE_LABEL[lang][s];
 
-function seed(lang: Lang, industry: IndustryKey): DemoState {
+function seed(lang: Lang, industry: IndustryKey, resetEpoch = 0): DemoState {
   const ind = INDUSTRIES[industry];
   const stages: Stage[] = ["new", "contacted", "appointment", "quote"];
   const leads = ind.leads.map((x, i) => ({ id: i + 1, name: x.name, need: x.need[lang], value: x.value, stage: stages[i % stages.length], source: "seed" as Source, at: 0 }));
   const bookings: Booking[] = [{ id: 101, day: 0, slot: 2, service: 0, name: ind.leads[0].name, leadId: 1 }, { id: 102, day: 1, slot: 5, service: 1, name: ind.leads[2].name }, { id: 103, day: 3, slot: 1, service: 2, name: ind.leads[3].name }];
-  return { lang, industry, seq: 200, leads, bookings, sales: [], inquiries: { received: 0, answered: 0, booked: 0 }, fruitQueue: [], feed: [] };
+  return { lang, industry, resetEpoch, seq: 200, leads, bookings, sales: [], inquiries: { received: 0, answered: 0, booked: 0 }, fruitQueue: [], feed: [] };
 }
 
 const push = (s: DemoState, text: string, source: Source) => ({ ...s, feed: [{ id: s.seq + 1, text, source }, ...s.feed].slice(0, 8), seq: s.seq + 1 });
@@ -70,8 +70,8 @@ function win(s: DemoState, lead: Lead, label: string): DemoState {
 function reducer(s: DemoState, a: Action): DemoState {
   const t = (es: string, en: string) => (s.lang === "es" ? es : en);
   switch (a.type) {
-    case "industry": return seed(s.lang, a.industry);
-    case "reset": return seed(s.lang, s.industry);
+    case "industry": return a.industry === s.industry ? s : seed(s.lang, a.industry, s.resetEpoch + 1);
+    case "reset": return seed(s.lang, s.industry, s.resetEpoch + 1);
     case "lead": {
       const id = s.seq + 1;
       const lead: Lead = { id, name: a.name, need: a.need, value: a.value, stage: a.stage ?? "new", source: a.source, at: Date.now() };

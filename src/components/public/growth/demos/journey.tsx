@@ -15,7 +15,11 @@ export function Journey({ lang }: { lang: Lang }) {
   const [step, setStep] = useState(-1), [running, setRunning] = useState(false);
   const live = useRef<DemoState>(state); live.current = state;
   const leadId = useRef<number | null>(null), timers = useRef<number[]>([]);
-  useEffect(() => () => timers.current.forEach(x => window.clearTimeout(x)), []);
+  useEffect(() => {
+    timers.current.forEach(x => window.clearTimeout(x)); timers.current = [];
+    leadId.current = null; setStep(-1); setRunning(false);
+    return () => timers.current.forEach(x => window.clearTimeout(x));
+  }, [state.industry, state.resetEpoch]);
 
   const name = t("Visitante del anuncio", "Ad visitor");
   const steps = [
