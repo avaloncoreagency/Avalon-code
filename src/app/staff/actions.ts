@@ -1,7 +1,9 @@
 "use server";
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
+import { randomUUID } from "node:crypto";
 import { requireStaff, requireStaffMessenger } from "@/lib/auth/staff";
+import { DEFAULT_TZ, isKind, isStatus, localToUtc, validTimeZone } from "@/lib/staff/work";
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const field = (form: FormData, name: string) => {
@@ -73,4 +75,57 @@ export async function readStaffMessage(form: FormData) {
     .eq("id", id).eq("recipient_id", session.userId)
     .is("read_at", null).select("id").maybeSingle();
   finish(path, error || !data ? "failed" : "read");
+}
+
+/** Employee-created work (needs can_create_events). Origin, assignee and author are fixed by the database. */
+export async function createMyWorkItem(form: FormData) {
+  const session = await requireStaff();
+  if (!session.permissions.can_create_events) redirect("/staff?status=denied#calendar");
+  const kind = field(form, "kind"), title = field(form, "title"), tz = field(form, "time_zone") || DEFAULT_TZ;
+  const date = field(form, "date"), start = field(form, "start"), end = field(form, "end"), lead = field(form, "lead_id");
+  if (!isKind(kind) || !title || title.length > 200 || !validTimeZone(tz) || (lead && !UUID.test(lead))) redirect("/staff?status=invalid#calendar");
+  const startsAt = kind === "task" ? null : localToUtc(date, start, tz);
+  const dueAt = kind === "task" ? localToUtc(date, start || "17:00", tz) : null;
+  const endsAt = kind !== "task" && end ? localToUtc(date, end, tz) : null;
+  if ((kind !== "task" && !startsAt) || (kind === "task" && !dueAt) || (endsAt && startsAt && endsAt < startsAt)) redirect("/staff?status=invalid#calendar");
+  const key = UUID.test(field(form, "idempotency_key")) ? field(form, "idempotency_key") : randomUUID();
+  const { error } = await session.supabase.from("staff_work_items").insert({
+    idempotency_key: key, kind, origin: "staff_created", assignee_id: session.userId, title,
+    instructions: field(form, "instructions").slice(0, 4000), starts_at: startsAt, ends_at: endsAt, due_at: dueAt, time_zone: tz, lead_id: lead || null,
+  });
+  // A replayed form (same idempotency key) is not an error: the item already exists.
+  if (error && !/duplicate key|unique/i.test(error.message)) finish("/staff", /not_granted/.test(error.message) ? "denied" : "failed");
+  finish("/staff", "work-saved");
+}
+
+/** Progress on an item the employee can see: status, completion evidence, reschedule when the DB allows it. */
+export async function updateMyWorkItem(form: FormData) {
+  const session = await requireStaff();
+  const id = field(form, "item_id"), version = Number(field(form, "version")), status = field(form, "status");
+  if (!UUID.test(id) || !Number.isInteger(version) || (status && !isStatus(status))) finish("/staff", "invalid");
+  const patch: Record<string, unknown> = {};
+  if (status) patch.status = status;
+  const note = field(form, "completion_note");
+  if (note) patch.completion_note = note.slice(0, 2000);
+  if (status === "done" && note.length < 3) finish("/staff", "evidence-required");
+  const date = field(form, "date"), start = field(form, "start"), tz = field(form, "time_zone") || DEFAULT_TZ;
+  if (date) {
+    const iso = localToUtc(date, start || "09:00", tz);
+    if (!iso) finish("/staff", "invalid");
+    if (field(form, "kind") === "task") patch.due_at = iso; else { patch.starts_at = iso; patch.ends_at = null; }
+  }
+  if (!Object.keys(patch).length) finish("/staff", "invalid");
+  const { data, error } = await session.supabase.from("staff_work_items").update(patch).eq("id", id).eq("version", version).select("id");
+  if (error) finish("/staff", /forbidden|reschedule|cancel/.test(error.message) ? "denied" : "failed");
+  finish("/staff", data && data.length ? "work-saved" : "stale");
+}
+
+/** Internal notes: personal (only the author) or work (author, owners, people who can see the linked item). */
+export async function addStaffNote(form: FormData) {
+  const session = await requireStaff();
+  const visibility = field(form, "visibility"), body = field(form, "body"), item = field(form, "item_id"), lead = field(form, "lead_id");
+  if (!["personal", "work"].includes(visibility) || !body || body.length > 4000 || (item && !UUID.test(item)) || (lead && !UUID.test(lead))
+    || (visibility === "personal" && (item || lead))) finish("/staff", "invalid");
+  const { error } = await session.supabase.from("staff_notes").insert({ visibility, body, item_id: item || null, lead_id: lead || null });
+  finish("/staff", error ? "denied" : "note-saved");
 }

@@ -4,6 +4,8 @@ import { revalidatePath } from "next/cache";
 import { requireOwner } from "@/lib/auth/session";
 import { getAppOrigin } from "@/lib/auth/policy";
 import { isJobTitle } from "@/lib/auth/staff-roles";
+import { randomUUID } from "node:crypto";
+import { DEFAULT_TZ, isKind, isPriority, localToUtc, validTimeZone } from "@/lib/staff/work";
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 function get(form: FormData, field: string) {
@@ -43,6 +45,7 @@ export async function setStaffAccess(form: FormData) {
   const active = get(form, "active") === "yes";
   const can_create_casefiles = active && get(form, "can_create_casefiles") === "yes";
   const can_message = active && get(form, "can_message") === "yes";
+  const can_create_events = active && get(form, "can_create_events") === "yes";
   const job_title = get(form, "job_title") || "operator";
   if (!UUID.test(employeeId) || displayName.length > 80 || !displayName || !isJobTitle(job_title))
     done("invalid");
@@ -51,7 +54,7 @@ export async function setStaffAccess(form: FormData) {
       !directory.some(m => m.user_id === employeeId && m.role === "operator"))
     done("denied");
   const saved = await supabase.from("staff_portal_access").upsert({
-    user_id: employeeId, active, can_create_casefiles, can_message, job_title,
+    user_id: employeeId, active, can_create_casefiles, can_message, can_create_events, job_title,
     granted_by: userId, updated_at: new Date().toISOString(),
   }, { onConflict: "user_id" });
   if (saved.error) done("failed");
@@ -123,4 +126,36 @@ export async function revokeStaffLead(form: FormData) {
     .update({ active: false, granted_by: userId, updated_at: new Date().toISOString() })
     .eq("user_id", employeeId).eq("lead_id", leadId).eq("active", true).select("lead_id").maybeSingle();
   done(error || !data ? "failed" : "lead-revoked");
+}
+
+/** Owner assigns a task / appointment / follow-up to ONE employee. Only that assignment becomes visible to them. */
+export async function assignWorkItem(form: FormData) {
+  const { supabase } = await requireOwner();
+  const employeeId = get(form, "employee_id"), kind = get(form, "kind"), title = get(form, "title"), priority = get(form, "priority") || "normal";
+  const tz = get(form, "time_zone") || DEFAULT_TZ, date = get(form, "date"), start = get(form, "start"), end = get(form, "end");
+  const lead = get(form, "lead_id"), client = get(form, "client_id");
+  if (!UUID.test(employeeId) || !isKind(kind) || !isPriority(priority) || !title || title.length > 200 || !validTimeZone(tz)
+      || (lead && !UUID.test(lead)) || (client && !UUID.test(client))) done("invalid");
+  const startsAt = kind === "task" ? null : localToUtc(date, start, tz);
+  const dueAt = kind === "task" ? localToUtc(date, start || "17:00", tz) : localToUtc(get(form, "due_date"), get(form, "due_time") || "17:00", tz);
+  const endsAt = kind !== "task" && end ? localToUtc(date, end, tz) : null;
+  if ((kind !== "task" && !startsAt) || (kind === "task" && !dueAt) || (endsAt && startsAt && endsAt < startsAt)) done("invalid");
+  const key = /^[0-9a-f-]{36}$/i.test(get(form, "idempotency_key")) ? get(form, "idempotency_key") : randomUUID();
+  const { error } = await supabase.from("staff_work_items").insert({
+    idempotency_key: key, kind, origin: "staff_assigned", assignee_id: employeeId, title, instructions: get(form, "instructions").slice(0, 4000),
+    starts_at: startsAt, ends_at: endsAt, due_at: dueAt, time_zone: tz, priority, lead_id: lead || null, client_id: client || null,
+    assignee_can_reschedule: get(form, "can_reschedule") === "yes",
+  });
+  if (error && !/duplicate key|unique/i.test(error.message)) done(/not_granted/.test(error.message) ? "work-link-denied" : "failed");
+  done("work-assigned");
+}
+
+/** Cancel or reassign an assignment (optimistic version; audit via trigger). */
+export async function manageWorkItem(form: FormData) {
+  const { supabase } = await requireOwner();
+  const id = get(form, "item_id"), version = Number(get(form, "version")), op = get(form, "op"), to = get(form, "assignee_id");
+  if (!UUID.test(id) || !Number.isInteger(version) || !["cancel", "reassign"].includes(op) || (op === "reassign" && !UUID.test(to))) done("invalid");
+  const patch = op === "cancel" ? { status: "cancelled" } : { assignee_id: to, lead_id: null, client_id: null };
+  const { data, error } = await supabase.from("staff_work_items").update(patch).eq("id", id).eq("version", version).select("id");
+  done(error ? "failed" : data && data.length ? (op === "cancel" ? "work-cancelled" : "work-reassigned") : "stale");
 }
