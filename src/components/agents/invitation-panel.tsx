@@ -8,7 +8,7 @@ import { updateInviteSender } from "./invite-actions";
 
 /**
  * AGENT PORTAL · invitation identity. Mounted inside the Agent Portal (`/admin/staff`) next to «Invitar agente».
- * Shows the exact sender (avalonacoreagency@gmail.com unless an owner changes it), whether it is verified WITH evidence,
+ * Shows the configured sender record, any evidence reported by an owner,
  * and a preview of the invitation signed by the SIGNED-IN owner (resolved server-side from the session, never from a
  * browser parameter). The real e-mail is sent once, by Supabase Auth, with its real activation link.
  */
@@ -18,21 +18,21 @@ export async function AgentInvitationPanel({ supabase, userId, lang, status }: {
   const origin = appOrigin(), row = company.row;
   const invite = signer ? renderAgentInvite({ lang, inviter: signer, inviteeName: t("Nombre del agente", "Agent name"), roleLabel: t("Agente comercial", "Sales agent"),
     actionUrl: `${origin}/admin/signup`, expiresHours: 24, company: company.contact, origin }) : null;
-  const verified = company.contact.inviteSenderVerified;
+  const evidenceRecorded = company.contact.inviteSenderVerified;
 
-  return <section className={s.panel} aria-labelledby="agent-invite-identity" data-agent-invite-identity={verified ? "verified" : "blocked"}>
+  return <section className={s.panel} aria-labelledby="agent-invite-identity" data-agent-invite-identity={evidenceRecorded ? "evidence-recorded" : "blocked"}>
     <div className={s.panelHead}><h2 id="agent-invite-identity">{t("Identidad de las invitaciones", "Invitation identity")}</h2></div>
     {status === "saved" && <p className={s.flash} data-tone="ok" role="status">{t("Remitente de invitaciones guardado.", "Invitation sender saved.")}</p>}
     {status === "invalid" && <p className={s.flash} data-tone="error" role="alert">{t("Revisa el remitente: «Verificado» exige evidencia técnica.", "Check the sender: «Verified» requires technical evidence.")}</p>}
     <dl data-invite-identity style={{ display: "grid", gap: 12, margin: "0 0 12px" }}>
       <div data-sender="invite"><dt className={s.meta}>{t("Remitente", "Sender")}</dt>
         <dd style={{ margin: 0, overflowWrap: "anywhere" }}>{company.contact.inviteSender}{" "}
-          <Badge tone={verified ? "ok" : "warn"}>{verified ? t("Verificado con evidencia", "Verified with evidence") : t("BLOQUEADO: sin verificar", "BLOCKED: unverified")}</Badge></dd></div>
+          <Badge tone="warn">{evidenceRecorded ? t("Evidencia registrada por un propietario", "Evidence recorded by an owner") : t("BLOQUEADO: sin verificar", "BLOCKED: unverified")}</Badge></dd></div>
       <div><dt className={s.meta}>{t("Firma", "Signature")}</dt>
         <dd style={{ margin: 0, overflowWrap: "anywhere" }}>{signer ? <><strong>{signer.name}</strong>{signer.title ? ` · ${signer.title} | Avalon Core Agency` : ""}</> : <Badge tone="warn">{t("Propietario no identificado", "Owner not identified")}</Badge>}</dd></div>
     </dl>
-    <p className={s.meta}>{t("Cada invitación la envía Supabase Auth una sola vez, con su enlace real de activación, firmada por el propietario que la crea. El agente queda inactivo hasta que Miguel o Samuel aprueben sus permisos. La marca amarilla de «importante» la decide Gmail: no se puede garantizar.",
-      "Each invitation is sent once by Supabase Auth, with its real activation link, signed by the owner who creates it. The agent stays inactive until Miguel or Samuel approve their permissions. Gmail's yellow «important» marker is Gmail's decision: it cannot be guaranteed.")}</p>
+    <p className={s.meta}>{t("Supabase Auth genera el enlace de activación y usa el remitente de su configuración SMTP. El agente requiere aprobación de Miguel o Samuel para acceder al portal.",
+      "Supabase Auth generates the activation link and uses the sender in its SMTP settings. The agent requires approval from Miguel or Samuel to access the portal.")}</p>
     {!company.ready ? <p className={s.meta}>{t("El remitente se podrá editar cuando se aplique la migración 20261124140000.", "The sender becomes editable once migration 20261124140000 is applied.")}</p> :
     <details className={s.details}><summary>{t("Cambiar remitente o registrar verificación", "Change sender or record verification")}</summary>
       <form action={updateInviteSender} className={s.form} data-invite-sender-form>

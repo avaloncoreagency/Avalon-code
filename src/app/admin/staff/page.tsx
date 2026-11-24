@@ -11,6 +11,7 @@ import { sendStaffMessage, readStaffMessage } from "@/app/staff/actions";
 import s from "@/components/sales/sales.module.css";
 import { AgentInvitationPanel } from "@/components/agents/invitation-panel";
 import { getLang } from "@/lib/i18n-server";
+import { pick } from "@/lib/i18n";
 export const dynamic = "force-dynamic";
 type StaffMember = { user_id:string; role:string; email:string; display_name:string };
 type Access = { user_id:string; active:boolean; can_create_casefiles:boolean; can_message:boolean; can_create_events:boolean; job_title:string };
@@ -26,13 +27,17 @@ const statuses: Record<string,string> = {
  invalid:"Los datos no son válidos.",denied:"No tienes autorización para esta operación.",
  failed:"No se pudo confirmar el cambio.", "directory-failed":"Acceso actualizado, pero falló la libreta de contactos.",
  "access-enabled":"Acceso de empleado activado.","access-revoked":"Acceso de empleado revocado.",
- "invite-sent":"Invitación enviada. La cuenta queda bloqueada hasta que un propietario active los permisos.",
- "invite-failed":"No se envió la invitación. Revisa la configuración de invitaciones de Supabase o si ya existe esa cuenta.",
  "client-granted":"Cliente asignado.","client-revoked":"Acceso al cliente revocado.",
  "lead-granted":"Lead asignado.","lead-revoked":"Acceso al lead revocado.",
  "work-assigned":"Actividad asignada. Solo esa persona la ve.","work-cancelled":"Actividad cancelada.","work-reassigned":"Actividad reasignada.",
  "work-link-denied":"Ese lead o cliente no está asignado a ese empleado: asígnaselo primero.",stale:"La actividad cambió mientras la editabas; revisa la versión actual.",
  sent:"Mensaje privado enviado.",read:"Mensaje marcado como leído.",
+};
+const inviteStatuses: Readonly<Record<string, readonly [string, string]>> = {
+ "invite-sent": ["Supabase Auth aceptó la invitación. La cuenta requiere aprobación del propietario.", "Supabase Auth accepted the invitation. The account requires owner approval."],
+ "invite-audit-pending": ["Supabase Auth aceptó la invitación. Falta confirmar el registro de auditoría.", "Supabase Auth accepted the invitation. The audit entry is unconfirmed."],
+ "invite-enrollment-pending": ["Supabase Auth aceptó la invitación. No se confirmó el alta del agente. Revisa el estado de la cuenta antes de reenviar.", "Supabase Auth accepted the invitation. Agent enrollment is unconfirmed. Check the account before resending."],
+ "invite-failed": ["No se pudo confirmar la invitación. Revisa el estado de la cuenta y la configuración de Supabase antes de reintentar.", "The invitation could not be confirmed. Check the account and Supabase settings before retrying."],
 };
 
 export default async function StaffAdministration({searchParams}:{
@@ -58,6 +63,8 @@ export default async function StaffAdministration({searchParams}:{
  ]);
  const {status, view: viewParam, d, invite_sender: inviteSender} = await searchParams;
  const lang = await getLang();
+ const inviteStatus = status && Object.hasOwn(inviteStatuses, status)
+   ? pick(lang, ...inviteStatuses[status]) : null;
  // Staff work (migration 20261124100000). Owners supervise assignments; employees' personal notes are never listed here.
  const itemsR = await supabase.from("staff_work_items").select("id,kind,origin,assignee_id,created_by,title,instructions,starts_at,ends_at,due_at,time_zone,priority,status,lead_id,client_id,assignee_can_reschedule,completion_note,completed_at,version,updated_at")
    .order("updated_at",{ascending:false}).limit(1000);
@@ -82,6 +89,7 @@ export default async function StaffAdministration({searchParams}:{
      <p>Solo Miguel y Samuel como propietarios pueden activar cuentas y asignar clientes.
        Los expedientes privados son visibles aquí; los mensajes privados siguen siendo solo de sus participantes.</p>
    </div><Link className={s.button} href="/admin/workspace/crm/clients">Volver a Clientes 360°</Link></header>
+   {inviteStatus && <p role="status" className={s.flash}>{inviteStatus}</p>}
    {status && Object.hasOwn(statuses,status) && <p role="status" className={s.flash}>{statuses[status]}</p>}
    {!ready && <p role="alert" className={s.flash}>El módulo aún no está disponible. Verifica la migración, permisos y conexión del entorno aislado.</p>}
    {ready && <>

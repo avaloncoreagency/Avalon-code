@@ -93,7 +93,7 @@ test('AGENT PORTAL: above Configuración, owns invitations and agent management'
   await sender2.locator('textarea[name="invite_sender_evidence"]').fill('Authentication-Results: spf=pass dkim=pass header.d=gmail.com (sintético QA)');
   await sender2.getByRole('button', { name: 'Guardar remitente' }).click();
   await page.waitForURL(u => u.searchParams.get('invite_sender') === 'saved', { waitUntil: 'commit' });
-  await page.locator('section[data-agent-invite-identity="verified"]').waitFor();
+  await page.locator('section[data-agent-invite-identity="evidence-recorded"]').waitFor();
   const row = (await db.query('select invite_sender_email e, invite_sender_status s, updated_by u from avalon_company_settings')).rows[0];
   assert.deepEqual([row.e, row.s, row.u], ['avalonacoreagency@gmail.com', 'verified', OWNER]);
 

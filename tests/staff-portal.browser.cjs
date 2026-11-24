@@ -88,10 +88,26 @@ test('Staff portal: owners assign, Ana sees only her work, never owners\' privat
   await m.page.screenshot({ path: `${DIR}/owner-staff-1440.png`, fullPage: true });
   assert.deepEqual(m.errors, []);
 
+  // The CRM inbox uses the same Staff message store and participant permissions.
+  const messagesPath = '/admin/workspace/crm/messages';
+  const messageBody = 'Confirmar seguimiento asignado QA';
+  await m.page.goto(origin + messagesPath);
+  await m.page.locator('select[name="recipient_id"]').selectOption(ANA);
+  await m.page.getByLabel('Mensaje privado').fill(messageBody);
+  await m.page.getByRole('button', { name: 'Enviar mensaje privado' }).click();
+  await m.page.getByText('Mensaje enviado.', { exact: true }).waitFor();
+  await m.page.getByText(messageBody, { exact: true }).waitFor();
+  const s = await open(SAMUEL);
+  await s.page.goto(origin + messagesPath);
+  await s.page.getByRole('heading', { name: 'Mis conversaciones' }).waitFor();
+  assert.equal(await s.page.getByText(messageBody, { exact: true }).count(), 0);
+  await s.ctx.close();
+
   // 2. Ana: sees her two assignments, never the 9 private events or the unassigned lead.
   const a = await open(ANA);
   await a.page.goto(origin + '/staff?view=month');
   await a.page.getByRole('heading', { name: 'Mi calendario' }).waitFor();
+  await a.page.getByText(messageBody, { exact: true }).waitFor();
   const html = await a.page.content();
   assert.ok(!/PRIVADO-|confidencial/.test(html), 'no owner private event leaks into the page');
   assert.ok(!html.includes('Lead Secreto QA'), 'no unassigned lead');
@@ -130,7 +146,7 @@ test('Staff portal: owners assign, Ana sees only her work, never owners\' privat
   await p.page.goto(origin + '/staff');
   await p.page.getByRole('heading', { name: 'Mi calendario' }).waitFor();
   const ph = await p.page.content();
-  for (const leak of ['Cita de Miguel QA', 'Tarea de Samuel QA', 'Seguimiento propio QA', 'Nota personal de Ana', 'PRIVADO-']) assert.ok(!ph.includes(leak), `Pedro must not see "${leak}"`);
+  for (const leak of ['Cita de Miguel QA', 'Tarea de Samuel QA', 'Seguimiento propio QA', 'Nota personal de Ana', 'PRIVADO-', messageBody]) assert.ok(!ph.includes(leak), `Pedro must not see "${leak}"`);
   await p.ctx.close();
 
   // 5. Owner revokes one lead → gone from Ana's list; owner suspends Ana → no operational access.

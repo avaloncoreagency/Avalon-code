@@ -4,13 +4,14 @@ const { test } = require("node:test");
 const assert = require("node:assert/strict");
 const fs = require("node:fs");
 const ts = require("typescript");
+const ownerIdentity = require("../scripts/creative-bridge/continuity-loader.cjs")("supabase/functions/_shared/owners.ts");
 
 const OWNER = "00000000-0000-4000-8000-0000000000a1";
 const INVITED = "00000000-0000-4000-8000-0000000000c3";
 
 function makeEdge(ownerEmail) {
   const js = ts.transpileModule(fs.readFileSync("supabase/functions/staff-invite/index.ts", "utf8"),
-    { compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.None } }).outputText;
+    { compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.CommonJS } }).outputText;
   let handler; const calls = [];
   const env = { SUPABASE_URL: "https://synthetic.supabase.co", SUPABASE_ANON_KEY: "public-test-key", SUPABASE_SERVICE_ROLE_KEY: "private-test-key", AVALON_OWNER_APP_ORIGIN: "https://avaloncoreagency.com" };
   const Deno = { env: { get: k => env[k] }, serve: fn => { handler = fn; } };
@@ -26,7 +27,10 @@ function makeEdge(ownerEmail) {
     else throw Error("Unexpected request to " + u);
     return new Response(data === null ? "" : JSON.stringify(data), { status, headers: { "content-type": "application/json" } });
   };
-  new Function("Deno", "fetch", js)(Deno, fetch);
+  new Function("Deno", "fetch", "require", "exports", js)(Deno, fetch, id => {
+    assert.equal(id, "../_shared/owners.ts");
+    return ownerIdentity;
+  }, {});
   return { calls, handler };
 }
 const invite = async (ownerEmail, body) => {

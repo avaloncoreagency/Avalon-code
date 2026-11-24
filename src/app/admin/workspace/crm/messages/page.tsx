@@ -49,8 +49,8 @@ export default async function OwnerMessagesPage({ searchParams }: { searchParams
     <OpsHeader lang={lang} active="messages" eyebrow="CRM / Internal Messaging"
       title={pick(lang, "Mensajes internos", "Internal messages")}
       lead={pick(lang,
-        "Habla con Samuel y empleados autorizados. Solo los participantes pueden leer cada conversación; los mensajes de clientes siguen en su bandeja comercial.",
-        "Message Samuel and authorized staff. Only participants can read each conversation; customer inquiries remain in the commercial inbox.")}
+        "Envía mensajes a propietarios y agentes autorizados. Cada conversación es privada para sus participantes.",
+        "Message authorized owners and agents. Each conversation is private to its participants.")}
       actions={<Link className={s.button} href="/admin/staff">{pick(lang, "Portal de Agentes", "Agent Portal")}</Link>} />
     {notice && <p role="status" className={s.flash} data-tone={status === "failed" || status === "invalid" ? "error" : "ok"}>{pick(lang, ...notice)}</p>}
     {!ready ? <section className={s.panel} role="alert">

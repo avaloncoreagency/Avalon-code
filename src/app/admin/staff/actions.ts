@@ -31,16 +31,19 @@ export async function inviteStaffEmployee(form: FormData) {
   const invitee_name = get(form, "invitee_name").replace(/[\u0000-\u001f<>{}]/g, " ").trim().slice(0, 80);
   const jobTitle = get(form, "invite_job_title");
   const role_label = JOB_TITLES.find(([k]) => k === jobTitle)?.[1] ?? "";
+  let outcome = "invite-failed";
   try {
     const { data, error } = await supabase.functions.invoke("staff-invite", {
       body: { email, origin: getAppOrigin(), lang, invitee_name, role_label },
     });
-    if (error || !data || data.invited !== true ||
-        data.requires_owner_activation !== true) done("invite-failed");
-  } catch {
-    done("invite-failed");
-  }
-  done("invite-sent");
+    if (!error && data?.invited === true && data.requires_owner_activation === true) {
+      outcome = data.audited === true ? "invite-sent" : "invite-audit-pending";
+    } else if (error?.context instanceof Response) {
+      const failure = await error.context.json();
+      if (failure?.error === "invitation_sent_enrollment_pending") outcome = "invite-enrollment-pending";
+    }
+  } catch { /* A lost or malformed response leaves the outcome unconfirmed. */ }
+  done(outcome);
 }
 
 /** Only existing, trusted operator memberships can become employees. */

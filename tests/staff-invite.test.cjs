@@ -2,6 +2,7 @@ const { test } = require("node:test");
 const assert = require("node:assert/strict");
 const fs = require("node:fs");
 const ts = require("typescript");
+const ownerIdentity = require("../scripts/creative-bridge/continuity-loader.cjs")("supabase/functions/_shared/owners.ts");
 
 const OWNER = "00000000-0000-4000-8000-0000000000a1";
 const INVITED = "00000000-0000-4000-8000-0000000000c3";
@@ -10,7 +11,7 @@ const SOURCE = "supabase/functions/staff-invite/index.ts";
 function makeEdge({role="owner",missingOrigin=false,roster=0,inviteFails=false,enrolledMfa=false}={}) {
   const src = fs.readFileSync(SOURCE,"utf8");
   const js = ts.transpileModule(src,{compilerOptions:{
-    target:ts.ScriptTarget.ES2022,module:ts.ModuleKind.None,
+    target:ts.ScriptTarget.ES2022,module:ts.ModuleKind.CommonJS,
   }}).outputText;
   let handler;
   const calls=[];
@@ -40,7 +41,10 @@ function makeEdge({role="owner",missingOrigin=false,roster=0,inviteFails=false,e
       status,headers:{"content-type":"application/json"},
     });
   };
-  new Function("Deno","fetch",js)(Deno,fetch);
+  new Function("Deno","fetch","require","exports",js)(Deno,fetch,id=>{
+    assert.equal(id,"../_shared/owners.ts");
+    return ownerIdentity;
+  },{});
   assert.equal(typeof handler,"function");
   return {calls,handler};
 }

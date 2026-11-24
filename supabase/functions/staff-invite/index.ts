@@ -1,3 +1,5 @@
+import { officialOwnerName } from "../_shared/owners.ts";
+
 // Owner-only Supabase Auth invitation. Deployed separately to a verified project.
 // Never expose a service-role key to the browser or to Vercel NEXT_PUBLIC env.
 // Every invited identity starts as an inactive operator: ONLY an owner can
@@ -15,11 +17,6 @@ const fetchJSON = async (url: string, init: RequestInit) => {
 };
 const object = (value: unknown): Record<string, unknown> | null =>
   value && typeof value === "object" && !Array.isArray(value) ? value as Record<string, unknown> : null;
-// AGENT PORTAL signature (presentation only, never authorization). The inviter is the AUTHENTICATED owner returned by
-// /auth/v1/user; any inviter name sent in the request body is ignored. Mirrors src/lib/identity/owners.ts.
-const OFFICIAL_OWNERS: Readonly<Record<string, string>> = Object.freeze({
-  "avalonagencymh@gmail.com": "Miguel Hobaica", "avaloncoreagencysm@gmail.com": "Samuel Muñoz",
-});
 // One line, no markup or template delimiters: values are inserted into the Supabase Auth e-mail template.
 const plain = (value: unknown, max: number) => typeof value === "string"
   ? value.normalize("NFC").replace(/[\u0000-\u001f\u007f<>{}]/g, " ").replace(/\s+/g, " ").trim().slice(0, max) : "";
@@ -102,7 +99,7 @@ Deno.serve(async (request: Request) => {
     // Template data (supabase/templates/invite.html). Every key is always present so the e-mail never shows blanks.
     const lang = object(body)?.lang === "en" ? "en" : "es";
     const inviterEmail = typeof identity.email === "string" ? identity.email.trim().toLowerCase() : "";
-    const official = Object.hasOwn(OFFICIAL_OWNERS, inviterEmail) ? OFFICIAL_OWNERS[inviterEmail] : "";
+    const official = inviterEmail.includes("@") ? officialOwnerName(inviterEmail) : null;
     const templateData = {
       inviter_name: official || "Avalon Core Agency",
       inviter_title: official ? (lang === "en" ? "Co-founder" : "Cofundador") : (lang === "en" ? "Leadership" : "Dirección"),
@@ -137,8 +134,8 @@ Deno.serve(async (request: Request) => {
 
     // Pending operator membership only. staff_portal_access is intentionally
     // NOT inserted: account remains completely locked until explicit owner activation.
-    // Idempotent: a retry after a partial failure completes the enrollment, and an existing membership
-    // (an owner, or an operator already enrolled) is NEVER changed — ignore-duplicates, not merge.
+    // An existing membership (including an owner) is never overwritten.
+    // Auth may already have sent the email when the enrollment fails.
     const enrollment = await fetchJSON(`${url}/rest/v1/agency_memberships?on_conflict=user_id`, {
       method: "POST",
       headers: {
