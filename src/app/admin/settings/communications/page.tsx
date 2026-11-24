@@ -9,7 +9,7 @@ import { appOrigin, loadCompany, signerForUser } from "@/lib/comms/company-serve
 import { smtpConfig } from "@/lib/comms/transport";
 import { renderClientWelcome } from "@/lib/comms/email";
 import { ONBOARDING_ERROR, ONBOARDING_OK } from "@/lib/onboarding/text";
-import { AGENT_PORTAL_LABEL, AGENT_PORTAL_PATH } from "@/lib/agents/portal";
+import { AGENT_PORTAL_LABEL } from "@/lib/agents/portal";
 import { updateCompanySettings } from "./actions";
 
 export const dynamic = "force-dynamic";
@@ -36,7 +36,8 @@ export default async function CommunicationsPage({ searchParams }: { searchParam
       description={t("Remitente de correos a clientes, contacto de soporte y plantilla de bienvenida. Solo Miguel y Samuel pueden editarlo.", "Client e-mail sender, support contact and welcome template. Only Miguel and Samuel can edit this.")} />
     {ok && <p className={s.flash} data-tone="ok" role="status">{pick(lang, ...ok)}</p>}
     {err && <p className={s.flash} data-tone="error" role="alert">{pick(lang, ...err)}</p>}
-    <p className={s.meta} data-agent-portal-link>{t("Las invitaciones y la gestión de agentes están en", "Agent invitations and management are in")} <Link href={AGENT_PORTAL_PATH}><strong>{pick(lang, ...AGENT_PORTAL_LABEL)}</strong></Link>.</p>
+    {/* Plain text (no link) until the AGENT PORTAL page ships with the Staff release; a link here would be a 404 today. */}
+    <p className={s.meta} data-agent-portal-link>{t("Las invitaciones y la gestión de agentes viven en", "Agent invitations and management live in")} <strong>{pick(lang, ...AGENT_PORTAL_LABEL)}</strong> {t("(menú lateral, encima de Configuración), no en Configuración.", "(sidebar, above Settings), not in Settings.")}</p>
     <div className={s.split}>
       <div>
         <Panel title={t("Estado de envío a clientes", "Client sending status")} id="status">
