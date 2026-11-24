@@ -11,7 +11,7 @@ function load(relative, dependencies = {}) {
     compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022, esModuleInterop: true },
   }).outputText;
   const exports = {};
-  vm.runInNewContext(output, { exports, Buffer, require: id => { if (id in dependencies) return dependencies[id]; throw Error("unexpected import: " + id); } }, { filename: relative });
+  vm.runInNewContext(output, { exports, Buffer, require: id => { if (id in dependencies) return dependencies[id]; if (id === "../identity/owners") return load("src/lib/identity/owners.ts"); throw Error("unexpected import: " + id); } }, { filename: relative });
   return exports;
 }
 const eq = (a, b) => assert.deepEqual(JSON.parse(JSON.stringify(a)), b);

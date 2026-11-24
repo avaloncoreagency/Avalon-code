@@ -1,4 +1,6 @@
 "use client";
+import { personDisplayName } from "@/lib/identity/owners";
+
 import { rovingKeyDown } from "@/components/a11y/roving";
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties, type FormEvent } from "react";
@@ -51,7 +53,7 @@ const STATUS: Record<string, [string, string]> = {
 const refHref = (type: string | null, id: string | null) =>
   !type || !id ? null : type === "lead" ? `/admin/workspace/crm/leads?lead=${id}` : type === "client" ? `/admin/workspace/crm/clients/${id}` :
   type === "sale" ? `/admin/workspace/crm/sales/${id}` : type === "task" ? `/admin/workspace/crm/tasks?task=${id}` : null;
-const nameOf = (m: Pick<Member, "display_name" | "email">) => m.display_name || m.email.split("@")[0] || "—";
+const nameOf = (m: Pick<Member, "display_name" | "email">) => personDisplayName(m);
 const initials = (text: string) => text.replace(/[^\p{L}\p{N} ]/gu, "").split(/\s+/).filter(Boolean).slice(0, 2).map(w => w[0]).join("").toUpperCase() || "·";
 
 async function post(body: unknown) {
@@ -378,7 +380,7 @@ function MemberPanel({ member, data, lang, when, onClose, onChanged }: { member:
             <h3>{t("Editar mi perfil", "Edit my profile")}</h3>
             <form className={s.form} onSubmit={e => run(e, f => ({ op: "profile", display_name: f.get("display_name"), title: f.get("title"), department: f.get("department"), bio: f.get("bio"), specialties: f.get("specialties") }), t("Perfil guardado.", "Profile saved."))}>
               <div className={s.row2}>
-                <label>{t("Nombre visible", "Display name")}<input name="display_name" maxLength={80} defaultValue={member.display_name} /></label>
+                <label>{t("Nombre visible", "Display name")}<input name="display_name" maxLength={80} defaultValue={personDisplayName(member)} /></label>
                 <label>{t("Cargo", "Title")}<input name="title" maxLength={80} defaultValue={member.title} /></label>
               </div>
               <label>{t("Departamento", "Department")}<input name="department" maxLength={80} defaultValue={member.department} /></label>
@@ -512,7 +514,7 @@ function ManagerPanel({ manager, data, lang, when, onClose, onChanged }: { manag
     fetch(`${API}?agent=${manager.key}`, { signal: c.signal }).then(r => r.json()).then(d => { setRequests(d.requests ?? []); setUnavailable(d.unavailable ?? null); }).catch(() => undefined);
     return () => c.abort();
   }, [manager.key, tick]);
-  const who = (id: string) => { const m = data.members.find(x => x.user_id === id); return m ? nameOf(m) : id.slice(0, 8); };
+  const who = (id: string) => { const m = data.members.find(x => x.user_id === id); return m ? nameOf(m) : t("Nombre no disponible", "Name unavailable"); };
   const pending = requests?.filter(r => r.status === "registered").length ?? 0;
   return (
     <Drawer lang={lang} onClose={onClose}

@@ -1,4 +1,5 @@
 "use client";
+import { personDisplayName, type DisplayIdentity } from "@/lib/identity/owners";
 import { useEffect, useRef, useState } from "react";
 import { pick, type Lang } from "@/lib/i18n";
 import type { Entity, Row, Stage } from "@/lib/crm/domain";
@@ -18,7 +19,7 @@ const contact: Field[] = [
   { name: "source", label: "Origen / fuente", required: true },
   {
     name: "owner_id",
-    label: "Responsable (UUID de membresía)",
+    label: "Responsable",
     required: true,
   },
 ];
@@ -72,7 +73,7 @@ export const fields: Record<Entity, Field[]> = {
   ],
   events: [
     { name: "title", label: "Título", required: true },
-    { name: "owner_id", label: "Responsable (UUID)", required: true },
+    { name: "owner_id", label: "Responsable", required: true },
     { name: "lead_id", label: "Lead relacionado (UUID)" },
     {
       name: "participants",
@@ -163,7 +164,7 @@ const englishLabels: Record<string, string> = {
   "Correo": "Email",
   "Teléfono": "Phone",
   "Origen / fuente": "Source",
-  "Responsable (UUID de membresía)": "Owner (membership UUID)",
+  "Responsable": "Owner",
   "Etapa": "Stage",
   "Valor estimado (USD)": "Estimated value (USD)",
   "Probabilidad (%)": "Probability (%)",
@@ -176,7 +177,6 @@ const englishLabels: Record<string, string> = {
   "Fecha de obtención": "Acquisition date",
   "Revisión": "Review",
   "Título": "Title",
-  "Responsable (UUID)": "Owner (UUID)",
   "Lead relacionado (UUID)": "Related lead (UUID)",
   "Participantes internos (nombres separados por comas)": "Internal participants (comma-separated names)",
   "Inicio": "Start",
@@ -221,6 +221,7 @@ export function RecordForm({
   row,
   stages,
   userId,
+  owners = [],
   onSave,
   onClose,
   busy,
@@ -231,6 +232,7 @@ export function RecordForm({
   row: Row | null;
   stages: Stage[];
   userId: string;
+  owners?: DisplayIdentity[];
   onSave: (values: Record<string, unknown>) => Promise<void>;
   onClose: () => void;
   busy: boolean;
@@ -297,10 +299,17 @@ export function RecordForm({
           <div className={s.formGrid}>
             {fields[entity].map((field) => {
               const options =
-                field.name === "stage_id"
+                field.name === "owner_id"
+                  ? owners.map(o => [String(o.user_id ?? o.id), personDisplayName(o)])
+                  : field.name === "stage_id"
                   ? stages.map((x) => [x.id, x.label])
                   : field.options;
               const val = defaults[field.name];
+              // A missing directory must not clear an existing assignment or the signed-in user's default.
+              // Keep its immutable ID as the form value; the server still validates membership on save.
+              if (field.name === "owner_id" && val && !options?.some(([id]) => id === String(val))) {
+                options?.push([String(val), t("Responsable actual — nombre no disponible", "Current owner — name unavailable")]);
+              }
               return (
                 <label key={field.name} className={s.field}>
                   <span>
@@ -311,7 +320,7 @@ export function RecordForm({
                     <select
                       name={field.name}
                       required={field.required}
-                      defaultValue={String(val ?? options[0][0])}
+                      defaultValue={String(val ?? options[0]?.[0] ?? "")}
                     >
                       {options.map(([value, label]) => (
                         <option key={value} value={value}>

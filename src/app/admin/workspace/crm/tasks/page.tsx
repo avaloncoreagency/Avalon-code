@@ -1,3 +1,5 @@
+import { loadOwnerDirectory } from "@/lib/identity/directory";
+import { personDisplayName } from "@/lib/identity/owners";
 import Link from "next/link";
 import { Suite } from "@/components/suite/suite";
 import { OpsHeader, OkFlash, ErrorFlash, Tag, Unavailable, ownerName, q, UUID_RE, type Query } from "@/components/sales/ui";
@@ -37,7 +39,7 @@ export default async function TasksPage({ searchParams }: { searchParams: Promis
   if (workOrder && UUID_RE.test(workOrder)) query = query.eq("work_order_id", workOrder);
   const [tasks, owners, clients, detail] = await Promise.all([
     run<Task[]>(query.order("due_at", { ascending: true, nullsFirst: false }).order("created_at", { ascending: false }).range(page * PAGE, page * PAGE + PAGE - 1)),
-    run<{ user_id: string; email: string }[]>(supabase.rpc("crm_owner_directory")),
+    run<{ user_id: string; email: string }[]>(loadOwnerDirectory(supabase)),
     run<{ id: string; legal_name: string }[]>(supabase.from("crm_clients").select("id,legal_name").neq("status", "archived").order("legal_name").limit(500)),
     taskId && UUID_RE.test(taskId) ? run<Task | null>(supabase.from("crm_tasks").select(COLS).eq("id", taskId).maybeSingle()) : Promise.resolve(null),
   ]);
@@ -65,12 +67,12 @@ export default async function TasksPage({ searchParams }: { searchParams: Promis
     <label className={s.srOnly} htmlFor={`ts-${t.id}${ret ?? ""}`}>{pick(lang, "Estado", "Status")}</label>
     <select id={`ts-${t.id}${ret ?? ""}`} name="status" defaultValue={t.status}>{TASK_STATUSES.map(x => <option key={x} value={x}>{label(lang, x)}</option>)}</select>
     <label className={s.srOnly} htmlFor={`ta-${t.id}${ret ?? ""}`}>{pick(lang, "Responsable", "Assignee")}</label>
-    <select id={`ta-${t.id}${ret ?? ""}`} name="assignee_id" defaultValue={t.assignee_id}>{ownerList.map(o => <option key={o.user_id} value={o.user_id}>{o.email.split("@")[0]}</option>)}</select>
+    <select id={`ta-${t.id}${ret ?? ""}`} name="assignee_id" defaultValue={t.assignee_id}>{ownerList.map(o => <option key={o.user_id} value={o.user_id}>{personDisplayName(o)}</option>)}</select>
     <button className={s.button}>{pick(lang, "Guardar", "Save")}</button></form>;
 
   return <Suite active="crm"><div className={s.hud}>
     <OpsHeader lang={lang} active="tasks" crm="tasks" eyebrow="CRM / Tareas" title={pick(lang, "Tareas internas", "Internal tasks")}
-      lead={pick(lang, "Asigna trabajo entre Miguel y Samuel, sigue el progreso de cada proyecto y revisa lo vencido. Todo se guarda y queda en el historial.", "Assign work between Miguel and Samuel, follow each project's progress and review what's overdue. Everything persists with history.")} />
+      lead={pick(lang, "Asigna trabajo entre Miguel Hobaica y Samuel Muñoz, sigue el progreso de cada proyecto y revisa lo vencido. Todo se guarda y queda en el historial.", "Assign work between Miguel Hobaica and Samuel Muñoz, follow each project's progress and review what's overdue. Everything persists with history.")} />
     <OkFlash lang={lang} code={q(p, "ok")} /><ErrorFlash lang={lang} code={q(p, "error")} />
     {detail?.data && <section className={s.panel} aria-labelledby="task-detail"><header><h2 id="task-detail">{detail.data.title}</h2><Link href={taskHref()}>{pick(lang, "Cerrar", "Close")}</Link></header>
       <div className={s.columns}><div>
@@ -136,7 +138,7 @@ export default async function TasksPage({ searchParams }: { searchParams: Promis
           <label className={s.field}>{pick(lang, "Título *", "Title *")}<input name="title" required maxLength={200} /></label>
           <label className={s.field}>{pick(lang, "Descripción", "Description")}<textarea name="description" maxLength={4000} rows={3} /></label>
           <div className={s.row}>
-            <label className={s.field}>{pick(lang, "Responsable *", "Assignee *")}<select name="assignee_id" required defaultValue={userId}>{ownerList.map(o => <option key={o.user_id} value={o.user_id}>{o.email}</option>)}</select></label>
+            <label className={s.field}>{pick(lang, "Responsable *", "Assignee *")}<select name="assignee_id" required defaultValue={userId}>{ownerList.map(o => <option key={o.user_id} value={o.user_id}>{personDisplayName(o)}</option>)}</select></label>
             <label className={s.field}>{pick(lang, "Prioridad", "Priority")}<select name="priority" defaultValue="normal">{TASK_PRIORITIES.map(x => <option key={x} value={x}>{label(lang, x)}</option>)}</select></label>
           </div>
           <div className={s.row}>

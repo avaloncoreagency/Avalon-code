@@ -1,3 +1,5 @@
+import { personDisplayName } from "@/lib/identity/owners";
+import { loadOwnerDirectory } from "@/lib/identity/directory";
 import Link from "next/link";
 import { Suite } from "@/components/suite/suite";
 import { OpsHeader, Unavailable, ownerName, q, UUID_RE, type Query } from "@/components/sales/ui";
@@ -43,7 +45,7 @@ export default async function ActivityCenter({ searchParams }: { searchParams: P
   if (before) query = query.lt("id", before);
   const [events, owners, clients] = await Promise.all([
     run<Event[]>(query.order("id", { ascending: false }).limit(PAGE)),
-    run<{ user_id: string; email: string }[]>(supabase.rpc("crm_owner_directory")),
+    run<{ user_id: string; email: string }[]>(loadOwnerDirectory(supabase)),
     run<{ id: string; legal_name: string }[]>(supabase.from("crm_clients").select("id,legal_name").order("legal_name").limit(500)),
   ]);
   const ownerList = owners.data ?? [];
@@ -57,7 +59,7 @@ export default async function ActivityCenter({ searchParams }: { searchParams: P
       <form className={s.toolbar}>
         <label>{pick(lang, "Desde", "From")}<input type="date" name="from" defaultValue={f.from} /></label>
         <label>{pick(lang, "Hasta", "To")}<input type="date" name="to" defaultValue={f.to} /></label>
-        <label>{pick(lang, "Usuario", "User")}<select name="actor" defaultValue={f.actor ?? ""}><option value="">{pick(lang, "Todos", "All")}</option>{ownerList.map(o => <option key={o.user_id} value={o.user_id}>{o.email}</option>)}</select></label>
+        <label>{pick(lang, "Usuario", "User")}<select name="actor" defaultValue={f.actor ?? ""}><option value="">{pick(lang, "Todos", "All")}</option>{ownerList.map(o => <option key={o.user_id} value={o.user_id}>{personDisplayName(o)}</option>)}</select></label>
         <label>{pick(lang, "Cliente", "Client")}<select name="client" defaultValue={f.client ?? ""}><option value="">{pick(lang, "Todos", "All")}</option>{(clients.data ?? []).map(c => <option key={c.id} value={c.id}>{c.legal_name}</option>)}</select></label>
         <label>{pick(lang, "Departamento / módulo", "Department / module")}<select name="module" defaultValue={f.module ?? ""}><option value="">{pick(lang, "Todos", "All")}</option>{MODULES.map(m => <option key={m} value={m}>{m}</option>)}</select></label>
         <label>{pick(lang, "Evento (ej. sale o task.status_changed)", "Event (e.g. sale or task.status_changed)")}<input name="event" defaultValue={f.event} maxLength={60} pattern="[a-z_]+(\.[a-z_]+)?" /></label>

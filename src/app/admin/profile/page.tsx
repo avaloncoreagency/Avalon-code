@@ -1,3 +1,4 @@
+import { personDisplayName } from "@/lib/identity/owners";
 import Link from "next/link";
 import { Suite } from "@/components/suite/suite";
 import { Panel, Badge } from "@/components/os/ui";
@@ -29,7 +30,7 @@ export default async function ProfilePage({ searchParams }: { searchParams: Prom
   const prefs = availability.data;
   const schedule = (prefs?.weekly_hours ?? {}) as Record<string, string[]>;
   const weekdays = [["mon","Lunes"],["tue","Martes"],["wed","Miércoles"],["thu","Jueves"],["fri","Viernes"],["sat","Sábado"],["sun","Domingo"]] as const;
-  const profileName = staff?.display_name || displayName(user);
+  const profileName = personDisplayName({email:user.email,display_name:staff?.display_name},displayName(user));
   const profileOk = profileStatus === "saved" || profileStatus === "availability-saved";
   const profileMessage = profileStatus === "availability-saved" ? "Disponibilidad guardada y verificada." : profileStatus === "availability-failed" ? "No se pudo confirmar el guardado de tus horarios. Ningún cambio se ha verificado." : profileStatus === "availability-invalid" ? "Revisa los horarios y la zona horaria seleccionados." : profileStatus === "saved" ? "Cambios guardados." : profileStatus === "invalid" ? "Revisa los datos y horarios." : profileStatus === "failed" ? "No se pudo guardar. Comprueba el estado de la base de datos." : "";
   const provider = typeof user.app_metadata?.provider === "string" ? user.app_metadata.provider : "—";
@@ -79,7 +80,7 @@ export default async function ProfilePage({ searchParams }: { searchParams: Prom
                 <form action={saveStaffProfile} className={ui.form}>
                   <div className={ui.fieldGrid}>
                     <label className={ui.field}>Nombre visible
-                      <input name="display_name" maxLength={80} required defaultValue={staff?.display_name || displayName(user)} placeholder="Tu nombre profesional" />
+                      <input name="display_name" maxLength={80} required defaultValue={personDisplayName({email:user.email,display_name:staff?.display_name},displayName(user))} placeholder="Tu nombre profesional" />
                     </label>
                     <label className={ui.field}>Cargo profesional
                       <input name="title" maxLength={80} placeholder="Director de operaciones" defaultValue={staff?.title ?? ""}/>

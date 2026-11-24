@@ -1,4 +1,5 @@
 "use client";
+import { personDisplayName } from "@/lib/identity/owners";
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { rovingKeyDown } from "@/components/a11y/roving";
 import { createPortal } from "react-dom";
@@ -70,8 +71,8 @@ export function LeadTimeline({ lang = "es", lead, stages, revision, onClose, onE
   const who = (u: unknown) => {
     if (!u) return t("Autor no registrado", "Author not recorded");
     const owner = owners.find(o => o.user_id === u);
-    if (owner) return owner.email.split("@")[0];
-    return directory === "loading" ? t("Autor…", "Author…") : t(`Usuario ${String(u).slice(0, 8)} (directorio no disponible)`, `User ${String(u).slice(0, 8)} (directory unavailable)`);
+    if (owner) return personDisplayName(owner, t("Autor no disponible", "Author unavailable"));
+    return directory === "loading" ? t("Autor…", "Author…") : t("Autor no disponible (directorio no disponible)", "Author unavailable (directory unavailable)");
   };
   useEffect(() => {
     const c = new AbortController();

@@ -1,3 +1,4 @@
+import { loadOwnerDirectory } from "@/lib/identity/directory";
 import Link from "next/link";
 import { requireOwner } from "@/lib/auth/session";
 import { getLang } from "@/lib/i18n-server";
@@ -36,7 +37,7 @@ export async function LeadWorkbench() {
     base().in("contract_status", ["draft", "internal_review", "sent_for_signature", "signed_pending_verification"]).limit(1),
   ];
   const [[owners, ...results], commandData] = await Promise.all([Promise.all([
-    run<{ user_id: string; email: string }[]>(supabase.rpc("crm_owner_directory")),
+    run<{ user_id: string; email: string }[]>(loadOwnerDirectory(supabase)),
     ...counts.map(query => run<unknown[]>(query)),
   ]), loadCommandSummary(supabase)]);
   return (

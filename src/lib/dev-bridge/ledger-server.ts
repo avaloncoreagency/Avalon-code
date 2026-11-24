@@ -56,7 +56,7 @@ export async function loadLedger(supabase: SupabaseClient, userId: string, from:
 
 export const LEDGER_ERRORS: Record<string, [string, string]> = {
   dev_bridge_forbidden: ["Solo los propietarios pueden usar el registro.", "Only owners can use the ledger."],
-  dev_bridge_identity_unclaimed: ["Primero registra tu identidad (Miguel o Samuel).", "First register your identity (Miguel or Samuel)."],
+  dev_bridge_identity_unclaimed: ["Primero registra tu identidad (Miguel Hobaica o Samuel Muñoz).", "First register your identity (Miguel Hobaica or Samuel Muñoz)."],
   dev_bridge_identity_conflict: ["Esa identidad ya pertenece a otra cuenta, o tu cuenta ya tiene otra.", "That identity belongs to another account, or yours already has one."],
   dev_bridge_not_your_agent: ["Solo el propietario de ese agente puede activarlo.", "Only that agent's owner can activate it."],
   dev_bridge_not_your_entry: ["Solo puedes corregir tus propias horas.", "You can only correct your own hours."],
