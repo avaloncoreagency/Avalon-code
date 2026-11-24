@@ -42,6 +42,11 @@ test('Staff portal: owners assign, Ana sees only her work, never owners\' privat
   await as(SAMUEL);
   await db.query("insert into staff_work_items(idempotency_key,kind,origin,assignee_id,title,instructions,due_at) values($1,'task','staff_assigned',$2,'Tarea de Samuel QA','Enviar resumen',$3)", [crypto.randomUUID(), ANA, at(1, 21)]);
   await db.exec('reset role');
+  const client = (await one("insert into crm_clients(legal_name,source,owner_id,created_by) values('Cliente reservado QA','QA',$1,$1) returning id", [MIGUEL])).id;
+  const sale = (await one(`insert into crm_sales(sale_number,idempotency_key,correlation_id,client_id,sold_on,currency,subtotal,total,billing_mode,seller_id,created_by)
+    values('VENTA-QA-ANA',gen_random_uuid(),gen_random_uuid(),$1,current_date,'USD',9876,9876,'one_time',$2,$3) returning id`, [client, ANA, MIGUEL])).id;
+  await db.query(`insert into crm_commissions(sale_id,client_id,kind,beneficiary_id,basis,fixed_amount,currency,amount,agreed_by)
+    values($1,$2,'sale',$3,'Synthetic written agreement',12.34,'USD',12.34,$4)`, [sale, client, ANA, MIGUEL]);
 
   const enc = x => Buffer.from(JSON.stringify(x)).toString('base64url'), exp = Math.floor(Date.now() / 1000) + 3600;
   const users = new Map(), cookies = {};
@@ -108,6 +113,10 @@ test('Staff portal: owners assign, Ana sees only her work, never owners\' privat
   await a.page.goto(origin + '/staff?view=month');
   await a.page.getByRole('heading', { name: 'Mi calendario' }).waitFor();
   await a.page.getByText(messageBody, { exact: true }).waitFor();
+  const commercial = a.page.getByRole('region', { name: 'Mis ventas y comisiones' });
+  await commercial.getByText('VENTA-QA-ANA', { exact: true }).first().waitFor();
+  await commercial.getByText(/Comisión acordada.*12\.34/).waitFor();
+  assert.doesNotMatch(await commercial.innerText(), /Cliente reservado QA|9,?876|Synthetic written agreement/);
   const html = await a.page.content();
   assert.ok(!/PRIVADO-|confidencial/.test(html), 'no owner private event leaks into the page');
   assert.ok(!html.includes('Lead Secreto QA'), 'no unassigned lead');
@@ -146,7 +155,7 @@ test('Staff portal: owners assign, Ana sees only her work, never owners\' privat
   await p.page.goto(origin + '/staff');
   await p.page.getByRole('heading', { name: 'Mi calendario' }).waitFor();
   const ph = await p.page.content();
-  for (const leak of ['Cita de Miguel QA', 'Tarea de Samuel QA', 'Seguimiento propio QA', 'Nota personal de Ana', 'PRIVADO-', messageBody]) assert.ok(!ph.includes(leak), `Pedro must not see "${leak}"`);
+  for (const leak of ['Cita de Miguel QA', 'Tarea de Samuel QA', 'Seguimiento propio QA', 'Nota personal de Ana', 'PRIVADO-', messageBody, 'VENTA-QA-ANA']) assert.ok(!ph.includes(leak), `Pedro must not see "${leak}"`);
   await p.ctx.close();
 
   // 5. Owner revokes one lead → gone from Ana's list; owner suspends Ana → no operational access.

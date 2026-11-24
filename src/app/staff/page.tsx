@@ -4,6 +4,9 @@ import { signOut } from "@/app/dashboard/actions";
 import { randomUUID } from "node:crypto";
 import { createStaffCasefile, editStaffCasefile, sendStaffMessage, readStaffMessage, createMyWorkItem, updateMyWorkItem, addStaffNote } from "./actions";
 import { WorkCalendar } from "@/components/staff/work-calendar";
+import { StaffCommercialHistory } from "@/components/staff/commercial-history";
+import { getLang } from "@/lib/i18n-server";
+import { pick } from "@/lib/i18n";
 import { DEFAULT_TZ, KIND_LABEL, PRIORITY_LABEL, STATUS_LABEL, dayKey, timeLabel, when, workKpis, type WorkItem } from "@/lib/staff/work";
 import s from "@/components/sales/sales.module.css";
 export const dynamic = "force-dynamic";
@@ -22,7 +25,7 @@ const statuses: Record<string, string> = {
 };
 
 export default async function StaffPortal({ searchParams }: {
-  searchParams: Promise<{ status?: string; view?: string; d?: string }>;
+  searchParams: Promise<{ status?: string; view?: string; d?: string; commercial?: string }>;
 }) {
   const { supabase, userId, user, permissions } = await requireStaff();
   const [assigned, files, people, mail, myLeads] = await Promise.all([
@@ -36,7 +39,7 @@ export default async function StaffPortal({ searchParams }: {
       .order("created_at",{ascending:false}).limit(100),
     supabase.rpc("staff_my_leads"),
   ]);
-  const { status, view: viewParam, d } = await searchParams;
+  const [{ status, view: viewParam, d, commercial }, lang] = await Promise.all([searchParams, getLang()]);
   // Work calendar, tasks and notes (migration 20261124100000). RLS returns only what this employee may read.
   const [itemsR, notesR] = await Promise.all([
     supabase.from("staff_work_items").select("id,kind,origin,assignee_id,created_by,title,instructions,starts_at,ends_at,due_at,time_zone,priority,status,lead_id,client_id,assignee_can_reschedule,completion_note,completed_at,version,updated_at")
@@ -74,7 +77,7 @@ export default async function StaffPortal({ searchParams }: {
     {available && <>
       <nav className={s.inline} aria-label="Secciones del portal" style={{ flexWrap: "wrap", gap: 8, marginBottom: 12 }}>
         {[["dashboard", "Mi dashboard"], ["calendar", "Mi calendario"], ["tasks", "Mis tareas"], ["staff-leads", "Mis leads"], ["staff-assigned", "Mis clientes"],
-          ["staff-files", "Mis expedientes"], ["notes", "Mis notas"], ["staff-messages", "Mensajes"], ["profile", "Perfil y seguridad"]].map(([id, label]) =>
+          ["staff-files", "Mis expedientes"], ["notes", "Mis notas"], ["staff-messages", "Mensajes"], ["staff-commercial", pick(lang, "Mis ventas y comisiones", "My sales and commissions")], ["profile", "Perfil y seguridad"]].map(([id, label]) =>
           <a key={id} className={s.button} href={`#${id}`}>{label}</a>)}
       </nav>
       {!workReady && <p role="alert" className={s.flash}>El calendario de trabajo aún no está disponible en este entorno (falta la migración). El resto del portal funciona.</p>}
@@ -88,8 +91,8 @@ export default async function StaffPortal({ searchParams }: {
             ["Leads trabajados", kpi.leadsWorked], ["Expedientes activos", kpi.casefilesOpen]] as const).map(([label, value]) =>
             <div key={label} className={s.stat} data-kpi={label}><span>{label}</span><strong>{value}</strong></div>)}
         </div>
-        <p className={s.muted}>Ventas atribuidas y comisiones propias aparecerán aquí cuando Sales Center publique ese contrato de datos; no se calculan en el portal.</p>
       </section>}
+      <StaffCommercialHistory supabase={supabase} lang={lang} view={view} day={anchor} pageParam={commercial} />
       {workReady && <section className={s.panel} aria-labelledby="calendar">
         <h2 id="calendar">Mi calendario</h2>
         <p className={s.muted}>Solo tus actividades asignadas, las tuyas propias y las compartidas contigo. Los calendarios privados de la dirección no son visibles aquí.</p>

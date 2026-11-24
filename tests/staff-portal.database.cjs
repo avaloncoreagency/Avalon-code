@@ -9,6 +9,71 @@ const EMP1="00000000-0000-4000-8000-0000000000c3";
 const EMP2="00000000-0000-4000-8000-0000000000d4";
 const OUT="00000000-0000-4000-8000-0000000000e5";
 
+test("commercial history returns the active agent's sales and commissions only, with pagination and MFA", {timeout:120000}, async t=>{
+ const db = new PGlite();
+ t.after(()=>db.close());
+ await db.exec(fs.readFileSync("tests/sql/00_supabase_stub.sql","utf8"));
+ await db.query("insert into auth.users(id) values ($1),($2),($3)", [MIGUEL, EMP1, EMP2]);
+ for (const file of fs.readdirSync("supabase/migrations").filter(f=>f.endsWith(".sql")).sort()) {
+   await db.exec(fs.readFileSync("supabase/migrations/"+file,"utf8"));
+ }
+ const as = async (id, aal='aal1')=>{
+   await db.exec("reset role");
+   await db.query("select set_config('request.jwt.claims', $1, false)",[JSON.stringify({sub:id,aal})]);
+   await db.exec("set role authenticated");
+ };
+ await db.query("insert into agency_memberships(user_id,role) values ($1,'owner'),($2,'operator'),($3,'operator')", [MIGUEL, EMP1, EMP2]);
+ await as(MIGUEL);
+ await db.query("insert into staff_portal_access(user_id,active) values ($1,true),($2,true)", [EMP1, EMP2]);
+ await db.exec("reset role");
+ const client = (await db.query("insert into crm_clients(legal_name,source,owner_id,created_by) values('Cliente sintético','QA',$1,$1) returning id", [MIGUEL])).rows[0].id;
+ const sales = (await db.query(`
+   insert into crm_sales(sale_number,idempotency_key,correlation_id,client_id,sold_on,currency,subtotal,total,billing_mode,seller_id,created_by)
+   select 'QA-' || n,gen_random_uuid(),gen_random_uuid(),$1,date '2026-11-16','USD',9999,9999,'one_time',
+     case when n <= 30 then $2::uuid else $3::uuid end,$4
+   from generate_series(1,31) n returning id,seller_id,sale_number`, [client, EMP1, EMP2, MIGUEL])).rows;
+ const ownSale = sales.find(s=>s.seller_id===EMP1);
+ const otherSale = sales.find(s=>s.seller_id===EMP2);
+ await db.query(`
+   insert into crm_commissions(sale_id,client_id,kind,beneficiary_id,basis,fixed_amount,currency,amount,agreed_by)
+   values ($1,$3,'sale',$4,'Synthetic agreement',18.45,'USD',18.45,$6),
+     ($2,$3,'referral',$4,'Synthetic referral',2.22,'USD',2.22,$6),
+     ($2,$3,'sale',$5,'Synthetic other agreement',67.89,'USD',67.89,$6)`,
+   [ownSale.id, otherSale.id, client, EMP1, EMP2, MIGUEL]);
+ const read = async (page=0)=>(await db.query("select * from public.staff_own_commercial_history($1)",[page])).rows;
+ await as(EMP1);
+ const first = await read(), second = await read(1);
+ assert.equal(first.length,26);
+ assert.equal(second.length,7);
+ assert.equal(first[25].record_id,second[0].record_id);
+ assert.deepEqual(await read(-1),first);
+ const own = [...first.slice(0,25),...second];
+ assert.equal(new Set(own.map(r=>r.record_id)).size,32);
+ assert.equal(own.filter(r=>r.record_kind==='sale').length,30);
+ assert.ok(own.filter(r=>r.record_kind==='sale').every(r=>r.amount===null && r.currency===null));
+ assert.deepEqual(own.filter(r=>r.record_kind==='commission').map(r=>r.amount).sort(), ['18.45','2.22']);
+ assert.equal(own.find(r=>r.amount==='2.22').sale_number,null);
+ assert.ok(own.every(r=>r.sale_number!==otherSale.sale_number));
+ assert.equal((await db.query("select * from public.crm_commissions")).rows.length,0);
+ assert.equal((await db.query("select * from public.crm_sales")).rows.length,0);
+ await as(EMP2);
+ assert.deepEqual((await read()).map(r=>r.amount).sort(),['67.89',null]);
+ await as(MIGUEL);
+ assert.deepEqual(await read(),[]);
+ await db.exec("reset role");
+ await db.query("insert into auth.mfa_factors(user_id,status) values ($1,'verified')", [EMP1]);
+ await as(EMP1);
+ assert.deepEqual(await read(),[]);
+ await as(EMP1,'aal2');
+ assert.equal((await read()).length,26);
+ await as(MIGUEL);
+ await db.query("update staff_portal_access set active=false where user_id=$1",[EMP1]);
+ await as(EMP1,'aal2');
+ assert.deepEqual(await read(),[], "suspension takes effect for the same AAL2 session");
+ await db.exec("reset role; set role anon;");
+ await assert.rejects(read(),/permission denied/);
+});
+
 test("staff portal: owner-granted clients, isolated personal dossiers, private DMs and revocation", {timeout:120000}, async t=>{
  const db=new PGlite();t.after(()=>db.close());
  await db.exec(fs.readFileSync("tests/sql/00_supabase_stub.sql","utf8"));

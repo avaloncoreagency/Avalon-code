@@ -9,7 +9,7 @@ const load = (file, deps = {}) => {
   new Function("module", "exports", "require", out)(m, m.exports, id => deps[id] ?? require(id));
   return m.exports;
 };
-const owners = load("src/lib/identity/owners.ts");
+const owners = require("../scripts/creative-bridge/continuity-loader.cjs")("src/lib/identity/owners.ts");
 const model = load("src/lib/quotes/model.ts", { "../identity/owners": owners });
 const close = load("src/lib/sales/quote-close.ts", { "@/lib/quotes/model": model });
 
