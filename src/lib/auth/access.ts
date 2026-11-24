@@ -56,7 +56,7 @@ export type StaffState =
   | { state: "none" }
   | { state: "mfa"; userId: string; supabase: SupabaseClient }
   | { state: "ok"; role: "employee"; userId: string; user: User;
-      supabase: SupabaseClient; permissions: { can_create_casefiles: boolean; can_message: boolean } };
+      supabase: SupabaseClient; permissions: { can_create_casefiles: boolean; can_message: boolean; can_create_events: boolean } };
 
 export async function getStaffState(client?: SupabaseClient): Promise<StaffState> {
   if (!process.env.NEXT_PUBLIC_SUPABASE_URL || !process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY)
@@ -67,7 +67,7 @@ export async function getStaffState(client?: SupabaseClient): Promise<StaffState
     if (error || !user || !hasAllowedProvider(user.app_metadata.provider)) return { state: "none" };
     const [membership, access] = await Promise.all([
       supabase.from("agency_memberships").select("role").eq("user_id", user.id).maybeSingle(),
-      supabase.from("staff_portal_access").select("active,can_create_casefiles,can_message")
+      supabase.from("staff_portal_access").select("active,can_create_casefiles,can_message,can_create_events")
         .eq("user_id", user.id).maybeSingle(),
     ]);
     if (membership.error || membership.data?.role !== "operator" ||
@@ -81,6 +81,7 @@ export async function getStaffState(client?: SupabaseClient): Promise<StaffState
       permissions: {
         can_create_casefiles: access.data.can_create_casefiles === true,
         can_message: access.data.can_message === true,
+        can_create_events: access.data.can_create_events === true,
       },
     };
   } catch {
