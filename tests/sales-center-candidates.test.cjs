@@ -66,3 +66,10 @@ test("search treats regex metacharacters and PostgREST delimiters as literal com
   assert.equal(empty.url.searchParams.getAll("or").length, 1);
   assert.doesNotMatch(empty.url.searchParams.get("select"), /lead_match|client_match/);
 });
+
+test("search preserves literal backslashes in regex and logic filters", async () => {
+  const { url } = await requestFor({ search: "C:\\Ventas" });
+  const p = url.searchParams;
+  assert.equal(p.get("lead_match.company"), "imatch.C:" + "\\".repeat(2) + "Ventas");
+  assert.ok(p.getAll("or")[1].includes('quote_number.imatch."C:' + "\\".repeat(4) + 'Ventas"'));
+});

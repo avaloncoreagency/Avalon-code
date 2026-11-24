@@ -31,10 +31,20 @@ export function quoteCandidateQuery(db: SupabaseClient, statuses: string[], sear
     .or("client_id.is.null,client.not.is.null");
 
   if (search) {
-    // imatch finds a literal substring once regex metacharacters are escaped.
-    // The top-level OR also needs quoting for PostgREST's logic grammar.
-    const literal = search.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-    const quoted = '"' + literal.replace(/[\\"]/g, "\\$&") + '"';
+    // Build both representations from the original text. A regex escape
+    // inside a PostgREST logic string is itself written as two backslashes.
+    let literal = "";
+    let quoted = '"';
+    for (const char of search) {
+      if (".*+?^${}()|[]\\".includes(char)) {
+        literal += "\\";
+        quoted += "\\\\";
+      }
+      literal += char;
+      if (char === "\\" || char === '"') quoted += "\\";
+      quoted += char;
+    }
+    quoted += '"';
     query.filter("lead_match.company", "imatch", literal)
       .filter("client_match.legal_name", "imatch", literal)
       .or(`quote_number.imatch.${quoted},title.imatch.${quoted},lead_match.not.is.null,client_match.not.is.null`);
