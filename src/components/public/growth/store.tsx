@@ -1,5 +1,6 @@
 "use client";
-import { createContext, useContext, useMemo, useReducer, type ReactNode } from "react";
+import { createContext, useEffect, useContext, useMemo, useReducer, type ReactNode } from "react";
+import { readDemoLink } from "./share-link";
 import type { Lang } from "../landing/copy";
 import { INDUSTRIES, type IndustryKey } from "./industries";
 
@@ -110,6 +111,7 @@ const DemoContext = createContext<Ctx | null>(null);
 
 export function DemoProvider({ lang, children }: { lang: Lang; children: ReactNode }) {
   const [state, dispatch] = useReducer(reducer, undefined, () => seed(lang, "barber"));
+  useEffect(() => { dispatch({ type: "industry", industry: readDemoLink(window.location.search).industry }); }, []);
   const value = useMemo(() => ({ state, dispatch }), [state]);
   return <DemoContext.Provider value={value}>{children}</DemoContext.Provider>;
 }
