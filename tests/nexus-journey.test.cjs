@@ -37,11 +37,12 @@ test('actual calendar excludes standard/custom closed stages and exposes partial
  await assert.rejects(()=>calendarHtml(undefined,false,true),/AUTH_DENIED/);
 });
 
-test('REPRODUCED upstream capacity defect: Sales Center searches after the 200-row cut (199/200/201 fixtures)',()=>{
+test('Sales Center gives the canonical database query the search term before fetching a candidate page',()=>{
  const source=fs.readFileSync('src/app/admin/workspace/crm/sales/new/page.tsx','utf8');
- const expression=source.match(/const toClose = ([\s\S]*?);\n/)[1];
- const evaluate=new Function('pendingQuotes','closedSet','search','return '+expression);
- for(const size of [199,200,201]){const records=Array.from({length:size},(_,i)=>({id:String(i),quote_number:i===size-1?'NEXUS-TARGET':'OTHER',title:'Synthetic only'}));const result=evaluate({data:records.slice(0,200)},new Set(),'nexus-target');assert.equal(result.length,size>200?0:1);}
+ assert.match(source,/quoteCandidateQuery\(supabase, statuses, search, page\)/);
+ assert.match(source,/const toClose = candidates\.data \?\? \[\]/);
+ assert.match(source,/const candidateCount = candidates\.count/);
+ assert.doesNotMatch(source,/\.limit\((200|1000)\)|closedQuoteIds/);
 });
 
 test('calendar 49/50/51 and later pages preserve date/view and stable server ranges',async()=>{

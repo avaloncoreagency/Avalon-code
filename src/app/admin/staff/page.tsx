@@ -6,6 +6,7 @@ import { inviteStaffEmployee, setStaffAccess, grantStaffClient, revokeStaffClien
 import { WorkCalendar } from "@/components/staff/work-calendar";
 import { DEFAULT_TZ, KIND_LABEL, PRIORITY_LABEL, STATUS_LABEL, dayKey, timeLabel, when, workKpis, type WorkItem } from "@/lib/staff/work";
 import { JOB_TITLES } from "@/lib/auth/staff-roles";
+import { personDisplayName } from "@/lib/identity/owners";
 import { sendStaffMessage, readStaffMessage } from "@/app/staff/actions";
 import s from "@/components/sales/sales.module.css";
 export const dynamic = "force-dynamic";
@@ -69,7 +70,8 @@ export default async function StaffAdministration({searchParams}:{
  const options=(clients.data ?? []) as Client[], f=(casefiles.data ?? []) as Casefile[];
  const contactsList=(contacts.data ?? []) as Contact[], mail=(messages.data ?? []) as Message[];
  const events=(audit.data ?? []) as AuditEvent[];
- const display = new Map(((roster.data ?? []) as StaffMember[]).map(m=>[m.user_id,m.display_name||m.email]));
+ const memberName = (member: StaffMember) => personDisplayName(member, "Empleado");
+ const display = new Map(((roster.data ?? []) as StaffMember[]).map(m=>[m.user_id,memberName(m)]));
  const names = new Map(contactsList.map(m=>[m.user_id,m.display_name]));
  return <Suite active="staff"><div className={s.hud}>
    <header className={s.header}><div><p className={s.eyebrow}>AVALON / DIRECCIÓN</p>
@@ -98,12 +100,12 @@ export default async function StaffAdministration({searchParams}:{
       <div className={s.grid}>{members.map(m=>{
         const current=a.find(x=>x.user_id===m.user_id);
         return <article className={s.card} key={m.user_id}>
-          <h3>{m.display_name||m.email}</h3><p className={s.muted}>{m.email}</p>
+          <h3>{memberName(m)}</h3><p className={s.muted}>{m.email}</p>
           <p><strong>{current?.active ? "Activo" : "Sin acceso"}</strong></p>
           <form action={setStaffAccess} className={s.form}>
             <input name="employee_id" type="hidden" value={m.user_id}/>
             <label className={s.field}>Nombre visible a compañeros
-              <input name="display_name" defaultValue={m.display_name||m.email.split("@")[0]} maxLength={80} required />
+              <input name="display_name" defaultValue={personDisplayName(m, "")} maxLength={80} required />
             </label>
             <label className={s.field}>Acceso al portal <select name="active" defaultValue={current?.active?"yes":"no"}>
               <option value="no">Revocado / inactivo</option><option value="yes">Activo</option>
@@ -124,7 +126,7 @@ export default async function StaffAdministration({searchParams}:{
       <form action={grantStaffClient} className={s.form}>
         <label className={s.field}>Empleado activo <select name="employee_id" required defaultValue="">
           <option value="" disabled>Seleccionar empleado</option>
-          {members.filter(m=>a.some(x=>x.user_id===m.user_id&&x.active)).map(m=><option value={m.user_id} key={m.user_id}>{m.display_name||m.email}</option>)}
+          {members.filter(m=>a.some(x=>x.user_id===m.user_id&&x.active)).map(m=><option value={m.user_id} key={m.user_id}>{memberName(m)}</option>)}
         </select></label>
         <label className={s.field}>Cliente <select name="client_id" required defaultValue="">
           <option value="" disabled>Seleccionar cliente</option>
@@ -153,7 +155,7 @@ export default async function StaffAdministration({searchParams}:{
         <input type="hidden" name="idempotency_key" value={randomUUID()} /><input type="hidden" name="time_zone" value={DEFAULT_TZ} />
         <div className={s.row}>
           <label className={s.field}>Empleado<select name="employee_id" required defaultValue=""><option value="" disabled>Seleccionar</option>
-            {members.filter(m=>a.some(x=>x.user_id===m.user_id&&x.active)).map(m=><option key={m.user_id} value={m.user_id}>{m.display_name||m.email}</option>)}</select></label>
+            {members.filter(m=>a.some(x=>x.user_id===m.user_id&&x.active)).map(m=><option key={m.user_id} value={m.user_id}>{memberName(m)}</option>)}</select></label>
           <label className={s.field}>Tipo<select name="kind" defaultValue="task">{(["task","appointment","follow_up"] as const).map(k=><option key={k} value={k}>{KIND_LABEL[k][0]}</option>)}</select></label>
           <label className={s.field}>Prioridad<select name="priority" defaultValue="normal">{(["low","normal","high","urgent"] as const).map(k=><option key={k} value={k}>{PRIORITY_LABEL[k][0]}</option>)}</select></label>
         </div>
@@ -177,7 +179,7 @@ export default async function StaffAdministration({searchParams}:{
       <div className={s.tableWrap}><table className={s.table} aria-label="Supervisión por empleado">
         <thead><tr><th scope="col">Empleado</th><th scope="col" className={s.num}>Abiertas</th><th scope="col" className={s.num}>Vencidas</th><th scope="col" className={s.num}>Próx. 7 días</th><th scope="col" className={s.num}>Hechas 30 d</th><th scope="col" className={s.num}>Leads</th></tr></thead>
         <tbody>{members.filter(m=>a.some(x=>x.user_id===m.user_id)).map(m=>{ const k=workKpis(work.filter(i=>i.assignee_id===m.user_id), nowIso, {leads: lg.filter(x=>x.user_id===m.user_id).length, clients: 0, casefilesOpen: 0});
-          return <tr key={m.user_id} data-supervision={m.user_id}><td>{m.display_name||m.email}</td><td className={s.num}>{k.open}</td><td className={s.num}>{k.overdue}</td><td className={s.num}>{k.upcoming7}</td><td className={s.num}>{k.done30}</td><td className={s.num}>{k.leads}</td></tr>; })}</tbody>
+          return <tr key={m.user_id} data-supervision={m.user_id}><td>{memberName(m)}</td><td className={s.num}>{k.open}</td><td className={s.num}>{k.overdue}</td><td className={s.num}>{k.upcoming7}</td><td className={s.num}>{k.done30}</td><td className={s.num}>{k.leads}</td></tr>; })}</tbody>
       </table></div>
       <h3>Calendario del equipo</h3>
       <WorkCalendar items={work} view={view} anchor={anchor} tz={DEFAULT_TZ} basePath="/admin/staff" today={today} names={display} />
@@ -189,7 +191,7 @@ export default async function StaffAdministration({searchParams}:{
         <form action={manageWorkItem} className={s.inline}><input type="hidden" name="item_id" value={i.id}/><input type="hidden" name="version" value={i.version}/><input type="hidden" name="op" value="reassign"/>
           <label className={s.srOnly} htmlFor={`re-${i.id}`}>Reasignar a</label>
           <select id={`re-${i.id}`} name="assignee_id" required defaultValue=""><option value="" disabled>Reasignar a…</option>
-            {members.filter(m=>m.user_id!==i.assignee_id&&a.some(x=>x.user_id===m.user_id&&x.active)).map(m=><option key={m.user_id} value={m.user_id}>{m.display_name||m.email}</option>)}</select>
+            {members.filter(m=>m.user_id!==i.assignee_id&&a.some(x=>x.user_id===m.user_id&&x.active)).map(m=><option key={m.user_id} value={m.user_id}>{memberName(m)}</option>)}</select>
           <button className={s.button} type="submit">Reasignar</button></form>
       </li>; })}</ul>
     </section>}
@@ -198,7 +200,7 @@ export default async function StaffAdministration({searchParams}:{
       <form action={grantStaffLead} className={s.form}>
         <label className={s.field}>Empleado activo <select name="employee_id" required defaultValue="">
           <option value="" disabled>Seleccionar empleado</option>
-          {members.filter(m=>a.some(x=>x.user_id===m.user_id&&x.active)).map(m=><option value={m.user_id} key={m.user_id}>{m.display_name||m.email}</option>)}
+          {members.filter(m=>a.some(x=>x.user_id===m.user_id&&x.active)).map(m=><option value={m.user_id} key={m.user_id}>{memberName(m)}</option>)}
         </select></label>
         <label className={s.field}>Lead <select name="lead_id" required defaultValue="">
           <option value="" disabled>Seleccionar lead</option>
