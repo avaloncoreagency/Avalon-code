@@ -218,3 +218,17 @@ test("lifecycle e-mails: only recorded facts, owner note required where needed, 
   assert.match(ren.text, /Nada se renueva ni se cobra automáticamente/);
   for (const r of [conf, prog, del, sup, ren]) { assert.match(r.html, /Samuel Muñoz/); assert.match(r.html, /avalon-mark\.png/); }
 });
+
+test("document identity: manuals render in the ivory v2 identity; issued v1 manuals keep their exact bytes", () => {
+  const input = { lang: "es", clientName: "Laura QA", companyName: "Café QA", productType: "website", productName: "Sitio Café QA", liveUrl: "https://cafe.example",
+    version: 1, issuedOn: "2026-11-24", responsible: "Miguel Hobaica", contractRef: "", scope: "S", exclusions: "", support: { email: "avalonagencymh@gmail.com", phone: null, hours: "" }, maintenance: "", warranty: "" };
+  const snap = manual.buildManual(input);
+  assert.equal(manual.MANUAL_GENERATOR, "avalon-manual-2");
+  const v2 = Buffer.from(manual.renderManualPdf(snap)).toString("latin1"), v1 = Buffer.from(manual.renderManualPdf(snap, "avalon-manual-1")).toString("latin1");
+  assert.notEqual(v1, v2);
+  assert.match(v2, /0\.992 0\.985 0\.973 rg/, "ivory paper");
+  assert.ok(!v2.includes("0.035 0.067 0.161 rg"), "no navy cover in v2");
+  assert.match(v1, /0\.035 0\.067 0\.161 rg/, "v1 keeps its original cover so stored sha256 still verifies");
+  assert.match(v1, /Producer \(Avalon OS avalon-manual-1\)/);
+  assert.throws(() => manual.renderManualPdf(snap, "avalon-manual-9"), /manual_generator_unknown/);
+});

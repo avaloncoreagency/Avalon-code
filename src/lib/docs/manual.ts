@@ -7,7 +7,9 @@
 import { textWidth } from "@/lib/quotes/pdf";
 import { PRODUCT_LABEL, type ProductType } from "@/lib/onboarding/model";
 
-export const MANUAL_GENERATOR = "avalon-manual-1";
+/** Current generator. Every issued document stores its generator so its exact bytes (sha256) can be re-rendered forever. */
+export const MANUAL_GENERATOR = "avalon-manual-2";
+export const MANUAL_GENERATORS = ["avalon-manual-1", "avalon-manual-2"] as const;
 export type Lang = "es" | "en";
 export type ManualSection = { heading: string; paragraphs: string[]; bullets: string[] };
 export type ManualSnapshot = {
@@ -89,11 +91,23 @@ export const manualFileName = (s: ManualSnapshot) => `Avalon-Manual-${s.product.
 
 // ── PDF (US Letter, dependency-free, deterministic: same snapshot → same bytes) ────────────────────────────────────
 const W = 612, H = 792, M = 56;
-const NAVY = "0.035 0.067 0.161", INK = "0.118 0.153 0.243", MUTED = "0.42 0.45 0.53", BLUE = "0.208 0.329 1", VIOLET = "0.478 0.361 1", RULE = "0.88 0.9 0.94", WHITE = "1 1 1";
+// Official mark colours (logo) are the same in every generator.
+const BLUE = "0.208 0.329 1", VIOLET = "0.478 0.361 1";
+type Palette = { paper: string | null; cover: string; band: string; heading: string; ink: string; muted: string; rule: string; accent: string; bullet: string; coverText: string; coverSub: string; coverMuted: string };
+// v1 (frozen for documents already issued): navy cover. v2: ivory editorial identity shared with quotes (#340).
+const PALETTES: Record<string, Palette> = {
+  "avalon-manual-1": { paper: null, cover: "0.035 0.067 0.161", band: BLUE, heading: "0.035 0.067 0.161", ink: "0.118 0.153 0.243", muted: "0.42 0.45 0.53", rule: "0.88 0.9 0.94", accent: BLUE, bullet: VIOLET,
+    coverText: "1 1 1", coverSub: "0.74 0.8 0.95", coverMuted: "0.6 0.66 0.82" },
+  "avalon-manual-2": { paper: "0.992 0.985 0.973", cover: "0.992 0.985 0.973", band: "0.965 0.938 0.894", heading: "0.165 0.157 0.153", ink: "0.165 0.157 0.153", muted: "0.422 0.408 0.388", rule: "0.873 0.851 0.814",
+    accent: "0.678 0.502 0.318", bullet: "0.678 0.502 0.318", coverText: "0.165 0.157 0.153", coverSub: "0.678 0.502 0.318", coverMuted: "0.422 0.408 0.388" },
+};
 const clean = (s: string) => s.normalize("NFC").replace(/[‐-―]/g, "-").replace(/[‘’]/g, "'").replace(/[“”]/g, '"').replace(/…/g, "...").replace(/[^\x20-\x7e\xa0-\xff]/g, "?");
 const esc = (s: string) => clean(s).replace(/\\/g, "\\\\").replace(/\(/g, "\\(").replace(/\)/g, "\\)");
 
-export function renderManualPdf(m: ManualSnapshot): Uint8Array {
+export function renderManualPdf(m: ManualSnapshot, generator: string = MANUAL_GENERATOR): Uint8Array {
+  const C = PALETTES[generator];
+  if (!C) throw new Error("manual_generator_unknown");
+  const INK = C.ink, MUTED = C.muted, RULE = C.rule;
   const T2 = (es: string, en: string) => (m.lang === "es" ? es : en);
   const pages: string[][] = [];
   let ops: string[] = []; pages.push(ops);
@@ -115,32 +129,33 @@ export function renderManualPdf(m: ManualSnapshot): Uint8Array {
     if (line) out.push(line);
     return out;
   };
-  const newPage = () => { ops = []; pages.push(ops); y = H - 70; };
+  const newPage = () => { ops = []; pages.push(ops); y = H - 70; if (C.paper) rect(0, 0, W, H, C.paper); };
   const need = (h: number) => { if (y - h < 70) newPage(); };
 
   // Cover
-  rect(0, 0, W, H, NAVY); rect(0, H - 6, W, 6, BLUE);
+  rect(0, 0, W, H, C.cover);
+  if (C.paper) { rect(0, H - 230, W, 230, C.band); rect(M, 488, 48, 2, C.accent); } else rect(0, H - 6, W, 6, C.band);
   mark(M, H - 170, 70);
-  text(M + 84, H - 128, "AVALON", 26, true, WHITE); text(M + 85, H - 146, "CORE AGENCY", 9, true, "0.74 0.8 0.95");
-  text(M, 470, T2("MANUAL DEL PRODUCTO", "PRODUCT MANUAL"), 12, true, "0.74 0.8 0.95");
-  wrap(m.product.name, 28, W - 2 * M, true).slice(0, 3).forEach((l, n) => text(M, 430 - n * 34, l, 28, true, WHITE));
+  text(M + 84, H - 128, "AVALON", 26, true, C.coverText); text(M + 85, H - 146, "CORE AGENCY", 9, true, C.coverSub);
+  text(M, 470, T2("MANUAL DEL PRODUCTO", "PRODUCT MANUAL"), 12, true, C.coverSub);
+  wrap(m.product.name, 28, W - 2 * M, true).slice(0, 3).forEach((l, n) => text(M, 430 - n * 34, l, 28, true, C.coverText));
   const meta: [string, string][] = [[T2("Cliente", "Client"), m.client.name], [T2("Empresa", "Company"), m.client.company], [T2("Producto", "Product"), T2(PRODUCT_LABEL[m.product.type][0], PRODUCT_LABEL[m.product.type][1])],
     [T2("Versión", "Version"), "v" + m.product.version], [T2("Fecha", "Date"), m.issuedOn], [T2("Responsable", "Owner"), m.responsible || "—"]];
-  meta.forEach(([k, v], n) => { text(M, 300 - n * 22, k.toUpperCase(), 8, true, "0.6 0.66 0.82"); text(M + 120, 300 - n * 22, wrap(v, 11, W - 2 * M - 120)[0] ?? "", 11, false, WHITE); });
-  text(M, 90, T2("Documento privado del cliente. No contiene contraseñas.", "Private client document. Contains no passwords."), 9, false, "0.6 0.66 0.82");
+  meta.forEach(([k, v], n) => { text(M, 300 - n * 22, k.toUpperCase(), 8, true, C.coverMuted); text(M + 120, 300 - n * 22, wrap(v, 11, W - 2 * M - 120)[0] ?? "", 11, false, C.coverText); });
+  text(M, 90, T2("Documento privado del cliente. No contiene contraseñas.", "Private client document. Contains no passwords."), 9, false, C.coverMuted);
 
   // Body
   newPage();
   for (const sec of m.sections) {
     need(48);
-    text(M, y, sec.heading, 15, true, NAVY); y -= 8; rect(M, y, 36, 2, BLUE); y -= 18;
+    text(M, y, sec.heading, 15, true, C.heading); y -= 8; rect(M, y, 36, 2, C.accent); y -= 18;
     for (const para of sec.paragraphs) {
       for (const l of wrap(para, 10.5, W - 2 * M)) { need(15); text(M, y, l, 10.5); y -= 15; }
       y -= 6;
     }
     for (const b of sec.bullets) {
       const lines = wrap(b, 10.5, W - 2 * M - 16);
-      lines.forEach((l, n) => { need(15); if (n === 0) rect(M + 2, y + 3, 4, 4, VIOLET); text(M + 16, y, l, 10.5); y -= 15; });
+      lines.forEach((l, n) => { need(15); if (n === 0) rect(M + 2, y + 3, 4, 4, C.bullet); text(M + 16, y, l, 10.5); y -= 15; });
       y -= 3;
     }
     y -= 12;
@@ -159,7 +174,7 @@ export function renderManualPdf(m: ManualSnapshot): Uint8Array {
     const content = add("<< /Length " + Buffer.byteLength(stream, "latin1") + " >>\nstream\n" + stream + "endstream");
     kids.push(add(`<< /Type /Page /Parent ${root} 0 R /MediaBox [0 0 ${W} ${H}] /Resources << /Font << /F1 ${f1} 0 R /F2 ${f2} 0 R >> >> /Contents ${content} 0 R >>`));
   });
-  const info = add(`<< /Title (${esc(T2("Manual ", "Manual ") + m.product.name)}) /Producer (Avalon OS ${MANUAL_GENERATOR}) >>`);
+  const info = add(`<< /Title (${esc(T2("Manual ", "Manual ") + m.product.name)}) /Producer (Avalon OS ${generator}) >>`);
   objects[catalog - 1] = `<< /Type /Catalog /Pages ${root} 0 R >>`;
   objects[root - 1] = `<< /Type /Pages /Kids [${kids.map(k => k + " 0 R").join(" ")}] /Count ${kids.length} >>`;
   let pdf = "%PDF-1.4\n%\xe2\xe3\xcf\xd3\n"; const offsets: number[] = [];
