@@ -1,3 +1,4 @@
+import { authorDisplayName } from "../identity/owners";
 /**
  * Avalon Quoting Studio — pure domain model (no I/O, no imports).
  *
@@ -208,7 +209,7 @@ export function clientSafe(c: QuoteContent): QuoteContent {
     schemaVersion: 1, lang: c.lang, currency: "USD", title: c.title.trim(), issueDate: c.issueDate, validUntil: c.validUntil,
     client: { company: c.client.company.trim(), contact: c.client.contact.trim(), email: c.client.email.trim(), phone: c.client.phone.trim(), address: c.client.address.trim() },
     issuer: { name: c.issuer.name.trim(), email: c.issuer.email.trim(), phone: c.issuer.phone.trim() },
-    seller: c.seller.trim(), objectives: c.objectives.trim(), problem: c.problem.trim(), solution: c.solution.trim(),
+    seller: authorDisplayName(c.seller, ""), objectives: c.objectives.trim(), problem: c.problem.trim(), solution: c.solution.trim(),
     scope: c.scope.trim(), deliverables: c.deliverables.trim(), exclusions: c.exclusions.trim(), dependencies: c.dependencies.trim(),
     timeline: c.timeline.trim(), support: c.support.trim(), terms: c.terms.trim(), notes: c.notes.trim(), thirdPartyCosts: c.thirdPartyCosts.trim(),
     model: c.model,

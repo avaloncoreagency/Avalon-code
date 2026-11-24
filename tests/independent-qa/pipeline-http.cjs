@@ -8,7 +8,7 @@ const attachment=require('../../scripts/creative-bridge/continuity-loader.cjs')(
 const id='00000000-0000-4000-8000-0000000000a1';
 function route(file,session){
  const mod={exports:{}};
- const dependencies={'next/server':{NextResponse},'node:crypto':crypto,'@/lib/auth/session':{getOwnerSession:async()=>session},'@/lib/crm/attachments':attachment};
+ const dependencies={'@/lib/identity/directory':{loadOwnerDirectory:async()=>{throw Error('unexpected directory access in negative HTTP test')}},'next/server':{NextResponse},'node:crypto':crypto,'@/lib/auth/session':{getOwnerSession:async()=>session},'@/lib/crm/attachments':attachment};
  const code=ts.transpileModule(fs.readFileSync(file,'utf8'),{compilerOptions:{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2022}}).outputText;
  new Function('require','module','exports',code)(name=>{assert.ok(name in dependencies,name);return dependencies[name]},mod,mod.exports);return mod.exports;
 }

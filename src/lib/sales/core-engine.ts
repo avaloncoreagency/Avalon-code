@@ -88,7 +88,7 @@ export function buildCommissionRequest(input: Record<string, unknown>): Built<Co
 
 /** Database error codes raised by the Core Engine RPCs → owner-facing Spanish message. Unknown → generic, never raw SQL. */
 const MESSAGES: Record<string, string> = {
-  crm_forbidden: "Solo Miguel o Samuel pueden hacer esto.",
+  crm_forbidden: "Solo Miguel Hobaica o Samuel Muñoz pueden hacer esto.",
   finance_forbidden: "Tu usuario no tiene acceso a las finanzas de clientes.",
   offer_requires_price: "Fija un precio antes de aprobar la oferta.",
   offer_approval_requires_owner: "Solo un propietario puede aprobar la oferta.",

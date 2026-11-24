@@ -26,7 +26,7 @@ export const HQ_STATIONS: readonly Station[] = [
   }),
   ...[0, 1, 2, 3, 4].map((i): Station => {
     const a = Math.PI * (0.18 + 0.16 * i);
-    return { id: `samuel-${i + 1}`, kind: "reserved", zone: "B", label: `Estación ${6 + i}`, role: "Próxima incorporación — Equipo de Samuel", x: Math.round(-Math.cos(a) * 900) / 100, z: Math.round(Math.sin(a) * 700) / 100, facing: Math.atan2(Math.cos(a) * 9, -Math.sin(a) * 7) };
+    return { id: `samuel-${i + 1}`, kind: "reserved", zone: "B", label: `Estación ${6 + i}`, role: "Próxima incorporación — Equipo de Samuel Muñoz", x: Math.round(-Math.cos(a) * 900) / 100, z: Math.round(Math.sin(a) * 700) / 100, facing: Math.atan2(Math.cos(a) * 9, -Math.sin(a) * 7) };
   }),
 ];
 
@@ -39,7 +39,7 @@ const COLOR: Record<StationView["status"], number> = {
   idle: 0x47507a, queued: 0x8f7cff, running: 0x22e6ff, completed: 0x2fd39a, failed: 0xff5a6e, blocked: 0xffb347, stale: 0x9aa3c7, reserved: 0xc04bd9,
 };
 const LABEL: Record<StationView["status"], string> = {
-  idle: "Sin ejecuciones", queued: "En cola", running: "Ejecutando ahora", completed: "Completado", failed: "Falló", blocked: "Bloqueado", stale: "Resultado antiguo", reserved: "Próxima incorporación — Equipo de Samuel",
+  idle: "Sin ejecuciones", queued: "En cola", running: "Ejecutando ahora", completed: "Completado", failed: "Falló", blocked: "Bloqueado", stale: "Resultado antiguo", reserved: "Próxima incorporación — Equipo de Samuel Muñoz",
 };
 
 /** Only a run that is genuinely `running` animates. Reserved seats never show activity. */

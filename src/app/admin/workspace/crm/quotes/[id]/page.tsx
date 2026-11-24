@@ -1,3 +1,4 @@
+import { loadOwnerDirectory } from "@/lib/identity/directory";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { Suite } from "@/components/suite/suite";
@@ -43,7 +44,7 @@ export default async function QuoteDetail({ params, searchParams }: { params: Pr
     run<Version[]>(supabase.from("crm_quote_versions").select("id,version_no,content,internal,one_time_total,monthly_total,commission_status,commission_pct,change_note,created_by,created_at")
       .eq("quote_id", id).order("version_no", { ascending: false })),
     run<Event[]>(supabase.from("crm_quote_events").select("id,version_no,from_status,to_status,note,actor_id,created_at").eq("quote_id", id).order("created_at", { ascending: false }).limit(100)),
-    run<{ user_id: string; email: string }[]>(supabase.rpc("crm_owner_directory")),
+    run<{ user_id: string; email: string }[]>(loadOwnerDirectory(supabase)),
     quote.client_id ? run<{ id: string; created_at: string; quote_version_id: string | null }[]>(supabase.from("crm_client_agreement_drafts")
       .select("id,created_at,quote_version_id").eq("client_id", quote.client_id).not("quote_version_id", "is", null).order("created_at", { ascending: false }).limit(20))
       : Promise.resolve({ data: [] as { id: string; created_at: string; quote_version_id: string | null }[], error: null, count: 0 } as const),

@@ -1,3 +1,4 @@
+import { loadOwnerDirectory } from "@/lib/identity/directory";
 import Link from "next/link";
 import { Suite } from "@/components/suite/suite";
 import { OpsHeader, ownerName, q, type Query } from "@/components/sales/ui";
@@ -60,7 +61,7 @@ export default async function DeskPage({ searchParams }: { searchParams: Promise
   if (search) listQuery = listQuery.ilike("company", `%${search.replace(/[\\%_]/g, (char) => "\\" + char)}%`);
   if (industry) listQuery = listQuery.eq("industry_key", industry);
   const [owners, list, ...counts] = await Promise.all([
-    run<{ user_id: string; email: string }[]>(supabase.rpc("crm_owner_directory")),
+    run<{ user_id: string; email: string }[]>(loadOwnerDirectory(supabase)),
     run<Lead[]>(listQuery.order(filter === "all" || filter === "new" ? "created_at" : "follow_up_at", { ascending: filter !== "all" && filter !== "new", nullsFirst: false }).order("id", { ascending: true }).range((page - 1) * perPage, page * perPage - 1)),
     ...counted.map(f => views[f]().limit(1)),
   ]);
@@ -77,7 +78,7 @@ export default async function DeskPage({ searchParams }: { searchParams: Promise
       <section className={s.hud} aria-labelledby="desk-title">
         <OpsHeader lang={lang} active="" crm="leads" eyebrow={pick(lang, "CRM · Mesa comercial", "CRM · Sales desk")}
           title={pick(lang, "Mesa comercial", "Sales desk")}
-          lead={pick(lang, "Registrar, diagnosticar, calificar y dar seguimiento a prospectos de Avalon. Miguel y Samuel ven los mismos leads; cada cambio queda con autor.", "Register, diagnose, score and follow up Avalon prospects. Miguel and Samuel see the same leads; every change keeps its author.")} />
+          lead={pick(lang, "Registrar, diagnosticar, calificar y dar seguimiento a prospectos de Avalon. Miguel Hobaica y Samuel Muñoz ven los mismos leads; cada cambio queda con autor.", "Register, diagnose, score and follow up Avalon prospects. Miguel Hobaica and Samuel Muñoz see the same leads; every change keeps its author.")} />
         {schemaPending && <p className={s.flash} data-tone="warn" role="alert">{intelErrorText(lang, "schema_pending")}</p>}
         <p><Link className={s.button} href="/admin/workspace/crm/inbound">{pick(lang, "Solicitudes del website · revisar bandeja", "Website inquiries · review inbox")}</Link></p>
         <div className={s.stats}>

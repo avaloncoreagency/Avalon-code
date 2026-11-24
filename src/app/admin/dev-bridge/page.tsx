@@ -1,3 +1,4 @@
+import { OWNER_NAMES } from "@/lib/identity/owners";
 import Link from 'next/link';
 import { Suite } from '@/components/suite/suite';
 import { requireOwner } from '@/lib/auth/session';
@@ -19,7 +20,7 @@ export default async function DevBridge() {
     <header className={s.hero}><small>AVALON / ENGINEERING</small><h1>Dev Bridge <span>2.0</span></h1><p>Contexto compartido. Evidencia verificable. Un siguiente paso seguro.</p><Link href="/admin/dev-bridge">Actualizar lectura ↻</Link> · <Link href="/admin/dev-bridge/ledger">Dev Bridge 3.0 · registro de sesiones, horas y compromisos →</Link><p className={s.muted}>Consulta: {state.at}. Actualización automática cada cinco minutos cuando está visible; caché de 5 minutos (15 si GitHub está en modo público limitado). READY describe un build; la salud de la aplicación sigue UNKNOWN sin una prueba real.</p></header>
     <section className={s.sources} aria-label="Conexiones">{(['github','vercel','supabase'] as const).map(name => <article className={s.card} key={name}><small>{name.toUpperCase()}</small><h2>{freshness<unknown>(state[name]).status}</h2><p>Última verificación: {state[name].verified_at ?? 'Nunca'}</p><p>{state[name].error ? 'Conexión no verificada: revisa los permisos y secretos del servidor. Los diagnósticos técnicos no se muestran en pantalla.' : 'Metadatos consultados; no equivale a una prueba funcional.'}</p></article>)}</section>
     <section className={s.section} aria-label="Guía de uso de Dev Bridge">
-      <h2>Cómo usar Dev Bridge · Miguel y Samuel</h2>
+      <h2>Cómo usar Dev Bridge · Miguel Hobaica y Samuel Muñoz</h2>
       <p>Este panel observa cambios técnicos, no ejecuta tareas ni comprueba por sí solo que el CRM esté funcionando.</p>
       <details>
         <summary>Entender estados, avisos y próximos pasos</summary>
@@ -35,8 +36,8 @@ export default async function DevBridge() {
     <section className={s.section}><h2>Prioridades y bloqueos</h2><p>Salud global: {state.findings.length ? 'REQUIERE REVISIÓN' : 'UNKNOWN · aplicación no sondeada'}</p><ul>{state.findings.slice(0,30).map(f => <li key={f.id}><strong>{f.claim}</strong> · {f.message}</li>)}</ul>{state.findings.length > 30 ? <p>Hay más hallazgos en bridge:report.</p> : null}</section>
 
     {publicOnly ? <section className={s.section}><h2>GitHub · consulta pública limitada</h2><p>Los PRs, Issues y SHA públicos se pueden leer sin configurar un token de GitHub en Vercel. Esta lectura NO incluye checks de CI, archivos, conflictos, comentarios ni migraciones. Las continuaciones están desactivadas hasta tener una verificación completa autenticada.</p></section> : null}
-    <section className={s.section} aria-label="Cooperación entre Miguel y Samuel">
-      <h2>Centro de cooperación · Miguel + Samuel</h2>
+    <section className={s.section} aria-label="Cooperación entre Miguel Hobaica y Samuel Muñoz">
+      <h2>Centro de cooperación · Miguel Hobaica + Samuel Muñoz</h2>
       <p>La fuente de verdad son las Issues y los PRs de GitHub. Ningún nombre de rama, autor de commit o agente IA demuestra quién es el dueño del trabajo. El traspaso no fusiona ramas ni cambia permisos.</p>
       {state.github.status !== 'VERIFIED' ? <p>UNKNOWN: no se puede afirmar quién está trabajando ni qué PRs son actuales. Reconecta GitHub antes de reanudar.</p> : <>
         <div className={s.sources}>
@@ -46,14 +47,14 @@ export default async function DevBridge() {
         </div>
         <div className={s.workspaces}>
           {owners.map(owner => <article className={s.card} key={owner}>
-            <small>TRABAJO VERIFICABLE</small><h3>{owner === 'miguel' ? 'Miguel' : 'Samuel'}</h3>
+            <small>TRABAJO VERIFICABLE</small><h3>{OWNER_NAMES[owner]}</h3>
             {team.assigned[owner].length ? team.assigned[owner].slice(0,8).map(({pr,issue,next_action}) =>
               <div className={s.task} key={pr.number}>
                 <p><SafeProviderLink href={pr.url} source="github">PR #{pr.number}: {pr.title}</SafeProviderLink></p>
                 <p>Issue <SafeProviderLink href={issue.url} source="github">#{issue.number}</SafeProviderLink> · CI {pr.ci} · SHA {pr.head_sha.slice(0,12)}</p>
                 <p>Próximo paso reportado: {next_action ?? 'Sin Next action registrado'}</p>
                 {completeGithub ? <a className={s.action} href={`/api/dev-bridge/resume?issue=${issue.number}&as=${owner === 'miguel' ? 'samuel' : 'miguel'}`}>
-                  Preparar continuación para {owner === 'miguel' ? 'Samuel' : 'Miguel'} ↓
+                  Preparar continuación para {OWNER_NAMES[owner === 'miguel' ? 'samuel' : 'miguel']} ↓
                 </a> : <p>Descarga de continuación bloqueada hasta verificar GitHub completo.</p>}
               </div>) : <p>Sin PR vinculado a una Issue etiquetada de {owner}. Esto NO significa que esté inactivo.</p>}
           </article>)}
@@ -84,7 +85,7 @@ export default async function DevBridge() {
         </details>
       </>}
     </section>
-    <div className={s.workspaces}>{owners.map(owner => <section className={s.card} key={owner}><small>WORKSPACE</small><h2>{owner === 'miguel' ? 'Miguel' : 'Samuel'}</h2><p>La asignación proviene de las etiquetas de GitHub; no del autor de un commit.</p>{github?.issues.filter(i=>i.owner===owner && i.state!=='done').map(i => {const pr=github.pulls.find(p=>p.issues.includes(i.number));return <article className={s.task} key={i.id}><h3><SafeProviderLink href={i.url} source="github">#{i.number} · {i.title}</SafeProviderLink></h3><p>{i.module} / {i.state}</p><p>Rama: {pr?.branch ?? 'UNKNOWN'}</p><p>Commit: {pr?.head_sha ?? 'UNKNOWN'}</p><p>PR: {pr ? <SafeProviderLink href={pr.url} source="github">#{pr.number} · CI {pr.ci}</SafeProviderLink> : 'Sin PR vinculado'}</p><p>Siguiente paso reportado: {i.body.match(/^Next action:\s*(.+)$/mi)?.[1] ?? 'Debe registrarse en la Issue.'}</p><p>Último handoff: {i.handoff ? <SafeProviderLink href={i.handoff.url} source="github">{i.handoff.state} · {i.handoff.sha.slice(0,12)} · {i.handoff.at} (reportado)</SafeProviderLink> : 'Sin handoff registrado'}</p>{pr && completeGithub && freshness(state.github).status==='VERIFIED' ? <a className={s.action} href={`/api/dev-bridge/resume?issue=${i.number}&as=${owner==='miguel'?'samuel':'miguel'}`}>Reanudar trabajo de {owner === 'miguel' ? 'Miguel' : 'Samuel'} ↓</a> : <p>Paquete bloqueado: faltan evidencias.</p>}</article>})}<p className={s.muted}>El paquete comprueba el SHA remoto. Descargarlo no acepta un handoff, no hace checkout y no modifica permisos.</p></section>)}</div>
+    <div className={s.workspaces}>{owners.map(owner => <section className={s.card} key={owner}><small>WORKSPACE</small><h2>{OWNER_NAMES[owner]}</h2><p>La asignación proviene de las etiquetas de GitHub; no del autor de un commit.</p>{github?.issues.filter(i=>i.owner===owner && i.state!=='done').map(i => {const pr=github.pulls.find(p=>p.issues.includes(i.number));return <article className={s.task} key={i.id}><h3><SafeProviderLink href={i.url} source="github">#{i.number} · {i.title}</SafeProviderLink></h3><p>{i.module} / {i.state}</p><p>Rama: {pr?.branch ?? 'UNKNOWN'}</p><p>Commit: {pr?.head_sha ?? 'UNKNOWN'}</p><p>PR: {pr ? <SafeProviderLink href={pr.url} source="github">#{pr.number} · CI {pr.ci}</SafeProviderLink> : 'Sin PR vinculado'}</p><p>Siguiente paso reportado: {i.body.match(/^Next action:\s*(.+)$/mi)?.[1] ?? 'Debe registrarse en la Issue.'}</p><p>Último handoff: {i.handoff ? <SafeProviderLink href={i.handoff.url} source="github">{i.handoff.state} · {i.handoff.sha.slice(0,12)} · {i.handoff.at} (reportado)</SafeProviderLink> : 'Sin handoff registrado'}</p>{pr && completeGithub && freshness(state.github).status==='VERIFIED' ? <a className={s.action} href={`/api/dev-bridge/resume?issue=${i.number}&as=${owner==='miguel'?'samuel':'miguel'}`}>Reanudar trabajo de {OWNER_NAMES[owner]} ↓</a> : <p>Paquete bloqueado: faltan evidencias.</p>}</article>})}<p className={s.muted}>El paquete comprueba el SHA remoto. Descargarlo no acepta un handoff, no hace checkout y no modifica permisos.</p></section>)}</div>
     <section className={s.section}><h2>Integración compartida</h2><p>Conflictos, dependencias y checkpoints se revisan en las Issues canónicas.</p><ul>{github?.issues.filter(i=>i.labels.includes('type:integration')||i.labels.includes('type:handoff')).map(i=><li key={i.id}><SafeProviderLink href={i.url} source="github">#{i.number} {i.title}</SafeProviderLink> · {i.state}</li>)}</ul><p>Próximo release: UNKNOWN hasta aprobación de los propietarios.</p></section>
     <section className={s.section}><h2>GitHub · actividad</h2><div className={s.scroll}><table><thead><tr><th>PR / rama</th><th>CI</th><th>Integración</th><th>Archivos</th></tr></thead><tbody>{github?.pulls.map(p=><tr key={p.number}><td><SafeProviderLink href={p.url} source="github">#{p.number} {p.title}</SafeProviderLink><br/>{p.branch}</td><td>{p.ci}</td><td>{p.conflict===null?'UNKNOWN':p.conflict?'Conflicto confirmado':'Sin conflicto detectado'}<br/>{p.behind} commits detrás de base</td><td><details><summary>{publicOnly ? 'Sin verificar' : `${p.files.length} archivos`}</summary><ul>{p.files.map(f=><li key={f}>{f}</li>)}</ul></details></td></tr>)}</tbody></table></div><details><summary>Commits recientes</summary><ul>{github?.commits.slice(0,20).map(c=><li key={c.sha}><SafeProviderLink href={c.url} source="github">{c.sha.slice(0,12)}</SafeProviderLink> · {c.date} · autor reportado: {c.author}</li>)}</ul></details></section>
     <section className={s.section}><h2>Vercel · despliegues</h2><p>Alias y promociones: UNKNOWN si el API no aporta evidencia. No se leen variables de entorno ni logs con datos privados.</p><div className={s.scroll}><table><thead><tr><th>Entorno</th><th>Build</th><th>Rama / commit</th><th>Vista</th></tr></thead><tbody>{state.vercel.data?.slice(0,20).map(d=><tr key={d.id}><td>{d.environment}</td><td>{d.state}</td><td>{d.branch}<br/>{d.sha.slice(0,12)}</td><td><SafeProviderLink href={d.url} source="vercel">Abrir despliegue ↗</SafeProviderLink></td></tr>)}</tbody></table></div></section>

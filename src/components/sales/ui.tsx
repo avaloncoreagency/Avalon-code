@@ -1,3 +1,4 @@
+import { directoryDisplayName } from "@/lib/identity/owners";
 import type { ReactNode } from "react";
 import { CrmNavigation, CrmTools } from "@/components/crm/navigation";
 import { pick, type Lang } from "@/lib/i18n";
@@ -58,6 +59,5 @@ export function Unavailable({ lang, code }: { lang: Lang; code: string }) {
 
 export function ownerName(owners: { user_id: string; email: string }[], id: string | null | undefined) {
   if (!id) return "—";
-  const owner = owners.find(o => o.user_id === id);
-  return owner ? owner.email.split("@")[0] || owner.email : id.slice(0, 8);
+  return directoryDisplayName(owners, id);
 }

@@ -502,10 +502,17 @@ test(
       await page
         .getByLabel("Origen / fuente *", { exact: true })
         .fill("browser");
+      // This legacy fixture cannot load the profile directory. Saving must retain the signed-in owner's
+      // immutable assignment without guessing an identity or displaying the UUID as a name.
+      const assignee = page.getByRole('region', { name: 'Editor de registro' }).locator('select[name="owner_id"]');
+      assert.equal(await assignee.inputValue(), owner);
+      assert.match(await assignee.innerText(), /nombre no disponible/);
+      assert.ok(!(await assignee.innerText()).includes(owner));
       await page.getByRole("button", { name: "Guardar", exact: true }).click();
       await page
         .getByText("Guardado correctamente.", { exact: true })
         .waitFor();
+      assert.equal((await db.query("select owner_id from crm_leads where company = 'Synthetic Browser'")).rows[0].owner_id, owner);
       // Five approved groups (#253), Kanban v2: a real pointer drag into "En conversación" writes "contacted".
       {
         const card = page.locator('article[data-lead-id]', { hasText: "Synthetic Browser" });

@@ -1,4 +1,6 @@
 "use client";
+import { personDisplayName } from "@/lib/identity/owners";
+
 
 import { useEffect, useState } from "react";
 import { saveTaskDetails } from "@/app/admin/workspace/crm/tasks/actions";
@@ -51,7 +53,7 @@ export function TaskEditForm({ task, owners, view, page, client, workOrder, lang
     <div className={s.row}>
       <label className={s.field}>{pick(lang, "Responsable", "Assignee")}
         <select name="assignee_id" defaultValue={task.assignee_id} required>
-          {owners.map(o => <option key={o.user_id} value={o.user_id}>{o.email.split("@")[0]}</option>)}
+          {owners.map(o => <option key={o.user_id} value={o.user_id}>{personDisplayName(o)}</option>)}
         </select>
       </label>
       <label className={s.field}>{pick(lang, "Prioridad", "Priority")}

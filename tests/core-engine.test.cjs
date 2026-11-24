@@ -44,7 +44,7 @@ test("commission request needs a written basis, one beneficiary and one value; n
 test("database errors map to owner-facing messages without SQL", () => {
   assert.match(coreEngineMessage({ message: "invoice_exceeds_sale_total" }), /superaría el valor contratado/);
   assert.match(coreEngineMessage({ message: 'duplicate key value violates unique constraint "crm_payments_sale_reference_unique"' }), /referencia de pago ya está registrada/);
-  assert.match(coreEngineMessage({ code: "42501", message: "permission denied for table crm_invoices" }), /Miguel o Samuel/);
+  assert.match(coreEngineMessage({ code: "42501", message: "permission denied for table crm_invoices" }), /Miguel Hobaica o Samuel Muñoz/);
   const unknown = coreEngineMessage({ message: 'relation "x" does not exist' });
   assert.doesNotMatch(unknown, /relation|select|crm_/);
 });

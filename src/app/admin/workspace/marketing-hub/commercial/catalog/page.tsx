@@ -13,7 +13,7 @@ export default async function CommercialCatalogPage(){
  <header className={styles.hero}>
   <span className={styles.eyebrow}>Commercial Foundation / Catalog</span>
   <h1>{pick(lang,"Catálogo comercial interno","Internal commercial catalog")}</h1>
-  <p>{pick(lang,"Las tarifas son propuestas para Miguel y Samuel. No son productos aprobados ni precios publicados.","Rates are owner-only proposals, not approved or published prices.")}</p>
+  <p>{pick(lang,"Las tarifas son propuestas para Miguel Hobaica y Samuel Muñoz. No son productos aprobados ni precios publicados.","Rates are owner-only proposals, not approved or published prices.")}</p>
   <nav className={styles.toolbar} aria-label="Commercial Foundation"><Link href="/admin/workspace/marketing-hub/commercial">{pick(lang,"Estimador","Estimator")}</Link><Link href="/admin/workspace/crm/sales">{pick(lang,"Ventas reales","Real sales")}</Link></nav>
  </header>
  <section className={styles.section} aria-labelledby="catalog-title">

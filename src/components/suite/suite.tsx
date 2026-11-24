@@ -1,3 +1,4 @@
+import { personDisplayName } from "@/lib/identity/owners";
 import Link from "next/link";
 import { cookies } from "next/headers";
 import type { ReactNode } from "react";
@@ -47,7 +48,7 @@ export async function Suite({ children, active = "dashboard" }: { children: Reac
       .eq("recipient_id",session.user.id).is("read_at",null).order("created_at",{ascending:false}).limit(20),
     loadStaffPresence(session.supabase, [session.user.id]),
   ]);
-  const name = office.data?.display_name || displayName(session.user);
+  const name = personDisplayName({email: session.user.email, display_name: office.data?.display_name}, displayName(session.user));
   const photoHash = office.data?.photo_sha256 ?? null;
   const photoUrl = photoHash ? `/admin/workspace/crm/office/photo/${session.user.id}?v=${photoHash}` : null;
   const staffNotices = (inbox.data ?? []) as StaffNotice[];

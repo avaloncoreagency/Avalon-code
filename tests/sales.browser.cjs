@@ -41,7 +41,7 @@ test('Nova Restaurant through the real app: one form, three departments, no dupl
   const db = new PGlite();
   t.after(() => db.close());
   await db.exec(fs.readFileSync('tests/sql/00_supabase_stub.sql', 'utf8'));
-  await db.exec(`insert into auth.users(id,email) values('${MIGUEL}','miguel@example.invalid'),('${SAMUEL}','samuel@example.invalid'),('${OUTSIDER}','outsider@example.invalid');`);
+  await db.exec(`insert into auth.users(id,email) values('${MIGUEL}','avalonagencymh@gmail.com'),('${SAMUEL}','avaloncoreagencysm@gmail.com'),('${OUTSIDER}','outsider@example.invalid');`);
   for (const file of fs.readdirSync('supabase/migrations').filter(f => f.endsWith('.sql')).sort()) {
     await db.exec(fs.readFileSync(`supabase/migrations/${file}`, 'utf8'));
     if (file.startsWith('20261102053022')) await db.exec(`insert into agency_memberships(user_id,role) values('${MIGUEL}','owner'),('${SAMUEL}','owner');`);
@@ -56,7 +56,7 @@ test('Nova Restaurant through the real app: one form, three departments, no dupl
     users.set(access_token, user);
     return { access_token, refresh_token: 'synthetic', token_type: 'bearer', expires_in: 3600, expires_at: exp, user };
   };
-  const miguel = session(MIGUEL, 'miguel@example.invalid'), samuel = session(SAMUEL, 'samuel@example.invalid'), outsider = session(OUTSIDER, 'outsider@example.invalid');
+  const miguel = session(MIGUEL, 'avalonagencymh@gmail.com'), samuel = session(SAMUEL, 'avaloncoreagencysm@gmail.com'), outsider = session(OUTSIDER, 'outsider@example.invalid');
   const errors = [];
   const bridge = await startBridge(db, { users, log: (kind, ...rest) => { if (kind === 'error') errors.push(rest.join(' ')); } });
   t.after(() => bridge.close());
@@ -605,7 +605,7 @@ test('Nova Restaurant through the real app: one form, three departments, no dupl
   await card.click();
   let drawer = page.getByRole('dialog', { name: 'Historial de Orbit Dental Sintético' });
   await drawer.getByText(/Movido de Propuesta enviada a Contactado/).first().waitFor();
-  assert.match(await drawer.locator('li', { hasText: 'Movido de Propuesta enviada a Contactado' }).first().innerText(), /miguel/, 'stage event names the real actor');
+  assert.match(await drawer.locator('li', { hasText: 'Movido de Propuesta enviada a Contactado' }).first().innerText(), /Miguel Hobaica/, 'stage event names the real actor with official full name');
   assert.doesNotMatch(await drawer.innerText(), /· Sistema/, 'no actor is invented as System');
   await drawer.getByRole('link', { name: 'Registrar venta para Orbit Dental Sintético' }).waitFor();
   // The premium lead drawer intentionally starts with its composer collapsed.
@@ -999,9 +999,9 @@ test('Nova Restaurant through the real app: one form, three departments, no dupl
   // controls remain available on demand, but no longer crowd the directory.
   await scene.getByText(/Herramientas futuras · managers de IA/).click();
   for (const name of ['REN', 'SHIN', 'HARU', 'SORA', 'KENJI']) await scene.getByRole('button', { name: new RegExp('^Abrir perfil de ' + name + ' \\(manager virtual de IA\\)') }).waitFor();
-  assert.equal(await scene.getByRole('button', { name: /^Abrir perfil de (miguel|samuel)$/ }).count(), 2, 'both owners come from agency_memberships');
+  assert.equal(await scene.getByRole('button', { name: /^Abrir perfil de (Miguel Hobaica|Samuel Muñoz)$/ }).count(), 2, 'both owners come from agency_memberships');
   // Own profile: edit (self-only).
-  await scene.getByRole('button', { name: /^Abrir perfil de miguel$/ }).click();
+  await scene.getByRole('button', { name: /^Abrir perfil de Miguel Hobaica$/ }).click();
   drawer = page.getByRole('dialog');
   await drawer.getByLabel('Nombre visible').fill('Miguel Sintético');
   await drawer.getByLabel('Cargo').fill('Co-fundador');
@@ -1011,7 +1011,7 @@ test('Nova Restaurant through the real app: one form, three departments, no dupl
   assert.equal((await one(`select title from office_profiles where user_id='${MIGUEL}'`)).title, 'Co-fundador');
   await drawer.getByRole('button', { name: 'Volver a la oficina' }).click();
   // Samuel's profile: assign a task and send a private message linked to a real lead.
-  await scene.getByRole('button', { name: /^Abrir perfil de samuel$/ }).click();
+  await scene.getByRole('button', { name: /^Abrir perfil de Samuel Muñoz$/ }).click();
   drawer = page.getByRole('dialog');
   assert.equal(await drawer.getByText('Editar mi perfil').count(), 0, 'cannot edit someone else\'s profile');
   await drawer.getByRole('tab', { name: 'Tareas' }).click();
@@ -1021,7 +1021,7 @@ test('Nova Restaurant through the real app: one form, three departments, no dupl
   await drawer.getByRole('link', { name: 'Preparar propuesta Oficina (sintético)' }).waitFor();
   assert.equal((await one(`select assignee_id from crm_tasks where title='Preparar propuesta Oficina (sintético)'`)).assignee_id, SAMUEL);
   await drawer.getByRole('tab', { name: 'Mensajes' }).click();
-  await drawer.getByPlaceholder(/Mensaje para samuel/).fill('Revisa el lead de Orbit, por favor.');
+  await drawer.getByPlaceholder(/Mensaje para Samuel Muñoz/).fill('Revisa el lead de Orbit, por favor.');
   await drawer.getByText('Vincular a un registro del CRM (opcional)').click();
   await drawer.locator('select[name="ref_type"]').selectOption('lead');
   await drawer.locator('input[name="ref_id"]').fill(leadId);
@@ -1047,8 +1047,8 @@ test('Nova Restaurant through the real app: one form, three departments, no dupl
   await sam.goto(origin + '/admin/workspace/crm/office');
   await sam.getByRole('heading', { name: 'Avalon HQ', level: 1 }).waitFor();
   await sam.screenshot({ path: `${EVIDENCE}/office-mobile.png`, fullPage: true });
-  await sam.getByRole('button', { name: /Abrir perfil de Miguel Sintético/ }).getByText('1 sin leer').waitFor();
-  await sam.getByRole('button', { name: /Abrir perfil de Miguel Sintético/ }).click();
+  await sam.getByRole('button', { name: /Abrir perfil de Miguel Hobaica/ }).getByText('1 sin leer').waitFor();
+  await sam.getByRole('button', { name: /Abrir perfil de Miguel Hobaica/ }).click();
   await sam.getByRole('dialog').getByRole('tab', { name: /Mensajes/ }).click();
   await sam.getByRole('dialog').getByText('Revisa el lead de Orbit, por favor.').waitFor();
   await sam.screenshot({ path: `${EVIDENCE}/office-mobile-chat.png` });
