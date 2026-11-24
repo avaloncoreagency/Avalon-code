@@ -1,0 +1,39 @@
+type Bi = [string, string];
+export const ONBOARDING_OK: Record<string, Bi> = {
+  started: ["Onboarding iniciado con su checklist.", "Onboarding started with its checklist."], saved: ["Cambios guardados.", "Changes saved."],
+  stage: ["Etapa actualizada.", "Stage updated."], delivered: ["Entrega registrada.", "Delivery recorded."], manual: ["Manual PDF generado (nueva versión).", "PDF manual generated (new version)."],
+  email_prepared: ["Mensaje preparado. Revísalo en la vista previa antes de aprobarlo.", "Message prepared. Review the preview before approving it."],
+  email_exists: ["Ese mensaje ya estaba preparado: no se duplicó.", "That message was already prepared: nothing was duplicated."],
+  email_sent: ["Enviado. El proveedor confirmó el ID del mensaje.", "Sent. The provider confirmed the message id."],
+  email_recorded: ["Envío manual registrado con su evidencia.", "Manual send recorded with its evidence."], email_cancelled: ["Mensaje cancelado.", "Message cancelled."],
+  consent: ["Autorización registrada.", "Consent recorded."], settings: ["Configuración corporativa guardada.", "Corporate settings saved."],
+};
+export const ONBOARDING_ERROR: Record<string, Bi> = {
+  save: ["No se pudo guardar. Inténtalo de nuevo.", "Could not save. Please try again."], unavailable: ["Datos no disponibles.", "Data unavailable."],
+  not_found: ["No existe o no tienes acceso.", "Not found or no access."], forbidden: ["Solo los propietarios pueden hacer esto.", "Only owners can do this."],
+  onboarding_invalid: ["Datos no válidos.", "Invalid data."], onboarding_version_conflict: ["Otra persona cambió este onboarding. Recarga e inténtalo de nuevo.", "Someone else changed this onboarding. Reload and try again."],
+  onboarding_stage_not_allowed: ["Ese cambio de etapa no está permitido desde la etapa actual.", "That stage change is not allowed from the current stage."],
+  onboarding_checklist_unknown: ["Elemento de checklist desconocido.", "Unknown checklist item."],
+  onboarding_sale_other_client: ["La venta pertenece a otro cliente.", "The sale belongs to another client."],
+  onboarding_invoice_other_client: ["La factura pertenece a otro cliente.", "The invoice belongs to another client."],
+  onboarding_invoice_not_issued: ["Solo se puede adjuntar una factura emitida (no anulada).", "Only an issued (not void) invoice can be attached."],
+  onboarding_project_other_client: ["El producto pertenece a otro cliente.", "The product belongs to another client."],
+  onboarding_live_url_invalid: ["La URL debe ser https.", "The URL must be https."],
+  onboarding_delivery_blocked: ["La entrega no puede registrarse todavía", "Delivery cannot be recorded yet"],
+  onboarding_recipient_invalid: ["Elige un contacto registrado del cliente con email.", "Choose a recorded client contact with an email."],
+  onboarding_signer_unknown: ["No se pudo identificar al responsable que firma.", "Could not identify the signing owner."],
+  onboarding_no_documents: ["No hay un manual vigente para adjuntar.", "There is no current manual to attach."],
+  outbox_final: ["Ese mensaje ya no admite cambios.", "That message can no longer change."], outbox_in_progress: ["El mensaje ya se está procesando.", "The message is already being processed."],
+  outbox_attachment_invalid: ["Un adjunto no es válido (factura anulada, de otro cliente o documento alterado). No se envió nada.", "An attachment is invalid (void invoice, another client's, or altered document). Nothing was sent."],
+  outbox_not_configured: ["SMTP no configurado: no se envió nada. Envía desde Gmail y registra la evidencia.", "SMTP not configured: nothing was sent. Send from Gmail and record the evidence."],
+  outbox_sender_mismatch: ["El remitente no coincide con la cuenta SMTP autenticada: no se envió nada.", "The sender does not match the authenticated SMTP account: nothing was sent."],
+  outbox_send_failed: ["El proveedor rechazó el envío. Puedes reintentar.", "The provider rejected the send. You can retry."],
+  outbox_evidence_required: ["Indica la evidencia del envío (mínimo 10 caracteres).", "Provide the send evidence (at least 10 characters)."],
+  consent_invalid: ["Autorización incompleta: elige al menos un uso y un canal, y aporta la evidencia.", "Incomplete consent: choose at least one use and channel, and provide evidence."],
+  consent_final: ["Esta autorización ya no admite cambios.", "This consent can no longer change."], consent_granted_frozen: ["Una autorización concedida no se amplía: crea una nueva.", "A granted consent cannot be widened: create a new one."],
+  settings_invalid: ["Revisa los datos de la configuración.", "Check the settings data."],
+};
+export const OUTBOX_STATUS: Record<string, Bi> = {
+  prepared: ["Preparado", "Prepared"], approved: ["Aprobado", "Approved"], sent: ["Enviado", "Sent"], failed: ["Falló", "Failed"],
+  blocked_no_transport: ["Bloqueado (sin SMTP)", "Blocked (no SMTP)"], cancelled: ["Cancelado", "Cancelled"],
+};

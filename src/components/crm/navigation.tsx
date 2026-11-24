@@ -34,6 +34,7 @@ export function CrmNavigation({ active, lang = "es" }: { active?: string; lang?:
 /** Keep the complete workflow one tap away, without six competing top-level tabs. */
 const tools = [
   ["inbound", "/admin/workspace/crm/inbound", "Solicitudes del website", "Website inquiries"],
+  ["onboarding", "/admin/workspace/crm/onboarding", "Onboarding y entregas", "Onboarding & delivery"],
   ["desk", "/admin/workspace/crm/desk", "Bandeja comercial avanzada", "Advanced sales desk"],
   ["overview", "/admin/workspace/crm/overview", "Resumen y consumo", "Overview and usage"],
   ["new", "/admin/workspace/crm/sales/new", "Registrar venta", "Record sale"],
@@ -45,6 +46,7 @@ const tools = [
   // Development work ledger (Dev Bridge 3.0) — separate from the commercial activity center above.
   ["dev-ledger", "/admin/dev-bridge/ledger", "Registro de desarrollo", "Development ledger"],
   ["settings", "/admin/workspace/crm/settings", "Configuración", "Settings"],
+  ["communications", "/admin/settings/communications", "Comunicaciones con clientes", "Client communications"],
   ["ai-usage", "/admin/workspace/crm/ai-usage", "Uso de IA", "AI usage"],
 ] as const;
 /** Radar is hibernated: it is only offered when the server-side switch is explicitly enabled (see RADAR_REACTIVATION_PLAN.md). */
