@@ -10,8 +10,10 @@ const IDENT = /^[a-z_][a-z0-9_]*$/;
 const q = name => { if (!IDENT.test(name)) throw Object.assign(new Error(`bad identifier ${name}`), { code: 'PGRST100' }); return `"${name}"`; };
 
 function splitTop(text, sep = ',') {
-  const out = []; let depth = 0, quote = false, cur = '';
+  const out = []; let depth = 0, quote = false, escaped = false, cur = '';
   for (const ch of text) {
+    if (escaped) { cur += ch; escaped = false; continue; }
+    if (quote && ch === '\\') { cur += ch; escaped = true; continue; }
     if (ch === '"') quote = !quote;
     if (!quote && ch === '(') depth++;
     if (!quote && ch === ')') depth--;
@@ -32,7 +34,7 @@ function column(expr, alias) {
   return sql;
 }
 
-const unquote = v => (v.startsWith('"') && v.endsWith('"') ? v.slice(1, -1) : v);
+const unquote = v => (v.startsWith('"') && v.endsWith('"') ? v.slice(1, -1).replace(/\\([\\"])/g, '$1') : v);
 // PGlite serializes parameters by inferred type; boolean columns need JS booleans.
 const literal = v => (v === 'true' ? true : v === 'false' ? false : unquote(v));
 
@@ -52,6 +54,7 @@ function condition(col, raw, alias, param) {
     case 'gte': sql = `${c} >= ${param(unquote(value))}`; break;
     case 'like': sql = `${c}::text like ${param(unquote(value).replace(/\*/g, '%'))}`; break;
     case 'ilike': sql = `${c}::text ilike ${param(unquote(value).replace(/\*/g, '%'))}`; break;
+    case 'imatch': sql = `${c}::text ~* ${param(unquote(value))}`; break;
     case 'is': if (!['null', 'true', 'false'].includes(value)) throw Object.assign(new Error('bad is'), { code: 'PGRST100' }); sql = `${c} is ${value}`; break;
     case 'in': sql = `${c}::text = any(${param(splitTop(value.slice(1, -1)).map(unquote))}::text[])`; break;
     default: throw Object.assign(new Error(`operator ${op} not supported by test bridge`), { code: 'PGRST100' });
@@ -59,14 +62,14 @@ function condition(col, raw, alias, param) {
   return negate ? `not (${sql})` : sql;
 }
 
-async function relation(db, from, to) {
+async function relation(db, from, to, hint = null) {
   const rows = (await db.query(`
     select c.conrelid::regclass::text src, c.confrelid::regclass::text dst,
       (select attname from pg_attribute where attrelid=c.conrelid and attnum=c.conkey[1]) src_col,
       (select attname from pg_attribute where attrelid=c.confrelid and attnum=c.confkey[1]) dst_col
-    from pg_constraint c where c.contype='f' and array_length(c.conkey,1)=1 and (
+    from pg_constraint c where c.contype='f' and array_length(c.conkey,1)=1 and ($1::text is null or c.conname=$1) and (
       (c.conrelid='public.${from}'::regclass and c.confrelid='public.${to}'::regclass) or
-      (c.conrelid='public.${to}'::regclass and c.confrelid='public.${from}'::regclass))`)).rows;
+      (c.conrelid='public.${to}'::regclass and c.confrelid='public.${from}'::regclass))`, [hint])).rows;
   const m2o = rows.filter(r => r.src.replace('public.', '') === from);
   const o2m = rows.filter(r => r.src.replace('public.', '') === to);
   if (m2o.length === 1) return { kind: 'one', local: m2o[0].src_col, remote: m2o[0].dst_col };
@@ -74,35 +77,71 @@ async function relation(db, from, to) {
   throw Object.assign(new Error(`ambiguous or missing relationship ${from}→${to}`), { code: 'PGRST200' });
 }
 
-async function selectList(db, table, select, alias, depth = 0) {
+const embedPattern = /^(?:([a-z_]+):)?([a-z_]+)(?:!([a-z_]+))?(?:!(inner))?\((.*)\)$/;
+
+async function readEmbeds(db, table, url) {
+  const embeds = new Map();
+  for (const item of splitTop(url.searchParams.get('select') || '*')) {
+    const match = item.match(embedPattern);
+    if (!match) continue;
+    const [, alias, tableName, hint, join] = match;
+    const name = alias ?? tableName;
+    const foreignKey = await relation(db, table, tableName, hint === 'inner' ? null : hint);
+    embeds.set(name, { table: tableName, foreignKey, inner: hint === 'inner' || join === 'inner' });
+  }
+  return embeds;
+}
+
+function embeddedFrom(embed, name, parentAlias, url, param) {
+  const { table, foreignKey } = embed;
+  const conditions = [`e.${q(foreignKey.remote)} = ${parentAlias}.${q(foreignKey.local)}`];
+  for (const [key, value] of url.searchParams) {
+    if (key.startsWith(name + '.')) conditions.push(condition(key.slice(name.length + 1), value, 'e', param));
+  }
+  return `from public.${q(table)} e where ${conditions.join(' and ')}`;
+}
+
+async function selectList(db, table, select, alias, depth = 0, read = null) {
   const items = splitTop(select || '*');
   const parts = [];
   for (const item of items) {
-    const embed = item.match(/^([a-z_]+)(?:!inner)?\((.*)\)$/);
+    const embed = item.match(embedPattern);
     if (!embed) { parts.push(item === '*' ? `${alias}.*` : `${column(item, alias)} as ${q(item.split(/->>?/).pop())}`); continue; }
     if (depth > 0) throw Object.assign(new Error('nested embeds not supported'), { code: 'PGRST100' });
-    const [, rel, cols] = embed;
-    const r = await relation(db, table, rel);
+    const [, name, rel, hint, , cols] = embed;
+    if (!cols) continue;
+    const r = read?.embeds.get(name ?? rel)?.foreignKey ?? await relation(db, table, rel, hint === 'inner' ? null : hint);
     const inner = await selectList(db, rel, cols, 'e', depth + 1);
+    const from = read
+      ? embeddedFrom(read.embeds.get(name ?? rel), name ?? rel, alias, read.url, read.param)
+      : `from public.${q(rel)} e where e.${q(r.remote)} = ${alias}.${q(r.local)}`;
     parts.push(r.kind === 'one'
-      ? `(select to_jsonb(x) from (select ${inner} from public.${q(rel)} e where e.${q(r.remote)} = ${alias}.${q(r.local)}) x) as ${q(rel)}`
-      : `coalesce((select jsonb_agg(to_jsonb(x)) from (select ${inner} from public.${q(rel)} e where e.${q(r.remote)} = ${alias}.${q(r.local)}) x), '[]'::jsonb) as ${q(rel)}`);
+      ? `(select to_jsonb(x) from (select ${inner} ${from}) x) as ${q(name ?? rel)}`
+      : `coalesce((select jsonb_agg(to_jsonb(x)) from (select ${inner} ${from}) x), '[]'::jsonb) as ${q(name ?? rel)}`);
   }
   return parts.join(', ');
 }
 
-function filters(url, alias, param) {
+function filters(url, alias, param, embeds = new Map()) {
   const where = [];
+  const predicate = (key, value) => {
+    const embed = embeds.get(key);
+    if (!embed) return condition(key, value, alias, param);
+    if (value !== 'is.null' && value !== 'not.is.null') throw new Error('unsupported embed filter');
+    return `${value === 'is.null' ? 'not ' : ''}exists (select 1 ${embeddedFrom(embed, key, alias, url, param)})`;
+  };
+  for (const [name, embed] of embeds) if (embed.inner) where.push(predicate(name, 'not.is.null'));
   for (const [key, value] of url.searchParams) {
     if (['select', 'order', 'limit', 'offset', 'columns', 'on_conflict'].includes(key)) continue;
+    if (embeds.has(key.split('.')[0]) && key.includes('.')) continue;
     if (key === 'or') {
       where.push('(' + splitTop(value.slice(1, -1)).map(part => {
         const first = part.indexOf('.');
-        return condition(part.slice(0, first), part.slice(first + 1), alias, param);
+        return predicate(part.slice(0, first), part.slice(first + 1));
       }).join(' or ') + ')');
       continue;
     }
-    where.push(condition(key, value, alias, param));
+    where.push(predicate(key, value));
   }
   return where.length ? ` where ${where.join(' and ')}` : '';
 }
@@ -175,21 +214,16 @@ async function startBridge(db, { users, log = () => {} }) {
         const table = path;
         q(table);
         if (req.method === 'GET' || req.method === 'HEAD') {
-          const cols = await selectList(db, table, url.searchParams.get('select'), 't');
-          let where = filters(url, 't', param);
-          // Emulate explicit PostgREST !inner membership using the actual FK and current RLS role.
-          for (const item of splitTop(url.searchParams.get('select') || '*')) {
-            const inner = item.match(/^([a-z_]+)!inner\(/);
-            if (!inner) continue;
-            const r = await relation(db, table, inner[1]);
-            where += (where ? ' and ' : ' where ') + `exists(select 1 from public.${q(inner[1])} rel where rel.${q(r.remote)} = t.${q(r.local)})`;
-          }
+          const embeds = await readEmbeds(db, table, url);
+          const where = filters(url, 't', param, embeds);
+          const countValues = values.slice();
+          const cols = await selectList(db, table, url.searchParams.get('select'), 't', 0, { embeds, url, param });
           const limit = url.searchParams.get('limit'), offset = url.searchParams.get('offset');
           const page = `${limit && /^\d+$/.test(limit) ? ` limit ${limit}` : ''}${offset && /^\d+$/.test(offset) ? ` offset ${offset}` : ''}`;
           const rows = (await db.query(`select coalesce(jsonb_agg(to_jsonb(r)), '[]'::jsonb) v from (select ${cols} from public.${q(table)} t${where}${orderBy(url, 't')}${page}) r`, values)).rows[0].v;
           const headers = {};
           if (/count=exact/.test(prefer)) {
-            const total = (await db.query(`select count(*)::int n from public.${q(table)} t${where}`, values)).rows[0].n;
+            const total = (await db.query(`select count(*)::int n from public.${q(table)} t${where}`, countValues)).rows[0].n;
             const start = Number(offset || 0);
             headers['content-range'] = `${rows.length ? `${start}-${start + rows.length - 1}` : '*'}/${total}`;
           }

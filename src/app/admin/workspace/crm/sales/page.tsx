@@ -6,10 +6,11 @@ import { OpsHeader, OkFlash, ErrorFlash, Tag, Unavailable, ownerName, q, UUID_RE
 import { requireOwner } from "@/lib/auth/session";
 import { getLang } from "@/lib/i18n-server";
 import { pick, formatDate } from "@/lib/i18n";
-import { run } from "@/lib/os/data";
+import { countRows, run } from "@/lib/os/data";
 import { money } from "@/lib/sales/domain";
 import { loadReceivables } from "@/lib/sales/schedule-server";
 import { paymentStatus } from "@/lib/sales/schedule";
+import { quoteCandidateQuery } from "@/lib/sales/quote-candidates";
 import { issueSaleInvoice } from "./actions";
 import s from "@/components/sales/sales.module.css";
 import w from "@/components/quotes/quotes.module.css";
@@ -39,7 +40,7 @@ export default async function SalesPage({ searchParams }: { searchParams: Promis
   // Filtering happens in PostgreSQL before pagination, never in browser-visible rows.
   const scopedSales = supabase.from("crm_sales")
     .select("id,sale_number,sold_on,currency,total,recurring_monthly,contract_status,delivery_status,seller_id,crm_clients(id,legal_name),crm_sale_lines(id)", { count: "exact" })
-    .order("sold_on", { ascending: false }).order("created_at", { ascending: false });
+    .order("sold_on", { ascending: false }).order("created_at", { ascending: false }).order("id");
   let salesQuery = clientId ? scopedSales.eq("client_id", clientId) : scopedSales;
   if (contract) salesQuery = salesQuery.eq("contract_status", contract);
   if (delivery) salesQuery = salesQuery.eq("delivery_status", delivery);
@@ -84,15 +85,14 @@ export default async function SalesPage({ searchParams }: { searchParams: Promis
   const pctR = sales.error || sales.data.length === 0 ? null : await supabase.from("crm_sale_variable_terms").select("sale_id,pct").in("sale_id", sales.data.map(r => r.id));
   const pctOf = new Map(((pctR?.error ? [] : pctR?.data) ?? []).map(r => [(r as { sale_id: string }).sale_id, Number((r as { pct: string }).pct)]));
   // Sales Center overview: the quote funnel and variable agreements live next to closed sales (one workspace).
-  const [quoteRows, closedFromQuotes, variableTerms, pendingSettlements] = clientId ? [null, null, null, null] : await Promise.all([
-    supabase.from("crm_quotes").select("status").in("status", ["draft", "internal_review", "approved", "sent", "accepted"]).limit(2000),
-    supabase.from("crm_sales").select("quote_id").not("quote_id", "is", null).limit(2000),
+  const [preparingQuotes, sentQuotes, acceptedQuotes, variableTerms, pendingSettlements] = clientId ? [null, null, null, null, null] : await Promise.all([
+    run<unknown>(supabase.from("crm_quotes").select("id", { count: "exact" })
+      .is("deleted_at", null).in("status", ["draft", "internal_review", "approved"]).range(0, 0)),
+    countRows(supabase, "crm_quotes", [["is_null", "deleted_at"], ["eq", "status", "sent"]]),
+    run<unknown>(quoteCandidateQuery(supabase, ["accepted"], "", 0).range(0, 0)),
     supabase.from("crm_sale_variable_terms").select("id", { count: "exact", head: true }),
     supabase.from("crm_sale_settlements").select("id", { count: "exact", head: true }).eq("status", "recorded"),
   ]);
-  const quoteCount = (st: string[]) => (quoteRows?.data ?? []).filter(r => st.includes((r as { status: string }).status)).length;
-  const acceptedTotal = quoteCount(["accepted"]);
-  const closedCount = new Set((closedFromQuotes?.data ?? []).map(r => (r as { quote_id: string }).quote_id)).size;
   const collections = clientId ? null : await supabase.from("crm_sale_receivables").select("currency,overdue").gt("overdue", 0).limit(500);
   const overdueByCurrency = new Map<string, { amount: number; sales: number }>();
   for (const row of (collections && !collections.error ? collections.data ?? [] : []) as { currency: string; overdue: string }[]) {
@@ -114,11 +114,11 @@ export default async function SalesPage({ searchParams }: { searchParams: Promis
         {" · "}<Link href="/admin/workspace/crm/sales">{pick(lang, "Ver todas las ventas", "View all sales")}</Link>
       </p>}
     </section>}
-    {quoteRows && !quoteRows.error && <section className={s.stats} id="sales-overview" aria-label={pick(lang, "Resumen del Sales Center", "Sales Center overview")}>
-      <div className={s.stat}><span>{pick(lang, "Cotizaciones en preparación", "Quotes in preparation")}</span><strong>{quoteCount(["draft", "internal_review", "approved"])}</strong><small><Link href="/admin/workspace/crm/quotes">{pick(lang, "Abrir cotizaciones", "Open quotes")}</Link></small></div>
-      <div className={s.stat}><span>{pick(lang, "Enviadas al cliente", "Sent to client")}</span><strong>{quoteCount(["sent"])}</strong></div>
-      <div className={s.stat}><span>{pick(lang, "Aceptadas pendientes de cierre", "Accepted, waiting to close")}</span><strong>{Math.max(0, acceptedTotal - closedCount)}</strong><small><Link href="/admin/workspace/crm/sales/new">{pick(lang, "Cerrar ventas", "Close sales")}</Link></small></div>
-      {variableTerms && !variableTerms.error && <div className={s.stat}><span>{pick(lang, "Acuerdos variables activos", "Active variable agreements")}</span><strong>{variableTerms.count ?? 0}</strong>
+    {!clientId && <section className={s.stats} id="sales-overview" aria-label={pick(lang, "Resumen del Sales Center", "Sales Center overview")}>
+      <div className={s.stat}><span>{pick(lang, "Cotizaciones en preparación", "Quotes in preparation")}</span><strong>{preparingQuotes?.count ?? "—"}</strong><small><Link href="/admin/workspace/crm/quotes">{pick(lang, "Abrir cotizaciones", "Open quotes")}</Link></small></div>
+      <div className={s.stat}><span>{pick(lang, "Enviadas al cliente", "Sent to client")}</span><strong>{sentQuotes?.count ?? "—"}</strong></div>
+      <div className={s.stat}><span>{pick(lang, "Aceptadas pendientes de cierre", "Accepted, waiting to close")}</span><strong>{acceptedQuotes?.count ?? "—"}</strong><small><Link href="/admin/workspace/crm/sales/new">{pick(lang, "Cerrar ventas", "Close sales")}</Link></small></div>
+      {variableTerms && !variableTerms.error && <div className={s.stat}><span>{pick(lang, "Acuerdos variables registrados", "Recorded variable agreements")}</span><strong>{variableTerms.count ?? "—"}</strong>
         {pendingSettlements && !pendingSettlements.error && <small>{pendingSettlements.count ?? 0} {pick(lang, "liquidación(es) por verificar", "settlement(s) to verify")}</small>}</div>}
     </section>}
     {!clientId && (metrics.error ? <Unavailable lang={lang} code={metrics.error} /> : <section className={s.stats} aria-label={pick(lang, "Métricas comerciales globales", "Agency-wide commercial metrics")}>
