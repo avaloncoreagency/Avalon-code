@@ -19,7 +19,7 @@ const sectionNames: Record<string, { es: string; en: string }> = {
   settings: { es: "Configuración", en: "Settings" },
   profile: { es: "Perfil", en: "Profile" },
   "dev-bridge": { es: "Dev Bridge", en: "Dev Bridge" },
-  staff: { es: "Empleados", en: "Employees" },
+  staff: { es: "Portal de Agentes", en: "Agent Portal" },
   search: { es: "Búsqueda", en: "Search" },
   security: { es: "Seguridad", en: "Security" },
   "ai-communications": { es: "COMMUNICATION HUB", en: "COMMUNICATION HUB" },
