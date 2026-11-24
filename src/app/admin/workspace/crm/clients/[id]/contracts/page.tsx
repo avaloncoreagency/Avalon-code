@@ -5,9 +5,9 @@ import { requireOwner } from "@/lib/auth/session";
 import { getLang } from "@/lib/i18n-server";
 import { pick } from "@/lib/i18n";
 import { UUID_RE } from "@/components/sales/ui";
-import { AGREEMENT_VERSION, SERVICE_OPTIONS } from "@/lib/contracts/agreement";
+import { AGREEMENT_VERSION, PAYMENT_MODELS, PAYMENT_MODEL_LABEL, SERVICE_OPTIONS } from "@/lib/contracts/agreement";
 import { contractPrefill, isQuoteContent, type QuoteContent } from "@/lib/quotes/model";
-import { createClientAgreement } from "./actions";
+import { createClientAgreement, linkAgreementToContract } from "./actions";
 import { DEFAULT_MASTER_VERSION, REVIEW_LABEL, reviewOnlyVersions, selectableVersions } from "@/lib/contracts/versions";
 import { ReviewBeforeDownload } from "./review-before-download";
 import g from "./guide.module.css";
@@ -38,6 +38,8 @@ const fields = [
   ["paymentSchedule","Payment schedule / invoice due dates","Calendario de pagos y vencimientos","textarea","Net 15; define deposit and milestones in writing."],
   ["adSpend","Third-party advertising / platform budgets","Presupuesto y gastos de terceros","textarea","Paid directly by client unless a signed budget authorizes otherwise."],
   ["commission","Commission rate, revenue base and trigger (or None)","Comisión, base de cálculo y cuándo se gana (o Ninguna)","textarea","None."],
+  ["clientResponsibilities","Client responsibilities and materials (optional: access, content, approvals and deadlines)","Responsabilidades y materiales del cliente (opcional: accesos, contenido, aprobaciones y plazos)","textarea",""],
+  ["cancellationTerms","Cancellation, refunds and late or non-payment for this SOW (optional)","Cancelación, devoluciones e impagos de este SOW (opcional)","textarea",""],
   ["supportMaintenance","Support and maintenance (optional: hours, channel, response time, monthly scope)","Soporte y mantenimiento (opcional: horario, canal, tiempo de respuesta, alcance mensual)","textarea",""],
   ["warrantyPeriod","Warranty period for this work (optional)","Período de garantía de este trabajo (opcional)","text",""],
   ["specialTerms","Additional mutually approved conditions","Condiciones adicionales aprobadas","textarea",""],
@@ -71,6 +73,11 @@ export default async function ClientContracts({params, searchParams}:{
     supabase.from("crm_contacts").select("email").eq("client_id",id).eq("is_primary",true).limit(1).maybeSingle(),
   ]);
   const terms = !termsResult.error ? termsResult.data as CommercialTerms|null : null;
+  // Signature records (existing evidence flow on the origin lead). Before migration 20261124200000 the link columns
+  // do not exist: the query fails and the section explains it instead of guessing.
+  const signatures = leadId ? await supabase.from("crm_contracts").select("id,title,status,signer_name,signed_at,verified_at,agreement_draft_id")
+    .eq("lead_id", leadId).order("created_at", {ascending:false}).limit(20) : {data: [], error: null};
+  const sigRows = (signatures.error ? [] : signatures.data ?? []) as {id:string;title:string;status:string;signer_name:string;signed_at:string|null;verified_at:string|null;agreement_draft_id:string|null}[];
   // Exact curated mapping: never infer unknown services or silently contract for disabled modules.
   const serviceMap:Record<string,string> = {
     "desarrollo-web":"Website","tienda-online":"E-commerce",
@@ -120,7 +127,10 @@ export default async function ClientContracts({params, searchParams}:{
       {p.ok==="existing"?name(lang,"Este borrador ya estaba guardado; no se creó un duplicado.","This exact draft already existed; no duplicate was created."):
       name(lang,"Borrador guardado. Revísalo antes de descargarlo.","Draft saved. Review it before downloading.")}
     </p>}
-    {p.error&&<p className={s.flash} data-tone="error" role="alert">{p.error==="quote"
+    {p.ok==="linked"&&<p className={s.flash} data-tone="ok" role="status">{name(lang,"Versión vinculada al registro de firma (sha256 congelado).","Version linked to the signature record (sha256 frozen).")}</p>}
+    {p.error&&<p className={s.flash} data-tone="error" role="alert">{p.error.startsWith("contract_agreement_")||p.error.startsWith("link_")
+      ? name(lang,"No se pudo vincular: el contrato ya está firmado o vinculado, pertenece a otro cliente, el texto no coincide o falta la migración 20261124200000.","Could not link: the contract is already signed or linked, belongs to another client, the text does not match, or migration 20261124200000 is missing.")
+      : p.error==="quote"
       ? name(lang,"La cotización vinculada ya no está aceptada o no pertenece a este cliente. Vuelve a abrirla desde Cotizaciones.","The linked quote is no longer accepted or does not belong to this client. Reopen it from Quotes.")
       : p.error==="schema"
       ? name(lang,"La tabla de contratos todavía no está instalada en este entorno.","Contract drafts table is not installed in this environment.")
@@ -136,6 +146,24 @@ export default async function ClientContracts({params, searchParams}:{
           {name(lang,"Abrir vista previa en otra pestaña","Open preview in a new tab")}</a>
         <a className={s.button} href="#new-contract">{name(lang,"Crear otra versión para corregir","Create a corrected version")}</a>
       </div>
+      <section aria-labelledby="signature-evidence-title" data-signature-evidence>
+        <h3 id="signature-evidence-title">{name(lang,"Firma y evidencia","Signature & evidence")}</h3>
+        <p className={s.muted}>{name(lang,"La firma se registra y verifica en el contrato de la oportunidad (evidencia: documento firmado o referencia del proveedor de firma, y verificación del propietario). Aquí solo se vincula ese registro con el texto exacto (sha256) de esta versión. Un PDF descargado no es una firma.","Signatures are recorded and verified on the opportunity contract (evidence: signed document or e-signature provider reference, plus owner verification). Here you only tie that record to the exact text (sha256) of this version. A downloaded PDF is not a signature.")}</p>
+        {!leadId ? <p className={s.muted}>{name(lang,"Este cliente no tiene oportunidad de origen: no hay registro de firma que vincular.","This client has no origin opportunity: there is no signature record to link.")}</p>
+        : signatures.error ? <p className={s.muted} data-link-pending>{name(lang,"El vínculo con la firma requiere la migración 20261124200000 (pendiente).","Linking to signatures requires migration 20261124200000 (pending).")}</p>
+        : <>
+          <ul className={s.list}>{sigRows.filter(r=>r.agreement_draft_id===selectedAgreement.id).map(r=><li key={r.id} data-linked-contract={r.status}>
+            <strong>{r.title}</strong> · {r.status}{r.signer_name ? " · "+r.signer_name : ""}{r.verified_at ? " · "+name(lang,"verificado","verified")+" "+r.verified_at.slice(0,10) : ""}</li>)}
+            {!sigRows.some(r=>r.agreement_draft_id===selectedAgreement.id) && <li className={s.muted}>{name(lang,"Sin firma vinculada: esta versión no está firmada.","No linked signature: this version is not signed.")}</li>}</ul>
+          {sigRows.some(r=>!r.agreement_draft_id && ["draft","internal_review","sent_for_signature"].includes(r.status)) &&
+          <form action={linkAgreementToContract} className={s.inline} data-link-agreement>
+            <input type="hidden" name="client_id" value={id}/><input type="hidden" name="agreement_id" value={selectedAgreement.id}/>
+            <select name="contract_id" aria-label={name(lang,"Contrato de la oportunidad","Opportunity contract")} required>
+              {sigRows.filter(r=>!r.agreement_draft_id && ["draft","internal_review","sent_for_signature"].includes(r.status)).map(r=><option key={r.id} value={r.id}>{r.title} · {r.status}</option>)}</select>
+            <button className={s.button} type="submit">{name(lang,"Vincular esta versión","Link this version")}</button>
+          </form>}
+        </>}
+      </section>
       <p className={s.muted}>{name(lang,"Esta vista previa y la descarga se generan desde el MISMO borrador inmutable. Ninguna acción aquí equivale a firma o aprobación legal.","Preview and download use the SAME immutable draft. Neither action is a signature or legal approval.")}</p>
     </section>}
     <section className={s.panel}>
@@ -233,11 +261,14 @@ export default async function ClientContracts({params, searchParams}:{
         <fieldset className={s.fieldset} id="contract-terms">
           <legend>{name(lang,"Paso 3 — Alcance, pagos y condiciones","Step 3 — Scope, payments & terms")}</legend>
           <p className={g.hint}>{name(lang,"Indica exactamente qué se entrega, fechas, revisiones, gastos de terceros y cuándo se cobran honorarios o comisiones. No aceptes porcentajes ni presupuestos que no estén aprobados.","State the exact deliverables, timeline, revisions, third-party spend and payment or commission triggers. Do not use unapproved percentages or budgets.")}</p>
+          <label className={s.field}>{name(lang,"Modelo de pago documentado","Documented payment model")}
+            <select name="paymentModel" defaultValue="" data-payment-model><option value="">{name(lang,"— Elegir —","— Choose —")}</option>
+              {PAYMENT_MODELS.map(m=><option key={m} value={m}>{pick(lang,...PAYMENT_MODEL_LABEL[m])}</option>)}</select></label>
           {fields.slice(7).map(([key,en,es,kind,def])=><label className={s.field} key={key}>{name(lang,es,en)}
             {kind==="textarea"?<textarea name={key} rows={3} defaultValue={fromQuote && key in fromQuote && typeof fromQuote[key as keyof typeof fromQuote]==="string" && fromQuote[key as keyof typeof fromQuote] ? String(fromQuote[key as keyof typeof fromQuote]) : key==="commission" ? commissionDescription :
                 key==="adSpend" && terms?.client_ad_budget!==null && terms?.client_ad_budget!==undefined
                   ? "Client advertising spend: USD "+price(terms.client_ad_budget)+". Paid by client unless separately authorized." :
-                key==="specialTerms" ? signedTermsDescription : def} required={key!=="exclusions"&&key!=="specialTerms"&&key!=="supportMaintenance"} maxLength={3000}/>
+                key==="specialTerms" ? signedTermsDescription : def} required={key!=="exclusions"&&key!=="specialTerms"&&key!=="supportMaintenance"&&key!=="clientResponsibilities"&&key!=="cancellationTerms"} maxLength={3000}/>
               :<input name={key} type="text" defaultValue={fromQuote && key in fromQuote && typeof fromQuote[key as keyof typeof fromQuote]==="string" && fromQuote[key as keyof typeof fromQuote] ? String(fromQuote[key as keyof typeof fromQuote]) : key==="term" && terms?.duration_months
                 ? "Initial term: "+terms.duration_months+" months. Start date: "+(terms.start_date || "to be agreed")+
                   ". Renewal/cancellation subject to signed terms."

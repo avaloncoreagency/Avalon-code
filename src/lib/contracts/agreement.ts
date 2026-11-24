@@ -34,6 +34,20 @@ export type AgreementData = {
   supportMaintenance?: string;
   /** Optional: workmanship warranty window for this SOW (clause 09 applies). Empty = clause 09 only. */
   warrantyPeriod?: string;
+  /** Optional (ASCENSION C1): documented payment model. Empty on drafts created before this field existed. */
+  paymentModel?: PaymentModel | "";
+  /** Optional: what the client must provide and when (materials, access, approvals). */
+  clientResponsibilities?: string;
+  /** Optional: cancellation, refunds and late/non-payment terms specific to this SOW (clauses still apply). */
+  cancellationTerms?: string;
+};
+export const PAYMENT_MODELS = ["one_time", "recurring", "hybrid", "financing", "commission"] as const;
+export type PaymentModel = typeof PAYMENT_MODELS[number];
+export const PAYMENT_MODEL_LABEL: Record<PaymentModel, [string, string]> = {
+  one_time: ["Pago único", "One-time payment"], recurring: ["Pago recurrente", "Recurring payment"],
+  hybrid: ["Híbrido (setup + recurrente)", "Hybrid (setup + recurring)"],
+  financing: ["Financiamiento documentado en cuotas", "Documented instalment financing"],
+  commission: ["Comisión / revenue share aprobado", "Approved commission / revenue share"],
 };
 
 export type AgreementSnapshot = {
@@ -79,6 +93,12 @@ export function validateAgreement(input: AgreementData): string[] {
     new Date(input.effectiveDate).toISOString().slice(0, 10) !== input.effectiveDate)
     errors.push("effectiveDate");
   for (const k of ["setupFee", "monthlyFee"] as const) if (!usd(input[k])) errors.push(k);
+  if (input.paymentModel !== undefined && input.paymentModel !== "" && !PAYMENT_MODELS.includes(input.paymentModel as PaymentModel)) errors.push("paymentModel");
+  if (input.paymentModel === "commission" && /^\s*(none|ninguna|n\/a)?\s*\.?\s*$/i.test(input.commission)) errors.push("commission");
+  for (const k of ["clientResponsibilities", "cancellationTerms"] as const) {
+    const v = input[k];
+    if (v !== undefined && (typeof v !== "string" || v.length > 3000)) errors.push(k);
+  }
   for (const k of ["supportMaintenance", "warrantyPeriod"] as const) {
     const v = input[k];
     if (v !== undefined && (typeof v !== "string" || v.length > 2000)) errors.push(k);
@@ -189,15 +209,18 @@ export function agreementLines(snapshot: AgreementSnapshot, id: string): { headi
     { heading: "Exclusions", text: data.exclusions || "Only expressly included work is authorized." },
     { heading: "Deliverables", text: data.deliverables },
     { heading: "Milestones and client dependencies", text: data.milestones },
+    ...(data.clientResponsibilities?.trim() ? [{ heading: "Client responsibilities and materials", text: data.clientResponsibilities.trim() }] : []),
     { heading: "Acceptance criteria", text: data.acceptance },
     { heading: "Included revisions", text: data.revisions },
     { heading: "Term and renewal terms", text: data.term },
     { heading: "Support and maintenance", text: data.supportMaintenance?.trim() || "Not included in this Statement of Work. Any support, maintenance, hosting or service levels require a separate written and signed agreement." },
     { heading: "Warranty period", text: data.warrantyPeriod?.trim() || "As stated in clause 09 (Limited workmanship warranty); no additional warranty period is offered in this draft." },
     { heading: "Fees", text: "One-time setup: USD " + data.setupFee + " | Recurring per month: USD " + data.monthlyFee },
+    ...(data.paymentModel ? [{ heading: "Payment model", text: PAYMENT_MODEL_LABEL[data.paymentModel as PaymentModel]?.[1] ?? data.paymentModel }] : []),
     { heading: "Payment schedule", text: data.paymentSchedule },
     { heading: "Third-party and advertising spend", text: data.adSpend },
     { heading: "Commission, if any", text: data.commission },
+    ...(data.cancellationTerms?.trim() ? [{ heading: "Cancellation, refunds and non-payment (this SOW)", text: data.cancellationTerms.trim() }] : []),
     { heading: "Additional negotiated terms", text: data.specialTerms || "None." },
     { heading: "EXHIBIT B / SERVICE-SPECIFIC CONDITIONS", text: "Only the following selected service schedules apply. They supplement the Master Agreement and the signed Statement of Work. The scope and compensation must still be specified in Exhibit A." },
     ...snapshot.schedules.map(([service, text]) => ({ heading: service + " / Specific terms", text })),

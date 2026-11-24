@@ -218,3 +218,21 @@ test("lifecycle e-mails: only recorded facts, owner note required where needed, 
   assert.match(ren.text, /Nada se renueva ni se cobra automáticamente/);
   for (const r of [conf, prog, del, sup, ren]) { assert.match(r.html, /Samuel Muñoz/); assert.match(r.html, /avalon-mark\.png/); }
 });
+
+test("Contract Studio SOW: payment model, client responsibilities and cancellation terms are optional, validated and rendered", () => {
+  const data = { agencyLegalForm: "joint_individuals", agencyName: "Ana QA and Luis QA", agencyBrand: "Avalon Core Agency", agencyAddress: "1 Example", agencyEmail: "a@example.test",
+    clientName: "Cliente QA", clientAddress: "2 Example", clientEmail: "c@example.test", county: "Broward", effectiveDate: "2026-11-24", services: ["Website"], scope: "Scope",
+    exclusions: "", deliverables: "Site", milestones: "M", acceptance: "A", revisions: "2", term: "3 months", setupFee: "100.00", monthlyFee: "0.00", paymentSchedule: "Net 15", adSpend: "None", commission: "None", specialTerms: "" };
+  assert.deepEqual(agreement.validateAgreement(data), [], "old drafts without the new fields stay valid");
+  assert.ok(agreement.validateAgreement({ ...data, paymentModel: "crypto" }).includes("paymentModel"));
+  assert.ok(agreement.validateAgreement({ ...data, paymentModel: "commission" }).includes("commission"), "commission model needs approved commission terms");
+  const full = { ...data, paymentModel: "hybrid", clientResponsibilities: "Logo y textos antes del día 5.", cancellationTerms: "Aviso de 30 días; depósito no reembolsable una vez iniciado el diseño." };
+  assert.deepEqual(agreement.validateAgreement(full), []);
+  const lines = agreement.agreementLines(agreement.makeAgreementSnapshot(full), "abcd1234");
+  const text = lines.map(l => l.heading + ": " + l.text).join("\n");
+  assert.match(text, /Payment model: Hybrid \(setup \+ recurring\)/);
+  assert.match(text, /Client responsibilities and materials: Logo y textos/);
+  assert.match(text, /Cancellation, refunds and non-payment \(this SOW\): Aviso de 30 días/);
+  const old = agreement.agreementLines(agreement.makeAgreementSnapshot(data), "abcd1234").map(l => l.heading);
+  assert.ok(!old.includes("Payment model") && !old.includes("Client responsibilities and materials"), "nothing invented for older drafts");
+});
