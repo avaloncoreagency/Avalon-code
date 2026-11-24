@@ -130,6 +130,10 @@ test("contracts: v1.2 adds disclosures, stays under attorney review, old drafts 
   assert.equal(v12.status, "attorney_review_required");
   assert.ok(!versions.MASTER_VERSIONS.some(v => v.status === "approved"), "nothing is presented as legally approved");
   assert.equal(versions.DEFAULT_MASTER_VERSION, "ACA-MSA-1.1-2026-11");
+  assert.deepEqual(versions.selectableVersions().map(v => v.version), ["ACA-MSA-1.1-2026-11"], "a version pending attorney review is never offered for new drafts");
+  assert.deepEqual(versions.reviewOnlyVersions().map(v => v.version), ["ACA-MSA-1.2-2026-11"]);
+  const contractAction = fs.readFileSync("src/app/admin/workspace/crm/clients/[id]/contracts/actions.ts", "utf8");
+  assert.match(contractAction, /!master\.availableForNewDrafts/, "server refuses review-only versions even if the form is tampered with");
   for (const n of ["24", "25", "26", "27", "28", "29"]) assert.ok(v12.clauses.some(c => c[0].startsWith(n + " / ")), n);
   assert.match(v12.clauses.find(c => c[0].startsWith("27"))[1], /never presumed, preselected/);
   assert.match(v12.clauses.find(c => c[0].startsWith("28"))[1], /no personal guarantee/);
@@ -181,7 +185,7 @@ test("agent invitations live in AGENT PORTAL, not in Configuración", () => {
     assert.ok(!settings.includes(forbidden), `Configuración must not contain ${forbidden}`);
     assert.ok(!settingsAction.includes(forbidden), `settings action must not write ${forbidden}`);
   }
-  assert.match(settings, /AGENT_PORTAL_PATH/);
+  assert.match(settings, /AGENT_PORTAL_LABEL/);
   assert.match(panel, /signerForUser\(supabase, userId, lang\)/, "signature comes from the authenticated owner");
   assert.match(panel, /renderAgentInvite/);
   assert.match(inviteAction, /ownerForAction\(\)/);
