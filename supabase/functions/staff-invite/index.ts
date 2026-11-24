@@ -26,7 +26,12 @@ Deno.serve(async (request: Request) => {
   const projectRef = url ? new URL(url).hostname.split(".")[0] : "";
   const originsByProject: Record<string, string[]> = {
     ltbwzcrxeuczdhhtbqgm: ["https://avaloncoreagency.com","https://www.avaloncoreagency.com"],
-    xrtgnmuiyqmtisdrzqcg: ["https://avalon-core-agency-git-integration-st-dca9bb-avalon-core-agency.vercel.app"],
+    // Isolated Preview project only: the Vercel branch aliases of #317, #332 and #333 (never production data).
+    xrtgnmuiyqmtisdrzqcg: [
+      "https://avalon-core-agency-git-integration-st-dca9bb-avalon-core-agency.vercel.app",
+      "https://avalon-core-agency-git-integration-st-b3d21f-avalon-core-agency.vercel.app",
+      "https://avalon-core-agency-git-claude-staff-o-1ddfdf-avalon-core-agency.vercel.app",
+    ],
   };
   const configuredOrigin = Deno.env.get("AVALON_OWNER_APP_ORIGIN");
   const trustedOrigins = configuredOrigin ? [configuredOrigin] : originsByProject[projectRef] ?? [];
