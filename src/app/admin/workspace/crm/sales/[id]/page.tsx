@@ -9,16 +9,21 @@ import { getLang } from "@/lib/i18n-server";
 import { pick, formatDate } from "@/lib/i18n";
 import { run } from "@/lib/os/data";
 import { SERVICES, isService } from "@/lib/os/client-hud";
-import { label, money, PAYMENT_METHODS, WORK_ORDER_STATUSES } from "@/lib/sales/domain";
-import { recordPayment, updateContract, updateWorkOrder } from "../actions";
+import { label, money, WORK_ORDER_STATUSES } from "@/lib/sales/domain";
+import { acceptedSaleMethods, readSalePaymentTerms, salePaymentMethodLabel, salePaymentScheduleLabel, installmentPreview, installmentSchedule, SALE_PAYMENT_METHODS, type SalePaymentMethod } from "@/lib/sales/payment-terms";
+import { issueSaleInvoice, recordPayment, updateContract, updateWorkOrder } from "../actions";
+import { closingText, nextSaleInvoice } from "@/lib/sales/invoice";
+import { saleClosing, sellerName } from "@/lib/sales/invoice-server";
 import s from "@/components/sales/sales.module.css";
 import { SaleCorePanels } from "@/components/sales/core-panels";
+import { SaleSchedulePanel } from "@/components/sales/sale-schedule-panel";
+import { SaleAgreementPanel } from "@/components/sales/sale-agreement-panel";
 export const dynamic = "force-dynamic";
 
-type Sale = { id: string; sale_number: string; correlation_id: string; client_id: string; lead_id: string | null; sold_on: string; currency: string; subtotal: string; discount_total: string; tax_rate: string; tax_total: string; total: string; recurring_monthly: string; billing_mode: string; upfront_amount: string; seller_id: string; contract_status: string; delivery_status: string; notes: string; confirmed_at: string; crm_clients: { legal_name: string; client_code: string } | null };
+type Sale = { id: string; schedule_version?: number | null; status?: string; commercial_model?: string | null; sale_number: string; correlation_id: string; client_id: string; lead_id: string | null; sold_on: string; currency: string; subtotal: string; discount_total: string; tax_rate: string; tax_total: string; total: string; recurring_monthly: string; billing_mode: string; upfront_amount: string; seller_id: string; contract_status: string; delivery_status: string; notes: string; confirmed_at: string; crm_clients: { legal_name: string; client_code: string } | null };
 type Line = { id: string; position: number; description: string; quantity: string; unit_price: string; discount: string; line_total: string; billing_type: string; crm_service_catalog: { name: string; name_en: string } | null };
 type Order = { id: string; sale_line_id: string; department_id: string; project_id: string | null; assignee_id: string; recurrence: string; status: string; due_on: string | null; crm_departments: { label: string; os_module: string | null } | null; os_projects: { name: string; module: string } | null };
-type Payment = { status?: string; id: string; amount: string; received_on: string; method: string; reference: string };
+type Payment = { status?: string; id: string; amount: string; received_on: string; method: string; reference: string; installment_id?: string | null };
 type Event = { id: number; event_type: string; module: string; detail: string; result: string; from_state: string | null; to_state: string | null; actor_id: string | null; created_at: string };
 
 export default async function SaleDetail({ params, searchParams }: { params: Promise<{ id: string }>; searchParams: Promise<Query> }) {
@@ -29,17 +34,43 @@ export default async function SaleDetail({ params, searchParams }: { params: Pro
   const p = await searchParams;
   const sale = await run<Sale | null>(supabase.from("crm_sales").select("*,crm_clients(legal_name,client_code)").eq("id", id).maybeSingle());
   if (!sale.error && !sale.data) notFound();
-  const [lines, orders, payments, owners, tasks] = await Promise.all([
+  const [lines, orders, payments, owners, tasks, liveInstallments, receivable] = await Promise.all([
     run<Line[]>(supabase.from("crm_sale_lines").select("id,position,description,quantity,unit_price,discount,line_total,billing_type,crm_service_catalog(name,name_en)").eq("sale_id", id).order("position")),
     run<Order[]>(supabase.from("crm_work_orders").select("id,sale_line_id,department_id,project_id,assignee_id,recurrence,status,due_on,crm_departments(label,os_module),os_projects(name,module)").eq("sale_id", id).order("created_at").order("id")),
     run<Payment[]>(supabase.from("crm_payments").select("*").eq("sale_id", id).order("received_on")),
     run<{ user_id: string; email: string }[]>(loadOwnerDirectory(supabase)),
     run<{ work_order_id: string; status: string }[]>(supabase.from("crm_tasks").select("work_order_id,status").eq("sale_id", id).limit(1000)),
+    // Finance-only via RLS; both are empty/errored (and ignored) without finance access or before migration 20261123150000.
+    run<{ id: string; seq: number; kind: string; due_on: string; amount: string }[]>(supabase.from("crm_sale_installments").select("id,seq,kind,due_on,amount").eq("sale_id", id).eq("status", "scheduled").order("due_on").limit(120)),
+    run<{ refunded: string; net_collected: string; balance: string } | null>(supabase.from("crm_sale_receivables").select("refunded,net_collected,balance").eq("sale_id", id).maybeSingle()),
   ]);
   const events = sale.data ? await run<Event[]>(supabase.from("crm_timeline").select("id,event_type,module,detail,result,from_state,to_state,actor_id,created_at").or(`correlation_id.eq.${sale.data.correlation_id},sale_id.eq.${id}`).order("id").limit(200)) : null;
   const ownerList = owners.data ?? [];
   const d = sale.data;
+  // Closing summary (one place to verify the sale): attached proposal, person responsible, closing basis, methods, invoice.
+  const [seller, closing, attachedR, invoicesR] = d ? await Promise.all([
+    sellerName(supabase, d.seller_id), saleClosing(supabase, id, lang),
+    supabase.from("crm_sale_terms").select("quote_id,quote_number,version_no").eq("sale_id", id).maybeSingle(),
+    supabase.from("crm_invoices").select("id,number,amount,status").eq("sale_id", id).order("created_at"),
+  ]) : [null, null, null, null];
+  const attached = attachedR && !attachedR.error ? attachedR.data as { quote_id: string; quote_number: string; version_no: number } | null : null;
+  const saleInvoices = (invoicesR && !invoicesR.error ? invoicesR.data ?? [] : []) as { id: string; number: string; amount: string; status: string }[];
+  const billable = d && invoicesR && !invoicesR.error && d.status !== "cancelled" && d.commercial_model !== "commission" ? nextSaleInvoice(d.sale_number, d.total, saleInvoices) : null;
+  const paymentTerms = readSalePaymentTerms(d?.notes);
+  const installment = d && paymentTerms.terms?.schedule === "installments"
+    ? installmentPreview(Number(d.total), Number(d.upfront_amount), paymentTerms.terms.installments) : null;
+  const installmentRows = d && paymentTerms.terms?.schedule === "installments"
+    ? installmentSchedule(Number(d.total), Number(d.upfront_amount), paymentTerms.terms) : null;
   const paid = (payments.data ?? []).filter(x=>x.status !== "reversed").reduce((sum, x) => sum + Number(x.amount), 0);
+  // Net of refunds/chargebacks when the receivables view is available (finance access); recorded receipts otherwise.
+  const net = !receivable.error && receivable.data ? Number(receivable.data.net_collected) : paid;
+  const refunded = !receivable.error && receivable.data ? Number(receivable.data.refunded) : 0;
+  // Balance from the receivables view (fixed total + VERIFIED variable settlements − net collected); fallback: total − net.
+  const balanceDue = !receivable.error && receivable.data ? Number(receivable.data.balance) : (d ? Number(d.total) - net : 0);
+  // The receipt form follows the DB cap (total + verified settlements − recorded receipts).
+  const collectible = d ? Number(d.total) + Math.max(0, balanceDue + net - Number(d.total)) - paid : 0;
+  const allocatedTo = (insId: string) => (payments.data ?? []).filter(x => x.status !== "reversed" && x.installment_id === insId).reduce((a, x) => a + Number(x.amount), 0);
+  const openInstallments = (liveInstallments.error ? [] : liveInstallments.data ?? []).filter(i => Number(i.amount) - allocatedTo(i.id) > 0.004);
   const progress = (woId: string) => {
     const list = (tasks.data ?? []).filter(t => t.work_order_id === woId);
     return list.length ? `${list.filter(t => t.status === "done").length}/${list.filter(t => t.status !== "cancelled").length}` : "—";
@@ -47,12 +78,39 @@ export default async function SaleDetail({ params, searchParams }: { params: Pro
   return <Suite active="crm"><div className={s.hud}>
     <OpsHeader lang={lang} active="sales" crm="sales" eyebrow={`CRM / Ventas / ${d?.sale_number ?? ""}`} title={d ? `${d.sale_number} · ${d.crm_clients?.legal_name ?? ""}` : pick(lang, "Venta", "Sale")}
       lead={d ? `${formatDate(lang, d.sold_on)} · ${label(lang, d.billing_mode)} · ${pick(lang, "Vendedor", "Seller")}: ${ownerName(ownerList, d.seller_id)}` : undefined}
-      actions={d && <><Link className={s.button} href={`/admin/workspace/crm/clients/${d.client_id}`}>{pick(lang, "Ficha 360° del cliente", "Client 360° profile")}</Link><Link className={s.button} href={`/admin/workspace/crm/activity?sale=${d.id}`}>{pick(lang, "Auditoría", "Audit")}</Link></>} />
+      actions={d && <><Link className={s.button} href={`/admin/workspace/crm/clients/${d.client_id}`}>{pick(lang, "Ficha 360° del cliente", "Client 360° profile")}</Link><Link className={s.button} href={`/admin/workspace/crm/clients/${d.client_id}/contracts`}>{pick(lang, "Contratos", "Agreements")}</Link><Link className={s.button} href={`/admin/workspace/crm/quotes?client=${d.client_id}`}>{pick(lang, "Cotizaciones del cliente", "Client quotes")}</Link><Link className={s.button} href={`/admin/workspace/crm/activity?sale=${d.id}`}>{pick(lang, "Auditoría", "Audit")}</Link></>} />
     <OkFlash lang={lang} code={q(p, "ok")} /><ErrorFlash lang={lang} code={q(p, "error")} />
     {sale.error ? <Unavailable lang={lang} code={sale.error} /> : d && <>
+      {closing && <section className={s.panel} id="closing-summary" aria-labelledby="closing-title" data-closing-summary>
+        <header><h2 id="closing-title">{pick(lang, "Resumen de cierre", "Closing summary")}</h2>
+          <small className={s.muted}>{pick(lang, "Propuesta → verificación → pago → factura", "Proposal → verification → payment → invoice")}</small></header>
+        <dl style={{ display: "grid", gridTemplateColumns: "minmax(140px, auto) 1fr", gap: "8px 16px", margin: 0 }}>
+          <dt>{pick(lang, "Propuesta anexada", "Attached proposal")}</dt>
+          <dd style={{ margin: 0 }} data-closing-quote>{attached ? <Link href={`/admin/workspace/crm/quotes/${attached.quote_id}`}>{attached.quote_number} · v{attached.version_no}</Link>
+            : <>{pick(lang, "Venta registrada sin cotización vinculada.", "Sale recorded without a linked quote.")} <Link href="/admin/workspace/crm/sales/new">{pick(lang, "Crear venta desde cotización", "Create sale from quote")}</Link></>}</dd>
+          <dt>{pick(lang, "Responsable de la venta", "Sales representative")}</dt><dd style={{ margin: 0 }} data-closing-seller>{seller || ownerName(ownerList, d.seller_id)}</dd>
+          <dt>{pick(lang, "Cerrada por", "Closed at")}</dt><dd style={{ margin: 0 }} data-closing-basis={closing.model}><strong>{closingText({ closing, saleTotal: d.total, currency: d.currency }, lang)}</strong></dd>
+          <dt>{pick(lang, "Métodos de pago", "Payment methods")}</dt><dd style={{ margin: 0 }} data-closing-methods>{(() => {
+            const accepted = acceptedSaleMethods(paymentTerms.terms).map(m => salePaymentMethodLabel(m, lang));
+            const used = [...new Set((payments.data ?? []).filter(x => x.status !== "reversed").map(x => label(lang, x.method)))];
+            return <>{accepted.length ? accepted.join(", ") : pick(lang, "Cualquier método manual (transferencia, ACH, wire, Zelle, cheque, tarjeta, efectivo, PayPal, enlace de pago)", "Any manual method (transfer, ACH, wire, Zelle, check, card, cash, PayPal, payment link)")}
+              {used.length > 0 && <><br /><span className={s.muted}>{pick(lang, "Pagos recibidos con", "Payments received via")}: {used.join(", ")}</span></>}
+              <br /><a href="#payments">{pick(lang, "Registrar un pago (se admiten varios métodos en la misma venta)", "Record a payment (several methods allowed per sale)")}</a></>; })()}</dd>
+          <dt>{pick(lang, "Factura", "Invoice")}</dt><dd style={{ margin: 0 }} data-closing-invoice>
+            {saleInvoices.length > 0 && <span className={s.inline}>{saleInvoices.map(x => <span key={x.id} className={s.inline}>
+              <Link href={`/admin/workspace/crm/sales/${id}/invoices/${x.id}`}>{x.number}{x.status === "void" ? ` (${pick(lang, "anulada", "void")})` : ""}</Link>
+              <a href={`/admin/workspace/crm/sales/${id}/invoices/${x.id}/pdf`} download>{pick(lang, "Descargar PDF", "Download PDF")}</a>
+              <a href={`/admin/workspace/crm/sales/${id}/invoices/${x.id}#print`}>{pick(lang, "Imprimir", "Print")}</a></span>)}</span>}
+            {billable ? <form action={issueSaleInvoice} className={s.inline} data-issue-invoice={d.sale_number}><input type="hidden" name="sale_id" value={d.id} />
+              <button type="submit" className={`${s.button} ${s.primary}`}>{saleInvoices.some(x => x.status === "issued") ? pick(lang, `Facturar saldo (${money(lang, billable.amount, d.currency)})`, `Invoice the balance (${money(lang, billable.amount, d.currency)})`) : pick(lang, "Emitir factura", "Issue invoice")}</button>
+              <small className={s.muted}>{billable.number} · {money(lang, billable.amount, d.currency)}</small></form>
+              : saleInvoices.length === 0 && <span className={s.muted}>{d.commercial_model === "commission" ? pick(lang, "Se factura al verificar cada liquidación.", "Invoiced as each settlement is verified.") : pick(lang, "Sin factura.", "Not invoiced.")}</span>}
+          </dd>
+        </dl>
+      </section>}
       <section className={s.stats}>
-        <div className={s.stat}><span>{pick(lang, "Total contratado", "Contracted total")}</span><strong>{money(lang, d.total, d.currency)}</strong><small>Subtotal {money(lang, d.subtotal, d.currency)} · {pick(lang, "Desc.", "Disc.")} {money(lang, d.discount_total, d.currency)} · {pick(lang, "Imp.", "Tax")} {money(lang, d.tax_total, d.currency)} ({Number(d.tax_rate)}%)</small></div>
-        <div className={s.stat}><span>{pick(lang, "Cobrado", "Collected")}</span><strong>{money(lang, paid, d.currency)}</strong><small>{pick(lang, "Saldo pendiente", "Balance due")}: {money(lang, Number(d.total) - paid, d.currency)}</small></div>
+        <div className={s.stat}><span>{d.commercial_model === "commission" ? pick(lang, "Importe variable", "Variable amount") : pick(lang, "Total contratado", "Contracted total")}</span><strong>{d.commercial_model === "commission" ? pick(lang, "Según liquidación", "Per settlement") : money(lang, d.total, d.currency)}</strong>{d.commercial_model === "hybrid" && <small>{pick(lang, "+ componente variable pendiente de liquidación", "+ variable component pending settlement")}</small>}<small>Subtotal {money(lang, d.subtotal, d.currency)} · {pick(lang, "Desc.", "Disc.")} {money(lang, d.discount_total, d.currency)} · {pick(lang, "Imp.", "Tax")} {money(lang, d.tax_total, d.currency)} ({Number(d.tax_rate)}%)</small></div>
+        <div className={s.stat}><span>{refunded > 0 ? pick(lang, "Cobrado neto", "Net collected") : pick(lang, "Cobrado", "Collected")}</span><strong>{money(lang, net, d.currency)}</strong><small>{pick(lang, "Saldo pendiente", "Balance due")}: {money(lang, balanceDue, d.currency)}{refunded > 0 ? ` · ${pick(lang, "reembolsado", "refunded")} ${money(lang, refunded, d.currency)}` : ""}</small></div>
         <div className={s.stat}><span>{pick(lang, "Pago inicial acordado", "Agreed upfront")}</span><strong>{money(lang, d.upfront_amount, d.currency)}</strong><small>{pick(lang, "Recurrente / mes", "Recurring / mo")}: {money(lang, d.recurring_monthly, d.currency)}</small></div>
         <div className={s.stat}><span>{pick(lang, "Contrato · Entrega", "Contract · Delivery")}</span><strong style={{ fontSize: 16, display: "flex", gap: 8, flexWrap: "wrap" }}><Tag lang={lang} value={d.contract_status} /><Tag lang={lang} value={d.delivery_status} /></strong>
           <form action={updateContract} className={s.inline} style={{ marginTop: 10 }}><input type="hidden" name="sale_id" value={d.id} />
@@ -60,6 +118,33 @@ export default async function SaleDetail({ params, searchParams }: { params: Pro
             <select id="contract_status" name="contract_status" defaultValue={d.contract_status}>{["pending_signature", "signed", "cancelled"].map(x => <option key={x} value={x}>{label(lang, x)}</option>)}</select>
             <button className={s.button}>{pick(lang, "Guardar", "Save")}</button></form></div>
       </section>
+
+      {paymentTerms.terms && <section className={s.panel} aria-labelledby="sale-payment-plan">
+        <header><h2 id="sale-payment-plan">{pick(lang, "Plan de pago acordado", "Agreed payment plan")}</h2></header>
+        <p className={s.muted}>{pick(lang, "Estas condiciones se registraron con la venta. No representan pagos recibidos, aprobación de financiación ni un débito automático.", "These terms were recorded with the sale. They are not received payments, financing approval or automatic debits.")}</p>
+        <div className={s.row}>
+          <p><strong>{pick(lang, "Método preferido", "Preferred method")}:</strong> {salePaymentMethodLabel(paymentTerms.terms.method, lang)}</p>
+          <p><strong>{pick(lang, "Modalidad", "Arrangement")}:</strong> {salePaymentScheduleLabel(paymentTerms.terms.schedule, lang)}</p>
+          <p><strong>{pick(lang, "Vence en", "Due in")}:</strong> {paymentTerms.terms.netDays} {pick(lang, "días", "days")}</p>
+        </div>
+        {installment && <div className={s.planSummary}>
+          <p>{pick(lang, "Saldo previsto tras el anticipo", "Expected balance after deposit")}: <strong>{money(lang, installment.remaining, d.currency)}</strong> · {pick(lang, "NO se cuenta como cobrado", "NOT counted as collected")}</p>
+          {installmentRows && <details>
+            <summary>{pick(lang, "Calendario ilustrativo de cuotas", "Illustrative installment schedule")} ({installmentRows.length})</summary>
+            <div className={s.tableWrap}><table className={s.table}>
+              <thead><tr><th scope="col">#</th><th scope="col">{pick(lang, "Vencimiento previsto", "Proposed due date")}</th><th scope="col" className={s.num}>{pick(lang, "Cuota prevista", "Planned amount")}</th></tr></thead>
+              <tbody>{installmentRows.map(row => <tr key={row.number}><td>{row.number}</td><td>{row.dueOn}</td><td className={s.num}>{money(lang, row.amount, d.currency)}</td></tr>)}</tbody>
+            </table></div>
+          </details>}
+          <p className={s.muted}>{pick(lang, "Referencia interna, no es factura ni crédito aprobado. Consulta el contrato para plazos exigibles. Los cobros reales figuran por separado.", "Internal planning only, not an invoice or approved credit. Consult the contract for enforceable dates. Actual receipts are recorded separately.")}</p>
+        </div>}
+        {paymentTerms.terms.milestones && <p style={{whiteSpace:"pre-wrap"}}><strong>{pick(lang, "Hitos", "Milestones")}:</strong> {paymentTerms.terms.milestones}</p>}
+        {paymentTerms.terms.externalProvider && <p><strong>{pick(lang, "Proveedor externo propuesto", "Proposed external provider")}:</strong> {paymentTerms.terms.externalProvider} · {pick(lang, "pendiente de aprobación", "approval pending")}</p>}
+        {paymentTerms.terms.notes && <p style={{whiteSpace:"pre-wrap"}}><strong>{pick(lang, "Condiciones adicionales", "Additional terms")}:</strong> {paymentTerms.terms.notes}</p>}
+      </section>}
+
+      <SaleAgreementPanel db={supabase} lang={lang} saleId={d.id} currency={d.currency} />
+      <SaleSchedulePanel db={supabase} lang={lang} sale={d} payments={payments.error ? [] : payments.data} terms={paymentTerms.terms} />
 
       <section className={s.panel} aria-labelledby="orders"><header><h2 id="orders">{pick(lang, "Servicios, órdenes de trabajo y proyectos", "Services, work orders and projects")}</h2></header>
         {lines.error || orders.error ? <Unavailable lang={lang} code={(lines.error ?? orders.error)!} /> :
@@ -89,19 +174,28 @@ export default async function SaleDetail({ params, searchParams }: { params: Pro
         </section>
         <section className={s.panel} aria-labelledby="payments"><header><h2 id="payments">{pick(lang, "Cobros registrados", "Recorded payments")}</h2></header>
           {payments.error ? <Unavailable lang={lang} code={payments.error} /> : payments.data.length === 0 ? <p className={s.muted}>{pick(lang, "Sin cobros registrados. El pago inicial acordado no cuenta como cobrado.", "No payments recorded. The agreed upfront payment does not count as collected.")}</p> :
-            <ul className={s.list}>{payments.data.map(x => <li key={x.id}><strong>{money(lang, x.amount, d.currency)}</strong><span className={s.muted}>{formatDate(lang, x.received_on)} · {label(lang, x.method)}{x.reference ? ` · ${x.reference}` : ""}</span></li>)}</ul>}
-          {d.contract_status !== "cancelled" && Number(d.total) - paid > 0 && <form action={recordPayment} className={s.form} style={{ marginTop: 14 }}><input type="hidden" name="sale_id" value={d.id} />
+            <ul className={s.list}>{payments.data.map(x => {
+              const tagged = /^\[([a-z_]+)\]\s*(.*)$/.exec(x.reference ?? "");
+              const known = tagged && (SALE_PAYMENT_METHODS as readonly string[]).includes(tagged[1]) ? tagged[1] as SalePaymentMethod : null;
+              const methodText = known ? salePaymentMethodLabel(known, lang) : label(lang, x.method);
+              const detail = known ? tagged?.[2] : x.reference;
+              return <li key={x.id}><strong>{money(lang, x.amount, d.currency)}</strong><span className={s.muted}>{formatDate(lang, x.received_on)} · {methodText}{detail ? ` · ${detail}` : ""}</span></li>;
+            })}</ul>}
+          {d.contract_status !== "cancelled" && collectible > 0.004 && <form action={recordPayment} className={s.form} style={{ marginTop: 14 }}><input type="hidden" name="sale_id" value={d.id} />
             <div className={s.row}>
               <label className={s.field}>{pick(lang, "Importe", "Amount")} ({d.currency})<input name="amount" required inputMode="decimal" pattern="\d{1,13}(\.\d{1,2})?" /></label>
               <label className={s.field}>{pick(lang, "Fecha de cobro", "Received on")}<input name="received_on" type="date" required defaultValue={new Date().toISOString().slice(0, 10)} /></label>
             </div>
             <div className={s.row}>
-              <label className={s.field}>{pick(lang, "Método", "Method")}<select name="method">{PAYMENT_METHODS.map(m => <option key={m} value={m}>{label(lang, m)}</option>)}</select></label>
+              <label className={s.field}>{pick(lang, "Canal de cobro recibido", "Received payment channel")}<select name="channel">{SALE_PAYMENT_METHODS.map(m => <option key={m} value={m}>{salePaymentMethodLabel(m, lang)}</option>)}</select><input type="hidden" name="method" value="other" /></label>
               <label className={s.field}>{pick(lang, "Referencia (sin datos bancarios)", "Reference (no bank details)")}<input name="reference" maxLength={120} /></label>
             </div>
+            {openInstallments.length > 0 && <label className={s.field}>{pick(lang, "Aplicar a la cuota (opcional)", "Apply to installment (optional)")}
+              <select name="installment_id" defaultValue=""><option value="">{pick(lang, "Sin cuota: se aplica a la más antigua pendiente", "No installment: covers the oldest open one")}</option>
+                {openInstallments.map(i => <option key={i.id} value={i.id}>#{i.seq} · {label(lang, i.kind)} · {formatDate(lang, i.due_on)} · {pick(lang, "pendiente", "open")} {money(lang, Number(i.amount) - allocatedTo(i.id), d.currency)}</option>)}</select></label>}
             <button className={s.button}>{pick(lang, "Registrar cobro", "Record payment")}</button>
           </form>}
-          {d.notes && <><h3>{pick(lang, "Notas", "Notes")}</h3><p className={s.muted} style={{ whiteSpace: "pre-wrap" }}>{d.notes}</p></>}
+          {paymentTerms.notes && <><h3>{pick(lang, "Notas", "Notes")}</h3><p className={s.muted} style={{ whiteSpace: "pre-wrap" }}>{paymentTerms.notes}</p></>}
         </section>
       </div>
     </>}

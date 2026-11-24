@@ -72,18 +72,26 @@ module.exports = async function coreEngineUI({db,context,miguel,samuel,origin,ev
   // CoreForm shows its status BEFORE router.refresh() delivers the re-rendered tree. Actions are bound to the row
   // version of the last render, so clicking Approve in that gap sends a stale version and is (correctly) rejected as
   // a conflict. Wait for the refresh's RSC response before the next action.
+  const committedValue=async(input,re)=>{for(const end=Date.now()+30000;;){const v=await input.inputValue().catch(()=>'');if(re.test(v))return;if(Date.now()>end)assert.fail(`render never committed: value ${JSON.stringify(v)}`);await new Promise(r=>setTimeout(r,50));}};
   const refreshed=()=>ui.waitForResponse(r=>r.request().method()==='GET'&&r.request().headers()['rsc']==='1'&&r.url().includes('/admin/workspace/crm/settings'));
   await terms.getByLabel('Monthly price',{exact:true}).fill('20');
+  // Optional stress (REPRO_THROTTLE=20): slow the renderer so the refresh-commit gap is wide, as on a loaded CI runner.
+  const cdp=process.env.REPRO_THROTTLE?await ui.context().newCDPSession(ui):null; if(cdp) await cdp.send('Emulation.setCPUThrottlingRate',{rate:Number(process.env.REPRO_THROTTLE)});
   let refresh=refreshed();
   await terms.getByRole('button',{name:'Save commercial terms',exact:true}).click();
   await terms.getByRole('status').waitFor();
   await refresh;
+  // waitForResponse resolves when the refresh's headers arrive, before React commits the new tree. "Approve offer" is
+  // bound to the row version of the rendered tree, so wait until the committed render shows the saved price: the same
+  // render carries the new version. (Root cause of the intermittent stale-version conflict seen in CI on #329.)
+  await committedValue(terms.getByLabel('Monthly price',{exact:true}), /^20(\.0+)?$/);
   // Refresh preserves disclosure on a stable React subtree; reopen if a navigation replaces it.
   if(!await item.getByRole('button',{name:'Approve offer',exact:true}).isVisible()) await item.locator('summary').filter({hasText:'Commercial offer'}).click();
   ui.once('dialog',d=>d.accept());
   refresh=refreshed();
   await item.getByRole('button',{name:'Approve offer',exact:true}).click();
   await refresh;
+  if(cdp) await cdp.send('Emulation.setCPUThrottlingRate',{rate:1});
   assert.equal(await item.getByRole('alert').count(),0,'approval was not rejected (no stale-version conflict)');
   // The approval's server refresh can remount the item and collapse its <details>: the status is then in the DOM but
   // hidden. Wait for the persisted state itself, then reopen the disclosure before interacting again.

@@ -41,6 +41,9 @@ export async function SaleCorePanels({db,saleId,clientId,lang,currency,owners}:{
       </CoreForm>
       {bounded("invoices",data.invoices.length)}
       <ul className={s.list}>{data.invoices.map(x=><li key={x.id}><strong>{x.number} · {money(lang,x.amount,x.currency)}</strong><span>{status(lang,x.status)} · {formatDate(lang,x.issued_on)}{x.due_on ? ` → ${formatDate(lang,x.due_on)}` : ""}</span>
+        <span className={s.inline} data-invoice-actions><a className={s.button} href={`/admin/workspace/crm/sales/${saleId}/invoices/${x.id}`}>{t("Ver factura","View invoice")}</a>
+          <a className={s.button} href={`/admin/workspace/crm/sales/${saleId}/invoices/${x.id}/pdf`} download>{t("Descargar PDF","Download PDF")}</a>
+          <a className={s.button} href={`/admin/workspace/crm/sales/${saleId}/invoices/${x.id}#print`}>{t("Imprimir","Print")}</a></span>
         {x.status === "issued" ? <CoreForm action={action("void")} lang={lang} label={t("Anular factura","Void invoice")} confirmText={t("¿Anular esta factura? El historial se conserva.","Void this invoice? History is retained.")}><input type="hidden" name="id" value={x.id}/>{reason()}</CoreForm>:<p>{x.void_reason}</p>}</li>)}</ul>
     </section>
     <section className={s.panel} aria-label={t("Conciliación de pagos","Payment reconciliation")}><h2>{t("Conciliación de pagos","Payment reconciliation")}</h2>

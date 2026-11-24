@@ -8,11 +8,15 @@ import { getLang } from "@/lib/i18n-server";
 import { pick, formatDate } from "@/lib/i18n";
 import { run } from "@/lib/os/data";
 import { money } from "@/lib/sales/domain";
-import { QUOTE_TRANSITIONS, NOTE_REQUIRED, REVISABLE, acceptanceBlockers, isQuoteContent, quoteFileName, type QuoteContent, type QuoteStatus } from "@/lib/quotes/model";
+import { QUOTE_TRANSITIONS, NOTE_REQUIRED, REVISABLE, acceptanceBlockers, isQuoteContent, missingVariableTerms, quoteFileName, type QuoteContent, type QuoteStatus } from "@/lib/quotes/model";
+import { VARIABLE_FIELD_LABEL } from "@/lib/sales/quote-close";
 import { ERROR_TEXT, OK_TEXT, STATUS_LABEL, STATUS_TONE, TRANSITION_UI } from "@/lib/quotes/text";
 import { ReviewBeforeDownload } from "@/components/quotes/review-download";
-import { transitionQuote } from "../actions";
+import { deleteQuote, transitionQuote } from "../actions";
+import { DeleteQuoteButton } from "@/components/quotes/delete-quote";
+import { quoteSoftDeleteReady } from "@/lib/quotes/soft-delete";
 import { QuoteUnavailable } from "@/components/quotes/unavailable";
+import { QuoteClosePanel } from "@/components/sales/quote-close-panel";
 import s from "@/components/sales/sales.module.css";
 import w from "@/components/quotes/quotes.module.css";
 
@@ -35,6 +39,10 @@ export default async function QuoteDetail({ params, searchParams }: { params: Pr
   if (quoteR.error) return <Suite active="crm"><div className={s.hud}><QuoteUnavailable lang={lang} code={quoteR.error} /></div></Suite>;
   const quote = quoteR.data;
   if (!quote) notFound();
+  // Logical deletion (migration 20261124110000): optional; a deleted quote is shown read-only with a clear banner.
+  const canDelete = await quoteSoftDeleteReady(supabase);
+  const deletedR = canDelete ? await supabase.from("crm_quotes").select("deleted_at,delete_reason").eq("id", quote.id).maybeSingle() : null;
+  const deleted = (deletedR?.data as { deleted_at: string | null; delete_reason: string } | null)?.deleted_at ? deletedR!.data as { deleted_at: string; delete_reason: string } : null;
   // A prospect registered as a client after the quote was issued is resolved through its opportunity.
   if (!quote.client_id) {
     const linked = await run<{ id: string; legal_name: string } | null>(supabase.from("crm_clients").select("id,legal_name").eq("origin_lead_id", quote.lead_id).neq("status", "archived").limit(1).maybeSingle());
@@ -71,7 +79,14 @@ export default async function QuoteDetail({ params, searchParams }: { params: Pr
       actions={<>
         {REVISABLE.includes(quote.status) && <Link className={`${s.button} ${s.primary}`} href={`/admin/workspace/crm/quotes/${id}/edit`}>{pick(lang, "Editar (nueva revisión)", "Edit (new revision)")}</Link>}
         <Link className={s.button} href={`/admin/workspace/crm/quotes/new?lead=${quote.lead_id}`}>{pick(lang, "Nueva cotización", "New quote")}</Link>
+        <a className={`${s.button} ${quote.status === "accepted" ? s.primary : ""}`} href="#close-sale">{pick(lang, "Cerrar venta", "Close sale")}</a>
+        {downloadable && <a className={s.button} href={pdf(quote.current_version, true)} target="_blank" rel="noopener">{pick(lang, "Imprimir", "Print")}</a>}
+        {canDelete && !deleted && quote.status !== "accepted" && <DeleteQuoteButton className={s.button} lang={lang} action={deleteQuote} quote={{ id: quote.id, version: quote.version,
+          number: quote.quote_number, client: quote.crm_clients?.legal_name ?? quote.crm_leads?.company ?? "—", date: formatDate(lang, quote.created_at),
+          total: cur ? `${money(lang, cur.one_time_total)} + ${money(lang, cur.monthly_total)}/${pick(lang, "mes", "mo")}${cur.commission_status === "proposed" ? ` + ${cur.commission_pct}%` : ""}` : "—",
+          status: pick(lang, ...STATUS_LABEL[quote.status]) }} />}
       </>} />
+    {deleted && <p className={s.flash} data-tone="warn" role="status" data-quote-deleted>{pick(lang, "Cotización eliminada (archivada) el", "Quote deleted (archived) on")} {formatDate(lang, deleted.deleted_at)}{deleted.delete_reason ? ` — ${deleted.delete_reason}` : ""}. {pick(lang, "Se conserva solo para consulta y auditoría.", "Kept for reference and audit only.")}</p>}
     {ok && <p className={s.flash} data-tone="ok" role="status">{pick(lang, ...ok)}</p>}
     {err && <p className={s.flash} data-tone="error" role="alert">{pick(lang, ...err)}</p>}
 
@@ -84,6 +99,7 @@ export default async function QuoteDetail({ params, searchParams }: { params: Pr
       <div className={s.stat}><span>{pick(lang, "Válida hasta", "Valid until")}</span><strong>{formatDate(lang, quote.valid_until)}</strong></div>
     </section>
 
+    {content && <QuoteClosePanel db={supabase} lang={lang} quote={quote} content={content} closeError={q(p, "close_error")} />}
     {quote.status === "accepted" && <section className={s.panel} aria-labelledby="next-contract">
       <header><h2 id="next-contract">{pick(lang, "Siguiente paso: contrato", "Next step: agreement")}</h2></header>
       {contracts.length > 0 && <p className={s.flash} data-tone="ok">{pick(lang, "Ya existe un borrador de contrato basado en esta cotización.", "An agreement draft based on this quote already exists.")}{" "}
@@ -99,11 +115,14 @@ export default async function QuoteDetail({ params, searchParams }: { params: Pr
       {QUOTE_TRANSITIONS[quote.status].length === 0 ? <p className={s.muted}>{pick(lang, "Estado final: esta cotización ya no cambia. Para nuevas condiciones crea una nueva cotización.", "Final state: this quote no longer changes. For new terms create a new quote.")}</p> :
         <div className={w.actionsGrid}>{QUOTE_TRANSITIONS[quote.status].map(to => {
           const ui = TRANSITION_UI[to]; if (!ui) return null;
-          const blocked = to === "accepted" && (blockers.length > 0 || quote.valid_until < today);
+          const incomplete = blockers.includes("variable_terms_incomplete") && ["approved", "sent", "accepted"].includes(to);
+          const blocked = incomplete || (to === "accepted" && (blockers.length > 0 || quote.valid_until < today));
           return <form key={to} action={transitionQuote}>
             <input type="hidden" name="quote_id" value={id} /><input type="hidden" name="expected_version" value={quote.version} /><input type="hidden" name="to" value={to} />
             {NOTE_REQUIRED.includes(to) && ui.note && <label className={s.field}>{pick(lang, ...ui.note)}<textarea name="note" required minLength={8} maxLength={1000} rows={2} /></label>}
-            {blocked && <small className={w.hint}>{blockers.includes("commission_to_negotiate") ? pick(lang, ...ERROR_TEXT.quote_commission_to_negotiate) : pick(lang, ...ERROR_TEXT.quote_expired)}</small>}
+            {blocked && <small className={w.hint} data-blocked-transition={to}>{incomplete && content?.commission
+              ? `${pick(lang, ...ERROR_TEXT.quote_variable_terms_incomplete)} ${missingVariableTerms(content.commission).map(f => pick(lang, ...VARIABLE_FIELD_LABEL[f])).join(" · ")}`
+              : blockers.includes("commission_to_negotiate") ? pick(lang, ...ERROR_TEXT.quote_commission_to_negotiate) : pick(lang, ...ERROR_TEXT.quote_expired)}</small>}
             <button type="submit" className={`${s.button} ${to === "accepted" || to === "approved" ? s.primary : ""}`} disabled={blocked}>{pick(lang, ...ui.label)}</button>
           </form>;
         })}</div>}

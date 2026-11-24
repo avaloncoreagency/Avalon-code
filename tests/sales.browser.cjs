@@ -113,7 +113,9 @@ test('Nova Restaurant through the real app: one form, three departments, no dupl
   };
   const page = await context(miguel);
   await page.goto(origin + '/admin/workspace/crm/sales/new');
-  await page.getByRole('heading', { name: 'Registrar venta' }).waitFor();
+  await page.getByRole('heading', { name: 'Nueva venta' }).waitFor();
+  await page.getByRole('heading', { name: 'Crear venta desde cotización' }).waitFor();
+  await page.getByText('Registro manual — solo ventas históricas o excepciones autorizadas').click();
   await page.getByLabel('Cliente nuevo').check();
   await page.getByLabel('Nombre de empresa *').fill('Nova Restaurant');
   await page.getByLabel('Industria').fill('Restaurantes');
@@ -143,6 +145,8 @@ test('Nova Restaurant through the real app: one form, three departments, no dupl
 
   // Re-submitting the same form (browser back + resubmit) must replay, not duplicate.
   await page.goBack();
+  // The manual record is collapsed by default in the Sales Center (quotes are the main path); reopen it.
+  if (await page.locator('details[data-manual-sale]').getAttribute('open') === null) await page.getByText('Registro manual — solo ventas históricas o excepciones autorizadas').click();
   await page.getByRole('button', { name: 'Confirmar venta e iniciar trabajo' }).waitFor();
   const one = async (sql, params) => { await db.exec('reset role;'); return (await db.query(sql, params)).rows[0]; };
   const count = async sql => { await db.exec('reset role;'); return Number((await db.query(sql)).rows[0].n); };
@@ -154,6 +158,7 @@ test('Nova Restaurant through the real app: one form, three departments, no dupl
 
   // A fresh form for the same company is rejected as an existing client (no duplicate).
   await page.goto(origin + '/admin/workspace/crm/sales/new');
+  await page.getByText('Registro manual — solo ventas históricas o excepciones autorizadas').click();
   await page.getByLabel('Cliente nuevo').check();
   await page.getByLabel('Nombre de empresa *').fill('nova restaurant');
   await page.locator('select[name="line_0_service"]').selectOption('desarrollo-web');
@@ -184,6 +189,24 @@ test('Nova Restaurant through the real app: one form, three departments, no dupl
   await page.waitForURL(origin + '/admin/workspace/crm/sales?client=' + clientId);
   await page.getByRole('heading', { name: 'Ventas registradas' }).waitFor();
   assert.match(await page.locator('#main').innerText(), /Mostrando únicamente ventas vinculadas a/);
+  // Sales Pro inherits Quotes' server-side status filters and preserves the
+  // canonical client scope across contract, delivery and pagination.
+  await Promise.all([
+    page.waitForURL(url => url.pathname.endsWith('/sales') && url.searchParams.get('contract') === 'pending_signature'),
+    page.getByRole('navigation', { name: 'Filtrar ventas por contrato' })
+      .getByRole('link', { name: 'Por firmar' }).click(),
+  ]);
+  assert.equal(new URL(page.url()).searchParams.get('client'), clientId);
+  assert.equal(new URL(page.url()).searchParams.get('contract'), 'pending_signature');
+  await Promise.all([
+    page.waitForURL(url => url.pathname.endsWith('/sales') && url.searchParams.get('delivery') === 'not_started'),
+    page.getByRole('navigation', { name: 'Filtrar ventas por entrega' })
+      .getByRole('link', { name: 'Sin iniciar' }).click(),
+  ]);
+  assert.equal(new URL(page.url()).searchParams.get('client'), clientId);
+  assert.equal(new URL(page.url()).searchParams.get('contract'), 'pending_signature');
+  assert.equal(new URL(page.url()).searchParams.get('delivery'), 'not_started');
+  assert.match(await page.locator('#main').innerText(), /Nova Restaurant/, 'filtered Sales list retains its recorded client');
   await page.goto(`${origin}/admin/workspace/crm/clients/${clientId}`);
   await page.getByRole('heading', { name: 'Proyectos por departamento' }).waitFor();
   // Avalon Contracts: actual Next.js Client 360 + Server Action + isolated PostgreSQL + private PDF.

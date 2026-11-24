@@ -1,0 +1,171 @@
+/**
+ * Contracted payment preferences, not collected money and not a lending engine.
+ * Versioned data is carried in crm_sales.notes until a separately reviewed
+ * migration can normalize it. No bank/card details, APR or automatic charges.
+ */
+export const SALE_PAYMENT_METHODS = [
+  "bank_transfer", "ach", "card", "cash", "check", "wire", "zelle", "paypal", "payment_link", "other",
+] as const;
+export const SALE_PAYMENT_SCHEDULES = [
+  "to_agree", "full", "deposit_balance", "milestones", "installments", "subscription", "external_financing",
+] as const;
+export const SALE_PAYMENT_FREQUENCIES = ["weekly", "biweekly", "monthly"] as const;
+export type SalePaymentMethod = typeof SALE_PAYMENT_METHODS[number];
+export type SalePaymentSchedule = typeof SALE_PAYMENT_SCHEDULES[number];
+export type SalePaymentFrequency = typeof SALE_PAYMENT_FREQUENCIES[number];
+
+export type SalePaymentTerms = {
+  version: 1;
+  method: SalePaymentMethod;
+  schedule: SalePaymentSchedule;
+  installments: number;
+  frequency: SalePaymentFrequency;
+  firstDue: string;
+  netDays: number;
+  milestones: string;
+  externalProvider: string;
+  notes: string;
+  /** Every channel the client may pay with (split payments allowed). Absent on older sales → only `method`. */
+  accepted?: SalePaymentMethod[];
+};
+
+export const DEFAULT_SALE_PAYMENT_TERMS: SalePaymentTerms = {
+  version: 1, method: "other", schedule: "to_agree", installments: 3,
+  frequency: "monthly", firstDue: "", netDays: 0, milestones: "",
+  externalProvider: "", notes: "",
+};
+
+export const SALE_TERMS_MARKER = "\n\n[AVALON_SALE_PAYMENT_TERMS_V1]\n";
+const DATE = /^\d{4}-\d{2}-\d{2}$/;
+const included = (items: readonly string[], value: unknown): value is string =>
+  typeof value === "string" && items.includes(value);
+const clean = (value: unknown, max: number): string => {
+  if (typeof value !== "string" || value.length > max || /[\u0000-\u0008\u000b\u000c\u000e-\u001f]/.test(value)) throw Error("sale_invalid_payment_terms");
+  return value.trim();
+};
+const actualDate = (value: string) => DATE.test(value) && !Number.isNaN(Date.parse(value + "T00:00:00Z"))
+  && new Date(value + "T00:00:00Z").toISOString().slice(0, 10) === value;
+
+/** Strictly reject tampered client JSON, unexpected fields and incomplete financing proposals. */
+export function validateSalePaymentTerms(value: unknown): SalePaymentTerms {
+  if (!value || typeof value !== "object" || Array.isArray(value)) throw Error("sale_invalid_payment_terms");
+  const o = value as Record<string, unknown>;
+  const allowed = new Set(["version", "method", "schedule", "installments", "frequency", "firstDue", "netDays", "milestones", "externalProvider", "notes", "accepted"]);
+  if (o.accepted !== undefined && (!Array.isArray(o.accepted) || o.accepted.length < 1 || o.accepted.length > SALE_PAYMENT_METHODS.length
+    || o.accepted.some(m => !included(SALE_PAYMENT_METHODS, m)) || new Set(o.accepted).size !== o.accepted.length)) throw Error("sale_invalid_payment_terms");
+  if (Object.keys(o).some(k => !allowed.has(k)) || o.version !== 1
+    || !included(SALE_PAYMENT_METHODS, o.method) || !included(SALE_PAYMENT_SCHEDULES, o.schedule)
+    || !included(SALE_PAYMENT_FREQUENCIES, o.frequency)
+    || typeof o.installments !== "number" || !Number.isInteger(o.installments) || o.installments < 2 || o.installments > 36
+    || typeof o.netDays !== "number" || !Number.isInteger(o.netDays) || o.netDays < 0 || o.netDays > 365)
+    throw Error("sale_invalid_payment_terms");
+  const firstDue = clean(o.firstDue, 10);
+  const milestones = clean(o.milestones, 700);
+  const externalProvider = clean(o.externalProvider, 120);
+  const notes = clean(o.notes, 700);
+  if (firstDue && !actualDate(firstDue)) throw Error("sale_invalid_payment_terms");
+  if (o.schedule === "installments" && !firstDue) throw Error("sale_invalid_payment_terms");
+  if (o.schedule === "milestones" && milestones.length < 8) throw Error("sale_invalid_payment_terms");
+  // Third-party financing is ONLY a pending, external proposal. No lending or payments are activated here.
+  if (o.schedule === "external_financing" && !externalProvider) throw Error("sale_invalid_payment_terms");
+  return {
+    version: 1, method: o.method as SalePaymentMethod, schedule: o.schedule as SalePaymentSchedule,
+    installments: o.installments as number, frequency: o.frequency as SalePaymentFrequency,
+    firstDue, netDays: o.netDays as number, milestones, externalProvider, notes,
+    // The preferred method is always one of the accepted ones.
+    ...(o.accepted === undefined ? {} : { accepted: [...new Set([o.method as SalePaymentMethod, ...(o.accepted as SalePaymentMethod[])])] }),
+  };
+}
+
+/** Accepted channels of a sale (older sales: just the preferred one). */
+export const acceptedSaleMethods = (terms: SalePaymentTerms | null): SalePaymentMethod[] => !terms ? [] : terms.accepted ?? [terms.method];
+
+export function encodeSalePaymentTerms(terms: SalePaymentTerms): string {
+  return JSON.stringify(validateSalePaymentTerms(terms));
+}
+
+/** Preserve the existing RPC signature and old sales; never overwrite internal notes. */
+export function attachSalePaymentTerms(notes: string, terms: SalePaymentTerms): string {
+  if (notes.includes(SALE_TERMS_MARKER)) throw Error("sale_invalid_payment_terms");
+  const result = notes.trim() + SALE_TERMS_MARKER + encodeSalePaymentTerms(terms);
+  if (result.length > 4000) throw Error("sale_too_long");
+  return result;
+}
+
+/** A legacy record or malformed historical suffix is displayed untouched. */
+export function readSalePaymentTerms(notes: string | null | undefined): {
+  notes: string; terms: SalePaymentTerms | null;
+} {
+  const text = notes ?? "";
+  const at = text.lastIndexOf(SALE_TERMS_MARKER);
+  if (at === -1) return { notes: text, terms: null };
+  try {
+    const terms = validateSalePaymentTerms(JSON.parse(text.slice(at + SALE_TERMS_MARKER.length)));
+    return { notes: text.slice(0, at).trim(), terms };
+  } catch {
+    return { notes: text, terms: null };
+  }
+}
+
+export const salePaymentMethodLabel = (method: SalePaymentMethod, lang: "es" | "en") => ({
+  bank_transfer: ["Transferencia bancaria", "Bank transfer"], ach: ["ACH", "ACH"],
+  card: ["Tarjeta", "Card"], cash: ["Efectivo", "Cash"], check: ["Cheque", "Check"],
+  wire: ["Transferencia wire", "Wire transfer"], zelle: ["Zelle (registrado manualmente)", "Zelle (manual receipt)"], paypal: ["PayPal (registrado manualmente)", "PayPal (manual receipt)"], payment_link: ["Enlace de pago", "Payment link"],
+  other: ["Otro (acordar)", "Other (to be agreed)"],
+})[method][lang === "es" ? 0 : 1];
+
+export const salePaymentScheduleLabel = (schedule: SalePaymentSchedule, lang: "es" | "en") => ({
+  to_agree: ["Pendiente de acordar", "To be agreed"], full: ["Pago completo", "Pay in full"], deposit_balance: ["Anticipo y saldo", "Deposit and balance"],
+  milestones: ["Pagos por hitos", "Milestone payments"], installments: ["Cuotas sin interés (propuesta)", "Interest-free installments (proposal)"],
+  subscription: ["Mensualidades", "Subscription / recurring"], external_financing: ["Financiación externa pendiente", "External financing pending"],
+})[schedule][lang === "es" ? 0 : 1];
+
+/** Preview is illustrative only; the contracted total and payments remain database-authoritative. */
+export function installmentPreview(total: number, upfront: number, count: number): {
+  remaining: number; regular: number; final: number;
+} | null {
+  if (!Number.isFinite(total) || !Number.isFinite(upfront) || total < 0 || upfront < 0
+    || upfront > total || !Number.isInteger(count) || count < 2 || count > 36) return null;
+  const remainingCents = Math.round(total * 100) - Math.round(upfront * 100);
+  const base = Math.floor(remainingCents / count);
+  return { remaining: remainingCents / 100, regular: base / 100,
+    final: (remainingCents - base * (count - 1)) / 100 };
+}
+
+/**
+ * A read-only indicative schedule for the SALE'S one-time balance.
+ * No accounts receivable, invoice, credit, charge, due status or payment is created.
+ * Recompute using the signed contract before presenting to a client.
+ * Dates use UTC calendar arithmetic so local DST cannot shift due dates.
+ */
+export type ScheduledInstallment = {
+  number: number;
+  dueOn: string;
+  amount: number;
+};
+export function installmentSchedule(total: number, upfront: number, terms: SalePaymentTerms): ScheduledInstallment[] | null {
+  if (terms.schedule !== "installments" || !actualDate(terms.firstDue)) return null;
+  const estimate = installmentPreview(total, upfront, terms.installments);
+  if (!estimate) return null;
+  const [year, month, day] = terms.firstDue.split("-").map(Number);
+  const first = new Date(Date.UTC(year, month - 1, day));
+  const rows: ScheduledInstallment[] = [];
+  for (let i = 0; i < terms.installments; i++) {
+    let due: Date;
+    if (terms.frequency === "monthly") {
+      const firstDay = new Date(Date.UTC(year, month - 1 + i, 1));
+      const maxDay = new Date(Date.UTC(firstDay.getUTCFullYear(), firstDay.getUTCMonth() + 1, 0)).getUTCDate();
+      due = new Date(Date.UTC(firstDay.getUTCFullYear(), firstDay.getUTCMonth(), Math.min(day, maxDay)));
+    } else {
+      due = new Date(first.getTime() + i * (terms.frequency === "weekly" ? 7 : 14) * 86_400_000);
+    }
+    rows.push({ number: i + 1, dueOn: due.toISOString().slice(0, 10),
+      amount: i === terms.installments - 1 ? estimate.final : estimate.regular });
+  }
+  return rows;
+}
+
+/** Receipt channel → stored crm_payments.method (enum widened in 20261123150000; bank_transfer keeps "transfer"). */
+export function paymentChannelToStoredMethod(channel: SalePaymentMethod): "transfer" | "ach" | "wire" | "zelle" | "check" | "card" | "cash" | "paypal" | "payment_link" | "other" {
+  return channel === "bank_transfer" ? "transfer" : channel;
+}

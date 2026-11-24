@@ -46,9 +46,18 @@ export type QuoteLine = {
   unitPrice: string;
 };
 
+/** What the percentage pays for. Optional for backward compatibility: older quotes are read as revenue_share. */
+export type VariableKind = "revenue_share" | "sale_commission" | "outcome_commission";
+export const VARIABLE_KINDS: VariableKind[] = ["revenue_share", "sale_commission", "outcome_commission"];
+
 export type QuoteCommission = {
   /** "to_negotiate" = no percentage agreed yet. It can be presented, never accepted. */
   status: "proposed" | "to_negotiate";
+  kind?: VariableKind;
+  /** Date the agreement starts counting (YYYY-MM-DD); settlements cannot start earlier. Defaults to the sale date. */
+  effectiveDate?: string;
+  /** Duration of the agreement in months (1–120); empty = until terminated per contract. */
+  durationMonths?: number | null;
   pct: string;
   base: CommissionBase;
   baseNote: string;
@@ -172,6 +181,9 @@ export function validateQuote(c: QuoteContent): string[] {
     if (typeof cm.evidence !== "string" || !cm.evidence.trim()) errors.push("commission.evidence");
     if (cm.attributionWindowDays !== null && (!Number.isInteger(cm.attributionWindowDays) || cm.attributionWindowDays < 1 || cm.attributionWindowDays > 730)) errors.push("commission.attributionWindowDays");
     if (!SETTLEMENTS.includes(cm.settlement)) errors.push("commission.settlement");
+    if (cm.kind !== undefined && !VARIABLE_KINDS.includes(cm.kind)) errors.push("commission.kind");
+    if (cm.effectiveDate !== undefined && cm.effectiveDate !== "" && !DATE.test(cm.effectiveDate)) errors.push("commission.effectiveDate");
+    if (cm.durationMonths !== undefined && cm.durationMonths !== null && (!Number.isInteger(cm.durationMonths) || cm.durationMonths < 1 || cm.durationMonths > 120)) errors.push("commission.durationMonths");
     for (const k of ["baseNote", "exclusions", "refunds", "expiry"] as const) if (typeof cm[k] !== "string" || cm[k].length > 2000) errors.push("commission." + k);
   }
 
@@ -216,6 +228,9 @@ export function clientSafe(c: QuoteContent): QuoteContent {
     lines: c.lines.map(l => ({ code: l.code, name: l.name.trim(), description: l.description.trim(), kind: l.kind, qty: l.qty, unitPrice: centsToString(toCents(l.unitPrice)) })),
     commission: c.commission ? {
       status: c.commission.status, pct: c.commission.status === "proposed" ? c.commission.pct.trim() : "",
+      ...(c.commission.kind ? { kind: c.commission.kind } : {}),
+      ...(c.commission.effectiveDate ? { effectiveDate: c.commission.effectiveDate } : {}),
+      ...(c.commission.durationMonths ? { durationMonths: c.commission.durationMonths } : {}),
       base: c.commission.base, baseNote: c.commission.baseNote.trim(), trigger: c.commission.trigger.trim(),
       attributionWindowDays: c.commission.attributionWindowDays, evidence: c.commission.evidence.trim(),
       settlement: c.commission.settlement, exclusions: c.commission.exclusions.trim(), refunds: c.commission.refunds.trim(),
@@ -233,10 +248,28 @@ export function canTransition(from: QuoteStatus, to: QuoteStatus) {
   return QUOTE_TRANSITIONS[from]?.includes(to) ?? false;
 }
 
-/** Same rule as the database: a commission still to be negotiated cannot be accepted. */
+/** Avalon standard for EVERY variable agreement (percentage, revenue share, commission, hybrid): these terms are
+ * never inferred. A proposal missing any of them cannot be approved, sent, accepted or closed (DB-enforced). */
+export type VariableField = "kind" | "effectiveDate" | "durationMonths" | "exclusions" | "refunds" | "evidence" | "trigger";
+export function missingVariableTerms(cm: NonNullable<QuoteContent["commission"]>): VariableField[] {
+  const out: VariableField[] = [];
+  const text = (v: string | undefined) => (v ?? "").trim().length >= 3;
+  if (!cm.kind) out.push("kind");
+  if (!cm.effectiveDate) out.push("effectiveDate");
+  if (!cm.durationMonths) out.push("durationMonths");
+  if (!text(cm.exclusions)) out.push("exclusions");
+  if (!text(cm.refunds)) out.push("refunds");
+  if (!text(cm.evidence)) out.push("evidence");
+  if (!text(cm.trigger)) out.push("trigger");
+  return out;
+}
+
+/** Same rules as the database: a commission still to be negotiated, or a proposed variable agreement missing
+ * essential terms, cannot be approved, sent or accepted. */
 export function acceptanceBlockers(c: QuoteContent): string[] {
   const out: string[] = [];
   if (c.commission?.status === "to_negotiate") out.push("commission_to_negotiate");
+  else if (c.commission && missingVariableTerms(c.commission).length) out.push("variable_terms_incomplete");
   return out;
 }
 
