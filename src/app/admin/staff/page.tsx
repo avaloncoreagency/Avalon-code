@@ -75,7 +75,7 @@ export default async function StaffAdministration({searchParams}:{
  const names = new Map(contactsList.map(m=>[m.user_id,m.display_name]));
  return <Suite active="staff"><div className={s.hud}>
    <header className={s.header}><div><p className={s.eyebrow}>AVALON / DIRECCIÓN</p>
-     <h1>Empleados y permisos</h1>
+     <h1>Portal de Agentes</h1>
      <p>Solo Miguel y Samuel como propietarios pueden activar cuentas y asignar clientes.
        Los expedientes privados son visibles aquí; los mensajes privados siguen siendo solo de sus participantes.</p>
    </div><Link className={s.button} href="/admin/workspace/crm/clients">Volver a Clientes 360°</Link></header>
