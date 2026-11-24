@@ -2,7 +2,7 @@
  * "Cerrar venta" readiness (pure). Mirrors crm_quote_close_sale so the person sees every blocker BEFORE pressing the
  * button. The database re-checks everything; this only explains. No prices or percentages are ever derived here.
  */
-import type { QuoteContent, VariableKind } from "@/lib/quotes/model";
+import { missingVariableTerms, type QuoteContent, type VariableField, type VariableKind } from "@/lib/quotes/model";
 
 export type CatalogEntry = { code: string; billing_type: string; active: boolean };
 export type CloseBlocker =
@@ -14,21 +14,7 @@ export type CloseBlocker =
   | { code: "quote_commission_to_negotiate" }
   | { code: "quote_variable_terms_incomplete"; missing: VariableField[] };
 
-/** Essential terms of a variable agreement that are NEVER inferred: an empty field blocks the close until a new
- * revision states it and the client accepts that revision. Mirrors crm_quote_close_sale. */
-export type VariableField = "kind" | "effectiveDate" | "durationMonths" | "exclusions" | "refunds" | "evidence" | "trigger";
-export function missingVariableTerms(cm: NonNullable<QuoteContent["commission"]>): VariableField[] {
-  const out: VariableField[] = [];
-  if (!cm.kind) out.push("kind");
-  if (!cm.effectiveDate) out.push("effectiveDate");
-  if (!cm.durationMonths) out.push("durationMonths");
-  const text = (v: string | undefined) => (v ?? "").trim().length >= 3;
-  if (!text(cm.exclusions)) out.push("exclusions");
-  if (!text(cm.refunds)) out.push("refunds");
-  if (!text(cm.evidence)) out.push("evidence");
-  if (!text(cm.trigger)) out.push("trigger");
-  return out;
-}
+export { missingVariableTerms, type VariableField } from "@/lib/quotes/model";
 export const VARIABLE_FIELD_LABEL: Record<VariableField, [string, string]> = {
   kind: ["Tipo de acuerdo (participación, comisión por venta o por resultado)", "Agreement type (revenue share, per-sale or outcome commission)"],
   effectiveDate: ["Fecha de inicio del acuerdo", "Agreement start date"],

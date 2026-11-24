@@ -7,7 +7,8 @@ import { getLang } from "@/lib/i18n-server";
 import { pick, formatDate } from "@/lib/i18n";
 import { run } from "@/lib/os/data";
 import { money } from "@/lib/sales/domain";
-import { QUOTE_TRANSITIONS, NOTE_REQUIRED, REVISABLE, acceptanceBlockers, isQuoteContent, quoteFileName, type QuoteContent, type QuoteStatus } from "@/lib/quotes/model";
+import { QUOTE_TRANSITIONS, NOTE_REQUIRED, REVISABLE, acceptanceBlockers, isQuoteContent, missingVariableTerms, quoteFileName, type QuoteContent, type QuoteStatus } from "@/lib/quotes/model";
+import { VARIABLE_FIELD_LABEL } from "@/lib/sales/quote-close";
 import { ERROR_TEXT, OK_TEXT, STATUS_LABEL, STATUS_TONE, TRANSITION_UI } from "@/lib/quotes/text";
 import { ReviewBeforeDownload } from "@/components/quotes/review-download";
 import { transitionQuote } from "../actions";
@@ -101,11 +102,14 @@ export default async function QuoteDetail({ params, searchParams }: { params: Pr
       {QUOTE_TRANSITIONS[quote.status].length === 0 ? <p className={s.muted}>{pick(lang, "Estado final: esta cotización ya no cambia. Para nuevas condiciones crea una nueva cotización.", "Final state: this quote no longer changes. For new terms create a new quote.")}</p> :
         <div className={w.actionsGrid}>{QUOTE_TRANSITIONS[quote.status].map(to => {
           const ui = TRANSITION_UI[to]; if (!ui) return null;
-          const blocked = to === "accepted" && (blockers.length > 0 || quote.valid_until < today);
+          const incomplete = blockers.includes("variable_terms_incomplete") && ["approved", "sent", "accepted"].includes(to);
+          const blocked = incomplete || (to === "accepted" && (blockers.length > 0 || quote.valid_until < today));
           return <form key={to} action={transitionQuote}>
             <input type="hidden" name="quote_id" value={id} /><input type="hidden" name="expected_version" value={quote.version} /><input type="hidden" name="to" value={to} />
             {NOTE_REQUIRED.includes(to) && ui.note && <label className={s.field}>{pick(lang, ...ui.note)}<textarea name="note" required minLength={8} maxLength={1000} rows={2} /></label>}
-            {blocked && <small className={w.hint}>{blockers.includes("commission_to_negotiate") ? pick(lang, ...ERROR_TEXT.quote_commission_to_negotiate) : pick(lang, ...ERROR_TEXT.quote_expired)}</small>}
+            {blocked && <small className={w.hint} data-blocked-transition={to}>{incomplete && content?.commission
+              ? `${pick(lang, ...ERROR_TEXT.quote_variable_terms_incomplete)} ${missingVariableTerms(content.commission).map(f => pick(lang, ...VARIABLE_FIELD_LABEL[f])).join(" · ")}`
+              : blockers.includes("commission_to_negotiate") ? pick(lang, ...ERROR_TEXT.quote_commission_to_negotiate) : pick(lang, ...ERROR_TEXT.quote_expired)}</small>}
             <button type="submit" className={`${s.button} ${to === "accepted" || to === "approved" ? s.primary : ""}`} disabled={blocked}>{pick(lang, ...ui.label)}</button>
           </form>;
         })}</div>}

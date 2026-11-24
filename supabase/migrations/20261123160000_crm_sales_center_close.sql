@@ -234,6 +234,27 @@ exception when invalid_text_representation then raise exception 'quote_close_inv
 end $$;
 
 -- ── Settlements ─────────────────────────────────────────────────────────────────────────────────────────────────
+-- Avalon standard for every future variable proposal: approving, sending or accepting a quote whose current
+-- revision has a proposed percentage/commission requires all essential terms (same rule as closing). Drafts can
+-- still be saved incomplete; only moving them forward is blocked.
+create function crm_private.quote_variable_terms_gate() returns trigger
+language plpgsql security invoker set search_path = '' as $$
+declare cm jsonb;
+begin
+  if new.status is not distinct from old.status or new.status not in ('approved', 'sent', 'accepted') then return new; end if;
+  select v.content -> 'commission' into cm from public.crm_quote_versions v where v.quote_id = new.id and v.version_no = new.current_version;
+  if jsonb_typeof(cm) = 'object' and cm ->> 'status' = 'proposed' and (
+       coalesce(cm ->> 'kind', '') = '' or coalesce(cm ->> 'effectiveDate', '') = '' or coalesce(cm ->> 'durationMonths', '') = ''
+    or length(btrim(coalesce(cm ->> 'exclusions', ''))) < 3 or length(btrim(coalesce(cm ->> 'refunds', ''))) < 3
+    or length(btrim(coalesce(cm ->> 'evidence', ''))) < 3 or length(btrim(coalesce(cm ->> 'trigger', ''))) < 3) then
+    raise exception 'quote_variable_terms_incomplete' using errcode = '23514';
+  end if;
+  return new;
+end $$;
+revoke all on function crm_private.quote_variable_terms_gate() from public, anon, authenticated;
+create trigger crm_quote_variable_terms_gate before update of status on public.crm_quotes
+  for each row execute function crm_private.quote_variable_terms_gate();
+
 create function public.crm_sale_settlement_record(request jsonb) returns jsonb
 language plpgsql security definer set search_path = '' as $$
 declare vt public.crm_sale_variable_terms; s public.crm_sales; st public.crm_sale_settlements; v_key uuid; v_base numeric; v_excl numeric;

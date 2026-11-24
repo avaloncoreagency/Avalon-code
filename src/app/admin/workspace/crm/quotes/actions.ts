@@ -12,7 +12,7 @@ const BASE = "/admin/workspace/crm/quotes";
 /** Only these database error codes are echoed back to the URL; anything else becomes "save". */
 const KNOWN = new Set([
   "crm_forbidden", "quote_lead_missing", "quote_missing", "quote_version_conflict", "quote_not_revisable", "quote_invalid_transition",
-  "quote_note_required", "quote_commission_to_negotiate", "quote_expired", "quote_invalid_model_shape", "quote_invalid_lines",
+  "quote_note_required", "quote_commission_to_negotiate", "quote_variable_terms_incomplete", "quote_expired", "quote_invalid_model_shape", "quote_invalid_lines",
   "quote_invalid_commission", "quote_invalid_dates", "quote_invalid_content",
 ]);
 function dbCode(error: { message?: string; code?: string } | null): string {

@@ -178,10 +178,13 @@ test('Chino case (synthetic copy of the real structure): draft blocked → incom
   const lead = (await one("insert into crm_leads(company,contact,source,owner_id) values('Barbería Sintética QA-33','QA','manual',$1) returning id", [OWNER])).id;
   const draft = (await one('select crm_quote_create($1,$2,$3::jsonb,$4::jsonb,$5) r', [lead, crypto.randomUUID(), JSON.stringify(v2), '{}', sha(v2)])).r;
   await assert.rejects(close(db, draft.quote_id), /quote_not_accepted/);
-  // 2. Even if accepted with a verified contract, the proposal as written lacks essential terms: refused, nothing created.
-  const accepted = await acceptedQuote(db, one, 'Barbería Sintética QA-33 (v2 aceptada)', v2);
-  await assert.rejects(close(db, accepted.quoteId), /quote_variable_terms_incomplete/);
-  assert.equal((await one('select count(*)::int n from crm_sales where quote_id=$1', [accepted.quoteId])).n, 0);
+  // 2. Avalon standard: the proposal as written lacks essential terms, so it cannot even be approved (nor sent or
+  // accepted) — the client never receives an incomplete variable agreement. Nothing is created.
+  await db.query('select crm_quote_transition($1,$2,$3,$4)', [draft.quote_id, 1, 'internal_review', '']);
+  const cur = await one('select version from crm_quotes where id=$1', [draft.quote_id]);
+  await assert.rejects(db.query('select crm_quote_transition($1,$2,$3,$4)', [draft.quote_id, cur.version, 'approved', '']), /quote_variable_terms_incomplete/);
+  assert.equal((await one('select status from crm_quotes where id=$1', [draft.quote_id])).status, 'internal_review');
+  assert.equal((await one('select count(*)::int n from crm_sales where quote_id=$1', [draft.quote_id])).n, 0);
   // 3. A complete revision (stated, not inferred), accepted with evidence, closes into exactly ONE variable sale.
   const v3 = content('Barbería Sintética QA-33 (v3)', { model: 'commission', lines, commission: { ...chino, kind: 'revenue_share', effectiveDate: '2026-11-01', durationMonths: 12,
     exclusions: 'Impuestos, propinas, descuentos y gastos de procesamiento', refunds: 'Se descuentan devoluciones y contracargos del periodo' } });

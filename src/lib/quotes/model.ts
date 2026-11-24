@@ -247,10 +247,28 @@ export function canTransition(from: QuoteStatus, to: QuoteStatus) {
   return QUOTE_TRANSITIONS[from]?.includes(to) ?? false;
 }
 
-/** Same rule as the database: a commission still to be negotiated cannot be accepted. */
+/** Avalon standard for EVERY variable agreement (percentage, revenue share, commission, hybrid): these terms are
+ * never inferred. A proposal missing any of them cannot be approved, sent, accepted or closed (DB-enforced). */
+export type VariableField = "kind" | "effectiveDate" | "durationMonths" | "exclusions" | "refunds" | "evidence" | "trigger";
+export function missingVariableTerms(cm: NonNullable<QuoteContent["commission"]>): VariableField[] {
+  const out: VariableField[] = [];
+  const text = (v: string | undefined) => (v ?? "").trim().length >= 3;
+  if (!cm.kind) out.push("kind");
+  if (!cm.effectiveDate) out.push("effectiveDate");
+  if (!cm.durationMonths) out.push("durationMonths");
+  if (!text(cm.exclusions)) out.push("exclusions");
+  if (!text(cm.refunds)) out.push("refunds");
+  if (!text(cm.evidence)) out.push("evidence");
+  if (!text(cm.trigger)) out.push("trigger");
+  return out;
+}
+
+/** Same rules as the database: a commission still to be negotiated, or a proposed variable agreement missing
+ * essential terms, cannot be approved, sent or accepted. */
 export function acceptanceBlockers(c: QuoteContent): string[] {
   const out: string[] = [];
   if (c.commission?.status === "to_negotiate") out.push("commission_to_negotiate");
+  else if (c.commission && missingVariableTerms(c.commission).length) out.push("variable_terms_incomplete");
   return out;
 }
 

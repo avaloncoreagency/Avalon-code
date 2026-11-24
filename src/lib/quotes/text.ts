@@ -47,6 +47,7 @@ export const ERROR_TEXT: Record<string, Bi> = {
   quote_note_required: ["Escribe una nota de al menos 8 caracteres con la evidencia.", "Write a note of at least 8 characters with the evidence."],
   quote_commission_to_negotiate: ["El porcentaje de comisión sigue por acordar: emite una nueva cotización con el porcentaje acordado y marca esta como reemplazada.", "The commission percentage is still to be agreed: issue a new quote with the agreed percentage and mark this one as superseded."],
   quote_expired: ["La cotización está vencida; no puede aceptarse.", "The quote has expired; it cannot be accepted."],
+  quote_variable_terms_incomplete: ["Estándar Avalon: una propuesta con porcentaje o comisión no se aprueba, envía ni acepta sin todas sus condiciones esenciales. Edita la cotización (nueva revisión) y completa:", "Avalon standard: a percentage or commission proposal cannot be approved, sent or accepted without all its essential terms. Edit the quote (new revision) and complete:"],
   quote_invalid_model_shape: ["Los conceptos no coinciden con el modelo de cobro elegido.", "The items do not match the chosen billing model."],
   quote_invalid_lines: ["Algún concepto tiene precio o cantidad no válidos.", "An item has an invalid price or quantity."],
   quote_invalid_commission: ["Revisa las condiciones de la comisión.", "Check the commission terms."],
