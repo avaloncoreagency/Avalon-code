@@ -7,6 +7,7 @@ export const ONBOARDING_OK: Record<string, Bi> = {
   email_sent: ["Enviado. El proveedor confirmó el ID del mensaje.", "Sent. The provider confirmed the message id."],
   email_recorded: ["Envío manual registrado con su evidencia.", "Manual send recorded with its evidence."], email_cancelled: ["Mensaje cancelado.", "Message cancelled."],
   consent: ["Autorización registrada.", "Consent recorded."], settings: ["Configuración corporativa guardada.", "Corporate settings saved."],
+  accepted: ["Aceptación del cliente registrada.", "Client acceptance recorded."],
 };
 export const ONBOARDING_ERROR: Record<string, Bi> = {
   save: ["No se pudo guardar. Inténtalo de nuevo.", "Could not save. Please try again."], unavailable: ["Datos no disponibles.", "Data unavailable."],
@@ -23,6 +24,10 @@ export const ONBOARDING_ERROR: Record<string, Bi> = {
   onboarding_recipient_invalid: ["Elige un contacto registrado del cliente con email.", "Choose a recorded client contact with an email."],
   onboarding_signer_unknown: ["No se pudo identificar al responsable que firma.", "Could not identify the signing owner."],
   onboarding_no_documents: ["No hay un manual vigente para adjuntar.", "There is no current manual to attach."],
+  manual_contract_not_verified: ["El manual se emite a partir del contrato firmado y verificado: aún no hay uno para este cliente.", "The manual is issued from the signed and verified agreement: there is none yet for this client."],
+  manual_agreement_not_linked: ["El contrato verificado no está vinculado a una versión exacta del acuerdo (Contract Studio → Firma y evidencia).", "The verified contract is not linked to an exact agreement version (Contract Studio → Signature & evidence)."],
+  onboarding_acceptance_blocked: ["La aceptación del cliente requiere una entrega registrada y evidencia (mínimo 10 caracteres).", "Client acceptance needs a recorded delivery and evidence (at least 10 characters)."],
+  onboarding_acceptance_immutable: ["La aceptación del cliente ya está registrada y no se modifica.", "Client acceptance is already recorded and cannot change."],
   outbox_kind_pending: ["Este tipo de mensaje requiere la migración 20261124190000 (pendiente de aplicar).", "This message type requires migration 20261124190000 (not applied yet)."],
   outbox_not_delivered: ["El aviso de entrega requiere una entrega registrada con URL real.", "The delivery notice requires a recorded delivery with a real URL."],
   outbox_note_required: ["Escribe la nota del mensaje: el avance y la renovación no se redactan solos.", "Write the message note: progress and renewal messages are not auto-written."],

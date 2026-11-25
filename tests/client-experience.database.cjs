@@ -210,3 +210,23 @@ test('Contract Studio (migration 20261124200000): signature record linked to the
   await db.query("update crm_contracts set status='signed_pending_verification', signed_at=now(), signer_name='Firmante QA', external_reference='ENVELOPE-QA-1' where id=$1", [k2]);
   await assert.rejects(db.query('update crm_contracts set agreement_draft_id=$2, agreement_sha256=$3 where id=$1', [k2, dA, 'c'.repeat(64)]), /contract_agreement_too_late/);
 });
+
+test('OPS-001/004 (migration 20261125100000): URL only where it applies; client acceptance distinct, evidenced, immutable; no close without it', { timeout: 240000 }, async t => {
+  const { db, one } = await setup();
+  t.after(() => db.close());
+  const a = await sale(db, one, 'Agencia Sintetica QA', '98000000-0000-4000-8000-000000000001');
+  const b = await sale(db, one, 'Tienda Sintetica QA', '98000000-0000-4000-8000-000000000002');
+  const mk = async (c, type) => (await one(`insert into crm_client_onboardings(client_id,sale_id,product_type,title) values($1,$2,$3,'Servicio QA') returning id`, [c.client, c.sale, type])).id;
+  const mkt = await mk(a, 'marketing'), web = await mk(b, 'website');
+  const deliver = id => db.query("update crm_client_onboardings set stage='delivered', qa_passed=true, delivery_approved_by=$2, delivered_at=now(), delivered_to='Laura QA' where id=$1", [id, OWNER]);
+  await assert.rejects(deliver(web), /crm_client_onboardings_delivery_evidence/, 'website still needs its real URL');
+  await deliver(mkt); // marketing: no invented URL required
+  await assert.rejects(db.query("update crm_client_onboardings set stage='closed' where id=$1", [mkt]), /crm_client_onboardings_closed_needs_acceptance/);
+  await assert.rejects(db.query("update crm_client_onboardings set client_accepted_at=now(), client_acceptance_evidence='ok', client_acceptance_recorded_by=$2 where id=$1", [mkt, OWNER]), /crm_client_onboardings_acceptance_evidence/);
+  await assert.rejects(db.query("update crm_client_onboardings set client_accepted_at=now(), client_acceptance_evidence='Correo del cliente QA 2026-11-25', client_acceptance_recorded_by=$2 where id=$1", [mkt, SECOND]), /onboarding_acceptance_actor/, 'cannot record acceptance in another owner\'s name');
+  await db.query("update crm_client_onboardings set client_accepted_at=now(), client_acceptance_evidence='Correo del cliente QA 2026-11-25', client_acceptance_recorded_by=$2 where id=$1", [mkt, OWNER]);
+  await assert.rejects(db.query("update crm_client_onboardings set client_acceptance_evidence='Texto cambiado despues' where id=$1", [mkt]), /onboarding_acceptance_immutable/);
+  await db.query("update crm_client_onboardings set stage='closed' where id=$1", [mkt]);
+  // Acceptance before any delivery is refused.
+  await assert.rejects(db.query("update crm_client_onboardings set client_accepted_at=now(), client_acceptance_evidence='Correo del cliente QA 2026-11-25', client_acceptance_recorded_by=$2 where id=$1", [web, OWNER]), /crm_client_onboardings_acceptance_evidence/);
+});

@@ -98,10 +98,16 @@ test("onboarding: product checklists, no shortcut to delivered/welcome_sent, del
   const list = model.toggleItem(model.checklistFor("other"), "deliverables", true, "u1", "2026-11-24T00:00:00Z");
   assert.equal(model.progress(list).done, 1);
   assert.throws(() => model.toggleItem(list, "nope", true, "u1", "x"), /onboarding_checklist_unknown/);
-  assert.deepEqual(model.deliveryBlockers({ checklist: list, qaPassed: false, liveUrl: "http://x", manualIssued: false, contractLinked: false, deliveredTo: "" }).sort(),
-    ["checklist_incomplete", "contract_missing", "live_url_missing", "manual_missing", "qa_not_passed", "recipient_missing"]);
+  assert.deepEqual(model.deliveryBlockers({ productType: "website", checklist: list, qaPassed: false, liveUrl: "http://x", manualIssued: false, contractVerified: false, deliveredTo: "" }).sort(),
+    ["checklist_incomplete", "contract_not_verified", "live_url_missing", "manual_missing", "qa_not_passed", "recipient_missing"]);
+  // OPS-001: no URL is invented for services without a public URL; the rest of the gate still applies.
+  assert.ok(!model.deliveryBlockers({ productType: "marketing", checklist: list, qaPassed: false, liveUrl: "", manualIssued: false, contractVerified: false, deliveredTo: "" }).includes("live_url_missing"));
+  assert.ok(model.deliveryBlockers({ productType: "crm", checklist: list, qaPassed: true, liveUrl: "", manualIssued: true, contractVerified: true, deliveredTo: "Laura" }).includes("live_url_missing"));
+  // OPS-004: acceptance needs a recorded delivery and evidence.
+  assert.deepEqual(model.acceptanceBlockers({ deliveredAt: null, evidence: "" }).sort(), ["acceptance_evidence_missing", "not_delivered"]);
+  assert.deepEqual(model.acceptanceBlockers({ deliveredAt: "2026-11-25T00:00:00Z", evidence: "Correo del cliente 2026-11-25" }), []);
   const done = model.checklistFor("other").map(i => ({ ...i, done: true }));
-  assert.deepEqual(model.deliveryBlockers({ checklist: done, qaPassed: true, liveUrl: "https://client.example", manualIssued: true, contractLinked: true, deliveredTo: "Laura" }), []);
+  assert.deepEqual(model.deliveryBlockers({ productType: "website", checklist: done, qaPassed: true, liveUrl: "https://client.example", manualIssued: true, contractVerified: true, deliveredTo: "Laura" }), []);
   assert.deepEqual(model.readChecklist([{ key: "a", label: ["A", "A"], done: true }, { bad: 1 }, "x"]).length, 1, "tolerant reader drops malformed items");
 });
 
@@ -249,4 +255,39 @@ test("document identity: manuals render in the ivory v2 identity; issued v1 manu
   assert.match(v1, /0\.035 0\.067 0\.161 rg/, "v1 keeps its original cover so stored sha256 still verifies");
   assert.match(v1, /Producer \(Avalon OS avalon-manual-1\)/);
   assert.throws(() => manual.renderManualPdf(snap, "avalon-manual-9"), /manual_generator_unknown/);
+});
+
+test("OPS-002/003 wiring: delivery and manuals rely on the verified signature, never on a draft's existence", () => {
+  const actions = fs.readFileSync("src/app/admin/workspace/crm/onboarding/actions.ts", "utf8");
+  const evidence = fs.readFileSync("src/lib/onboarding/evidence-server.ts", "utf8");
+  assert.match(evidence, /eq\("status", "verified_signed"\)/);
+  assert.match(evidence, /import "server-only"/, "not a server action endpoint");
+  assert.doesNotMatch(actions, /contractLinked/);
+  assert.match(actions, /contractVerified: Boolean\(verified\)/);
+  assert.match(actions, /manual_contract_not_verified|signedAgreement/);
+  assert.match(actions, /to === "closed" && !o.client_accepted_at/);
+});
+
+test("document library: department packs integrated verbatim, hashed, and only APPROVED documents are distributable", () => {
+  execFileSync(process.execPath, ["scripts/docs/build-library.cjs", "--check"], { stdio: "pipe" });
+  const lib = load("src/lib/docs/library.ts");
+  const crypto = require("node:crypto");
+  assert.equal(lib.ALL_DOCUMENTS.filter(d => d.pack === "sales").length, 10);
+  assert.equal(lib.ALL_DOCUMENTS.filter(d => d.pack === "client").length, 12);
+  for (const d of lib.ALL_DOCUMENTS) {
+    assert.equal(crypto.createHash("sha256").update(fs.readFileSync(d.source, "utf8")).digest("hex"), d.sha256, `${d.id} content is the repository file`);
+    assert.equal(d.approval, "pending", `${d.id}: nothing is approved by code`);
+  }
+  assert.deepEqual(lib.staffDocuments(), [], "no pending document reaches sellers");
+  assert.deepEqual(lib.clientDocuments("website"), [], "no pending document reaches clients");
+  // Simulated owner approval through the manifest: only that document, only for its audience/service.
+  const doc = lib.documentById("OB-WEB-001");
+  doc.approval = "approved";
+  try {
+    assert.deepEqual(lib.clientDocuments("website").map(d => d.id), ["OB-WEB-001"]);
+    assert.deepEqual(lib.clientDocuments("ecommerce"), []);
+    assert.deepEqual(lib.staffDocuments(), []);
+  } finally { doc.approval = "pending"; }
+  const page = fs.readFileSync("src/app/admin/workspace/crm/documents/page.tsx", "utf8");
+  assert.match(page, /await requireOwner\(\)/, "owner-only library");
 });

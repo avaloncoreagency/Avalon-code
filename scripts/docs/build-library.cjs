@@ -1,0 +1,38 @@
+// Builds src/lib/docs/library.generated.json from the department manifests (single source of truth):
+//   docs/sales-enablement/manifest.json            (AVL-SALES-TEAM-001 · staff / sellers)
+//   docs/client-operations/welcome-delivery-v1/manifest.json   (AVL-OPS-CLIENT-001 · clients)
+// Content is copied verbatim with its sha256 so the app can show, version and gate documents without reading the
+// repository at runtime. Approval comes ONLY from the manifests (changed through a reviewed PR by the owners).
+// Run: node scripts/docs/build-library.cjs [--check]
+const fs = require("fs"), crypto = require("crypto");
+const TARGET = "src/lib/docs/library.generated.json";
+const sha = s => crypto.createHash("sha256").update(s).digest("hex");
+const approval = v => /^(APPROVED|OWNER_APPROVED)$/i.test(String(v ?? "")) ? "approved" : "pending";
+const langs = l => [...new Set((Array.isArray(l) ? l : [l]).map(x => String(x).slice(0, 2).toLowerCase()).filter(x => x === "es" || x === "en"))];
+const read = p => { const s = fs.readFileSync(p, "utf8"); return { content: s, sha256: sha(s) }; };
+const title = (content, fallback) => (/^#\s+(.+)$/m.exec(content)?.[1] ?? fallback).replace(/[*_`]/g, "").trim().slice(0, 160);
+
+const sales = JSON.parse(fs.readFileSync("docs/sales-enablement/manifest.json", "utf8"));
+const client = JSON.parse(fs.readFileSync("docs/client-operations/welcome-delivery-v1/manifest.json", "utf8"));
+const docs = [];
+for (const d of sales.documents) {
+  const f = read(d.source_path);
+  docs.push({ id: d.document_id, pack: "sales", audience: "staff", category: "sales_enablement", service: "all", version: String(d.version),
+    languages: langs(d.language), approval: approval(d.approval_status), approvalLabel: String(d.approval_status), source: d.source_path,
+    title: title(f.content, d.document_id), sha256: f.sha256, content: f.content });
+}
+for (const d of client.docs) {
+  const f = read(d.path);
+  docs.push({ id: d.id, pack: "client", audience: "client", category: String(d.category), service: String(d.service), version: String(d.version),
+    languages: langs(d.language), approval: approval(d.approval_status), approvalLabel: String(d.approval_status), source: d.path,
+    title: title(f.content, d.id), sha256: f.sha256, content: f.content });
+}
+const ids = new Set(); for (const d of docs) { if (ids.has(d.id)) throw new Error("duplicate document id " + d.id); ids.add(d.id); }
+const out = JSON.stringify({ schema: "avalon-document-library-v1", packs: {
+  sales: { manifest: sales.manifest_id, version: sales.package_version, state: sales.package_state },
+  client: { manifest: client.mission, version: client.version, state: client.status } }, documents: docs }, null, 1) + "\n";
+if (process.argv.includes("--check")) {
+  const cur = fs.existsSync(TARGET) ? fs.readFileSync(TARGET, "utf8") : "";
+  if (cur !== out) { console.error(`${TARGET} is out of date: run node scripts/docs/build-library.cjs`); process.exit(1); }
+  console.log(`${TARGET} up to date (${docs.length} documents)`);
+} else { fs.writeFileSync(TARGET, out); console.log(`wrote ${TARGET} (${docs.length} documents)`); }
