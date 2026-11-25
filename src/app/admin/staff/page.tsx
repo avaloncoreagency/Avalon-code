@@ -19,7 +19,7 @@ type LeadGrant = { user_id:string; lead_id:string; access_level:string; active:b
 type LeadOption = { id:string; company:string };
 type Grant = { user_id:string; client_id:string; client_name:string; access_level:string; active:boolean };
 type Client = { id:string; legal_name:string };
-type Contact = { user_id:string; display_name:string };
+type Contact = { user_id:string; display_name:string; is_listed:boolean };
 type Casefile = { id:string; user_id:string; title:string; contact_name:string; notes:string; status:string; updated_at:string };
 type Message = { id:string;sender_id:string;recipient_id:string;body:string;created_at:string;read_at:string|null };
 type AuditEvent = { id:number;actor_id:string;user_id:string;action:string;client_id:string|null;recorded_at:string };
@@ -58,7 +58,7 @@ export default async function StaffAdministration({searchParams}:{
      .order("legal_name").limit(300),
    supabase.from("staff_casefiles").select("id,user_id,title,contact_name,notes,status,updated_at")
      .order("updated_at",{ascending:false}).limit(100),
-   supabase.from("staff_contacts").select("user_id,display_name").eq("is_listed",true).order("display_name"),
+   supabase.from("staff_contacts").select("user_id,display_name,is_listed").order("display_name"),
    supabase.from("staff_private_messages").select("id,sender_id,recipient_id,body,created_at,read_at")
      .order("created_at",{ascending:false}).limit(100),
    supabase.from("staff_permission_events").select("id,actor_id,user_id,action,client_id,recorded_at")
@@ -85,9 +85,16 @@ export default async function StaffAdministration({searchParams}:{
  const options=(clients.data ?? []) as Client[], f=(casefiles.data ?? []) as Casefile[];
  const contactsList=(contacts.data ?? []) as Contact[], mail=(messages.data ?? []) as Message[];
  const events=(audit.data ?? []) as AuditEvent[];
- const memberName = (member: StaffMember) => personDisplayName(member, "Empleado");
+ const contactNames = new Map(contactsList.map(contact => [contact.user_id, contact.display_name]));
+ const listedContacts = contactsList.filter(contact => contact.is_listed);
+ // The permissions form saves the operator's visible name in staff_contacts.
+ const memberName = (member: StaffMember, fallback = "Empleado") => {
+   const contactName = member.role === "operator" ? contactNames.get(member.user_id) : undefined;
+   const label = contactName ? personDisplayName({ ...member, display_name: contactName }, "") : "";
+   return label || personDisplayName(member, fallback);
+ };
  const display = new Map(((roster.data ?? []) as StaffMember[]).map(m=>[m.user_id,memberName(m)]));
- const names = new Map(contactsList.map(m=>[m.user_id,m.display_name]));
+ const names = new Map(listedContacts.map(m=>[m.user_id,m.display_name]));
  return <Suite active="staff"><div className={s.hud}>
    <header className={s.header}><div><p className={s.eyebrow}>AVALON / PORTAL DE AGENTES</p>
      <h1>AGENT PORTAL</h1>
@@ -131,7 +138,7 @@ export default async function StaffAdministration({searchParams}:{
           <form action={setStaffAccess} className={s.form}>
             <input name="employee_id" type="hidden" value={m.user_id}/>
             <label className={s.field}>Nombre visible a compañeros
-              <input name="display_name" defaultValue={personDisplayName(m, "")} maxLength={80} required />
+              <input name="display_name" defaultValue={memberName(m, "")} maxLength={80} required />
             </label>
             <label className={s.field}>Acceso al portal <select name="active" defaultValue={current?.active?"yes":"no"}>
               <option value="no">Revocado / inactivo</option><option value="yes">Activo</option>
@@ -270,7 +277,7 @@ export default async function StaffAdministration({searchParams}:{
       <form action={sendStaffMessage} className={s.form}>
         <label className={s.field}>Destinatario <select name="recipient_id" required defaultValue="">
           <option value="" disabled>Seleccionar destinatario</option>
-          {contactsList.filter(c=>c.user_id!==userId).map(c=><option key={c.user_id} value={c.user_id}>{c.display_name}</option>)}
+          {listedContacts.filter(c=>c.user_id!==userId).map(c=><option key={c.user_id} value={c.user_id}>{c.display_name}</option>)}
         </select></label>
         <label className={s.field}>Mensaje <textarea name="body" required maxLength={4000} rows={3}/></label>
         <button className={s.button}>Enviar mensaje privado</button>
