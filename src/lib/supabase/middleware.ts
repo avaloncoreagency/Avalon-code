@@ -63,7 +63,7 @@ export async function updateSession(request: NextRequest) {
     if (owner.state === "ok") return go("/admin/dashboard");
     if (owner.state === "mfa") return go("/admin/mfa");
     if (staff.state === "mfa") return path === "/staff/mfa" ? finish(response) : go("/staff/mfa");
-    if (staff.state === "ok") return path === "/staff/mfa" ? go("/staff") : finish(response);
+    if (staff.state === "ok") return finish(response);
     return go("/admin/login");
   }
   // Second-factor step: only for a verified owner whose session is still AAL1.
