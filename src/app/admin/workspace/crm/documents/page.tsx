@@ -44,6 +44,7 @@ export default async function DocumentLibrary({ searchParams }: { searchParams: 
       <header><h2 id="doc-title">{selected.id} · {selected.title}</h2></header>
       <p className={s.muted}>v{selected.version} · {selected.languages.join("/").toUpperCase()} · {t("Audiencia", "Audience")}: {selected.audience === "staff" ? t("empleados", "staff") : t("clientes", "clients")} · {t("Estado del manifiesto", "Manifest state")}: {selected.approvalLabel}
         <br />{t("Fuente", "Source")}: <code>{selected.source}</code> · sha256 <code>{selected.sha256.slice(0, 16)}…</code></p>
+      <p><a className={s.button} href={`/admin/workspace/crm/documents/${encodeURIComponent(selected.id)}`} download data-library-pdf>{t("Descargar PDF", "Download PDF")}</a></p>
       <pre style={{ whiteSpace: "pre-wrap", overflowWrap: "anywhere", font: "inherit", lineHeight: 1.6, maxHeight: "70vh", overflowY: "auto", margin: 0 }}>{selected.content}</pre>
     </section>}
   </div></Suite>;
