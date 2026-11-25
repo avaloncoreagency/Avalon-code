@@ -27,6 +27,11 @@ const INVITE_FAILURES: Record<string, string> = {
   forbidden: "invite-forbidden",
   unauthorized: "invite-forbidden",
   member_limit: "invite-member-limit",
+  invite_email_failed: "invite-email-failed",
+  invite_email_rate_limit: "invite-email-rate-limit",
+  invite_request_rate_limit: "invite-request-rate-limit",
+  temporarily_unavailable: "invite-unavailable",
+  invalid_request: "invalid",
 };
 
 /** Email invitations are issued by a protected Supabase Edge Function,
@@ -51,8 +56,15 @@ export async function inviteStaffEmployee(form: FormData) {
     if (!error && data?.invited === true && data.requires_owner_activation === true) {
       outcome = data.audited === true ? "invite-sent" : "invite-audit-pending";
     } else if (error?.context instanceof Response) {
-      const failure = await error.context.json();
-      outcome = INVITE_FAILURES[String(failure?.error)] ?? outcome;
+      if (error.context.status === 404) {
+        outcome = "invite-unavailable";
+      } else if (error.context.status === 401) {
+        outcome = "invite-forbidden";
+      } else {
+        const failure = await error.context.json();
+        const code = typeof failure?.error === "string" ? failure.error : "";
+        if (Object.hasOwn(INVITE_FAILURES, code)) outcome = INVITE_FAILURES[code];
+      }
     }
   } catch { /* A lost or malformed response leaves the outcome unconfirmed. */ }
   done(outcome);
