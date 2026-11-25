@@ -12,6 +12,7 @@ const PROPS: (keyof AgreementData)[] = [
   "county", "effectiveDate", "scope", "exclusions", "deliverables", "milestones",
   "acceptance", "revisions", "term", "setupFee", "monthlyFee", "paymentSchedule",
   "adSpend", "commission", "specialTerms", "supportMaintenance", "warrantyPeriod",
+  "paymentModel", "clientResponsibilities", "cancellationTerms",
 ];
 
 export async function createClientAgreement(form: FormData) {
@@ -53,4 +54,31 @@ export async function createClientAgreement(form: FormData) {
   if (error || !data) back(here, { error: error?.code === "42P01" || error?.code === "PGRST205" || error?.code === "PGRST204" ? "schema" : "save" });
   revalidatePath(here);
   back(here, { ok: "created", agreement: data.id });
+}
+
+/**
+ * Contract Studio: tie the signature record (crm_contracts on the client's origin lead, where signature evidence is
+ * recorded and verified) to the EXACT agreement snapshot sent for signature, by id + sha256. Linking does not sign
+ * anything and never changes the contract status; the database refuses a foreign client, a hash mismatch, a late link
+ * (already signed) or re-linking (migration 20261124200000).
+ */
+export async function linkAgreementToContract(form: FormData) {
+  const { supabase } = await ownerForAction();
+  const clientId = uuidField(form, "client_id"), agreementId = uuidField(form, "agreement_id"), contractId = uuidField(form, "contract_id");
+  if (!clientId || !agreementId || !contractId) back(BASE, { error: "invalid" });
+  const here = BASE + "/" + clientId + "/contracts";
+  const draft = await supabase.from("crm_client_agreement_drafts").select("id,client_id,snapshot_sha256").eq("id", agreementId!).maybeSingle();
+  const d = draft.data as { id: string; client_id: string; snapshot_sha256: string } | null;
+  if (!d || d.client_id !== clientId) back(here, { error: "link_invalid", agreement: agreementId! });
+  const r = await supabase.from("crm_contracts").update({ agreement_draft_id: d!.id, agreement_sha256: d!.snapshot_sha256 })
+    .eq("id", contractId!).is("agreement_draft_id", null);
+  if (r.error) {
+    const m = /contract_agreement_[a-z_]+/.exec(r.error.message ?? "")?.[0];
+    back(here, { error: m ?? (/agreement_draft_id/.test(r.error.message ?? "") ? "link_pending" : "link_invalid"), agreement: agreementId! });
+  }
+  // Read back: RLS or a concurrent link can turn the update into a no-op without an error.
+  const check = await supabase.from("crm_contracts").select("agreement_draft_id").eq("id", contractId!).maybeSingle();
+  if ((check.data as { agreement_draft_id: string | null } | null)?.agreement_draft_id !== d!.id) back(here, { error: "link_invalid", agreement: agreementId! });
+  revalidatePath(here);
+  back(here, { ok: "linked", agreement: agreementId! });
 }
