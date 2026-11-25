@@ -50,9 +50,14 @@ test('Staff portal: owners assign, Ana sees only her work, never owners\' privat
 
   const enc = x => Buffer.from(JSON.stringify(x)).toString('base64url'), exp = Math.floor(Date.now() / 1000) + 3600;
   const users = new Map(), cookies = {};
+  // Two-step verification is mandatory for employees: Ana and Pedro have a verified authenticator and an AAL2 session.
+  const employees = new Set([ANA, PEDRO]);
+  for (const id of employees) await db.query("insert into auth.mfa_factors(user_id,status) values($1,'verified')", [id]);
   for (const [id, email] of people) {
-    const user = { id, email, aud: 'authenticated', role: 'authenticated', app_metadata: { provider: 'email' }, user_metadata: {}, identities: [], created_at: '2026-01-01T00:00:00Z' };
-    const token = enc({ alg: 'HS256', typ: 'JWT' }) + '.' + enc({ sub: id, exp, role: 'authenticated', aal: 'aal1' }) + '.' + enc('synthetic-' + id);
+    const enrolled = employees.has(id);
+    const factors = enrolled ? [{ id: crypto.randomUUID(), factor_type: 'totp', status: 'verified', friendly_name: 'QA', created_at: '2026-01-01T00:00:00Z', updated_at: '2026-01-01T00:00:00Z' }] : [];
+    const user = { id, email, aud: 'authenticated', role: 'authenticated', app_metadata: { provider: 'email' }, user_metadata: {}, identities: [], factors, created_at: '2026-01-01T00:00:00Z' };
+    const token = enc({ alg: 'HS256', typ: 'JWT' }) + '.' + enc({ sub: id, exp, role: 'authenticated', aal: enrolled ? 'aal2' : 'aal1', amr: [{ method: enrolled ? 'totp' : 'password', timestamp: exp - 3600 }] }) + '.' + enc('synthetic-' + id);
     users.set(token, user);
     cookies[id] = 'base64-' + Buffer.from(JSON.stringify({ access_token: token, refresh_token: 'synthetic', token_type: 'bearer', expires_in: 3600, expires_at: exp, user })).toString('base64url');
   }
@@ -146,7 +151,7 @@ test('Staff portal: owners assign, Ana sees only her work, never owners\' privat
   assert.equal((await one("select status from staff_work_items where title='Tarea de Samuel QA'")).status, 'done');
   await a.page.screenshot({ path: `${DIR}/ana-portal-1440.png`, fullPage: true });
   await a.page.goto(origin + '/staff/mfa');
-  await a.page.getByRole('button', { name: 'Activar verificación en dos pasos' }).waitFor();
+  await a.page.getByText('Ya tienes un autenticador verificado.').waitFor();
   // Ana cannot open the owners' area.
   await a.page.goto(origin + '/admin/staff');
   assert.ok(!/\/admin\/staff$/.test(new URL(a.page.url()).pathname) || !(await a.page.content()).includes('Asignar tarea o cita'), 'no owner area for an employee');

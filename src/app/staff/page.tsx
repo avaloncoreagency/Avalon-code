@@ -84,7 +84,7 @@ export default async function StaffPortal({ searchParams }: {
     {available && <>
       <nav className={s.inline} aria-label="Secciones del portal" style={{ flexWrap: "wrap", gap: 8, marginBottom: 12 }}>
         {[["dashboard", "Mi dashboard"], ...(seller ? [["seller-leads", "Mis leads"], ["seller-quotes", "Mis propuestas"], ["seller-sales", "Mis ventas"]] : []),
-          ["calendar", "Mi calendario"], ["tasks", "Mis tareas"], ...(seller ? [] : [["staff-leads", "Mis leads"]]), ["staff-assigned", "Mis clientes"],
+          ["calendar", "Mi calendario"], ["tasks", "Mis tareas"], ["staff-leads", seller ? "Leads con acceso" : "Mis leads"], ["staff-assigned", "Mis clientes"],
           ["staff-files", "Mis expedientes"], ["notes", "Mis notas"], ["staff-messages", "Mensajes"], ["staff-commercial", pick(lang, "Mis ventas y comisiones", "My sales and commissions")], ["profile", "Perfil y seguridad"]].map(([id, label]) =>
           <a key={id} className={s.button} href={`#${id}`}>{label}</a>)}
       </nav>
@@ -161,9 +161,10 @@ export default async function StaffPortal({ searchParams }: {
           <span className={s.tag}>{n.visibility === "personal" ? "Personal" : "Trabajo"}</span> {n.body}
           <br /><span className={s.muted}>{new Date(n.created_at).toLocaleString("es", { timeZone: DEFAULT_TZ })}{n.author_id !== userId ? " · de otra persona autorizada" : ""}</span></li>)}</ul>}
       </section>}
-      {!seller && !myLeads.error && <section className={s.panel} aria-labelledby="staff-leads">
-        <h2 id="staff-leads">Mis leads</h2>
-        <p className={s.muted}>Solo los leads que la dirección te asignó. Sin valores, pipeline completo ni finanzas.</p>
+      {!myLeads.error && <section className={s.panel} aria-labelledby="staff-leads">
+        <h2 id="staff-leads">{seller ? "Leads con acceso" : "Mis leads"}</h2>
+        <p className={s.muted}>{seller ? "Todos los leads a los que tienes acceso: los tuyos y los que la dirección compartió contigo para consulta. Solo los tuyos admiten propuestas y cierres."
+          : "Solo los leads que la dirección te asignó. Sin valores, pipeline completo ni finanzas."}</p>
         {leads.length === 0 ? <p>Por ahora no tienes leads asignados.</p> :
           <ul className={s.list}>{leads.map(l => <li key={l.lead_id} data-lead>
             <strong>{l.company}</strong>{l.contact ? ` · ${l.contact}` : ""} · {l.stage}
