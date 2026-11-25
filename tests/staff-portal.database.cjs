@@ -212,3 +212,91 @@ test("staff v1.1: job title is not authorization; seller sees only own granted l
  const anon=(await q("select has_function_privilege('anon','public.staff_my_leads()','execute') x"))[0].x;
  assert.equal(anon,false,"anon cannot call staff_my_leads");
 });
+
+test('enrolled MFA gates direct owner/Staff RLS and lead RPC without changing opt-in policy', {timeout:120000}, async t => {
+ const db = new PGlite(); t.after(()=>db.close());
+ await db.exec(fs.readFileSync('tests/sql/00_supabase_stub.sql','utf8'));
+ await db.query('insert into auth.users(id) values ($1),($2),($3),($4)', [MIGUEL,EMP1,EMP2,OUT]);
+ for (const file of fs.readdirSync('supabase/migrations').filter(f=>f.endsWith('.sql')).sort())
+   await db.exec(fs.readFileSync('supabase/migrations/'+file,'utf8'));
+ await db.query("insert into agency_memberships(user_id,role) values($1,'owner'),($2,'operator'),($3,'operator')", [MIGUEL,EMP1,EMP2]);
+ const as = async (id,aal='aal1') => {
+   await db.exec('reset role');
+   await db.query("select set_config('request.jwt.claims',$1,false)",[JSON.stringify({sub:id,...(aal ? {aal} : {})})]);
+   await db.exec('set role authenticated');
+ };
+ const rows = async sql => (await db.query(sql)).rows;
+ const protectedStaff = ['staff_casefiles','staff_work_items','staff_private_messages'];
+ const assertStaffRows = async count => { for (const table of protectedStaff) assert.equal((await rows('select * from '+table)).length,count,table); };
+ await as(MIGUEL);
+ await db.query("insert into staff_portal_access(user_id,active,can_create_casefiles,can_message) values($1,true,true,true),($2,true,true,true)",[EMP1,EMP2]);
+ const lead = (await db.query("insert into crm_leads(company,contact,source,owner_id) values('MFA QA','Synthetic','QA',$1) returning id",[MIGUEL])).rows[0].id;
+ await db.query("insert into staff_lead_grants(user_id,lead_id,access_level) values($1,$2,'work')",[EMP1,lead]);
+ await db.query("insert into staff_contacts(user_id,display_name,is_listed) values($1,'Synthetic B',true)",[EMP2]);
+ await db.query("insert into staff_work_items(idempotency_key,kind,origin,assignee_id,title,due_at) values(gen_random_uuid(),'task','staff_assigned',$1,'MFA QA task',now())",[EMP1]);
+ await as(EMP1);
+ await db.query("insert into staff_private_messages(recipient_id,body) values($1,'MFA QA message')",[EMP2]);
+ await db.query("insert into staff_casefiles(title) values('MFA synthetic dossier')");
+ await assertStaffRows(1);
+ assert.equal((await rows('select * from staff_my_leads()')).length,1);
+ // Only a verified factor changes the existing opt-in policy.
+ await db.exec('reset role');
+ await db.query("insert into auth.mfa_factors(user_id,status) values($1,'unverified')",[EMP1]);
+ await as(EMP1);
+ assert.equal((await rows('select * from staff_my_leads()')).length,1);
+ await db.exec('reset role');
+ await db.query("insert into auth.mfa_factors(user_id,status) values($1,'verified'),($2,'verified')",[EMP1,MIGUEL]);
+ await as(MIGUEL);
+ assert.equal((await rows('select * from crm_leads')).length,0,'enrolled owner AAL1 cannot read CRM directly');
+ assert.equal((await rows('select os_private.is_owner() allowed'))[0].allowed,false,'OS owner gate matches CRM');
+ await assert.rejects(db.query("select crm_confirm_sale('{}'::jsonb)"), /forbidden|owner|unauthorized/i, 'privileged sales RPC rejects before reading payload');
+ await assert.rejects(db.query("insert into crm_leads(company,source,owner_id) values('Denied','QA',$1)",[MIGUEL]), {code:'42501'});
+ for (const aal of ['aal1',null,'invalid']) {
+   await as(EMP1,aal);
+   assert.equal((await rows('select * from staff_my_leads()')).length,0,'lead projection checks enrolled MFA');
+   await assertStaffRows(0);
+   await assert.rejects(db.query("insert into staff_casefiles(title) values('Denied')"),/row-level security|permission denied/i);
+ }
+ await as(EMP1,'aal2');
+ assert.equal((await rows('select * from staff_my_leads()')).length,1);
+ await assertStaffRows(1);
+ assert.equal((await rows('select * from crm_leads')).length,0,'AAL2 does not promote staff to owner');
+ await as(EMP2,'aal2');
+ assert.equal((await rows('select * from staff_my_leads()')).length,0,'seller B cannot read A');
+ assert.equal((await rows('select * from staff_casefiles')).length,0);
+ await as(OUT,'aal2');
+ assert.equal((await rows('select * from crm_leads')).length,0,'AAL2 alone grants no membership');
+ assert.equal((await rows('select * from staff_my_leads()')).length,0);
+ await as(MIGUEL,'aal2');
+ assert.equal((await rows('select * from crm_leads')).length,1,'legitimate owner retains access');
+ await db.query('update staff_portal_access set active=false where user_id=$1',[EMP1]);
+ await as(EMP1,'aal2');
+ assert.equal((await rows('select * from staff_my_leads()')).length,0,'suspension invalidates the unchanged claims');
+ await assertStaffRows(0);
+ await as(MIGUEL,'aal2');
+ await db.query('update staff_portal_access set active=true where user_id=$1',[EMP1]);
+ await as(EMP1,'aal2');
+ await assert.rejects(db.query('select * from auth.mfa_factors'),/permission denied/,'factor table remains private');
+ await db.exec('reset role; set role anon');
+ await assert.rejects(db.query('select * from staff_my_leads()'),/permission denied/);
+ // A complete synthetic data-directory restore must retain schema, ACL and MFA.
+ // This is NOT a Supabase production backup/restore certification.
+ await db.exec('reset role');
+ const manifestSQL = `select c.relname, c.relrowsecurity, c.relacl::text,
+   (select count(*)::int from pg_policy p where p.polrelid=c.oid) policies
+   from pg_class c join pg_namespace n on n.oid=c.relnamespace
+   where n.nspname='public' and c.relkind='r' order by c.relname`;
+ const manifest = (await db.query(manifestSQL)).rows;
+ const snapshot = await db.dumpDataDir();
+ assert.ok(snapshot.size > 0);
+ const restored = new PGlite({loadDataDir:snapshot}); t.after(()=>restored.close());
+ assert.deepEqual((await restored.query(manifestSQL)).rows,manifest);
+ await restored.query("select set_config('request.jwt.claims',$1,false)",[JSON.stringify({sub:EMP1,aal:'aal1'})]);
+ await restored.exec('set role authenticated');
+ assert.deepEqual((await restored.query('select * from staff_my_leads()')).rows,[]);
+ await restored.exec('reset role');
+ await restored.query("select set_config('request.jwt.claims',$1,false)",[JSON.stringify({sub:EMP1,aal:'aal2'})]);
+ await restored.exec('set role authenticated');
+ assert.equal((await restored.query('select * from staff_my_leads()')).rows.length,1);
+ await assert.rejects(restored.query('select * from auth.mfa_factors'),{code:'42501'});
+});

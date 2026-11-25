@@ -172,3 +172,41 @@ test('testimonial consents: nothing preselected, explicit evidence, results need
   await as(AGENT);
   assert.equal(await n('select count(*) n from crm_testimonial_consents'), 0);
 });
+
+test('outbox lifecycle kinds (migration 20261124190000): new kinds accepted, unknown kinds refused, rules unchanged', { timeout: 240000 }, async t => {
+  const { db, one } = await setup();
+  t.after(() => db.close());
+  const a = await sale(db, one, 'Cafe Sintetico QA', '96000000-0000-4000-8000-000000000001');
+  const ins = (key, kind) => db.query(`insert into crm_email_outbox(idempotency_key,kind,client_id,to_email,from_email,reply_to,subject,body_html,body_text,lang)
+    values($1,$2,$3,'laura@example.invalid','avalonagencymh@gmail.com','avalonagencymh@gmail.com','Asunto QA','<p>Hola Laura, contenido QA.</p>','Hola Laura, contenido QA.','es') returning id`, [key, kind, a.client]);
+  for (const k of ['onboarding_confirmation', 'progress_update', 'delivery_notice', 'support_info', 'renewal_review']) await ins(`${k}:qa:0001`, k);
+  await assert.rejects(ins('mass_marketing:qa:0001', 'mass_marketing'), /crm_email_outbox_kind_check/);
+  const m = (await ins('progress_update:qa:0002', 'progress_update')).rows[0];
+  await assert.rejects(db.query("update crm_email_outbox set status='sent', sent_at=now() where id=$1", [m.id]), /check constraint/, 'still no "sent" without approval and message id');
+});
+
+test('Contract Studio (migration 20261124200000): signature record linked to the exact agreement text, guarded', { timeout: 240000 }, async t => {
+  const { db, one } = await setup();
+  t.after(() => db.close());
+  const a = await sale(db, one, 'Cafe Sintetico QA', '97000000-0000-4000-8000-000000000001');
+  const b = await sale(db, one, 'Barberia Sintetica QA', '97000000-0000-4000-8000-000000000002');
+  const lead = (await one('select origin_lead_id id from crm_clients where id=$1', [a.client])).id;
+  assert.ok(lead, 'client has its canonical origin lead');
+  const draft = async (client, h) => (await one(`insert into crm_client_agreement_drafts(client_id,template_version,snapshot,snapshot_sha256,created_by)
+    values($1,'ACA-MSA-1.1-2026-11','{"schemaVersion":1}'::jsonb,$2,$3) returning id`, [client, h, OWNER])).id;
+  const dA = await draft(a.client, 'c'.repeat(64)), dB = await draft(b.client, 'd'.repeat(64));
+  const k = (await one("insert into crm_contracts(lead_id,title) values($1,'Contrato QA') returning id", [lead])).id;
+  const link = (d, h) => db.query('update crm_contracts set agreement_draft_id=$2, agreement_sha256=$3 where id=$1', [k, d, h]);
+  await assert.rejects(link(dA, null), /contract_agreement_hash_mismatch|crm_contracts_agreement_pair/);
+  await assert.rejects(link(dA, 'e'.repeat(64)), /contract_agreement_hash_mismatch/);
+  await assert.rejects(link(dB, 'd'.repeat(64)), /contract_agreement_other_client/);
+  await link(dA, 'c'.repeat(64));
+  await assert.rejects(link(dA, 'c'.repeat(64)).then(() => db.query('update crm_contracts set agreement_draft_id=null, agreement_sha256=null where id=$1', [k])), /contract_agreement_immutable/);
+  // The evidence flow is unchanged: linking alone never signs.
+  assert.equal((await one('select status from crm_contracts where id=$1', [k])).status, 'draft');
+  // A contract already signed cannot be linked afterwards (the signed text must be known before signature).
+  const k2 = (await one("insert into crm_contracts(lead_id,title) values($1,'Contrato QA 2') returning id", [lead])).id;
+  await db.query("update crm_contracts set status='sent_for_signature' where id=$1", [k2]);
+  await db.query("update crm_contracts set status='signed_pending_verification', signed_at=now(), signer_name='Firmante QA', external_reference='ENVELOPE-QA-1' where id=$1", [k2]);
+  await assert.rejects(db.query('update crm_contracts set agreement_draft_id=$2, agreement_sha256=$3 where id=$1', [k2, dA, 'c'.repeat(64)]), /contract_agreement_too_late/);
+});

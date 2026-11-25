@@ -4,9 +4,9 @@ import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { back, field, ownerForAction, uuidField } from "@/lib/os/actions";
-import { canMove, checklistFor, deliveryBlockers, isProductType, isStage, readChecklist, toggleItem, PRODUCT_LABEL, type ProductType } from "@/lib/onboarding/model";
+import { canMove, checklistFor, deliveryBlockers, isProductType, isStage, progress, readChecklist, toggleItem, PRODUCT_LABEL, STAGE_LABEL, type ProductType } from "@/lib/onboarding/model";
 import { buildManual, renderManualPdf, MANUAL_GENERATOR, isManualSnapshot, manualFileName } from "@/lib/docs/manual";
-import { renderClientWelcome, renderDocumentDelivery, renderInvoiceCopy, type Lang, type Rendered } from "@/lib/comms/email";
+import { isLifecycleKind, renderClientWelcome, renderDocumentDelivery, renderInvoiceCopy, renderLifecycle, type Lang, type Rendered } from "@/lib/comms/email";
 import { appOrigin, loadCompany, signerForId, signerForUser } from "@/lib/comms/company-server";
 import { sendMail, type Attachment } from "@/lib/comms/transport";
 import { loadInvoiceDoc } from "@/lib/sales/invoice-server";
@@ -16,9 +16,10 @@ import { isAgreementSnapshot } from "@/lib/contracts/agreement";
 const BASE = "/admin/workspace/crm/onboarding";
 const sha = (s: string | Uint8Array) => createHash("sha256").update(s).digest("hex");
 const lang = (form: FormData): Lang => field(form, "lang") === "en" ? "en" : "es";
-const code = (e: { message?: string } | null) => /\b((?:onboarding|outbox|document|consent)_[a-z_]+)\b/.exec(e?.message ?? "")?.[1] ?? (e?.message?.includes("row-level security") ? "forbidden" : "save");
+const code = (e: { message?: string } | null) => e?.message?.includes("crm_email_outbox_kind_check") ? "outbox_kind_pending"
+  : /\b((?:onboarding|outbox|document|consent)_[a-z_]+)\b/.exec(e?.message ?? "")?.[1] ?? (e?.message?.includes("row-level security") ? "forbidden" : "save");
 type Onb = { id: string; client_id: string; sale_id: string | null; project_id: string | null; product_type: ProductType; title: string; stage: string; version: number;
-  checklist: unknown; invoice_id: string | null; live_url: string; qa_passed: boolean; commercial_owner_id: string | null; next_step: string; next_step_on: string | null; next_step_confirmed: boolean };
+  checklist: unknown; invoice_id: string | null; live_url: string; qa_passed: boolean; commercial_owner_id: string | null; next_step: string; next_step_on: string | null; next_step_confirmed: boolean; delivered_at: string | null };
 
 async function loadOnb(db: SupabaseClient, id: string) {
   const r = await db.from("crm_client_onboardings").select("*").eq("id", id).maybeSingle();
@@ -173,8 +174,8 @@ export async function prepareEmail(form: FormData) {
   const { supabase, userId } = await ownerForAction();
   const id = uuidField(form, "id"); if (!id) back(BASE, { error: "onboarding_invalid" });
   const o = await loadOnb(supabase, id!); const L = lang(form);
-  const kind = field(form, "kind") as "client_welcome" | "invoice_copy" | "document_delivery";
-  if (!["client_welcome", "invoice_copy", "document_delivery"].includes(kind)) back(`${BASE}/${id}#emails`, { error: "onboarding_invalid" });
+  const kind = field(form, "kind");
+  if (!["client_welcome", "invoice_copy", "document_delivery"].includes(kind) && !isLifecycleKind(kind)) back(`${BASE}/${id}#emails`, { error: "onboarding_invalid" });
   const contactId = uuidField(form, "contact_id");
   const [contact, client, company, docs, inv] = await Promise.all([
     contactId ? supabase.from("crm_contacts").select("full_name,email,client_id").eq("id", contactId).maybeSingle() : Promise.resolve({ data: null, error: null }),
@@ -196,7 +197,13 @@ export async function prepareEmail(form: FormData) {
   const attachments: Attach[] = [...(useInvoice ? [{ type: "invoice" as const, id: invoice!.id, sale_id: invoice!.sale_id, number: invoice!.number }] : []),
     ...documents.map(d => ({ type: "document" as const, id: d.id, title: d.title }))];
   const company2 = company.contact, origin = appOrigin(), company_name = c.trade_name || c.legal_name;
-  const rendered: Rendered = kind === "client_welcome"
+  const stage = isStage(o.stage) ? o.stage : null;
+  const lifecycle = isLifecycleKind(kind) ? renderLifecycle({ kind, lang: L, contactName: ct!.full_name, companyName: company_name, product: o.title, representative: signer!,
+    company: company2, origin, stageLabel: stage ? STAGE_LABEL[stage][L === "es" ? 0 : 1] : o.stage, progress: progress(readChecklist(o.checklist)),
+    nextStep: o.next_step || null, note: field(form, "note").slice(0, 1000), liveUrl: o.live_url || null, deliveredOn: o.delivered_at ? o.delivered_at.slice(0, 10) : null }) : undefined;
+  // A lifecycle message the recorded facts do not support (no delivery, no owner note) is never prepared.
+  if (lifecycle === null) back(`${BASE}/${id}#emails`, { error: kind === "delivery_notice" ? "outbox_not_delivered" : "outbox_note_required" });
+  const rendered: Rendered = lifecycle ? lifecycle : kind === "client_welcome"
     ? renderClientWelcome({ lang: L, contactName: ct!.full_name, companyName: company_name, service: PRODUCT_LABEL[o.product_type][L === "es" ? 0 : 1] + ` — ${o.title}`,
       representative: signer!, nextStep: o.next_step && o.next_step_confirmed ? `${o.next_step}${o.next_step_on ? ` (${o.next_step_on})` : ""}` : o.next_step || null,
       documents: documents.map(d => d.title), invoiceNumber: useInvoice ? invoice!.number : null, company: company2, origin })
@@ -204,7 +211,7 @@ export async function prepareEmail(form: FormData) {
       ? renderInvoiceCopy({ lang: L, contactName: ct!.full_name, invoiceNumber: invoice!.number, companyName: company_name, representative: signer!, company: company2, origin })
       : renderDocumentDelivery({ lang: L, contactName: ct!.full_name, documents: documents.map(d => d.title), product: o.title, representative: signer!, company: company2, origin });
   // Same kind + onboarding + recipient + attachments = same message: a double click or refresh returns the existing row.
-  const key = `${kind}:${o.id}:${sha(`${ct!.email!.toLowerCase()}|${attachments.map(a => a.id).sort().join(",")}|${L}`).slice(0, 24)}`;
+  const key = `${kind}:${o.id}:${sha(`${ct!.email!.toLowerCase()}|${attachments.map(a => a.id).sort().join(",")}|${L}|${lifecycle ? rendered.text : ""}`).slice(0, 24)}`;
   const existing = await supabase.from("crm_email_outbox").select("id,status").eq("idempotency_key", key).maybeSingle();
   if (existing.data && (existing.data as { status: string }).status !== "cancelled") back(`${BASE}/${id}#emails`, { ok: "email_exists" });
   const r = await supabase.from("crm_email_outbox").insert({ idempotency_key: existing.data ? `${key}:r${Date.now().toString(36)}` : key, kind, client_id: o.client_id, onboarding_id: o.id,
@@ -222,10 +229,10 @@ async function buildAttachments(db: SupabaseClient, clientId: string, list: Atta
       if (!r.ok || r.clientId !== clientId || r.doc.status !== "issued") return null; // voided/foreign invoices are never sent
       out.push({ filename: invoiceFileName(r.doc.number), content: renderInvoicePdf(r.doc, L, new Date().toISOString().slice(0, 10)), contentType: "application/pdf" });
     } else {
-      const d = await db.from("crm_client_documents").select("client_id,snapshot,sha256,status").eq("id", a.id).maybeSingle();
-      const doc = d.data as { client_id: string; snapshot: unknown; sha256: string; status: string } | null;
+      const d = await db.from("crm_client_documents").select("client_id,snapshot,sha256,status,generator").eq("id", a.id).maybeSingle();
+      const doc = d.data as { client_id: string; snapshot: unknown; sha256: string; status: string; generator: string } | null;
       if (!doc || doc.client_id !== clientId || !isManualSnapshot(doc.snapshot)) return null;
-      const pdf = renderManualPdf(doc.snapshot);
+      let pdf: Uint8Array; try { pdf = renderManualPdf(doc.snapshot, doc.generator); } catch { return null; }
       if (sha(pdf) !== doc.sha256) return null; // integrity: the stored hash must match the regenerated bytes
       out.push({ filename: manualFileName(doc.snapshot), content: pdf, contentType: "application/pdf" });
     }

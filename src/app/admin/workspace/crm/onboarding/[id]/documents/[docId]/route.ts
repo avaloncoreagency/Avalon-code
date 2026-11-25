@@ -14,10 +14,11 @@ export async function GET(_req: Request, { params }: { params: Promise<{ id: str
   if (!session) return new Response("Unauthorized", { status: 401 });
   const { id, docId } = await params;
   if (!UUID.test(id) || !UUID.test(docId)) return new Response("Not found", { status: 404 });
-  const r = await session.supabase.from("crm_client_documents").select("snapshot,sha256,onboarding_id").eq("id", docId).eq("onboarding_id", id).maybeSingle();
-  const doc = r.data as { snapshot: unknown; sha256: string } | null;
+  const r = await session.supabase.from("crm_client_documents").select("snapshot,sha256,onboarding_id,generator").eq("id", docId).eq("onboarding_id", id).maybeSingle();
+  const doc = r.data as { snapshot: unknown; sha256: string; generator: string } | null;
   if (r.error || !doc || !isManualSnapshot(doc.snapshot)) return new Response("Not found", { status: 404 });
-  const pdf = renderManualPdf(doc.snapshot);
+  let pdf: Uint8Array;
+  try { pdf = renderManualPdf(doc.snapshot, doc.generator); } catch { return new Response("Not found", { status: 404 }); }
   if (createHash("sha256").update(pdf).digest("hex") !== doc.sha256) return new Response("Integrity check failed", { status: 409 });
   return new Response(Buffer.from(pdf), { headers: { "content-type": "application/pdf", "content-disposition": `attachment; filename="${manualFileName(doc.snapshot)}"`,
     "cache-control": "private, no-store", "x-content-type-options": "nosniff" } });

@@ -192,3 +192,61 @@ test("agent invitations live in AGENT PORTAL, not in Configuración", () => {
   assert.match(inviteAction, /status === "verified" && evidence\.length < 10/, "«verified» needs evidence");
   assert.doesNotMatch(inviteAction, /support_|client_sender|reply_to/, "invite action only writes invitation columns");
 });
+
+test("lifecycle e-mails: only recorded facts, owner note required where needed, ES/EN, support channels from settings", () => {
+  const rep = { name: "Samuel Muñoz", title: "Cofundador" };
+  const base = { lang: "es", contactName: "Laura", companyName: "Café QA", product: "Sitio Café QA", representative: rep, company, stageLabel: "Construcción",
+    progress: { done: 4, total: 9 }, nextStep: "Revisión con el cliente", note: "", liveUrl: null, deliveredOn: null };
+  assert.equal(email.LIFECYCLE_KINDS.length, 5);
+  const conf = email.renderLifecycle({ ...base, kind: "onboarding_confirmation" });
+  assert.match(conf.subject, /Confirmamos el inicio de Sitio Café QA/);
+  assert.match(conf.text, /Etapa actual: Construcción\./);
+  assert.equal(email.renderLifecycle({ ...base, kind: "progress_update" }), null, "no auto-written progress");
+  const prog = email.renderLifecycle({ ...base, kind: "progress_update", note: "Terminamos la página de menú <b>hoy</b>." });
+  assert.match(prog.text, /4 de 9 puntos/);
+  assert.ok(!prog.html.includes("<b>hoy</b>"), "owner note is escaped");
+  assert.equal(email.renderLifecycle({ ...base, kind: "delivery_notice" }), null, "no delivery notice without a recorded delivery");
+  assert.equal(email.renderLifecycle({ ...base, kind: "delivery_notice", deliveredOn: "2026-11-24", liveUrl: "javascript:alert(1)" }), null);
+  const del = email.renderLifecycle({ ...base, lang: "en", kind: "delivery_notice", deliveredOn: "2026-11-24", liveUrl: "https://cafe.example" });
+  assert.match(del.subject, /delivered/);
+  assert.match(del.text, /reply to this e-mail to confirm receipt/);
+  const sup = email.renderLifecycle({ ...base, kind: "support_info" });
+  assert.match(sup.text, /avalonagencymh@gmail\.com/);
+  assert.ok(!/Teléfono/.test(sup.text), "no phone without an approved number");
+  assert.equal(email.renderLifecycle({ ...base, kind: "renewal_review" }), null);
+  const ren = email.renderLifecycle({ ...base, kind: "renewal_review", note: "Proponemos renovar el mantenimiento 12 meses." });
+  assert.match(ren.text, /Nada se renueva ni se cobra automáticamente/);
+  for (const r of [conf, prog, del, sup, ren]) { assert.match(r.html, /Samuel Muñoz/); assert.match(r.html, /avalon-mark\.png/); }
+});
+
+test("Contract Studio SOW: payment model, client responsibilities and cancellation terms are optional, validated and rendered", () => {
+  const data = { agencyLegalForm: "joint_individuals", agencyName: "Ana QA and Luis QA", agencyBrand: "Avalon Core Agency", agencyAddress: "1 Example", agencyEmail: "a@example.test",
+    clientName: "Cliente QA", clientAddress: "2 Example", clientEmail: "c@example.test", county: "Broward", effectiveDate: "2026-11-24", services: ["Website"], scope: "Scope",
+    exclusions: "", deliverables: "Site", milestones: "M", acceptance: "A", revisions: "2", term: "3 months", setupFee: "100.00", monthlyFee: "0.00", paymentSchedule: "Net 15", adSpend: "None", commission: "None", specialTerms: "" };
+  assert.deepEqual(agreement.validateAgreement(data), [], "old drafts without the new fields stay valid");
+  assert.ok(agreement.validateAgreement({ ...data, paymentModel: "crypto" }).includes("paymentModel"));
+  assert.ok(agreement.validateAgreement({ ...data, paymentModel: "commission" }).includes("commission"), "commission model needs approved commission terms");
+  const full = { ...data, paymentModel: "hybrid", clientResponsibilities: "Logo y textos antes del día 5.", cancellationTerms: "Aviso de 30 días; depósito no reembolsable una vez iniciado el diseño." };
+  assert.deepEqual(agreement.validateAgreement(full), []);
+  const lines = agreement.agreementLines(agreement.makeAgreementSnapshot(full), "abcd1234");
+  const text = lines.map(l => l.heading + ": " + l.text).join("\n");
+  assert.match(text, /Payment model: Hybrid \(setup \+ recurring\)/);
+  assert.match(text, /Client responsibilities and materials: Logo y textos/);
+  assert.match(text, /Cancellation, refunds and non-payment \(this SOW\): Aviso de 30 días/);
+  const old = agreement.agreementLines(agreement.makeAgreementSnapshot(data), "abcd1234").map(l => l.heading);
+  assert.ok(!old.includes("Payment model") && !old.includes("Client responsibilities and materials"), "nothing invented for older drafts");
+});
+
+test("document identity: manuals render in the ivory v2 identity; issued v1 manuals keep their exact bytes", () => {
+  const input = { lang: "es", clientName: "Laura QA", companyName: "Café QA", productType: "website", productName: "Sitio Café QA", liveUrl: "https://cafe.example",
+    version: 1, issuedOn: "2026-11-24", responsible: "Miguel Hobaica", contractRef: "", scope: "S", exclusions: "", support: { email: "avalonagencymh@gmail.com", phone: null, hours: "" }, maintenance: "", warranty: "" };
+  const snap = manual.buildManual(input);
+  assert.equal(manual.MANUAL_GENERATOR, "avalon-manual-2");
+  const v2 = Buffer.from(manual.renderManualPdf(snap)).toString("latin1"), v1 = Buffer.from(manual.renderManualPdf(snap, "avalon-manual-1")).toString("latin1");
+  assert.notEqual(v1, v2);
+  assert.match(v2, /0\.992 0\.985 0\.973 rg/, "ivory paper");
+  assert.ok(!v2.includes("0.035 0.067 0.161 rg"), "no navy cover in v2");
+  assert.match(v1, /0\.035 0\.067 0\.161 rg/, "v1 keeps its original cover so stored sha256 still verifies");
+  assert.match(v1, /Producer \(Avalon OS avalon-manual-1\)/);
+  assert.throws(() => manual.renderManualPdf(snap, "avalon-manual-9"), /manual_generator_unknown/);
+});
