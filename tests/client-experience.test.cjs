@@ -267,3 +267,27 @@ test("OPS-002/003 wiring: delivery and manuals rely on the verified signature, n
   assert.match(actions, /manual_contract_not_verified|signedAgreement/);
   assert.match(actions, /to === "closed" && !o.client_accepted_at/);
 });
+
+test("document library: department packs integrated verbatim, hashed, and only APPROVED documents are distributable", () => {
+  execFileSync(process.execPath, ["scripts/docs/build-library.cjs", "--check"], { stdio: "pipe" });
+  const lib = load("src/lib/docs/library.ts");
+  const crypto = require("node:crypto");
+  assert.equal(lib.ALL_DOCUMENTS.filter(d => d.pack === "sales").length, 10);
+  assert.equal(lib.ALL_DOCUMENTS.filter(d => d.pack === "client").length, 12);
+  for (const d of lib.ALL_DOCUMENTS) {
+    assert.equal(crypto.createHash("sha256").update(fs.readFileSync(d.source, "utf8")).digest("hex"), d.sha256, `${d.id} content is the repository file`);
+    assert.equal(d.approval, "pending", `${d.id}: nothing is approved by code`);
+  }
+  assert.deepEqual(lib.staffDocuments(), [], "no pending document reaches sellers");
+  assert.deepEqual(lib.clientDocuments("website"), [], "no pending document reaches clients");
+  // Simulated owner approval through the manifest: only that document, only for its audience/service.
+  const doc = lib.documentById("OB-WEB-001");
+  doc.approval = "approved";
+  try {
+    assert.deepEqual(lib.clientDocuments("website").map(d => d.id), ["OB-WEB-001"]);
+    assert.deepEqual(lib.clientDocuments("ecommerce"), []);
+    assert.deepEqual(lib.staffDocuments(), []);
+  } finally { doc.approval = "pending"; }
+  const page = fs.readFileSync("src/app/admin/workspace/crm/documents/page.tsx", "utf8");
+  assert.match(page, /await requireOwner\(\)/, "owner-only library");
+});

@@ -175,7 +175,14 @@ test('Client experience: onboarding → manual → welcome e-mail → Clients 36
   assert.deepEqual([cfg.support_hours, cfg.updated_by, cfg.invite_sender_email, cfg.invite_sender_status], ['Lunes a viernes 9:00–17:00 (QA)', OWNER, 'avalonacoreagency@gmail.com', 'unverified']);
 
   // 9. Responsive: no horizontal page scroll.
-  const pages = [`/admin/workspace/crm/onboarding`, `/admin/workspace/crm/onboarding/${onboardingId}`, `/admin/workspace/crm/clients/${client}`, `/admin/settings/communications`];
+  // 8b. Owner document library: department packs visible to owners, every document pending (never distributed).
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await page.goto(`${origin}/admin/workspace/crm/documents?doc=WP-001`);
+  assert.equal(await page.locator('[data-library-doc]').count(), 22);
+  assert.equal(await page.locator('[data-library-doc][data-approval="approved"]').count(), 0);
+  await page.locator('[data-library-selected="WP-001"] pre').waitFor();
+  assert.match(await page.locator('[data-library-selected="WP-001"]').innerText(), /Welcome Package/);
+  const pages = [`/admin/workspace/crm/documents?doc=OB-WEB-001`, `/admin/workspace/crm/onboarding`, `/admin/workspace/crm/onboarding/${onboardingId}`, `/admin/workspace/crm/clients/${client}`, `/admin/settings/communications`];
   for (const width of [320, 375, 390, 430, 768, 1440]) {
     await page.setViewportSize({ width, height: 900 });
     for (const p of pages) {

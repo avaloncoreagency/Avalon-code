@@ -15,6 +15,10 @@ on:
       - 'supabase/migrations/20261124140000_client_experience.sql'
       - 'supabase/templates/**'
       - 'scripts/email/**'
+      - 'scripts/docs/**'
+      - 'docs/sales-enablement/**'
+      - 'docs/client-operations/**'
+      - 'src/app/admin/workspace/crm/documents/**'
       - 'tests/client-experience*'
       - '.github/workflows/client-experience.yml'
 concurrency:
@@ -35,6 +39,7 @@ jobs:
       - run: npm ci
       - run: npm ci --prefix tests/qa
       - run: node scripts/email/build-auth-templates.cjs --check
+      - run: node scripts/docs/build-library.cjs --check
       - run: npm run typecheck
       - run: node --test tests/client-experience.test.cjs
       - run: npm run build

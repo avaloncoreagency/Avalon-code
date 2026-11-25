@@ -11,6 +11,7 @@ import { appOrigin, loadCompany, signerForId, signerForUser } from "@/lib/comms/
 import { sendMail, type Attachment } from "@/lib/comms/transport";
 import { loadInvoiceDoc } from "@/lib/sales/invoice-server";
 import { verifiedAgreement } from "@/lib/onboarding/evidence-server";
+import { clientDocuments } from "@/lib/docs/library";
 import { renderInvoicePdf, fileName as invoiceFileName } from "@/lib/sales/invoice";
 import { isAgreementSnapshot } from "@/lib/contracts/agreement";
 
@@ -235,7 +236,7 @@ export async function prepareEmail(form: FormData) {
   const rendered: Rendered = lifecycle ? lifecycle : kind === "client_welcome"
     ? renderClientWelcome({ lang: L, contactName: ct!.full_name, companyName: company_name, service: PRODUCT_LABEL[o.product_type][L === "es" ? 0 : 1] + ` — ${o.title}`,
       representative: signer!, nextStep: o.next_step && o.next_step_confirmed ? `${o.next_step}${o.next_step_on ? ` (${o.next_step_on})` : ""}` : o.next_step || null,
-      documents: documents.map(d => d.title), invoiceNumber: useInvoice ? invoice!.number : null, company: company2, origin })
+      documents: [...documents.map(d => d.title), ...clientDocuments(o.product_type, L).map(d => `${d.id} · ${d.title}`)], invoiceNumber: useInvoice ? invoice!.number : null, company: company2, origin })
     : kind === "invoice_copy"
       ? renderInvoiceCopy({ lang: L, contactName: ct!.full_name, invoiceNumber: invoice!.number, companyName: company_name, representative: signer!, company: company2, origin })
       : renderDocumentDelivery({ lang: L, contactName: ct!.full_name, documents: documents.map(d => d.title), product: o.title, representative: signer!, company: company2, origin });
