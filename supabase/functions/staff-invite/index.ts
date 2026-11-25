@@ -129,6 +129,10 @@ Deno.serve(async (request: Request) => {
       });
     const invited = object(invite.data);
     const invitedId = invited?.id;
+    // An address that already has an Auth account is never silently enrolled (that would let a pre-registered
+    // account be promoted by an owner's invitation). The owner gets a precise reason instead of a generic failure.
+    if (!invite.ok && invite.status === 422 && invited?.error_code === "email_exists")
+      return reply(409, { error: "email_already_registered" });
     if (!invite.ok || typeof invitedId !== "string" || !UUID.test(invitedId))
       return reply(409, { error: "invite_not_created" });
 

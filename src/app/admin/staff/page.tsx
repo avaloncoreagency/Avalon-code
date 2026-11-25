@@ -37,6 +37,11 @@ const inviteStatuses: Readonly<Record<string, readonly [string, string]>> = {
  "invite-sent": ["Supabase Auth aceptó la invitación. La cuenta requiere aprobación del propietario.", "Supabase Auth accepted the invitation. The account requires owner approval."],
  "invite-audit-pending": ["Supabase Auth aceptó la invitación. Falta confirmar el registro de auditoría.", "Supabase Auth accepted the invitation. The audit entry is unconfirmed."],
  "invite-enrollment-pending": ["Supabase Auth aceptó la invitación. No se confirmó el alta del agente. Revisa el estado de la cuenta antes de reenviar.", "Supabase Auth accepted the invitation. Agent enrollment is unconfirmed. Check the account before resending."],
+ "invite-email-exists": ["Ese correo ya tiene una cuenta en Avalon. No se envió ninguna invitación ni se concedió acceso. Usa el correo del agente que aún no esté registrado.", "That e-mail already has an Avalon account. No invitation was sent and no access was granted. Use an address that is not registered yet."],
+ "invite-not-configured": ["Las invitaciones no están configuradas para este dominio. No se envió nada.", "Invitations are not configured for this domain. Nothing was sent."],
+ "invite-mfa-required": ["Tu cuenta tiene MFA: vuelve a verificar el segundo factor y reintenta.", "Your account has MFA: verify your second factor again and retry."],
+ "invite-forbidden": ["Solo una sesión de propietario puede invitar agentes.", "Only an owner session can invite agents."],
+ "invite-member-limit": ["Se alcanzó el límite de 50 agentes. No se envió la invitación.", "The 50-agent limit was reached. The invitation was not sent."],
  "invite-failed": ["No se pudo confirmar la invitación. Revisa el estado de la cuenta y la configuración de Supabase antes de reintentar.", "The invitation could not be confirmed. Check the account and Supabase settings before retrying."],
 };
 

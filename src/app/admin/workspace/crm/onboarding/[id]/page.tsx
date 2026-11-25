@@ -132,9 +132,18 @@ export default async function OnboardingDetail({ params, searchParams }: { param
         : t(`El envío automático está BLOQUEADO: falta configurar SMTP del remitente ${company.contact.clientSender} (variables AVALON_SMTP_* en el servidor). Puedes preparar el mensaje, enviarlo desde Gmail y registrar la evidencia.`, `Automatic sending is BLOCKED: SMTP for ${company.contact.clientSender} is not configured (AVALON_SMTP_* server variables). You can prepare the message, send it from Gmail and record the evidence.`)}</p>
       <form action={prepareEmail} className={s.form}>{hidden}
         <div className={s.row}>
-          <label className={s.field}>{t("Tipo", "Type")}<select name="kind" defaultValue="client_welcome"><option value="client_welcome">{t("Bienvenida", "Welcome")}</option><option value="invoice_copy">{t("Copia de factura", "Invoice copy")}</option><option value="document_delivery">{t("Entrega de documentación", "Documentation delivery")}</option>
-            <option value="onboarding_confirmation">{t("Confirmación de incorporación", "Onboarding confirmation")}</option><option value="progress_update">{t("Avance del proyecto (requiere nota)", "Progress update (note required)")}</option>
-            <option value="delivery_notice">{t("Aviso de entrega (requiere entrega registrada)", "Delivery notice (recorded delivery required)")}</option><option value="support_info">{t("Información de soporte", "Support information")}</option>
+          <label className={s.field} style={{ minWidth: 0, maxWidth: "100%" }}>{t("Tipo", "Type")}<select name="kind" defaultValue="client_welcome" style={{ width: "100%", maxWidth: "100%", minWidth: 0 }}><option value="client_welcome">{t("Bienvenida", "Welcome")}</option><option value="invoice_copy">{t("Copia de factura", "Invoice copy")}</option><option value="document_delivery">{t("Entrega de documentación", "Documentation delivery")}</option>
+            <option value="onboarding_confirmation">{t("Confirmación de incorporación", "Onboarding confirmation")}</option>
+            <option value="information_request">{t("Solicitud de información (requiere nota)", "Information request (note required)")}</option>
+            <option value="materials_request">{t("Solicitud de materiales (usa la checklist pendiente)", "Materials request (uses the pending checklist)")}</option>
+            <option value="kickoff_confirmation">{t("Confirmación de kickoff (requiere próximo paso o nota)", "Kickoff confirmation (next step or note required)")}</option>
+            <option value="progress_update">{t("Avance del proyecto (requiere nota)", "Progress update (note required)")}</option>
+            <option value="review_request">{t("Solicitud de revisión (requiere nota)", "Review request (note required)")}</option>
+            <option value="approval_request">{t("Solicitud de aprobación (requiere nota)", "Approval request (note required)")}</option>
+            <option value="delivery_notice">{t("Aviso de entrega (requiere entrega registrada)", "Delivery notice (recorded delivery required)")}</option>
+            <option value="receipt_confirmation">{t("Confirmación de recepción (requiere nota)", "Receipt confirmation (note required)")}</option>
+            <option value="support_info">{t("Información de soporte", "Support information")}</option>
+            <option value="maintenance_notice">{t("Aviso de mantenimiento (requiere nota)", "Maintenance notice (note required)")}</option>
             <option value="renewal_review">{t("Renovación para revisar (requiere nota)", "Renewal for review (note required)")}</option></select></label>
           <label className={s.field}>{t("Nota del propietario (avance, renovación u observación; máx. 1000)", "Owner note (progress, renewal or remark; max 1000)")}<textarea name="note" maxLength={1000} rows={3} /></label>
           <label className={s.field}>{t("Destinatario (contacto registrado)", "Recipient (recorded contact)")}<select name="contact_id" required>{((contacts.data ?? []) as { id: string; full_name: string; email: string | null }[]).filter(x => x.email).map(x => <option key={x.id} value={x.id}>{x.full_name} · {x.email}</option>)}</select></label>
@@ -150,7 +159,7 @@ export default async function OnboardingDetail({ params, searchParams }: { param
       <ul className={s.list}>{msgs.map(m => <li key={m.id} data-outbox={m.status} style={{ display: "block" }}>
         <strong>{m.subject}</strong> · {m.to_name} &lt;{m.to_email}&gt; · <span className={s.tag} data-tone={m.status === "sent" ? "ok" : m.status === "failed" ? "danger" : "warn"}>{pick(lang, ...(OUTBOX_STATUS[m.status] ?? [m.status, m.status]))}</span>
         {m.attachments?.length > 0 && <small className={s.muted}> · {t("Adjuntos", "Attachments")}: {m.attachments.map(a => a.number ?? a.title).join(", ")}</small>}
-        {m.status === "sent" && <small className={s.muted}> · {formatDate(lang, m.sent_at!, true)} · {m.provider === "manual" ? t("envío manual registrado", "manual send recorded") : m.provider} · {t("aprobado por", "approved by")} {who(m.approved_by)}</small>}
+        {m.status === "sent" && <small className={s.muted} data-sent-meaning> · {t("aceptado por el servidor SMTP; no confirma que llegó a la bandeja", "accepted by the SMTP server; not proof it reached the inbox")} · {formatDate(lang, m.sent_at!, true)} · {m.provider === "manual" ? t("envío manual registrado", "manual send recorded") : m.provider} · {t("aprobado por", "approved by")} {who(m.approved_by)}</small>}
         {m.error && <small className={s.muted}> · {m.error}</small>}
         <details><summary>{t("Vista previa", "Preview")}</summary><iframe title={m.subject} sandbox="" srcDoc={m.body_html} style={{ width: "100%", height: 520, border: "1px solid #33427a", borderRadius: 10, background: "#fff" }} /></details>
         {["prepared", "approved", "failed", "blocked_no_transport"].includes(m.status) && <div className={s.inline} style={{ flexWrap: "wrap", marginTop: 8 }}>

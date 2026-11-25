@@ -65,7 +65,7 @@ test("client welcome: real data only, support e-mail, phone only when approved",
   const rep = { name: "Samuel Muñoz", title: "Cofundador" };
   const w = email.renderClientWelcome({ lang: "es", contactName: "Laura", companyName: "Café QA", service: "Sitio web", representative: rep, nextStep: null, documents: [], invoiceNumber: null, company });
   assert.equal(w.subject, "Bienvenido a Avalon Core Agency — Comencemos tu proyecto");
-  assert.match(w.html, /avalonagencymh@gmail\.com/);
+  assert.match(w.html, /avalonacoreagency@gmail\.com/);
   assert.ok(!/Teléfono/.test(w.html), "no phone placeholder when no approved business number");
   assert.ok(!/Próximo paso/.test(w.html), "no invented next step");
   const withPhone = email.renderClientWelcome({ lang: "en", contactName: "Laura", companyName: "Café QA", service: "Website", representative: rep, nextStep: "Kickoff", documents: ["Manual v1"], invoiceNumber: "FAC-V-1", company: { ...company, supportPhone: "+1 305 000 0000" } });
@@ -203,7 +203,7 @@ test("lifecycle e-mails: only recorded facts, owner note required where needed, 
   const rep = { name: "Samuel Muñoz", title: "Cofundador" };
   const base = { lang: "es", contactName: "Laura", companyName: "Café QA", product: "Sitio Café QA", representative: rep, company, stageLabel: "Construcción",
     progress: { done: 4, total: 9 }, nextStep: "Revisión con el cliente", note: "", liveUrl: null, deliveredOn: null };
-  assert.equal(email.LIFECYCLE_KINDS.length, 5);
+  assert.equal(email.LIFECYCLE_KINDS.length, 12, "EM-001 onboarding events added in AVL-COMMS-FINAL-001");
   const conf = email.renderLifecycle({ ...base, kind: "onboarding_confirmation" });
   assert.match(conf.subject, /Confirmamos el inicio de Sitio Café QA/);
   assert.match(conf.text, /Etapa actual: Construcción\./);
@@ -217,7 +217,7 @@ test("lifecycle e-mails: only recorded facts, owner note required where needed, 
   assert.match(del.subject, /delivered/);
   assert.match(del.text, /reply to this e-mail to confirm receipt/);
   const sup = email.renderLifecycle({ ...base, kind: "support_info" });
-  assert.match(sup.text, /avalonagencymh@gmail\.com/);
+  assert.match(sup.text, /avalonacoreagency@gmail\.com/);
   assert.ok(!/Teléfono/.test(sup.text), "no phone without an approved number");
   assert.equal(email.renderLifecycle({ ...base, kind: "renewal_review" }), null);
   const ren = email.renderLifecycle({ ...base, kind: "renewal_review", note: "Proponemos renovar el mantenimiento 12 meses." });
@@ -318,4 +318,29 @@ test("A06 service checklists: website, CRM and marketing collect what delivery a
   for (const k of ["branding", "references", "access", "design_approval"]) assert.ok(keys("website").includes(k), "website " + k);
   for (const k of ["integrations", "migration", "training"]) assert.ok(keys("crm").includes(k), "crm " + k);
   assert.ok(keys("marketing").includes("audience"));
+});
+
+test("M07 onboarding e-mails: EM-001 events, recorded facts or owner note only, service checklist, corporate mailbox, ES/EN", () => {
+  const rep = { name: "Miguel Hobaica", title: "Cofundador" };
+  const base = { lang: "es", contactName: "Laura", companyName: "Café QA", product: "Sitio web Café QA", representative: rep, company: email.DEFAULT_COMPANY,
+    stageLabel: "Preparación", progress: { done: 2, total: 9 }, nextStep: null, note: "", liveUrl: null, deliveredOn: null };
+  for (const kind of ["information_request", "review_request", "approval_request", "receipt_confirmation", "maintenance_notice"])
+    assert.equal(email.renderLifecycle({ ...base, kind }), null, kind + " needs the owner's note");
+  assert.equal(email.renderLifecycle({ ...base, kind: "materials_request" }), null, "no pending items and no note → nothing to request");
+  assert.equal(email.renderLifecycle({ ...base, kind: "kickoff_confirmation" }), null, "no next step and no note → no kickoff claim");
+  const mats = email.renderLifecycle({ ...base, kind: "materials_request", pending: ["Logo en alta resolución", "Textos de la página de inicio"] });
+  assert.match(mats.text, /• Logo en alta resolución/); assert.match(mats.text, /No envíes contraseñas/); assert.match(mats.subject, /Materiales necesarios/);
+  const approval = email.renderLifecycle({ ...base, kind: "approval_request", lang: "en", note: "Homepage design v2 (link in the project portal)." });
+  assert.match(approval.subject, /Approval requested/); assert.match(approval.text, /Silence is never taken as approval/);
+  for (const r of [mats, approval]) {
+    assert.match(r.html, /avalonacoreagency@gmail\.com/); assert.ok(!/avalonagencymh/.test(r.html + r.text), "corporate mailbox only");
+    assert.match(r.html, /brand\/email\/avalon-mark\.png/); assert.match(r.text, /Miguel Hobaica/);
+  }
+  assert.equal(email.LIFECYCLE_KINDS.length, 12);
+  assert.equal(email.DEFAULT_COMPANY.clientSender, "avalonacoreagency@gmail.com");
+  const invite = fs.readFileSync("supabase/templates/invite.html", "utf8");
+  assert.ok(!/avalonagencymh/.test(invite), "invitation template shows the corporate mailbox only");
+  assert.match(invite, /\{\{ \.ConfirmationURL \}\}/); assert.match(invite, /\{\{ \.Data\.inviter_name \}\}/);
+  const center = fs.readFileSync("src/app/admin/workspace/crm/communications/page.tsx", "utf8");
+  assert.match(center, /requireOwner\(\)/); assert.ok(!/sendMail|approveAndSend/.test(center), "the Communication Center never sends by itself");
 });

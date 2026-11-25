@@ -44,7 +44,9 @@ test('corporate settings: defaults, no invented phone, owners only, verified nee
   const { db, as, anon, one, n } = await setup();
   t.after(() => db.close());
   const row = await one('select * from avalon_company_settings');
-  assert.equal(row.support_email, 'avalonagencymh@gmail.com');
+  assert.equal(row.support_email, 'avalonacoreagency@gmail.com');
+  assert.equal(row.client_sender_email, 'avalonacoreagency@gmail.com');
+  assert.equal(row.reply_to_email, 'avalonacoreagency@gmail.com');
   assert.equal(row.invite_sender_email, 'avalonacoreagency@gmail.com');
   assert.equal(row.invite_sender_status, 'unverified');
   assert.equal(row.support_phone, null);
@@ -229,4 +231,20 @@ test('OPS-001/004 (migration 20261125100000): URL only where it applies; client 
   await db.query("update crm_client_onboardings set stage='closed' where id=$1", [mkt]);
   // Acceptance before any delivery is refused.
   await assert.rejects(db.query("update crm_client_onboardings set client_accepted_at=now(), client_acceptance_evidence='Correo del cliente QA 2026-11-25', client_acceptance_recorded_by=$2 where id=$1", [web, OWNER]), /crm_client_onboardings_acceptance_evidence/);
+});
+
+test('M04/M07 (migrations 20261125120000/120100): onboarding e-mail kinds and one corporate mailbox, owner choices preserved', { timeout: 240000 }, async t => {
+  const { db, one } = await setup();
+  t.after(() => db.close());
+  const a = await sale(db, one, 'Cafe Sintetico QA', '96000000-0000-4000-8000-000000000002');
+  const ins = (key, kind) => db.query(`insert into crm_email_outbox(idempotency_key,kind,client_id,to_email,from_email,reply_to,subject,body_html,body_text,lang)
+    values($1,$2,$3,'laura@example.invalid','avalonacoreagency@gmail.com','avalonacoreagency@gmail.com','Asunto QA','<p>Hola Laura, contenido QA.</p>','Hola Laura, contenido QA.','es') returning id`, [key, kind, a.client]);
+  for (const k of ['information_request', 'materials_request', 'kickoff_confirmation', 'review_request', 'approval_request', 'receipt_confirmation', 'maintenance_notice'])
+    await ins(`${k}:qa:0001`, k);
+  await assert.rejects(ins('newsletter:qa:0001', 'newsletter'), /crm_email_outbox_kind_check/, 'no campaign kinds');
+  // A deliberate owner choice survives a re-run of the mailbox migration; only the previous default moves.
+  await db.exec("reset role; update avalon_company_settings set support_email='soporte@example.invalid', reply_to_email='avalonagencymh@gmail.com' where id=1");
+  await db.exec(fs.readFileSync('supabase/migrations/20261125120100_corporate_mailbox.sql', 'utf8'));
+  const row = await one('select support_email, reply_to_email, client_sender_email, invite_sender_status from avalon_company_settings');
+  assert.deepEqual(row, { support_email: 'soporte@example.invalid', reply_to_email: 'avalonacoreagency@gmail.com', client_sender_email: 'avalonacoreagency@gmail.com', invite_sender_status: 'unverified' });
 });

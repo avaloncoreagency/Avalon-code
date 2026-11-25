@@ -99,7 +99,10 @@ test('AGENT PORTAL: above Configuración, owns invitations and agent management'
 
   // 4. Configuración no longer holds agent invitations; it links to AGENT PORTAL.
   await page.goto(`${origin}/admin/settings/communications`);
-  assert.doesNotMatch(await page.locator('#main').innerText(), /avalonacoreagency@gmail\.com|Invitación de agente/);
+  // The corporate mailbox is now ALSO the client sender (AVL-COMMS-FINAL-001), so the address itself may appear here;
+  // what must never appear is the invitation sender setting or its evidence form.
+  assert.doesNotMatch(await page.locator('#main').innerText(), /Invitación de agente|Remitente de invitaciones|Invitation sender/);
+  assert.equal(await page.locator('[name="invite_sender_email"], [name="invite_sender_evidence"]').count(), 0);
   assert.equal(await page.locator('[data-agent-portal-link] a').getAttribute('href'), '/admin/staff');
 
   // 5. Responsive: no horizontal page scroll; mobile evidence.

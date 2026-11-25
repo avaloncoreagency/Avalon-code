@@ -38,6 +38,7 @@ const tools = [
   ["inbound", "/admin/workspace/crm/inbound", "Solicitudes del website", "Website inquiries"],
   ["onboarding", "/admin/workspace/crm/onboarding", "Onboarding y entregas", "Onboarding & delivery"],
   ["documents", "/admin/workspace/crm/documents", "Biblioteca documental", "Document library"],
+  ["communications", "/admin/workspace/crm/communications", "Comunicaciones", "Communications"],
   ["desk", "/admin/workspace/crm/desk", "Bandeja comercial avanzada", "Advanced sales desk"],
   ["overview", "/admin/workspace/crm/overview", "Resumen y consumo", "Overview and usage"],
   ["new", "/admin/workspace/crm/sales/new", "Registrar venta", "Record sale"],

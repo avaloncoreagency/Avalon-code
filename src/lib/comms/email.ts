@@ -13,10 +13,14 @@ export type CompanyContact = {
   supportEmail: string; supportPhone: string | null; supportHours: string;
   replyTo: string; clientSender: string; inviteSender: string; inviteSenderVerified: boolean;
 };
+/** AVL-COMMS-FINAL-001: one corporate mailbox sends every Avalon message (agent invitations through Supabase Auth SMTP,
+ * client e-mails through AVALON_SMTP_*), receives replies and is the published support contact. Owner sign-in identities
+ * (lib/auth/owners) are separate and never change with this setting. */
+export const CORPORATE_MAILBOX = "avalonacoreagency@gmail.com";
 export const DEFAULT_COMPANY: CompanyContact = {
-  supportEmail: "avalonagencymh@gmail.com", supportPhone: null, supportHours: "",
-  replyTo: "avalonagencymh@gmail.com", clientSender: "avalonagencymh@gmail.com",
-  inviteSender: "avalonacoreagency@gmail.com", inviteSenderVerified: false,
+  supportEmail: CORPORATE_MAILBOX, supportPhone: null, supportHours: "",
+  replyTo: CORPORATE_MAILBOX, clientSender: CORPORATE_MAILBOX,
+  inviteSender: CORPORATE_MAILBOX, inviteSenderVerified: false,
 };
 export const BRAND = { name: "Avalon Core Agency", navy: "#09112a", ink: "#1e273e", muted: "#6b7387", accent: "#3554ff", violet: "#7a5cff", line: "#e1e5ef", tint: "#f4f6fb" };
 const DEFAULT_ORIGIN = "https://avaloncoreagency.com";
@@ -185,13 +189,16 @@ export function supabaseInviteTemplate(company: CompanyContact = DEFAULT_COMPANY
 
 // ── Client lifecycle messages (onboarding → delivery → support → renewal) ─────────────────────────────────────────
 // Every line comes from recorded CRM data or from the owner's own note; nothing is promised that was not recorded.
-export const LIFECYCLE_KINDS = ["onboarding_confirmation", "progress_update", "delivery_notice", "support_info", "renewal_review"] as const;
+export const LIFECYCLE_KINDS = ["onboarding_confirmation", "information_request", "materials_request", "kickoff_confirmation", "progress_update",
+  "review_request", "approval_request", "delivery_notice", "receipt_confirmation", "support_info", "maintenance_notice", "renewal_review"] as const;
 export type LifecycleKind = typeof LIFECYCLE_KINDS[number];
 export const isLifecycleKind = (v: string): v is LifecycleKind => (LIFECYCLE_KINDS as readonly string[]).includes(v);
 export type LifecycleInput = {
   kind: LifecycleKind; lang: Lang; contactName: string; companyName: string; product: string; representative: Signer; company: CompanyContact; origin?: string;
   stageLabel: string; progress: { done: number; total: number } | null; nextStep: string | null; note: string;
   liveUrl: string | null; deliveredOn: string | null;
+  /** Pending items of the service checklist (website / e-commerce / CRM / marketing), already in the message language. */
+  pending?: string[];
 };
 /** Returns null when the recorded facts do not support the message (e.g. a delivery notice without a recorded delivery). */
 export function renderLifecycle(i: LifecycleInput): Rendered | null {
@@ -223,6 +230,69 @@ export function renderLifecycle(i: LifecycleInput): Rendered | null {
       lines = [T(L, `El ${i.deliveredOn} registramos la entrega de ${product}, disponible en ${i.liveUrl}.`, `On ${i.deliveredOn} we recorded the delivery of ${product}, available at ${i.liveUrl}.`),
         T(L, "Por favor, responde a este correo para confirmar que lo recibiste o para indicarnos cualquier observación.", "Please reply to this e-mail to confirm receipt or to share any observation."),
         ...(note ? [note] : [])];
+      break;
+    case "information_request":
+      if (!note) return null;
+      subject = T(L, `Avalon Core Agency — Información necesaria para avanzar con ${product}`, `Avalon Core Agency — Information needed to move ${product} forward`);
+      heading = T(L, "Necesitamos tu confirmación", "We need your input");
+      lines = [T(L, `Para continuar con ${product} para ${i.companyName} necesitamos la siguiente información:`, `To continue with ${product} for ${i.companyName} we need the following information:`),
+        note, T(L, "Puedes responder directamente a este correo. No envíes contraseñas ni claves privadas por correo.", "You can reply directly to this e-mail. Never send passwords or private keys by e-mail.")];
+      break;
+    case "materials_request": {
+      const pending = (i.pending ?? []).map(x => oneLine(x, 160)).filter(Boolean).slice(0, 10);
+      if (!pending.length && !note) return null;
+      subject = T(L, `Avalon Core Agency — Materiales necesarios para avanzar — ${product}`, `Avalon Core Agency — Materials needed for the next step — ${product}`);
+      heading = T(L, "Materiales pendientes", "Outstanding materials");
+      lines = [T(L, `Al revisar la preparación de ${product} para ${i.companyName}, identificamos los siguientes elementos pendientes:`,
+          `While preparing ${product} for ${i.companyName}, we identified these outstanding items:`),
+        ...pending.map(x => `• ${x}`), ...(note ? [note] : []),
+        ...(i.nextStep ? [T(L, `Estos materiales nos permitirán continuar con: ${i.nextStep}.`, `They are needed for: ${i.nextStep}.`)] : []),
+        T(L, "Verifica que los textos, imágenes y archivos tengan permiso de uso. No envíes contraseñas ni claves privadas: coordinaremos accesos delegados.",
+          "Please confirm you have the right to use the copy, images and files. Never send passwords or private keys: we will coordinate delegated access."),
+        T(L, "Si algún material todavía no está disponible, avísanos para registrar la dependencia; este mensaje no cambia ninguna fecha contractual.",
+          "If something is not yet available, tell us so we can record the dependency; this note does not change any contractual date.")];
+      break;
+    }
+    case "kickoff_confirmation":
+      if (!i.nextStep && !note) return null;
+      subject = T(L, `Avalon Core Agency — Confirmación de inicio y próximos pasos — ${product}`, `Avalon Core Agency — Project kickoff and next steps — ${product}`);
+      heading = T(L, "Kickoff confirmado", "Kickoff confirmed");
+      lines = [T(L, `Confirmamos que la fase de kickoff de ${product} para ${i.companyName} está preparada conforme al alcance registrado.`,
+          `The kickoff stage for ${product} at ${i.companyName} is ready according to the recorded scope.`),
+        T(L, "Revisaremos: objetivos prioritarios, responsables de decisiones, materiales pendientes, dependencias y criterios de validación.",
+          "We will cover priorities, authorized decision-makers, missing materials, dependencies and validation criteria."),
+        ...(i.nextStep ? [T(L, `Siguiente acción acordada: ${i.nextStep}.`, `Agreed next action: ${i.nextStep}.`)] : []), ...(note ? [note] : []),
+        T(L, "Solo confirmaremos fechas vinculantes cuando estén aprobadas por quienes corresponda.", "We will only confirm binding dates once properly approved.")];
+      break;
+    case "review_request":
+      if (!note) return null;
+      subject = T(L, `Avalon Core Agency — Revisión solicitada — ${product}`, `Avalon Core Agency — Review requested — ${product}`);
+      heading = T(L, "Tu revisión", "Your review");
+      lines = [T(L, `Tenemos lista una entrega parcial de ${product} para tu revisión:`, `A partial delivery of ${product} is ready for your review:`), note,
+        T(L, "Responde con tus observaciones concretas (qué, dónde y qué esperas). Las rondas de revisión incluidas son las de tu acuerdo.",
+          "Reply with specific feedback (what, where and what you expect). Included review rounds are the ones in your agreement.")];
+      break;
+    case "approval_request":
+      if (!note) return null;
+      subject = T(L, `Avalon Core Agency — Solicitud de aprobación — ${product}`, `Avalon Core Agency — Approval requested — ${product}`);
+      heading = T(L, "Necesitamos tu aprobación", "Your approval is needed");
+      lines = [T(L, `Para avanzar con ${product} necesitamos tu aprobación expresa sobre:`, `To move ${product} forward we need your explicit approval of:`), note,
+        T(L, "Responde «Aprobado» o indícanos los cambios. No interpretamos el silencio como aprobación y nada se publica ni se cobra sin tu confirmación.",
+          "Reply “Approved” or tell us what to change. Silence is never taken as approval and nothing is published or charged without your confirmation.")];
+      break;
+    case "receipt_confirmation":
+      if (!note) return null;
+      subject = T(L, `Avalon Core Agency — Confirmamos la recepción — ${product}`, `Avalon Core Agency — Receipt confirmed — ${product}`);
+      heading = T(L, "Recibido, gracias", "Received, thank you");
+      lines = [T(L, `Confirmamos que recibimos lo siguiente para ${product}:`, `We confirm we received the following for ${product}:`), note,
+        T(L, "Lo revisaremos y te avisaremos si falta algo o necesitamos otro formato.", "We will review it and let you know if anything is missing or needs another format.")];
+      break;
+    case "maintenance_notice":
+      if (!note) return null;
+      subject = T(L, `Avalon Core Agency — Aviso de mantenimiento — ${product}`, `Avalon Core Agency — Maintenance notice — ${product}`);
+      heading = T(L, "Mantenimiento", "Maintenance");
+      lines = [note, T(L, "El alcance del mantenimiento es el indicado en tu contrato; cualquier trabajo adicional requiere tu aprobación previa.",
+          "Maintenance scope is the one stated in your agreement; any additional work needs your prior approval."), ...supportLines];
       break;
     case "support_info":
       subject = T(L, "Avalon Core Agency — Cómo contactar a soporte", "Avalon Core Agency — How to reach support");

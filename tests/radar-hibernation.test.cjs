@@ -30,7 +30,7 @@ test("the Radar page renders a server-side suspension notice before the Radar co
 test("no active commercial screen links to Radar; pending inquiries open the website inbox", () => {
   const roots = ["src/app", "src/components"];
   const files = [];
-  const walk = d => { for (const e of fs.readdirSync(d, { withFileTypes: true })) { const p = path.join(d, e.name); e.isDirectory() ? walk(p) : /\.tsx?$/.test(e.name) && files.push(p); } };
+  const walk = d => { for (const e of fs.readdirSync(d, { withFileTypes: true })) { const p = path.join(d, e.name); if (e.isDirectory()) walk(p); else if (/\.tsx?$/.test(e.name)) files.push(p); } };
   roots.forEach(walk);
   const allowed = new Set(["src/components/crm/navigation.tsx", "src/components/crm/crm.tsx", "src/components/crm/titan-radar.tsx"].map(f => path.normalize(f)));
   const offenders = files.filter(f => !allowed.has(path.normalize(f)) && !f.includes(`${path.sep}radar${path.sep}`) && /href=\{?["'`]\/admin\/workspace\/crm\/hunter|["'`]\/admin\/workspace\/crm\/hunter["'`],/.test(read(f)));
