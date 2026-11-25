@@ -83,24 +83,46 @@ export function productTypeForModule(module: string | null | undefined): Product
     : module === "marketing" ? "marketing" : module === "receptionist" || module === "chatbots" ? "ai_tools" : "other";
 }
 
-export type DeliveryFacts = { checklist: ChecklistItem[]; qaPassed: boolean; liveUrl: string; manualIssued: boolean; contractLinked: boolean; deliveredTo: string };
+/**
+ * OPS-001: a public https URL is evidence only for products that live at one (website, e-commerce, hosted CRM).
+ * Marketing, paused AI tools and other services are delivered without inventing a URL; their evidence is the
+ * checklist, QA, manual, verified agreement and an identified recipient.
+ */
+export const URL_REQUIRED: readonly ProductType[] = ["website", "ecommerce", "crm"];
+export const requiresLiveUrl = (t: ProductType) => URL_REQUIRED.includes(t);
+/**
+ * OPS-002: contractVerified means a signature record in the canonical evidence flow (crm_contracts) is
+ * «verified_signed» for this client — never that a draft or a link merely exists. OPS-004: client acceptance is
+ * recorded separately, after the handover, with its own evidence (see acceptanceBlockers).
+ */
+export type DeliveryFacts = { productType: ProductType; checklist: ChecklistItem[]; qaPassed: boolean; liveUrl: string; manualIssued: boolean; contractVerified: boolean; deliveredTo: string };
 /** Delivery gate: every failing reason is listed; nothing passes by default. */
 export function deliveryBlockers(f: DeliveryFacts): string[] {
   const out: string[] = [];
   const pr = progress(f.checklist);
   if (pr.total === 0 || pr.done < pr.total) out.push("checklist_incomplete");
   if (!f.qaPassed) out.push("qa_not_passed");
-  if (!/^https:\/\/\S{3,}$/.test(f.liveUrl)) out.push("live_url_missing");
+  if (requiresLiveUrl(f.productType) && !/^https:\/\/\S{3,}$/.test(f.liveUrl)) out.push("live_url_missing");
   if (!f.manualIssued) out.push("manual_missing");
-  if (!f.contractLinked) out.push("contract_missing");
+  if (!f.contractVerified) out.push("contract_not_verified");
   if (f.deliveredTo.trim().length < 2) out.push("recipient_missing");
   return out;
 }
 export const BLOCKER_LABEL: Record<string, [string, string]> = {
   checklist_incomplete: ["Checklist incompleto", "Checklist incomplete"], qa_not_passed: ["QA no aprobado", "QA not passed"],
   live_url_missing: ["Falta la URL real (https)", "Real URL (https) missing"], manual_missing: ["Falta el manual del producto", "Product manual missing"],
-  contract_missing: ["Sin contrato o borrador vinculado al cliente", "No agreement or draft linked to the client"], recipient_missing: ["Falta el receptor de la entrega", "Delivery recipient missing"],
+  contract_not_verified: ["Sin contrato firmado y verificado (un borrador o un vínculo no es una firma)", "No signed and verified agreement (a draft or a link is not a signature)"],
+  recipient_missing: ["Falta el receptor de la entrega", "Delivery recipient missing"],
+  not_delivered: ["La entrega aún no está registrada", "Delivery not recorded yet"],
+  acceptance_evidence_missing: ["Falta la evidencia de aceptación del cliente", "Client acceptance evidence missing"],
 };
+/** OPS-004: acceptance by the client is distinct from the owner's handover and from technical publication. */
+export function acceptanceBlockers(f: { deliveredAt: string | null; evidence: string }): string[] {
+  const out: string[] = [];
+  if (!f.deliveredAt) out.push("not_delivered");
+  if (f.evidence.trim().length < 10) out.push("acceptance_evidence_missing");
+  return out;
+}
 
 /** Allowed forward/back moves; delivered/support/closed are reached through the delivery action, never by a plain jump. */
 export function canMove(from: Stage, to: Stage): boolean {

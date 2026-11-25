@@ -4,12 +4,13 @@ import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { back, field, ownerForAction, uuidField } from "@/lib/os/actions";
-import { canMove, checklistFor, deliveryBlockers, isProductType, isStage, progress, readChecklist, toggleItem, PRODUCT_LABEL, STAGE_LABEL, type ProductType } from "@/lib/onboarding/model";
+import { acceptanceBlockers, canMove, checklistFor, deliveryBlockers, isProductType, isStage, progress, readChecklist, toggleItem, PRODUCT_LABEL, STAGE_LABEL, type ProductType } from "@/lib/onboarding/model";
 import { buildManual, renderManualPdf, MANUAL_GENERATOR, isManualSnapshot, manualFileName } from "@/lib/docs/manual";
 import { isLifecycleKind, renderClientWelcome, renderDocumentDelivery, renderInvoiceCopy, renderLifecycle, type Lang, type Rendered } from "@/lib/comms/email";
 import { appOrigin, loadCompany, signerForId, signerForUser } from "@/lib/comms/company-server";
 import { sendMail, type Attachment } from "@/lib/comms/transport";
 import { loadInvoiceDoc } from "@/lib/sales/invoice-server";
+import { verifiedAgreement } from "@/lib/onboarding/evidence-server";
 import { renderInvoicePdf, fileName as invoiceFileName } from "@/lib/sales/invoice";
 import { isAgreementSnapshot } from "@/lib/contracts/agreement";
 
@@ -19,7 +20,8 @@ const lang = (form: FormData): Lang => field(form, "lang") === "en" ? "en" : "es
 const code = (e: { message?: string } | null) => e?.message?.includes("crm_email_outbox_kind_check") ? "outbox_kind_pending"
   : /\b((?:onboarding|outbox|document|consent)_[a-z_]+)\b/.exec(e?.message ?? "")?.[1] ?? (e?.message?.includes("row-level security") ? "forbidden" : "save");
 type Onb = { id: string; client_id: string; sale_id: string | null; project_id: string | null; product_type: ProductType; title: string; stage: string; version: number;
-  checklist: unknown; invoice_id: string | null; live_url: string; qa_passed: boolean; commercial_owner_id: string | null; next_step: string; next_step_on: string | null; next_step_confirmed: boolean; delivered_at: string | null };
+  checklist: unknown; invoice_id: string | null; live_url: string; qa_passed: boolean; commercial_owner_id: string | null; next_step: string; next_step_on: string | null; next_step_confirmed: boolean; delivered_at: string | null;
+  client_accepted_at?: string | null };
 
 async function loadOnb(db: SupabaseClient, id: string) {
   const r = await db.from("crm_client_onboardings").select("*").eq("id", id).maybeSingle();
@@ -88,6 +90,8 @@ export async function moveOnboarding(form: FormData) {
   if (!id || !isStage(to)) back(BASE, { error: "onboarding_invalid" });
   const o = await loadOnb(supabase, id!);
   if (!isStage(o.stage) || !canMove(o.stage, to as never)) back(`${BASE}/${id}`, { error: "onboarding_stage_not_allowed" });
+  // OPS-004: closing needs the client's acceptance (the database enforces it too).
+  if (to === "closed" && !o.client_accepted_at) back(`${BASE}/${id}#delivery`, { error: "onboarding_acceptance_blocked" });
   await update(supabase, o, Number(field(form, "version")), { stage: to });
   refresh(o); back(`${BASE}/${id}`, { ok: "stage" });
 }
@@ -112,12 +116,33 @@ export async function setQa(form: FormData) {
 }
 
 async function deliveryFacts(db: SupabaseClient, o: Onb, deliveredTo: string) {
-  const [manuals, drafts] = await Promise.all([
+  const [manuals, verified] = await Promise.all([
     db.from("crm_client_documents").select("id", { count: "exact", head: true }).eq("onboarding_id", o.id).eq("kind", "manual").eq("status", "issued"),
-    db.from("crm_client_agreement_drafts").select("id", { count: "exact", head: true }).eq("client_id", o.client_id),
+    verifiedAgreement(db, o.client_id),
   ]);
-  return deliveryBlockers({ checklist: readChecklist(o.checklist), qaPassed: o.qa_passed, liveUrl: o.live_url,
-    manualIssued: !manuals.error && (manuals.count ?? 0) > 0, contractLinked: !drafts.error && (drafts.count ?? 0) > 0, deliveredTo });
+  return deliveryBlockers({ productType: o.product_type, checklist: readChecklist(o.checklist), qaPassed: o.qa_passed, liveUrl: o.live_url,
+    manualIssued: !manuals.error && (manuals.count ?? 0) > 0, contractVerified: Boolean(verified), deliveredTo });
+}
+
+/** OPS-003: the exact agreement version tied to the client's verified signature (null data + reason otherwise). */
+async function signedAgreement(db: SupabaseClient, clientId: string): Promise<{ data: { id: string; template_version: string; snapshot: unknown; client_id: string } | null; error: string | null }> {
+  const v = await verifiedAgreement(db, clientId);
+  if (!v) return { data: null, error: "manual_contract_not_verified" };
+  if (!v.agreementDraftId) return { data: null, error: "manual_agreement_not_linked" };
+  const r = await db.from("crm_client_agreement_drafts").select("id,template_version,snapshot,client_id").eq("id", v.agreementDraftId).maybeSingle();
+  return { data: (r.data as { id: string; template_version: string; snapshot: unknown; client_id: string } | null) ?? null, error: r.data ? null : "manual_agreement_not_linked" };
+}
+
+/** OPS-004: record the CLIENT's acceptance (distinct from the handover and from technical publication), once. */
+export async function recordAcceptance(form: FormData) {
+  const { supabase, userId } = await ownerForAction();
+  const id = uuidField(form, "id"); if (!id) back(BASE, { error: "onboarding_invalid" });
+  const o = await loadOnb(supabase, id!);
+  const evidence = field(form, "acceptance_evidence").trim().slice(0, 1000);
+  const blockers = acceptanceBlockers({ deliveredAt: o.delivered_at, evidence });
+  if (blockers.length || o.client_accepted_at) back(`${BASE}/${id}#delivery`, { error: o.client_accepted_at ? "onboarding_acceptance_immutable" : "onboarding_acceptance_blocked" });
+  await update(supabase, o, Number(field(form, "version")), { client_accepted_at: new Date().toISOString(), client_acceptance_evidence: evidence, client_acceptance_recorded_by: userId });
+  refresh(o); back(`${BASE}/${id}#delivery`, { ok: "accepted" });
 }
 
 /** Records the actual delivery. Only possible when every gate passes; the database re-checks QA, approver and URL. */
@@ -143,11 +168,15 @@ export async function generateManual(form: FormData) {
     supabase.from("crm_clients").select("legal_name,trade_name").eq("id", o.client_id).single(),
     supabase.from("crm_contacts").select("full_name").eq("client_id", o.client_id).order("is_primary", { ascending: false }).limit(1).maybeSingle(),
     o.project_id ? supabase.from("os_projects").select("name").eq("id", o.project_id).maybeSingle() : Promise.resolve({ data: null, error: null }),
-    supabase.from("crm_client_agreement_drafts").select("id,template_version,snapshot").eq("client_id", o.client_id).order("created_at", { ascending: false }).limit(1).maybeSingle(),
+    signedAgreement(supabase, o.client_id),
     supabase.from("crm_client_documents").select("id,version").eq("client_id", o.client_id).eq("kind", "manual").eq("product_type", o.product_type).order("version", { ascending: false }).limit(1).maybeSingle(),
     loadCompany(supabase),
   ]);
   if (client.error || !client.data) back(`${BASE}/${id}`, { error: "unavailable" });
+  // OPS-003: a manual describes the scope that was actually SIGNED (verified contract linked to its exact agreement
+  // version). Without it no manual is issued — never a generic manual presented as proof of a specific product.
+  const signed = draft.data as { client_id?: string } | null;
+  if (!signed || signed.client_id !== o.client_id) back(`${BASE}/${id}#documents`, { error: draft.error ?? "manual_agreement_not_linked" });
   const c = client.data as { legal_name: string; trade_name: string };
   const snap = draft.data && isAgreementSnapshot((draft.data as { snapshot: unknown }).snapshot) ? (draft.data as { snapshot: { data: Record<string, string> } }).snapshot.data : null;
   const responsible = (await signerForId(supabase, o.commercial_owner_id, L))?.name ?? (await signerForUser(supabase, userId, L))?.name ?? "";

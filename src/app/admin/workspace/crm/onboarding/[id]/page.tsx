@@ -7,18 +7,20 @@ import { getLang } from "@/lib/i18n-server";
 import { pick, formatDate } from "@/lib/i18n";
 import { loadOwnerDirectory } from "@/lib/identity/directory";
 import { personDisplayName, type DisplayIdentity } from "@/lib/identity/owners";
-import { BLOCKER_LABEL, PRODUCT_LABEL, STAGES, STAGE_LABEL, canMove, deliveryBlockers, isStage, progress, readChecklist, type ProductType, type Stage } from "@/lib/onboarding/model";
+import { BLOCKER_LABEL, PRODUCT_LABEL, STAGES, STAGE_LABEL, acceptanceBlockers, canMove, deliveryBlockers, requiresLiveUrl, isStage, progress, readChecklist, type ProductType, type Stage } from "@/lib/onboarding/model";
 import { readProductState } from "@/lib/os/client-hud";
 import { loadCompany } from "@/lib/comms/company-server";
+import { verifiedAgreement } from "@/lib/onboarding/evidence-server";
 import { smtpConfig } from "@/lib/comms/transport";
 import { ONBOARDING_ERROR, ONBOARDING_OK, OUTBOX_STATUS } from "@/lib/onboarding/text";
-import { approveAndSend, cancelEmail, generateManual, moveOnboarding, prepareEmail, recordDelivery, recordManualSend, setQa, toggleChecklist, updateOnboarding } from "../actions";
+import { approveAndSend, cancelEmail, generateManual, moveOnboarding, prepareEmail, recordAcceptance, recordDelivery, recordManualSend, setQa, toggleChecklist, updateOnboarding } from "../actions";
 import s from "@/components/sales/sales.module.css";
 
 export const dynamic = "force-dynamic";
 type Onb = { id: string; client_id: string; sale_id: string | null; project_id: string | null; product_type: ProductType; title: string; stage: string; version: number;
   checklist: unknown; invoice_id: string | null; live_url: string; qa_passed: boolean; commercial_owner_id: string | null; technical_owner_id: string | null;
-  next_step: string; next_step_on: string | null; next_step_confirmed: boolean; delivered_at: string | null; delivered_to: string; delivery_note: string; delivery_approved_by: string | null; created_at: string };
+  next_step: string; next_step_on: string | null; next_step_confirmed: boolean; delivered_at: string | null; delivered_to: string; delivery_note: string; delivery_approved_by: string | null; created_at: string;
+  client_accepted_at?: string | null; client_acceptance_evidence?: string; client_acceptance_recorded_by?: string | null };
 type Msg = { id: string; kind: string; to_email: string; to_name: string; from_email: string; reply_to: string; subject: string; body_html: string; status: string;
   attachments: { type: string; number?: string; title?: string }[]; approved_by: string | null; approved_at: string | null; sent_at: string | null; provider: string; provider_message_id: string; error: string; attempts: number; created_at: string };
 
@@ -33,7 +35,7 @@ export default async function OnboardingDetail({ params, searchParams }: { param
   if (r.error) return <Suite active="crm"><div className={s.hud}><OpsHeader lang={lang} active="clients" eyebrow="CRM / Onboarding" title="Onboarding" />
     <p className={s.flash} data-tone="warn">{t("El módulo de onboarding requiere la migración 20261124140000 (pendiente de aplicar).", "Onboarding requires migration 20261124140000 (not applied yet).")}</p></div></Suite>;
   const o = r.data as Onb;
-  const [client, contacts, projects, invoices, docs, outbox, owners, drafts, company] = await Promise.all([
+  const [client, contacts, projects, invoices, docs, outbox, owners, company] = await Promise.all([
     supabase.from("crm_clients").select("id,legal_name,trade_name,client_code").eq("id", o.client_id).single(),
     supabase.from("crm_contacts").select("id,full_name,email,is_primary").eq("client_id", o.client_id).order("is_primary", { ascending: false }),
     supabase.from("os_projects").select("id,name,module,settings").eq("client_id", o.client_id).order("updated_at", { ascending: false }).limit(50),
@@ -41,7 +43,6 @@ export default async function OnboardingDetail({ params, searchParams }: { param
     supabase.from("crm_client_documents").select("id,title,version,status,sha256,created_at,product_type").eq("onboarding_id", o.id).order("created_at", { ascending: false }),
     supabase.from("crm_email_outbox").select("*").eq("onboarding_id", o.id).order("created_at", { ascending: false }).limit(30),
     loadOwnerDirectory(supabase),
-    supabase.from("crm_client_agreement_drafts").select("id", { count: "exact", head: true }).eq("client_id", o.client_id),
     loadCompany(supabase),
   ]);
   const c = client.data as { id: string; legal_name: string; trade_name: string; client_code: string } | null;
@@ -50,8 +51,10 @@ export default async function OnboardingDetail({ params, searchParams }: { param
   const list = readChecklist(o.checklist); const pr = progress(list);
   const stage = (isStage(o.stage) ? o.stage : "preparation") as Stage;
   const docRows = (docs.data ?? []) as { id: string; title: string; version: number; status: string; sha256: string; created_at: string }[];
-  const blockers = deliveryBlockers({ checklist: list, qaPassed: o.qa_passed, liveUrl: o.live_url, manualIssued: docRows.some(d => d.status === "issued"),
-    contractLinked: !drafts.error && (drafts.count ?? 0) > 0, deliveredTo: "xx" }).filter(b => b !== "recipient_missing");
+  const verified = await verifiedAgreement(supabase, o.client_id);
+  const blockers = deliveryBlockers({ productType: o.product_type, checklist: list, qaPassed: o.qa_passed, liveUrl: o.live_url, manualIssued: docRows.some(d => d.status === "issued"),
+    contractVerified: Boolean(verified), deliveredTo: "xx" }).filter(b => b !== "recipient_missing");
+  const acceptance = o.client_accepted_at ? null : acceptanceBlockers({ deliveredAt: o.delivered_at, evidence: "x".repeat(10) });
   const msgs = (outbox.data ?? []) as Msg[];
   const smtp = smtpConfig();
   const senderMatches = smtp.configured && smtp.user === company.contact.clientSender.toLowerCase();
@@ -170,7 +173,17 @@ export default async function OnboardingDetail({ params, searchParams }: { param
             <label className={s.field}>{t("Nota / garantía pactada", "Note / agreed warranty")}<input name="delivery_note" maxLength={1000} /></label></div>
           <button className={`${s.button} ${s.primary}`} type="submit" disabled={stage !== "delivery_ready" || blockers.length > 0}>{t("Registrar entrega", "Record delivery")}</button>
           {stage !== "delivery_ready" && <small className={s.muted}> {t("Disponible en la etapa «Entrega preparada».", "Available at the «Delivery ready» stage.")}</small>}
+          {!requiresLiveUrl(o.product_type) && <small className={s.muted}> {t("Este servicio no exige URL pública: la evidencia es el checklist, QA, manual, contrato verificado y receptor.", "This service needs no public URL: evidence is the checklist, QA, manual, verified agreement and recipient.")}</small>}
         </form></>}
+      {o.delivered_at && <div data-client-acceptance={o.client_accepted_at ? "recorded" : "pending"}>
+        <h3>{t("Aceptación del cliente", "Client acceptance")}</h3>
+        <p className={s.muted}>{t("La aceptación del cliente es distinta de la entrega registrada y de la publicación técnica. Registra la evidencia real (p. ej. correo del cliente con fecha).", "Client acceptance is distinct from the recorded handover and from technical publication. Record real evidence (e.g. the client's dated e-mail).")}</p>
+        {o.client_accepted_at ? <p className={s.flash} data-tone="ok">{t("Aceptado el", "Accepted on")} {formatDate(lang, o.client_accepted_at, true)} · {o.client_acceptance_evidence} · {t("registrado por", "recorded by")} {who(o.client_acceptance_recorded_by ?? null)}</p>
+          : <form action={recordAcceptance} className={s.form}>{hidden}
+            <label className={s.field}>{t("Evidencia de aceptación del cliente", "Client acceptance evidence")}<textarea name="acceptance_evidence" minLength={10} maxLength={1000} rows={2} required /></label>
+            <button className={s.button} type="submit" disabled={Boolean(acceptance?.includes("not_delivered"))}>{t("Registrar aceptación", "Record acceptance")}</button>
+          </form>}
+      </div>}
     </section>
 
     <section className={s.panel} aria-labelledby="support-h">

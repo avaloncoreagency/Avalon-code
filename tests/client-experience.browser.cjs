@@ -8,7 +8,6 @@
 // Agent invitations are covered by tests/agent-portal-invitations.test.cjs (rendered panel) — they belong to AGENT PORTAL.
 const { test } = require('node:test'), assert = require('node:assert/strict'), fs = require('node:fs');
 const { spawn } = require('node:child_process'), { createServer } = require('node:http');
-const verifiedContract = require('./helpers/verified-contract.cjs');
 
 const OWNER = '00000000-0000-4000-8000-0000000000f1';
 const DIR = process.env.EVIDENCE_DIR || 'evidence/client-experience';
@@ -34,7 +33,14 @@ test('Client experience: onboarding → manual → welcome e-mail → Clients 36
   const client = (await one("insert into crm_clients(legal_name,trade_name,source,owner_id) values($1,$1,'Manual',$2) returning id", [COMPANY, OWNER])).id;
   await db.query("insert into crm_contacts(client_id,full_name,email,is_primary) values($1,'Laura QA','laura.qa@example.invalid',true)", [client]);
   const lead = (await one('select public.crm_ensure_client_opportunity($1) id', [client])).id;
-  await verifiedContract(db, lead);
+  // Signature evidence (OPS-002/003): an agreement version, a contract linked to it BEFORE signature, then the
+  // full evidence flow up to owner verification. Synthetic only.
+  const agreementId = (await one(`insert into crm_client_agreement_drafts(client_id,template_version,snapshot,snapshot_sha256,created_by)
+    values($1,'ACA-MSA-1.1-2026-11','{"schemaVersion":1}'::jsonb,$2,$3) returning id`, [client, 'f'.repeat(64), OWNER])).id;
+  const contract = (await one("insert into crm_contracts(lead_id,title,agreement_draft_id,agreement_sha256) values($1,'Acuerdo sintético QA',$2,$3) returning id", [lead, agreementId, 'f'.repeat(64)])).id;
+  await db.query("update crm_contracts set status='sent_for_signature' where id=$1", [contract]);
+  await db.query("update crm_contracts set status='signed_pending_verification', signed_at=now(), signer_name='Firmante Sintético', external_reference='SYNTHETIC-ENVELOPE-QA' where id=$1", [contract]);
+  await db.query("update crm_contracts set status='verified_signed', verification_method='document_review', verification_note='Documento firmado revisado por un owner (sintético QA).' where id=$1", [contract]);
   const sale = (await one('select public.crm_confirm_sale($1::jsonb) r', [JSON.stringify({ idempotency_key: '95000000-0000-4000-8000-000000000001', client_id: client, lead_id: lead, seller_id: OWNER,
     lines: [{ service_code: 'desarrollo-web', unit_price: '900.00' }] })])).r;
   const invoice = (await one('select crm_invoice_record($1::jsonb) r', [JSON.stringify({ sale_id: sale.sale_id, number: 'QA-FAC-0001', amount: '900.00' })])).r.invoice_id;
@@ -137,7 +143,8 @@ test('Client experience: onboarding → manual → welcome e-mail → Clients 36
 
   // 6. Delivery gate: cannot be recorded while blockers remain.
   const gate = await page.locator('#delivery').getAttribute('data-delivery-blockers');
-  for (const b of ['checklist_incomplete', 'qa_not_passed', 'contract_missing']) assert.ok(gate.includes(b), `${b} listed: ${gate}`);
+  for (const b of ['checklist_incomplete', 'qa_not_passed']) assert.ok(gate.includes(b), `${b} listed: ${gate}`);
+  assert.ok(!gate.includes('contract_not_verified'), 'the verified signature satisfies the contract gate');
   assert.equal(await page.getByRole('button', { name: 'Registrar entrega' }).isDisabled(), true);
 
   // 7. Clients 360 shows onboarding, manual and communications for the same crm_clients.id.
@@ -189,7 +196,7 @@ test('Client experience pages degrade honestly before migration 20261124140000',
   const db = new PGlite(); t.after(() => db.close());
   await db.exec(fs.readFileSync('tests/sql/00_supabase_stub.sql', 'utf8'));
   await db.query('insert into auth.users(id,email) values($1,$2)', [OWNER, 'client-experience-qa@example.invalid']);
-  for (const f of fs.readdirSync('supabase/migrations').filter(f => f.endsWith('.sql') && !f.startsWith('20261124140000') && !f.startsWith('20261124190000') && !f.startsWith('20261124200000')).sort()) {
+  for (const f of fs.readdirSync('supabase/migrations').filter(f => f.endsWith('.sql') && !f.startsWith('20261124140000') && !f.startsWith('20261124190000') && !f.startsWith('20261124200000') && !f.startsWith('20261125100000')).sort()) {
     await db.exec(fs.readFileSync('supabase/migrations/' + f, 'utf8'));
     if (f.startsWith('20261102053022')) await db.query("insert into agency_memberships(user_id,role) values($1,'owner')", [OWNER]);
   }
