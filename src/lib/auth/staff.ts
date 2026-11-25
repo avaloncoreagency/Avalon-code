@@ -17,9 +17,9 @@ export async function requireStaff(): Promise<StaffSession> {
 }
 
 /** Verified seller (job title seller/account executive). The database re-checks ownership of every record. */
-export async function requireSeller(): Promise<StaffSession> {
+export async function requireSeller(permission?: string): Promise<StaffSession> {
   const staff = await requireStaff();
-  if (!isSellerTitle(staff.permissions.job_title)) redirect("/staff?status=denied");
+  if (!isSellerTitle(staff.permissions.job_title) || (permission && !staff.permissions.commercial_permissions.includes(permission))) redirect("/staff?status=denied");
   return staff;
 }
 

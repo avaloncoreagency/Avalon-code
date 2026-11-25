@@ -14,7 +14,7 @@ const iso = (d: Date) => d.toISOString().slice(0, 10);
 
 /** A seller drafts a proposal for one of their own leads. The database rejects any lead that is not theirs. */
 export default async function SellerNewQuote({ searchParams }: { searchParams: Promise<{ lead?: string; error?: string }> }) {
-  const { supabase, user } = await requireSeller();
+  const { supabase, user } = await requireSeller("quote_create");
   const { lead: leadId, error } = await searchParams;
   if (!leadId || !UUID.test(leadId)) notFound();
   const [leadsR, catalogR, profileR] = await Promise.all([
@@ -44,7 +44,7 @@ export default async function SellerNewQuote({ searchParams }: { searchParams: P
     <section className={s.panel} aria-labelledby="new-quote">
       <h2 id="new-quote">Nueva propuesta para {lead.company}</h2>
       <p className={s.muted}>Se guarda como borrador. Cuando esté lista, envíala a revisión: la dirección aprueba el precio antes de enviarla al cliente.</p>
-      <QuoteWizard lang="es" mode="create" action={createSellerQuote} catalog={catalog} initial={initial}
+      <QuoteWizard employee lang="es" mode="create" action={createSellerQuote} catalog={catalog} initial={initial}
         initialInternal={{ directCosts: "", marginNote: "", confidential: "" }} hidden={{ lead_id: lead.lead_id, request_key: randomUUID() }} />
     </section>
   </Shell>;

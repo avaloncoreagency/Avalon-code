@@ -1,8 +1,9 @@
+import { commercialPermissions } from "@/lib/staff/commercial-permissions";
 import Link from "next/link";
 import { Suite } from "@/components/suite/suite";
 import { requireOwner } from "@/lib/auth/session";
 import { randomUUID } from "node:crypto";
-import { inviteStaffEmployee, setStaffAccess, grantStaffClient, revokeStaffClient, grantStaffLead, revokeStaffLead, assignWorkItem, manageWorkItem, assignLeadToSeller } from "./actions";
+import { decideQuoteDeletion, inviteStaffEmployee, setStaffAccess, grantStaffClient, revokeStaffClient, grantStaffLead, revokeStaffLead, assignWorkItem, manageWorkItem, assignLeadToSeller } from "./actions";
 import { isSellerTitle } from "@/lib/staff/seller";
 import { WorkCalendar } from "@/components/staff/work-calendar";
 import { DEFAULT_TZ, KIND_LABEL, PRIORITY_LABEL, STATUS_LABEL, dayKey, timeLabel, when, workKpis, type WorkItem } from "@/lib/staff/work";
@@ -15,7 +16,7 @@ import { getLang } from "@/lib/i18n-server";
 import { pick } from "@/lib/i18n";
 export const dynamic = "force-dynamic";
 type StaffMember = { user_id:string; role:string; email:string; display_name:string };
-type Access = { user_id:string; active:boolean; can_create_casefiles:boolean; can_message:boolean; can_create_events:boolean; job_title:string };
+type Access = { commercial_permissions:string[]; user_id:string; active:boolean; can_create_casefiles:boolean; can_message:boolean; can_create_events:boolean; job_title:string };
 type LeadGrant = { user_id:string; lead_id:string; access_level:string; active:boolean };
 type LeadOption = { id:string; company:string };
 type Grant = { user_id:string; client_id:string; client_name:string; access_level:string; active:boolean };
@@ -55,7 +56,7 @@ export default async function StaffAdministration({searchParams}:{
  const {supabase,userId} = await requireOwner();
  const [roster,access,grants,clients,casefiles,contacts,messages,audit,leadGrants,leads] = await Promise.all([
    supabase.rpc("office_directory"),
-   supabase.from("staff_portal_access").select("user_id,active,can_create_casefiles,can_message,can_create_events,job_title"),
+   supabase.from("staff_portal_access").select("user_id,active,can_create_casefiles,can_message,can_create_events,job_title,commercial_permissions"),
    supabase.from("staff_client_grants").select("user_id,client_id,client_name,access_level,active")
      .order("updated_at",{ascending:false}).limit(200),
    supabase.from("crm_clients").select("id,legal_name").neq("status","archived")
@@ -71,6 +72,7 @@ export default async function StaffAdministration({searchParams}:{
    supabase.from("crm_leads").select("id,company").eq("archived",false).order("updated_at",{ascending:false}).limit(300),
  ]);
  const {status, view: viewParam, d, invite_sender: inviteSender, agent: agentParam} = await searchParams;
+ const deletionRequests = await supabase.from("crm_quote_deletion_requests").select("id,quote_id,requested_by,revision,reason,requested_at,one_time_total,monthly_total,currency").eq("status","pending").order("requested_at");
  const lang = await getLang();
  const inviteStatus = status && Object.hasOwn(inviteStatuses, status)
    ? pick(lang, ...inviteStatuses[status]) : null;
@@ -150,6 +152,9 @@ export default async function StaffAdministration({searchParams}:{
             <label><input type="checkbox" name="can_create_casefiles" value="yes" defaultChecked={current?.can_create_casefiles} /> Crear expedientes privados</label>
             <label><input type="checkbox" name="can_message" value="yes" defaultChecked={current?.can_message} /> Mensajería privada</label>
             <label><input type="checkbox" name="can_create_events" value="yes" defaultChecked={current?.can_create_events} /> Crear actividades propias en su calendario</label>
+            <fieldset><legend>{lang === "en" ? "Commercial permissions" : "Permisos comerciales"}</legend>
+              {commercialPermissions.map(([key, es, en]) => <label key={key} className={s.field}><span><input type="checkbox" name="commercial_permissions" value={key} defaultChecked={current?.commercial_permissions?.includes(key)} /> {lang === "en" ? en : es}</span></label>)}
+            </fieldset>
             <button className={s.button} type="submit">Guardar permisos</button>
           </form>
         </article>;
@@ -293,6 +298,15 @@ export default async function StaffAdministration({searchParams}:{
         </form>
       </li>)}</ul>
     </section>
+    <section className={s.panel}><h2>{pick(lang, "Solicitudes de eliminación", "Quote deletion requests")}</h2>
+      {deletionRequests.error ? <p role="alert">{pick(lang,"No se pudo cargar la bandeja.","Could not load requests.")}</p> : !deletionRequests.data?.length && <p>{pick(lang,"Sin solicitudes pendientes.","No pending requests.")}</p>}
+      {deletionRequests.data?.map(r => <form action={decideQuoteDeletion} key={r.id} className={s.card}>
+        <Link href={`/admin/workspace/crm/quotes/${r.quote_id}`}>{pick(lang,"Cotización","Quote")} · v{r.revision}</Link>
+        <p>{display.get(r.requested_by)} · {r.requested_at.slice(0,10)}</p><p>{r.reason}</p>
+        <p>{r.one_time_total} {r.currency} + {r.monthly_total} {r.currency}/{pick(lang,"mes","month")}</p>
+        <input type="hidden" name="request_id" value={r.id}/><label><input type="checkbox" name="confirm" value="yes"/> {pick(lang,"Confirmo la eliminación lógica de esta versión","I confirm soft deletion of this revision")}</label>
+        <button name="decision" value="approved">{pick(lang,"Aprobar","Approve")}</button><button name="decision" value="rejected">{pick(lang,"Rechazar","Reject")}</button>
+      </form>)}</section>
     <section className={s.panel} aria-labelledby="staff-permission-audit">
       <h2 id="staff-permission-audit">Historial de permisos</h2>
       <p className={s.muted}>Últimos 40 cambios registrados por la base de datos. Solo los propietarios tienen acceso.</p>

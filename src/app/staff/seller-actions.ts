@@ -101,7 +101,7 @@ export async function transitionSellerQuote(form: FormData) {
   const to = field(form, "to") as QuoteStatus;
   if (!id || !Number.isInteger(expected) || expected < 1 || !QUOTE_STATUSES.includes(to) || to === "approved")
     go("/staff", "error", "invalid", "seller-quotes");
-  const { error } = await supabase.rpc("crm_quote_transition", { p_quote: id, p_expected_version: expected, p_to: to, p_note: field(form, "note").slice(0, 1000) });
+  const { error } = await supabase.rpc("crm_quote_transition", { p_quote: id, p_expected_version: expected, p_to: to, p_note: to === "accepted" ? JSON.stringify({signatory: field(form,"signatory"), evidence:field(form,"note")}) : field(form, "note").slice(0, 1000) });
   if (error) go(`/staff/quotes/${id}`, "error", sellerErrorCode(error));
   go(`/staff/quotes/${id}`, "status", "quote-status");
 }
@@ -114,4 +114,22 @@ export async function closeSellerSale(form: FormData) {
   const { error } = await supabase.rpc("crm_quote_close_sale", { request: { quote_id: id, version_no: versionNo, sold_on: soldOn } });
   if (error) go(`/staff/quotes/${id}`, "error", sellerErrorCode(error));
   go("/staff", "status", "sale-closed", "seller-sales");
+}
+
+export async function requestQuoteDeletion(form: FormData) {
+  const { supabase } = await requireSeller();
+  const id = uuid(form, "quote_id");
+  if (!id) go("/staff", "error", "invalid");
+  const { error } = await supabase.rpc("staff_request_quote_deletion", { p_quote: id,
+    p_version: Number(field(form, "version")), p_reason: field(form, "reason") });
+  go(`/staff/quotes/${id}`, error ? "error" : "status", error ? sellerErrorCode(error) : "deletion-requested");
+}
+
+export async function cancelQuoteDeletion(form: FormData) {
+  const { supabase } = await requireSeller();
+  const id = uuid(form, "quote_id");
+  if (!id) go("/staff", "error", "invalid");
+  const { error } = await supabase.rpc("crm_decide_quote_deletion", {
+    p_request: uuid(form, "request_id"), p_decision: "cancelled", p_confirm: false });
+  go(`/staff/quotes/${id}`, error ? "error" : "status", error ? sellerErrorCode(error) : "deletion-cancelled");
 }

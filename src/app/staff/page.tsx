@@ -44,7 +44,7 @@ export default async function StaffPortal({ searchParams }: {
   const [{ status, error: errorCode, view: viewParam, d, commercial }, lang] = await Promise.all([searchParams, getLang()]);
   const seller = isSellerTitle(permissions.job_title);
   // Sellers always keep their own calendar; other employees need the owners' explicit permission.
-  const canCreateOwn = permissions.can_create_events || seller;
+  const canCreateOwn = permissions.can_create_events;
   // Work calendar, tasks and notes (migration 20261124100000). RLS returns only what this employee may read.
   const [itemsR, notesR] = await Promise.all([
     supabase.from("staff_work_items").select("id,kind,origin,assignee_id,created_by,title,instructions,starts_at,ends_at,due_at,time_zone,priority,status,lead_id,client_id,assignee_can_reschedule,completion_note,completed_at,version,updated_at")
@@ -100,7 +100,7 @@ export default async function StaffPortal({ searchParams }: {
             <div key={label} className={s.stat} data-kpi={label}><span>{label}</span><strong>{value}</strong></div>)}
         </div>
       </section>}
-      {seller && <SellerPipeline supabase={supabase} />}
+      {seller && <SellerPipeline supabase={supabase} permissions={permissions.commercial_permissions} />}
       <StaffCommercialHistory supabase={supabase} lang={lang} view={view} day={anchor} pageParam={commercial} />
       {workReady && <section className={s.panel} aria-labelledby="calendar">
         <h2 id="calendar">Mi calendario</h2>
@@ -181,7 +181,7 @@ export default async function StaffPortal({ searchParams }: {
         </li>)}</ul>
       </section>
       <section className={s.panel} aria-labelledby="staff-files">
-        <h2 id="staff-files">Mis expedientes privados</h2>
+        <h2 id="staff-files">{pick(lang, "Fichas de seguimiento comercial", "Commercial Follow-up Records")}</h2>
         <p className={s.muted}>Estos expedientes solo son visibles para ti y los dos propietarios. Otros empleados no podrán verlos, aunque trabajen con el mismo cliente.</p>
         {permissions.can_create_casefiles && <details>
           <summary>+ Crear expediente privado</summary>

@@ -104,3 +104,15 @@ export async function deleteQuote(form: FormData) {
   revalidatePath("/admin/workspace/crm/clients");
   back(BASE, { ok: "deleted" });
 }
+
+export async function linkVerifiedContract(form: FormData) {
+  const {supabase} = await ownerForAction();
+  const id = uuidField(form,"quote_id");
+  if (!id || form.get("matched") !== "yes") back(BASE, {error:"invalid"});
+  const {error} = await supabase.rpc("crm_link_verified_quote_contract", {
+    p_quote:id, p_revision:uuidField(form,"revision"), p_contract:uuidField(form,"contract_id")
+  });
+  if (error) back(BASE+"/"+id, {error:dbCode(error)});
+  revalidatePath(BASE+"/"+id);
+  back(BASE+"/"+id,{ok:"contract-linked"});
+}

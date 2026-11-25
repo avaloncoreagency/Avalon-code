@@ -9,7 +9,7 @@ import { CONTRACT_LABEL, hhmm, money, type SellerLead, type SellerQuote, type Se
 import { DEFAULT_TZ, dayKey, timeLabel } from "@/lib/staff/work";
 import s from "@/components/sales/sales.module.css";
 
-export async function SellerPipeline({ supabase }: { supabase: SupabaseClient }) {
+export async function SellerPipeline({ supabase, permissions }: { supabase: SupabaseClient; permissions: string[] }) {
   const [leadsR, stagesR, quotesR, salesR] = await Promise.all([
     supabase.rpc("staff_seller_leads"), supabase.rpc("staff_seller_stages"), supabase.rpc("staff_seller_quotes"), supabase.rpc("staff_seller_sales"),
   ]);
@@ -39,7 +39,7 @@ export async function SellerPipeline({ supabase }: { supabase: SupabaseClient })
 
     <section className={s.panel} aria-labelledby="seller-leads">
       <h2 id="seller-leads">Mis leads</h2>
-      <details>
+      {permissions.includes("lead_create") && <details>
         <summary>+ Nuevo lead</summary>
         <form action={createSellerLead} className={s.form} aria-label="Nuevo lead">
           <input type="hidden" name="request_key" value={randomUUID()} />
@@ -66,7 +66,7 @@ export async function SellerPipeline({ supabase }: { supabase: SupabaseClient })
           </div>
           <button className={`${s.button} ${s.primary}`} type="submit">Guardar lead</button>
         </form>
-      </details>
+      </details>}
       {leads.length === 0 ? <p>Aún no tienes leads. Crea el primero o pide a la dirección que te asigne uno.</p> :
         <ul className={s.list} aria-label="Mis leads">{leads.map(l => <li key={l.lead_id} data-lead={l.lead_id}>
           <strong>{l.company}</strong>{l.contact ? ` · ${l.contact}` : ""} · <span className={s.tag}>{l.stage_label}</span>
@@ -75,8 +75,8 @@ export async function SellerPipeline({ supabase }: { supabase: SupabaseClient })
             {l.follow_up_at ? ` · Seguimiento: ${dayKey(l.follow_up_at, DEFAULT_TZ)} ${timeLabel(l.follow_up_at, DEFAULT_TZ, "es")}` : ""}
             {l.next_action ? ` · Próxima acción: ${l.next_action}` : ""} · {CONTRACT_LABEL[l.contract_status] ?? l.contract_status}</span>
           <div className={s.inline} style={{ gap: 8, flexWrap: "wrap" }}>
-            {l.stage_kind === "open" && <Link className={s.button} href={`/staff/quotes/new?lead=${l.lead_id}`}>Nueva propuesta</Link>}
-            <details><summary>Actualizar</summary>
+            {permissions.includes("quote_create") && l.stage_kind === "open" && <Link className={s.button} href={`/staff/quotes/new?lead=${l.lead_id}`}>Nueva propuesta</Link>}
+            {permissions.includes("lead_edit") && <details><summary>Actualizar</summary>
               <form action={updateSellerLead} className={s.form} aria-label={`Actualizar ${l.company}`}>
                 <input type="hidden" name="lead_id" value={l.lead_id} /><input type="hidden" name="version" value={l.version} />
                 <div className={s.row}>
@@ -100,7 +100,7 @@ export async function SellerPipeline({ supabase }: { supabase: SupabaseClient })
                 <label className={s.field}>Motivo si se pierde<input name="loss_reason" maxLength={1000} /></label>
                 <button className={s.button} type="submit">Guardar cambios</button>
               </form>
-            </details>
+            </details>}
           </div>
         </li>)}</ul>}
     </section>

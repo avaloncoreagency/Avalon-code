@@ -58,7 +58,7 @@ export type StaffState =
   | { state: "mfa"; userId: string; supabase: SupabaseClient }
   | { state: "ok"; role: "employee"; userId: string; user: User;
       supabase: SupabaseClient; mfaEnrolled: boolean;
-      permissions: { can_create_casefiles: boolean; can_message: boolean; can_create_events: boolean; job_title: string } };
+      permissions: { commercial_permissions: string[]; can_create_casefiles: boolean; can_message: boolean; can_create_events: boolean; job_title: string } };
 
 export async function getStaffState(client?: SupabaseClient): Promise<StaffState> {
   if (!process.env.NEXT_PUBLIC_SUPABASE_URL || !process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY)
@@ -69,7 +69,7 @@ export async function getStaffState(client?: SupabaseClient): Promise<StaffState
     if (error || !user || !hasAllowedProvider(user.app_metadata.provider)) return { state: "none" };
     const [membership, access] = await Promise.all([
       supabase.from("agency_memberships").select("role").eq("user_id", user.id).maybeSingle(),
-      supabase.from("staff_portal_access").select("active,can_create_casefiles,can_message,can_create_events,job_title")
+      supabase.from("staff_portal_access").select("active,can_create_casefiles,can_message,can_create_events,job_title,commercial_permissions")
         .eq("user_id", user.id).maybeSingle(),
     ]);
     if (membership.error || membership.data?.role !== "operator" ||
@@ -83,6 +83,7 @@ export async function getStaffState(client?: SupabaseClient): Promise<StaffState
       state: "ok", role: "employee", userId: user.id, user, supabase, mfaEnrolled,
       permissions: {
         can_create_casefiles: access.data.can_create_casefiles === true,
+        commercial_permissions: Array.isArray(access.data.commercial_permissions) ? access.data.commercial_permissions : [],
         can_message: access.data.can_message === true,
         can_create_events: access.data.can_create_events === true,
         job_title: typeof access.data.job_title === "string" ? access.data.job_title : "",

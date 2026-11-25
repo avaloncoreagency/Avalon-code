@@ -18,7 +18,7 @@ export type SellerQuote = {
 };
 export type SellerQuoteDetail = {
   quote_id: string; quote_number: string; lead_id: string; company: string; status: QuoteStatus; current_version: number; version: number;
-  valid_until: string; content: QuoteContent; content_sha256: string; internal: Record<string, string> | null; model: string;
+  valid_until: string; content: QuoteContent; content_sha256: string; model: string;
   one_time_total: string | number; monthly_total: string | number; contract_status: string; sale_id: string | null;
   events: { to: QuoteStatus; from: QuoteStatus | null; note: string; at: string; version: number }[];
 };
@@ -46,6 +46,9 @@ export const CONTRACT_LABEL: Record<string, string> = {
 };
 
 export const SELLER_MESSAGES: Record<string, string> = {
+  "deletion-requested": "Solicitud enviada a la dirección.",
+  "deletion-cancelled": "Solicitud cancelada.",
+  commercial_offer_not_approved: "La oferta del catálogo requiere aprobación comercial.",
   "lead-created": "Lead creado. Es tuyo: solo tú y la dirección lo pueden ver.",
   "lead-existing": "Ese lead ya se había guardado; no se creó un duplicado.",
   "lead-saved": "Lead actualizado.",

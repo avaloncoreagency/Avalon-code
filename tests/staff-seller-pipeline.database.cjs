@@ -46,6 +46,10 @@ test('seller pipeline: own leads, proposals and sales; isolation between sellers
 
   await as(MIGUEL);
   await q("insert into staff_portal_access(user_id,active,job_title) values($1,true,'seller'),($2,true,'seller'),($3,true,'support')", [ANA, PEDRO, SOFIA]);
+  await as(ANA);
+  await assert.rejects(createLead({ request_key: crypto.randomUUID(), company: 'Sin permiso' }), /crm_forbidden/);
+  await as(MIGUEL);
+  await q("update staff_portal_access set commercial_permissions=$1 where user_id in ($2,$3)", [['lead_create', 'lead_edit', 'quote_create', 'quote_edit', 'quote_review', 'quote_send', 'quote_accept', 'quote_delete_request', 'sale_close', 'sales_history'], ANA, PEDRO]);
   const [ownerLead] = await q("insert into crm_leads(company,contact,source,owner_id) values('Lead de la dirección','QA','QA',$1) returning id", [MIGUEL]);
 
   // ── Leads ────────────────────────────────────────────────────────────────────────────────────────────────────
@@ -102,6 +106,14 @@ test('seller pipeline: own leads, proposals and sales; isolation between sellers
   const detail = (await one('select staff_seller_quote($1) r', [qa.quote_id])).r;
   assert.equal(detail.quote_number, qa.quote_number);
   assert.deepEqual(detail.content, cA);
+  assert.equal(Object.hasOwn(detail, 'internal'), false);
+  await assert.rejects(q('select crm_quote_delete($1,1,$2)', [qa.quote_id,'Solicitud propia']), /quote_delete_forbidden/);
+  const {id: deletion} = await one("select staff_request_quote_deletion($1,1,'Precio incorrecto') id",[qa.quote_id]);
+  await assert.rejects(q("select crm_decide_quote_deletion($1,'approved',true)",[deletion]), /crm_forbidden/);
+  await as(SAMUEL);
+  await assert.rejects(q("select crm_decide_quote_deletion($1,'approved',false)",[deletion]), /confirmation_required/);
+  await q("select crm_decide_quote_deletion($1,'rejected',false)",[deletion]);
+  await as(ANA);
   // Revise, then submit for review. Pricing approval belongs to the owners.
   const cA2 = content('Barbería Ana QA', { lines: [{ code: 'desarrollo-web', name: 'Website', description: 'Sitio + reservas', kind: 'one_time', qty: 1, unitPrice: '1800' }] });
   assert.equal((await one('select crm_quote_revise($1,$2,$3::jsonb,$4::jsonb,$5,$6) r', [qa.quote_id, await quoteVersion(qa.quote_id), JSON.stringify(cA2), '{}', sha(cA2), 'Ajuste de precio'])).r, 2);
@@ -115,19 +127,26 @@ test('seller pipeline: own leads, proposals and sales; isolation between sellers
   await assert.rejects(q('select crm_quote_delete($1,$2,$3)', [qa.quote_id, 1, 'x']), /quote_delete_forbidden/);
 
   await as(SAMUEL);
+  await assert.rejects(q("select crm_quote_transition($1,$2,'approved','')", [qa.quote_id, await quoteVersion(qa.quote_id)]), /commercial_offer_not_approved/);
+  await q("update crm_service_catalog set suggested_price=1500 where code='desarrollo-web'");
+  await q("update crm_service_catalog set offer_status='approved' where code='desarrollo-web'");
   await q('select crm_quote_transition($1,$2,$3,$4)', [qa.quote_id, await quoteVersion(qa.quote_id), 'approved', '']);
   assert.equal((await q('select * from crm_quotes')).length, 1, 'owners see every proposal');
 
   await as(ANA);
   await q('select crm_quote_transition($1,$2,$3,$4)', [qa.quote_id, await quoteVersion(qa.quote_id), 'sent', 'Enviada por email al cliente (sintético)']);
-  await q('select crm_quote_transition($1,$2,$3,$4)', [qa.quote_id, await quoteVersion(qa.quote_id), 'accepted', 'Cliente aceptó por email (sintético)']);
+  await q('select crm_quote_transition($1,$2,$3,$4)', [qa.quote_id, await quoteVersion(qa.quote_id), 'accepted', JSON.stringify({signatory:'Representante QA',evidence:'Correo sintético de aceptación'})]);
   const close = () => one('select crm_quote_close_sale($1::jsonb) r', [JSON.stringify({ quote_id: qa.quote_id, version_no: 2, seller_id: MIGUEL })]).then(r => r.r);
   // ── Sales ────────────────────────────────────────────────────────────────────────────────────────────────────
   await assert.rejects(close(), /won_requires_verified_contract/, 'the contract is verified by an owner first');
   await assert.rejects(q('select crm_confirm_sale($1::jsonb)', [JSON.stringify({ idempotency_key: crypto.randomUUID(), lead_id: a1.lead_id, lines: [{ service_code: 'desarrollo-web' }] })]), /crm_forbidden/,
     'sellers never call the raw sale confirmation');
   await as(MIGUEL);
-  await verifiedContract(db, a1.lead_id, 'Contrato Barbería Ana QA');
+  const contract = await verifiedContract(db, a1.lead_id, 'Contrato Barbería Ana QA');
+  await as(ANA);
+  await assert.rejects(close(), /won_requires_verified_contract/, 'a signed contract for the same lead alone is insufficient');
+  await as(MIGUEL);
+  await q('select crm_link_verified_quote_contract($1,(select id from crm_quote_versions where quote_id=$1 and version_no=2),$2)',[qa.quote_id,contract]);
   await as(PEDRO);
   await assert.rejects(close(), /crm_forbidden/, 'another seller cannot close it');
   await as(ANA);
@@ -194,9 +213,10 @@ test('calendars: sellers keep their own; owners create, edit, cancel and delete 
   const q = async (sql, p) => (await db.query(sql, p)).rows;
   const at = (d, h) => `2026-12-${String(d).padStart(2, '0')}T${String(h).padStart(2, '0')}:00:00-05:00`;
   await as(MIGUEL);
-  // can_create_events is false for everyone: sellers still own a calendar; a support employee does not.
+  // Calendar creation is an explicit owner grant.
   await q("insert into staff_portal_access(user_id,active,job_title,can_create_events) values($1,true,'seller',false),($2,true,'seller',false),($3,true,'support',false)", [ANA, PEDRO, SOFIA]);
 
+  await q("update staff_portal_access set commercial_permissions=array['lead_create'],can_create_events=true where user_id=$1",[ANA]);
   await as(ANA);
   const lead = (await q("select staff_lead_create($1::jsonb) r", [JSON.stringify({ request_key: crypto.randomUUID(), company: 'Cita QA' })]))[0].r.lead_id;
   const [own] = await q("insert into staff_work_items(idempotency_key,kind,origin,assignee_id,title,starts_at,ends_at,lead_id) values($1,'appointment','staff_created',$2,'Cita con cliente',$3,$4,$5) returning id,version",

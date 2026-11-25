@@ -4,7 +4,6 @@ import { revalidatePath } from "next/cache";
 import { randomUUID } from "node:crypto";
 import { requireStaff, requireStaffMessenger } from "@/lib/auth/staff";
 import { DEFAULT_TZ, isKind, isStatus, localToUtc, validTimeZone } from "@/lib/staff/work";
-import { isSellerTitle } from "@/lib/staff/seller";
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const field = (form: FormData, name: string) => {
@@ -81,7 +80,7 @@ export async function readStaffMessage(form: FormData) {
 /** Employee-created work (sellers always; others need can_create_events). Origin, assignee and author are fixed by the database. */
 export async function createMyWorkItem(form: FormData) {
   const session = await requireStaff();
-  if (!session.permissions.can_create_events && !isSellerTitle(session.permissions.job_title)) redirect("/staff?status=denied#calendar");
+  if (!session.permissions.can_create_events) redirect("/staff?status=denied#calendar");
   const kind = field(form, "kind"), title = field(form, "title"), tz = field(form, "time_zone") || DEFAULT_TZ;
   const date = field(form, "date"), start = field(form, "start"), end = field(form, "end"), lead = field(form, "lead_id");
   if (!isKind(kind) || !title || title.length > 200 || !validTimeZone(tz) || (lead && !UUID.test(lead))) redirect("/staff?status=invalid#calendar");

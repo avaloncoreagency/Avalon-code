@@ -43,6 +43,7 @@ test('Staff portal: owners assign, Ana sees only her work, never owners\' privat
   await db.query("insert into staff_work_items(idempotency_key,kind,origin,assignee_id,title,instructions,due_at) values($1,'task','staff_assigned',$2,'Tarea de Samuel QA','Enviar resumen',$3)", [crypto.randomUUID(), ANA, at(1, 21)]);
   await db.exec('reset role');
   const client = (await one("insert into crm_clients(legal_name,source,owner_id,created_by) values('Cliente reservado QA','QA',$1,$1) returning id", [MIGUEL])).id;
+  await db.query("update staff_portal_access set commercial_permissions=array['sales_history','commission_history'] where user_id=$1", [ANA]);
   const sale = (await one(`insert into crm_sales(sale_number,idempotency_key,correlation_id,client_id,sold_on,currency,subtotal,total,billing_mode,seller_id,created_by)
     values('VENTA-QA-ANA',gen_random_uuid(),gen_random_uuid(),$1,current_date,'USD',9876,9876,'one_time',$2,$3) returning id`, [client, ANA, MIGUEL])).id;
   await db.query(`insert into crm_commissions(sale_id,client_id,kind,beneficiary_id,basis,fixed_amount,currency,amount,agreed_by)

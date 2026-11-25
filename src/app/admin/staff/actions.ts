@@ -1,4 +1,5 @@
 "use server";
+import { commercialPermissions } from "@/lib/staff/commercial-permissions";
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { requireOwner } from "@/lib/auth/session";
@@ -75,6 +76,7 @@ export async function setStaffAccess(form: FormData) {
       !directory.some(m => m.user_id === employeeId && m.role === "operator"))
     done("denied");
   const saved = await supabase.from("staff_portal_access").upsert({
+    commercial_permissions: commercialPermissions.filter(([key]) => form.getAll("commercial_permissions").includes(key)).map(([key]) => key),
     user_id: employeeId, active, can_create_casefiles, can_message, can_create_events, job_title,
     granted_by: userId, updated_at: new Date().toISOString(),
   }, { onConflict: "user_id" });
@@ -209,4 +211,11 @@ export async function assignLeadToSeller(form: FormData) {
   if (!UUID.test(leadId) || (seller && !UUID.test(seller))) done("invalid");
   const { error } = await supabase.rpc("crm_lead_assign_seller", { p_lead: leadId, p_seller: seller || null });
   done(error ? (/staff_seller_invalid/.test(error.message) ? "seller-invalid" : "failed") : seller ? "lead-assigned" : "lead-returned");
+}
+
+export async function decideQuoteDeletion(form: FormData) {
+  const { supabase } = await requireOwner();
+  const {error} = await supabase.rpc("crm_decide_quote_deletion", { p_request: get(form, "request_id"),
+    p_decision: get(form,"decision"), p_confirm: form.get("confirm") === "yes" });
+  done(error ? "failed" : "deletion-reviewed");
 }

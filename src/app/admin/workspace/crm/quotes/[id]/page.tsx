@@ -12,7 +12,7 @@ import { QUOTE_TRANSITIONS, NOTE_REQUIRED, REVISABLE, acceptanceBlockers, isQuot
 import { VARIABLE_FIELD_LABEL } from "@/lib/sales/quote-close";
 import { ERROR_TEXT, OK_TEXT, STATUS_LABEL, STATUS_TONE, TRANSITION_UI } from "@/lib/quotes/text";
 import { ReviewBeforeDownload } from "@/components/quotes/review-download";
-import { deleteQuote, transitionQuote } from "../actions";
+import { linkVerifiedContract, deleteQuote, transitionQuote } from "../actions";
 import { DeleteQuoteButton } from "@/components/quotes/delete-quote";
 import { quoteSoftDeleteReady } from "@/lib/quotes/soft-delete";
 import { QuoteUnavailable } from "@/components/quotes/unavailable";
@@ -65,6 +65,8 @@ export default async function QuoteDetail({ params, searchParams }: { params: Pr
   const ok = okCode && Object.hasOwn(OK_TEXT, okCode) ? OK_TEXT[okCode] : null;
   const err = errCode ? (Object.hasOwn(ERROR_TEXT, errCode) ? ERROR_TEXT[errCode] : ERROR_TEXT.save) : null;
   const pdf = (v: number, inline: boolean) => `/admin/workspace/crm/quotes/${id}/pdf?v=${v}${inline ? "&view=inline" : ""}`;
+  const verifiedContracts = quote.status === "accepted" ? await supabase.from("crm_contracts").select("id,title,verified_quote_revision")
+    .eq("lead_id",quote.lead_id).eq("status","verified_signed") : null;
   const downloadable = ["approved", "sent", "accepted"].includes(quote.status);
   const today = new Date().toISOString().slice(0, 10);
   const blockers = content ? acceptanceBlockers(content) : [];
@@ -101,6 +103,12 @@ export default async function QuoteDetail({ params, searchParams }: { params: Pr
 
     {content && <QuoteClosePanel db={supabase} lang={lang} quote={quote} content={content} closeError={q(p, "close_error")} />}
     {quote.status === "accepted" && <section className={s.panel} aria-labelledby="next-contract">
+      {cur && !!verifiedContracts?.data?.length && <form className={s.form} action={linkVerifiedContract}>
+        <input type="hidden" name="quote_id" value={quote.id}/><input type="hidden" name="revision" value={cur.id}/>
+        <label>{pick(lang,"Contrato firmado y verificado","Verified signed contract")}<select name="contract_id" required>
+          {verifiedContracts.data.filter(c => !c.verified_quote_revision || c.verified_quote_revision===cur.id).map(c=><option key={c.id} value={c.id}>{c.title}</option>)}</select></label>
+        <label><input name="matched" type="checkbox" value="yes" required/> {pick(lang,"Verifiqué que los términos firmados coinciden con esta revisión aceptada.","I verified that the signed terms match this accepted revision.")}</label>
+        <button className={s.button}>{pick(lang,"Vincular esta revisión","Link this revision")}</button></form>}
       <header><h2 id="next-contract">{pick(lang, "Siguiente paso: contrato", "Next step: agreement")}</h2></header>
       {contracts.length > 0 && <p className={s.flash} data-tone="ok">{pick(lang, "Ya existe un borrador de contrato basado en esta cotización.", "An agreement draft based on this quote already exists.")}{" "}
         <Link href={`/admin/workspace/crm/clients/${quote.client_id}/contracts`}>{pick(lang, "Ver contratos", "View agreements")}</Link></p>}

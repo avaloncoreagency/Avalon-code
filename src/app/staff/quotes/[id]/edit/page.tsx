@@ -13,7 +13,7 @@ const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 export default async function SellerQuoteEdit({ params, searchParams }: { params: Promise<{ id: string }>; searchParams: Promise<{ error?: string }> }) {
   const { id } = await params;
   if (!UUID.test(id)) notFound();
-  const { supabase } = await requireSeller();
+  const { supabase } = await requireSeller("quote_edit");
   const { error } = await searchParams;
   const [quoteR, catalogR] = await Promise.all([supabase.rpc("staff_seller_quote", { p_quote: id }), supabase.rpc("staff_seller_catalog")]);
   const q = quoteR.data as SellerQuoteDetail | null;
@@ -30,8 +30,8 @@ export default async function SellerQuoteEdit({ params, searchParams }: { params
       : !isQuoteContent(q.content) ? <p role="alert" className={s.flash}>No se pudo cargar el contenido de la propuesta.</p> :
       <section className={s.panel}>
         <p className={s.muted}>La versión actual se conserva. Al guardar, la propuesta vuelve a borrador y necesita nueva aprobación de la dirección.</p>
-        <QuoteWizard lang="es" mode="revise" action={reviseSellerQuote} catalog={catalog} initial={q.content}
-          initialInternal={{ directCosts: String(q.internal?.directCosts ?? ""), marginNote: String(q.internal?.marginNote ?? ""), confidential: String(q.internal?.confidential ?? "") }}
+        <QuoteWizard employee lang="es" mode="revise" action={reviseSellerQuote} catalog={catalog} initial={q.content}
+          initialInternal={{ directCosts: "", marginNote: "", confidential: "" }}
           hidden={{ quote_id: q.quote_id, expected_version: String(q.version) }} />
       </section>}
   </Shell>;

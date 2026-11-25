@@ -14,7 +14,7 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
   const url = new URL(request.url);
   const inline = url.searchParams.get("view") === "inline";
   const staff = await getStaffState();
-  if (staff.state !== "ok" || !staff.mfaEnrolled || !isSellerTitle(staff.permissions.job_title))
+  if (staff.state !== "ok" || !staff.mfaEnrolled || !staff.permissions.commercial_permissions.includes("quote_send") || !isSellerTitle(staff.permissions.job_title))
     return NextResponse.json({ error: "Unauthorized" }, { status: 403 });
   const { id } = await params;
   const v = Number(url.searchParams.get("v"));
@@ -25,7 +25,7 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
   if (error || !q || q.current_version !== v || !isQuoteContent(q.content)) return NextResponse.json({ error: "Quote not available" }, { status: 404 });
   if (createHash("sha256").update(canonicalQuote(q.content)).digest("hex") !== q.content_sha256)
     return NextResponse.json({ error: "Quote integrity check failed" }, { status: 409 });
-  if (!inline && !DOWNLOADABLE.includes(q.status))
+  if (!DOWNLOADABLE.includes(q.status))
     return NextResponse.json({ error: "The owners must approve this revision before it is downloaded" }, { status: 409 });
   let bytes: Uint8Array;
   try {
