@@ -2,15 +2,24 @@ import "server-only";
 import { redirect } from "next/navigation";
 import { getStaffState, type StaffState } from "@/lib/auth/access";
 import { getOwnerSession } from "@/lib/auth/session";
+import { isSellerTitle } from "@/lib/staff/seller";
 
 export type StaffSession = Extract<StaffState, { state: "ok" }>;
 export { getStaffState };
 
-/** Employees never enter the owner-only Suite. */
+/** Employees never enter the owner-only Suite. Two-step verification is mandatory for employees. */
 export async function requireStaff(): Promise<StaffSession> {
   const staff = await getStaffState();
   if (staff.state === "mfa") redirect("/staff/mfa");
   if (staff.state !== "ok") redirect("/admin/login");
+  if (!staff.mfaEnrolled) redirect("/staff/mfa");
+  return staff;
+}
+
+/** Verified seller (job title seller/account executive). The database re-checks ownership of every record. */
+export async function requireSeller(): Promise<StaffSession> {
+  const staff = await requireStaff();
+  if (!isSellerTitle(staff.permissions.job_title)) redirect("/staff?status=denied");
   return staff;
 }
 
