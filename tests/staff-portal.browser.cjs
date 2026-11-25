@@ -145,6 +145,8 @@ test('Staff portal: owners assign, Ana sees only her work, never owners\' privat
   assert.equal(await kpi('Completadas (30 días)'), 1, 'KPI follows the real record');
   assert.equal((await one("select status from staff_work_items where title='Tarea de Samuel QA'")).status, 'done');
   await a.page.screenshot({ path: `${DIR}/ana-portal-1440.png`, fullPage: true });
+  await a.page.goto(origin + '/staff/mfa');
+  await a.page.getByRole('button', { name: 'Activar verificación en dos pasos' }).waitFor();
   // Ana cannot open the owners' area.
   await a.page.goto(origin + '/admin/staff');
   assert.ok(!/\/admin\/staff$/.test(new URL(a.page.url()).pathname) || !(await a.page.content()).includes('Asignar tarea o cita'), 'no owner area for an employee');
@@ -175,6 +177,8 @@ test('Staff portal: owners assign, Ana sees only her work, never owners\' privat
   }
   await as(MIGUEL); await db.query('update staff_portal_access set active=false where user_id=$1', [ANA]); await db.exec('reset role');
   await a.page.goto(origin + '/staff');
+  await a.page.waitForURL(/\/admin\/login|\/login/);
+  await a.page.goto(origin + '/staff/mfa');
   await a.page.waitForURL(/\/admin\/login|\/login/);
   await a.ctx.close(); await m.ctx.close();
 });
