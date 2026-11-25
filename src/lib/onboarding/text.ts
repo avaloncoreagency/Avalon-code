@@ -42,7 +42,7 @@ export const ONBOARDING_ERROR: Record<string, Bi> = {
   settings_invalid: ["Revisa los datos de la configuración.", "Check the settings data."],
 };
 export const OUTBOX_STATUS: Record<string, Bi> = {
-  prepared: ["Preparado", "Prepared"], approved: ["Aprobado", "Approved"], sent: ["Enviado · aceptado por el servidor SMTP (no confirma la entrega)", "Sent · accepted by the SMTP server (delivery not confirmed)"], failed: ["Falló", "Failed"],
+  prepared: ["Preparado", "Prepared"], approved: ["Aprobado", "Approved"], sent: ["Enviado", "Sent"], failed: ["Falló", "Failed"],
   blocked_no_transport: ["Bloqueado (sin SMTP)", "Blocked (no SMTP)"], cancelled: ["Cancelado", "Cancelled"],
 };
 

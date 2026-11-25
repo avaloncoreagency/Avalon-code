@@ -159,7 +159,8 @@ test('Client experience: onboarding → manual → welcome e-mail → Clients 36
   await page.goto(`${origin}/admin/settings/communications`);
   const status = await page.locator('section[aria-labelledby="status"]').innerText();
   assert.match(status, /BLOQUEADO: SMTP sin configurar/);
-  assert.doesNotMatch(await page.locator('#main').innerText(), /avalonacoreagency@gmail\.com|Invitación de agente/, 'no agent invitation settings in Configuración');
+  assert.doesNotMatch(await page.locator('#main').innerText(), /Invitación de agente|Remitente de invitaciones|Invitation sender/, 'no agent invitation settings in Configuración');
+  assert.equal(await page.locator('[name="invite_sender_email"], [name="invite_sender_evidence"]').count(), 0, 'no invitation sender form in Configuración');
   assert.equal(await page.locator('iframe[data-preview="invite"]').count(), 0);
   assert.equal(await page.locator('[data-agent-portal-link] a').getAttribute('href'), '/admin/staff', 'the Agent Portal ships in this branch');
   assert.match(await page.locator('[data-agent-portal-link]').innerText(), /AGENT PORTAL/);
@@ -203,7 +204,8 @@ test('Client experience pages degrade honestly before migration 20261124140000',
   const db = new PGlite(); t.after(() => db.close());
   await db.exec(fs.readFileSync('tests/sql/00_supabase_stub.sql', 'utf8'));
   await db.query('insert into auth.users(id,email) values($1,$2)', [OWNER, 'client-experience-qa@example.invalid']);
-  for (const f of fs.readdirSync('supabase/migrations').filter(f => f.endsWith('.sql') && !f.startsWith('20261124140000') && !f.startsWith('20261124190000') && !f.startsWith('20261124200000') && !f.startsWith('20261125100000')).sort()) {
+  for (const f of fs.readdirSync('supabase/migrations').filter(f => f.endsWith('.sql') && !f.startsWith('20261124140000') && !f.startsWith('20261124190000') && !f.startsWith('20261124200000') && !f.startsWith('20261125100000')
+    && !f.startsWith('20261125120000') && !f.startsWith('20261125120100')).sort()) {
     await db.exec(fs.readFileSync('supabase/migrations/' + f, 'utf8'));
     if (f.startsWith('20261102053022')) await db.query("insert into agency_memberships(user_id,role) values($1,'owner')", [OWNER]);
   }
