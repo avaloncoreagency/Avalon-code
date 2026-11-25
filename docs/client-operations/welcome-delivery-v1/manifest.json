@@ -1,0 +1,199 @@
+{
+  "schema_version": "avalon-client-operations-docs-v1",
+  "mission": "AVL-OPS-CLIENT-001",
+  "version": "1.0",
+  "status": "PREPARED_PENDING_REVIEW",
+  "approval": "NOT_APPROVED_FOR_EXTERNAL_SEND",
+  "language": [
+    "es",
+    "en"
+  ],
+  "scope": "documentation_only",
+  "source_repository": "avaloncoreagency/Avalon-code",
+  "base_main_sha": "89a996995a0b207724187bc9b9ef4336962d1d3c",
+  "owners": {
+    "editorial": "CLIENT_OPERATIONS",
+    "integration": "CLAUDE_CODE",
+    "legal": "LEGAL_COMPLIANCE",
+    "financial": "FINANCE_KPIS",
+    "final_approval": [
+      "Miguel Hobaica",
+      "Samuel Muñoz"
+    ]
+  },
+  "docs": [
+    {
+      "id": "WP-001",
+      "category": "welcome",
+      "service": "all",
+      "language": [
+        "es",
+        "en"
+      ],
+      "version": "1.0",
+      "approval_status": "PENDING_REVIEW",
+      "path": "docs/client-operations/welcome-delivery-v1/welcome-package.es-en.md",
+      "source_page": "https://chatgpt.com/space/page_bd9620d63b6c8191b229e1ea41fa1c6b"
+    },
+    {
+      "id": "OB-WEB-001",
+      "category": "onboarding",
+      "service": "website",
+      "language": [
+        "es",
+        "en"
+      ],
+      "version": "1.0",
+      "approval_status": "PENDING_REVIEW",
+      "path": "docs/client-operations/welcome-delivery-v1/onboarding.website.es-en.md",
+      "source_page": "https://chatgpt.com/space/page_5e33ae89d0e881918d10a803013c39d6"
+    },
+    {
+      "id": "OB-ECOM-001",
+      "category": "onboarding",
+      "service": "ecommerce",
+      "language": [
+        "es",
+        "en"
+      ],
+      "version": "1.0",
+      "approval_status": "PENDING_REVIEW",
+      "path": "docs/client-operations/welcome-delivery-v1/onboarding.ecommerce.es-en.md",
+      "source_page": "https://chatgpt.com/space/page_01299e3be4e4819183019be719e18ee5"
+    },
+    {
+      "id": "OB-CRM-001",
+      "category": "onboarding",
+      "service": "crm",
+      "language": [
+        "es",
+        "en"
+      ],
+      "version": "1.0",
+      "approval_status": "PENDING_REVIEW",
+      "path": "docs/client-operations/welcome-delivery-v1/onboarding.crm.es-en.md",
+      "source_page": "https://chatgpt.com/space/page_98ebd2df047c8191ad3a9880068093b7"
+    },
+    {
+      "id": "OB-MKT-001",
+      "category": "onboarding",
+      "service": "marketing",
+      "language": [
+        "es",
+        "en"
+      ],
+      "version": "1.0",
+      "approval_status": "PENDING_REVIEW",
+      "path": "docs/client-operations/welcome-delivery-v1/onboarding.marketing.es-en.md",
+      "source_page": "https://chatgpt.com/space/page_1af44a229a3c8191a2ce9c921e3fd35e"
+    },
+    {
+      "id": "MN-WEB-001",
+      "category": "manual",
+      "service": "website",
+      "language": [
+        "es",
+        "en"
+      ],
+      "version": "1.0",
+      "approval_status": "PENDING_REVIEW",
+      "path": "docs/client-operations/welcome-delivery-v1/manual.website.es-en.md",
+      "source_page": "https://chatgpt.com/space/page_d32bdacdd13481919e73d3da33ce2610"
+    },
+    {
+      "id": "MN-ECOM-001",
+      "category": "manual",
+      "service": "ecommerce",
+      "language": [
+        "es",
+        "en"
+      ],
+      "version": "1.0",
+      "approval_status": "PENDING_REVIEW",
+      "path": "docs/client-operations/welcome-delivery-v1/manual.ecommerce.es-en.md",
+      "source_page": "https://chatgpt.com/space/page_8c4713e9f65c819184c6f106508bc236"
+    },
+    {
+      "id": "MN-CRM-001",
+      "category": "manual",
+      "service": "crm",
+      "language": [
+        "es",
+        "en"
+      ],
+      "version": "1.0",
+      "approval_status": "PENDING_REVIEW",
+      "path": "docs/client-operations/welcome-delivery-v1/manual.crm.es-en.md",
+      "source_page": "https://chatgpt.com/space/page_6add22bef8448191bda5e5301794be4d"
+    },
+    {
+      "id": "MN-MAINT-001",
+      "category": "manual",
+      "service": "all",
+      "language": [
+        "es",
+        "en"
+      ],
+      "version": "1.0",
+      "approval_status": "PENDING_REVIEW",
+      "path": "docs/client-operations/welcome-delivery-v1/manual.maintenance.es-en.md",
+      "source_page": "https://chatgpt.com/space/page_5ff9d20afc5c8191b872ada6df1e7da8"
+    },
+    {
+      "id": "MN-SUPPORT-001",
+      "category": "manual",
+      "service": "all",
+      "language": [
+        "es",
+        "en"
+      ],
+      "version": "1.0",
+      "approval_status": "PENDING_REVIEW",
+      "path": "docs/client-operations/welcome-delivery-v1/manual.support.es-en.md",
+      "source_page": "https://chatgpt.com/space/page_2cff0a24716c81918f12e9bcaa5f4b63"
+    },
+    {
+      "id": "EM-001",
+      "category": "emails",
+      "service": "all",
+      "language": [
+        "es",
+        "en"
+      ],
+      "version": "1.0",
+      "approval_status": "PENDING_REVIEW",
+      "path": "docs/client-operations/welcome-delivery-v1/corporate-emails.es-en.md",
+      "source_page": "https://chatgpt.com/space/page_89cd7f2221f4819181a59c39d8c548e6"
+    },
+    {
+      "id": "DEL-001",
+      "category": "delivery",
+      "service": "all",
+      "language": [
+        "es",
+        "en"
+      ],
+      "version": "1.0",
+      "approval_status": "PENDING_REVIEW",
+      "path": "docs/client-operations/welcome-delivery-v1/delivery-and-acceptance.es-en.md",
+      "source_page": "https://chatgpt.com/space/page_ec533e34e6f88191905650dfdadf260f"
+    }
+  ],
+  "guards": {
+    "no_client_data": true,
+    "no_credentials": true,
+    "no_send": true,
+    "no_new_app_code": true,
+    "paused_services": [
+      "Radar",
+      "AI Receptionists",
+      "Commercial chatbots",
+      "OpenRouter"
+    ]
+  },
+  "verification": {
+    "mode": "editorial_readback",
+    "technical_tests": "NOT_RUN",
+    "client_acceptance": "NOT_RUN"
+  }
+}
