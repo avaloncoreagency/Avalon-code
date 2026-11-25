@@ -124,7 +124,7 @@ test('Client experience: onboarding → manual → welcome e-mail → Clients 36
   assert.equal(msg.subject, 'Bienvenido a Avalon Core Agency — Comencemos tu proyecto');
   assert.equal(msg.to_email, 'laura.qa@example.invalid');
   assert.match(msg.body_html, new RegExp(SIGNER));
-  assert.match(msg.body_html, /avalonagencymh@gmail\.com/);
+  assert.match(msg.body_html, /avalonacoreagency@gmail\.com/);
   assert.ok(!/Teléfono/.test(msg.body_html), 'no phone without an approved business number');
   assert.equal(await page.locator('[data-outbox="prepared"]').getByRole('button', { name: 'Aprobar y enviar' }).isDisabled(), true);
   // Refresh / second click does not duplicate the same message.

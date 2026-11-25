@@ -230,7 +230,8 @@ export async function prepareEmail(form: FormData) {
   const stage = isStage(o.stage) ? o.stage : null;
   const lifecycle = isLifecycleKind(kind) ? renderLifecycle({ kind, lang: L, contactName: ct!.full_name, companyName: company_name, product: o.title, representative: signer!,
     company: company2, origin, stageLabel: stage ? STAGE_LABEL[stage][L === "es" ? 0 : 1] : o.stage, progress: progress(readChecklist(o.checklist)),
-    nextStep: o.next_step || null, note: field(form, "note").slice(0, 1000), liveUrl: o.live_url || null, deliveredOn: o.delivered_at ? o.delivered_at.slice(0, 10) : null }) : undefined;
+    nextStep: o.next_step || null, note: field(form, "note").slice(0, 1000), liveUrl: o.live_url || null, deliveredOn: o.delivered_at ? o.delivered_at.slice(0, 10) : null,
+    pending: readChecklist(o.checklist).filter(item => !item.done).map(item => item.label[L === "es" ? 0 : 1]) }) : undefined;
   // A lifecycle message the recorded facts do not support (no delivery, no owner note) is never prepared.
   if (lifecycle === null) back(`${BASE}/${id}#emails`, { error: kind === "delivery_notice" ? "outbox_not_delivered" : "outbox_note_required" });
   const rendered: Rendered = lifecycle ? lifecycle : kind === "client_welcome"

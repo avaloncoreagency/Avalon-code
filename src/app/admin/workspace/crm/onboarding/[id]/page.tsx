@@ -133,8 +133,17 @@ export default async function OnboardingDetail({ params, searchParams }: { param
       <form action={prepareEmail} className={s.form}>{hidden}
         <div className={s.row}>
           <label className={s.field}>{t("Tipo", "Type")}<select name="kind" defaultValue="client_welcome"><option value="client_welcome">{t("Bienvenida", "Welcome")}</option><option value="invoice_copy">{t("Copia de factura", "Invoice copy")}</option><option value="document_delivery">{t("Entrega de documentación", "Documentation delivery")}</option>
-            <option value="onboarding_confirmation">{t("Confirmación de incorporación", "Onboarding confirmation")}</option><option value="progress_update">{t("Avance del proyecto (requiere nota)", "Progress update (note required)")}</option>
-            <option value="delivery_notice">{t("Aviso de entrega (requiere entrega registrada)", "Delivery notice (recorded delivery required)")}</option><option value="support_info">{t("Información de soporte", "Support information")}</option>
+            <option value="onboarding_confirmation">{t("Confirmación de incorporación", "Onboarding confirmation")}</option>
+            <option value="information_request">{t("Solicitud de información (requiere nota)", "Information request (note required)")}</option>
+            <option value="materials_request">{t("Solicitud de materiales (usa la checklist pendiente)", "Materials request (uses the pending checklist)")}</option>
+            <option value="kickoff_confirmation">{t("Confirmación de kickoff (requiere próximo paso o nota)", "Kickoff confirmation (next step or note required)")}</option>
+            <option value="progress_update">{t("Avance del proyecto (requiere nota)", "Progress update (note required)")}</option>
+            <option value="review_request">{t("Solicitud de revisión (requiere nota)", "Review request (note required)")}</option>
+            <option value="approval_request">{t("Solicitud de aprobación (requiere nota)", "Approval request (note required)")}</option>
+            <option value="delivery_notice">{t("Aviso de entrega (requiere entrega registrada)", "Delivery notice (recorded delivery required)")}</option>
+            <option value="receipt_confirmation">{t("Confirmación de recepción (requiere nota)", "Receipt confirmation (note required)")}</option>
+            <option value="support_info">{t("Información de soporte", "Support information")}</option>
+            <option value="maintenance_notice">{t("Aviso de mantenimiento (requiere nota)", "Maintenance notice (note required)")}</option>
             <option value="renewal_review">{t("Renovación para revisar (requiere nota)", "Renewal for review (note required)")}</option></select></label>
           <label className={s.field}>{t("Nota del propietario (avance, renovación u observación; máx. 1000)", "Owner note (progress, renewal or remark; max 1000)")}<textarea name="note" maxLength={1000} rows={3} /></label>
           <label className={s.field}>{t("Destinatario (contacto registrado)", "Recipient (recorded contact)")}<select name="contact_id" required>{((contacts.data ?? []) as { id: string; full_name: string; email: string | null }[]).filter(x => x.email).map(x => <option key={x.id} value={x.id}>{x.full_name} · {x.email}</option>)}</select></label>

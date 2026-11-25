@@ -18,9 +18,9 @@ Agent invitations are intentionally **not** in Configuración. There is one Agen
 
 | Purpose | Address | Status until evidence exists |
 | --- | --- | --- |
-| Agent invitations | `avalonacoreagency@gmail.com` | **BLOCKED: unverified** |
-| Client e-mails (welcome, invoice copy, manuals) and Reply-To | `avalonagencymh@gmail.com` | **BLOCKED: SMTP not configured** |
-| Client support contact | `avalonagencymh@gmail.com` | shown in e-mails and PDFs |
+| Agent invitations (Supabase Auth custom SMTP) | `avalonacoreagency@gmail.com` | SMTP saved by the owner 2026-11-25 (Auth e-mail limit moved 2/h → 30/h); **unverified until a received message shows SPF/DKIM pass** |
+| Client e-mails (welcome, onboarding, delivery, manuals, invoice copy, support, maintenance, renewal) and Reply-To | `avalonacoreagency@gmail.com` (AVL-COMMS-FINAL-001) | **BLOCKED until `AVALON_SMTP_*` is set in Vercel Production** |
+| Client support contact | `avalonacoreagency@gmail.com` | shown in e-mails and PDFs (owners can change it in Configuración → Comunicaciones) |
 | Support phone | none | stays «pending»; it is shown only after an owner records an approved **business** number |
 
 «Verified» can only be saved in the Agent Portal with technical evidence (the database refuses `verified` without at
@@ -79,8 +79,8 @@ idempotency key (no duplicates on double click / refresh) and frozen content (wh
 - **Without SMTP** the «Aprobar y enviar» button stays disabled and the page says BLOCKED. An owner can send the
   prepared text from Gmail and record the message id as evidence («Registrar envío manual»).
 - **With SMTP** (server-side Vercel environment variables, never `NEXT_PUBLIC_*`):
-  `AVALON_SMTP_HOST=smtp.gmail.com`, `AVALON_SMTP_PORT=465`, `AVALON_SMTP_USER=avalonagencymh@gmail.com`,
-  `AVALON_SMTP_PASS=<App Password of that account>`. The transport refuses to send if `AVALON_SMTP_USER` differs from the
+  `AVALON_SMTP_HOST=smtp.gmail.com`, `AVALON_SMTP_PORT=465`, `AVALON_SMTP_USER=avalonacoreagency@gmail.com`,
+  `AVALON_SMTP_PASS=<a second App Password of that account, named "Avalon Vercel SMTP">` (Production only; Preview must not send). The transport refuses to send if `AVALON_SMTP_USER` differs from the
   configured client sender. «Enviado» is recorded only with the provider's message id.
 - Invoice copies reuse the existing `crm_invoices` and invoice PDF; void invoices or invoices of another client are
   refused. Manuals are private PDFs verified by sha256; there are no public file URLs.
@@ -99,8 +99,21 @@ pendiente» and use the documented defaults; nothing is fabricated.
 | Templates ES/EN, official logo, owner signature from session | Implemented, unit tested |
 | Agent invitations inside AGENT PORTAL | Panel implemented; portal page ships with Staff (#341/#342) |
 | Invitation sender `avalonacoreagency@gmail.com` | BLOCKED until SMTP + evidence |
-| Client SMTP `avalonagencymh@gmail.com` | BLOCKED until env vars are set |
+| Client SMTP `avalonacoreagency@gmail.com` | BLOCKED until env vars are set |
 | Support phone | Pending (no number invented) |
 | Migration 20261124140000 | Applied to production 2026-11-24 with owner GO |
 | Migration 20261124190000 (lifecycle e-mail kinds) | Review only, NOT applied; until then those 5 message types show «requires migration» |
 | Contracts ACA-MSA-1.2 | Review only: shown for attorney review, NOT offered for new drafts; 1.1 remains the only selectable version |
+
+## AVL-COMMS-FINAL-001 (2026-11-25)
+- One corporate mailbox, `avalonacoreagency@gmail.com`, for invitations, every client e-mail, Reply-To and the support contact
+  (`CORPORATE_MAILBOX` in `src/lib/comms/email.ts`; migration `20261125120100_corporate_mailbox` moves only fields that still hold
+  the old default). Owner sign-in accounts, memberships, owner identities and historical outbox rows are unchanged.
+- Onboarding e-mails from EM-001 (#353) reuse the one outbox: information request, materials request (pending checklist of the
+  service), kickoff confirmation, review request, approval request, receipt confirmation and maintenance notice, besides the
+  existing confirmation, progress, delivery, support and renewal messages. Each one needs recorded facts or the owner's note.
+- Communication Center: `/admin/workspace/crm/communications` (owners only) lists every outbox message with recipient, sender,
+  attachments, status, attempts, errors and send evidence; preparing, approving, sending and retrying stay in each onboarding.
+  "Sent" means the SMTP server accepted the message, never that it reached the inbox.
+- Supabase invitation template: paste `supabase/templates/invite.html` into Authentication → Emails → Templates → Invite user
+  (it is generated from `email.ts`; `node scripts/email/build-auth-templates.cjs --check` keeps them in sync).

@@ -42,6 +42,17 @@ export const ONBOARDING_ERROR: Record<string, Bi> = {
   settings_invalid: ["Revisa los datos de la configuración.", "Check the settings data."],
 };
 export const OUTBOX_STATUS: Record<string, Bi> = {
-  prepared: ["Preparado", "Prepared"], approved: ["Aprobado", "Approved"], sent: ["Enviado", "Sent"], failed: ["Falló", "Failed"],
+  prepared: ["Preparado", "Prepared"], approved: ["Aprobado", "Approved"], sent: ["Enviado · aceptado por el servidor SMTP (no confirma la entrega)", "Sent · accepted by the SMTP server (delivery not confirmed)"], failed: ["Falló", "Failed"],
   blocked_no_transport: ["Bloqueado (sin SMTP)", "Blocked (no SMTP)"], cancelled: ["Cancelado", "Cancelled"],
+};
+
+/** Outbox kinds as shown to owners (Communication Center and onboarding history). */
+export const OUTBOX_KIND: Record<string, Bi> = {
+  client_welcome: ["Bienvenida", "Welcome"], invoice_copy: ["Copia de factura", "Invoice copy"], document_delivery: ["Entrega de documentos y manuales", "Documents and manuals"],
+  onboarding_confirmation: ["Confirmación de onboarding", "Onboarding confirmation"], information_request: ["Solicitud de información", "Information request"],
+  materials_request: ["Solicitud de materiales", "Materials request"], kickoff_confirmation: ["Confirmación de kickoff", "Kickoff confirmation"],
+  progress_update: ["Avance del proyecto", "Progress update"], review_request: ["Solicitud de revisión", "Review request"],
+  approval_request: ["Solicitud de aprobación", "Approval request"], delivery_notice: ["Aviso de entrega", "Delivery notice"],
+  receipt_confirmation: ["Confirmación de recepción", "Receipt confirmation"], support_info: ["Soporte", "Support"],
+  maintenance_notice: ["Mantenimiento", "Maintenance"], renewal_review: ["Renovación", "Renewal"],
 };
