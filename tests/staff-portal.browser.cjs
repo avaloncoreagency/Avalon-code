@@ -86,7 +86,14 @@ test('Staff portal: owners assign, Ana sees only her work, never owners\' privat
   await m.page.goto(origin + '/admin/staff');
   const assign = m.page.getByRole('form', { name: 'Asignar actividad' });
   await assign.waitFor();
-  await assign.locator('select[name="employee_id"]').selectOption(ANA);
+  const assignmentSections = ['staff-clients', 'staff-work', 'staff-leads'];
+  for (const sectionId of assignmentSections) {
+    const select = m.page.locator(`section[aria-labelledby="${sectionId}"] select[name="employee_id"]`);
+    assert.deepEqual(await select.selectOption({ label: 'Ana QA' }), [ANA]);
+  }
+  const roster = m.page.getByRole('region', { name: 'Control de empleados' });
+  const anaCard = roster.locator('article').filter({ hasText: 'ana-qa@example.invalid' });
+  assert.equal(await anaCard.getByLabel('Nombre visible a compañeros').inputValue(), 'Ana QA');
   await assign.locator('select[name="kind"]').selectOption('appointment');
   await assign.locator('select[name="priority"]').selectOption('high');
   await assign.getByLabel('Título').fill('Cita de Miguel QA con Lead Uno');
@@ -185,5 +192,9 @@ test('Staff portal: owners assign, Ana sees only her work, never owners\' privat
   await a.page.waitForURL(/\/admin\/login|\/login/);
   await a.page.goto(origin + '/staff/mfa');
   await a.page.waitForURL(/\/admin\/login|\/login/);
+  await m.page.goto(origin + '/admin/staff');
+  await anaCard.getByRole('heading', { name: 'Ana QA' }).waitFor();
+  assert.equal(await anaCard.getByLabel('Nombre visible a compañeros').inputValue(), 'Ana QA');
+  assert.equal(await m.page.locator(`select[name="employee_id"] option[value="${ANA}"]`).count(), 0);
   await a.ctx.close(); await m.ctx.close();
 });
