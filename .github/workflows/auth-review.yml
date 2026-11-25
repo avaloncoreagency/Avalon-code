@@ -46,7 +46,7 @@ jobs:
       - name: Explain documentation-only safe bypass
         if: steps.docs.outputs.docs_only == 'true'
         run: echo 'Documentation-only PR; expensive Auth Review build/test steps intentionally skipped; security checks remain separate.' >> "$GITHUB_STEP_SUMMARY"
-      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1
         if: steps.docs.outputs.docs_only != 'true'
         with:
           node-version: '22'
