@@ -6,17 +6,20 @@ import { OpsHeader, OkFlash, ErrorFlash, Tag, Unavailable, ownerName, q, UUID_RE
 import { requireOwner } from "@/lib/auth/session";
 import { getLang } from "@/lib/i18n-server";
 import { pick, formatDate } from "@/lib/i18n";
-import { run } from "@/lib/os/data";
+import { countRows, run } from "@/lib/os/data";
 import { money } from "@/lib/sales/domain";
 import { loadReceivables } from "@/lib/sales/schedule-server";
 import { paymentStatus } from "@/lib/sales/schedule";
+import { quoteCandidateQuery } from "@/lib/sales/quote-candidates";
 import { issueSaleInvoice } from "./actions";
 import s from "@/components/sales/sales.module.css";
 import w from "@/components/quotes/quotes.module.css";
 export const dynamic = "force-dynamic";
 
 type Metric = { currency: string; sales: number; contracted: string; collected: string; recurring_monthly: string; upfront_agreed: string };
+type OverdueMetric = { currency: string; overdue_amount: string | number; sales: number };
 type SaleRow = { id: string; sale_number: string; sold_on: string; currency: string; total: string; recurring_monthly: string; contract_status: string; delivery_status: string; seller_id: string; crm_clients: { id: string; legal_name: string } | null; crm_sale_lines: { id: string }[] };
+const SALE_COLUMNS = "id,sale_number,sold_on,currency,total,recurring_monthly,contract_status,delivery_status,seller_id,crm_clients(id,legal_name),crm_sale_lines(id)";
 const PAGE = 25;
 const CONTRACT_FILTERS = ["pending_signature", "signed", "cancelled"] as const;
 const DELIVERY_FILTERS = ["not_started", "in_progress", "delivered", "cancelled"] as const;
@@ -30,26 +33,22 @@ export default async function SalesPage({ searchParams }: { searchParams: Promis
   const deliveryParam = q(p, "delivery");
   const contract = CONTRACT_FILTERS.find(x => x === contractParam) ?? null;
   const delivery = DELIVERY_FILTERS.find(x => x === deliveryParam) ?? null;
-  // Collections filter (finance access + migration 20261123150000): resolved in PostgreSQL to sale ids before paging.
+  // Keep the collections predicate, the other filters and the exact count in the same database request.
   const paymentParam = q(p, "payment");
   const paymentFilter = (["overdue", "open"] as const).find(x => x === paymentParam) ?? null;
   const requestedClientId = q(p, "client");
   const clientId = requestedClientId && UUID_RE.test(requestedClientId) ? requestedClientId : null;
   if (requestedClientId && !clientId) notFound();
   // Filtering happens in PostgreSQL before pagination, never in browser-visible rows.
-  const scopedSales = supabase.from("crm_sales")
-    .select("id,sale_number,sold_on,currency,total,recurring_monthly,contract_status,delivery_status,seller_id,crm_clients(id,legal_name),crm_sale_lines(id)", { count: "exact" })
-    .order("sold_on", { ascending: false }).order("created_at", { ascending: false });
-  let salesQuery = clientId ? scopedSales.eq("client_id", clientId) : scopedSales;
-  if (contract) salesQuery = salesQuery.eq("contract_status", contract);
-  if (delivery) salesQuery = salesQuery.eq("delivery_status", delivery);
-  let paymentFilterUnavailable = false;
-  if (paymentFilter) {
-    const ids = await supabase.from("crm_sale_receivables").select("sale_id").gt(paymentFilter === "overdue" ? "overdue" : "balance", 0).limit(500);
-    paymentFilterUnavailable = !!ids.error;
-    const list = (ids.data ?? []).map(r => (r as { sale_id: string }).sale_id);
-    salesQuery = salesQuery.in("id", list.length ? list : ["00000000-0000-0000-0000-000000000000"]);
-  }
+  const filters = {
+    ...(clientId ? { client_id: clientId } : {}),
+    ...(contract ? { contract_status: contract } : {}),
+    ...(delivery ? { delivery_status: delivery } : {}),
+  };
+  const salesQuery = (paymentFilter
+    ? supabase.rpc("crm_sales_with_receivables", { p_payment: paymentFilter }, { count: "exact" }).match(filters).select(SALE_COLUMNS)
+    : supabase.from("crm_sales").select(SALE_COLUMNS, { count: "exact" }).match(filters))
+    .order("sold_on", { ascending: false }).order("created_at", { ascending: false }).order("id");
   const filterHref = (contractState: string | null, deliveryState: string | null, targetPage = 0, paymentState: string | null = paymentFilter) => {
     const params = new URLSearchParams();
     if (clientId) params.set("client", clientId);
@@ -60,13 +59,14 @@ export default async function SalesPage({ searchParams }: { searchParams: Promis
     const query = params.toString();
     return "/admin/workspace/crm/sales" + (query ? "?" + query : "");
   };
-  const [metrics, sales, owners, openOrders, overdue, filteredClient] = await Promise.all([
+  const [metrics, sales, owners, openOrders, overdue, filteredClient, collections] = await Promise.all([
     clientId ? Promise.resolve({ data: [] as Metric[], error: null, count: 0 } as const) : run<Metric[]>(supabase.rpc("crm_sales_metrics")),
     run<SaleRow[]>(salesQuery.range(page * PAGE, page * PAGE + PAGE - 1)),
     run<{ user_id: string; email: string }[]>(loadOwnerDirectory(supabase)),
     run<null>(supabase.from("crm_work_orders").select("id", { count: "exact" }).in("status", ["open", "in_progress", "blocked"]).range(0, 0)),
     run<null>(supabase.from("crm_tasks").select("id", { count: "exact" }).in("status", ["todo", "in_progress", "blocked"]).lt("due_at", new Date().toISOString()).range(0, 0)),
     clientId ? run<{ id: string; legal_name: string } | null>(supabase.from("crm_clients").select("id,legal_name").eq("id", clientId).maybeSingle()) : Promise.resolve({ data: null, error: null, count: null } as const),
+    clientId ? null : run<OverdueMetric[]>(supabase.rpc("crm_overdue_collection_metrics")),
   ]);
   if (clientId && !filteredClient.error && !filteredClient.data) notFound();
   const receivables = sales.error ? null : await loadReceivables(supabase, sales.data.map(r => r.id));
@@ -84,22 +84,14 @@ export default async function SalesPage({ searchParams }: { searchParams: Promis
   const pctR = sales.error || sales.data.length === 0 ? null : await supabase.from("crm_sale_variable_terms").select("sale_id,pct").in("sale_id", sales.data.map(r => r.id));
   const pctOf = new Map(((pctR?.error ? [] : pctR?.data) ?? []).map(r => [(r as { sale_id: string }).sale_id, Number((r as { pct: string }).pct)]));
   // Sales Center overview: the quote funnel and variable agreements live next to closed sales (one workspace).
-  const [quoteRows, closedFromQuotes, variableTerms, pendingSettlements] = clientId ? [null, null, null, null] : await Promise.all([
-    supabase.from("crm_quotes").select("status").in("status", ["draft", "internal_review", "approved", "sent", "accepted"]).limit(2000),
-    supabase.from("crm_sales").select("quote_id").not("quote_id", "is", null).limit(2000),
+  const [preparingQuotes, sentQuotes, acceptedQuotes, variableTerms, pendingSettlements] = clientId ? [null, null, null, null, null] : await Promise.all([
+    run<unknown>(supabase.from("crm_quotes").select("id", { count: "exact" })
+      .is("deleted_at", null).in("status", ["draft", "internal_review", "approved"]).range(0, 0)),
+    countRows(supabase, "crm_quotes", [["is_null", "deleted_at"], ["eq", "status", "sent"]]),
+    run<unknown>(quoteCandidateQuery(supabase, ["accepted"], "", 0).range(0, 0)),
     supabase.from("crm_sale_variable_terms").select("id", { count: "exact", head: true }),
     supabase.from("crm_sale_settlements").select("id", { count: "exact", head: true }).eq("status", "recorded"),
   ]);
-  const quoteCount = (st: string[]) => (quoteRows?.data ?? []).filter(r => st.includes((r as { status: string }).status)).length;
-  const acceptedTotal = quoteCount(["accepted"]);
-  const closedCount = new Set((closedFromQuotes?.data ?? []).map(r => (r as { quote_id: string }).quote_id)).size;
-  const collections = clientId ? null : await supabase.from("crm_sale_receivables").select("currency,overdue").gt("overdue", 0).limit(500);
-  const overdueByCurrency = new Map<string, { amount: number; sales: number }>();
-  for (const row of (collections && !collections.error ? collections.data ?? [] : []) as { currency: string; overdue: string }[]) {
-    const cur = overdueByCurrency.get(row.currency) ?? { amount: 0, sales: 0 };
-    // Sum in cents to avoid floating-point drift across many sales.
-    overdueByCurrency.set(row.currency, { amount: cur.amount + Math.round(Number(row.overdue) * 100), sales: cur.sales + 1 });
-  }
   const ownerList = owners.data ?? [];
   return <Suite active="crm"><div className={s.hud}>
     <OpsHeader lang={lang} active="sales" crm="sales" eyebrow="CRM / Ventas" title={pick(lang, "Ventas y entregas", "Sales and delivery")}
@@ -114,11 +106,11 @@ export default async function SalesPage({ searchParams }: { searchParams: Promis
         {" · "}<Link href="/admin/workspace/crm/sales">{pick(lang, "Ver todas las ventas", "View all sales")}</Link>
       </p>}
     </section>}
-    {quoteRows && !quoteRows.error && <section className={s.stats} id="sales-overview" aria-label={pick(lang, "Resumen del Sales Center", "Sales Center overview")}>
-      <div className={s.stat}><span>{pick(lang, "Cotizaciones en preparación", "Quotes in preparation")}</span><strong>{quoteCount(["draft", "internal_review", "approved"])}</strong><small><Link href="/admin/workspace/crm/quotes">{pick(lang, "Abrir cotizaciones", "Open quotes")}</Link></small></div>
-      <div className={s.stat}><span>{pick(lang, "Enviadas al cliente", "Sent to client")}</span><strong>{quoteCount(["sent"])}</strong></div>
-      <div className={s.stat}><span>{pick(lang, "Aceptadas pendientes de cierre", "Accepted, waiting to close")}</span><strong>{Math.max(0, acceptedTotal - closedCount)}</strong><small><Link href="/admin/workspace/crm/sales/new">{pick(lang, "Cerrar ventas", "Close sales")}</Link></small></div>
-      {variableTerms && !variableTerms.error && <div className={s.stat}><span>{pick(lang, "Acuerdos variables activos", "Active variable agreements")}</span><strong>{variableTerms.count ?? 0}</strong>
+    {!clientId && <section className={s.stats} id="sales-overview" aria-label={pick(lang, "Resumen del Sales Center", "Sales Center overview")}>
+      <div className={s.stat}><span>{pick(lang, "Cotizaciones en preparación", "Quotes in preparation")}</span><strong>{preparingQuotes?.count ?? "—"}</strong><small><Link href="/admin/workspace/crm/quotes">{pick(lang, "Abrir cotizaciones", "Open quotes")}</Link></small></div>
+      <div className={s.stat}><span>{pick(lang, "Enviadas al cliente", "Sent to client")}</span><strong>{sentQuotes?.count ?? "—"}</strong></div>
+      <div className={s.stat}><span>{pick(lang, "Aceptadas pendientes de cierre", "Accepted, waiting to close")}</span><strong>{acceptedQuotes?.count ?? "—"}</strong><small><Link href="/admin/workspace/crm/sales/new">{pick(lang, "Cerrar ventas", "Close sales")}</Link></small></div>
+      {variableTerms && !variableTerms.error && <div className={s.stat}><span>{pick(lang, "Acuerdos variables registrados", "Recorded variable agreements")}</span><strong>{variableTerms.count ?? "—"}</strong>
         {pendingSettlements && !pendingSettlements.error && <small>{pendingSettlements.count ?? 0} {pick(lang, "liquidación(es) por verificar", "settlement(s) to verify")}</small>}</div>}
     </section>}
     {!clientId && (metrics.error ? <Unavailable lang={lang} code={metrics.error} /> : <section className={s.stats} aria-label={pick(lang, "Métricas comerciales globales", "Agency-wide commercial metrics")}>
@@ -129,9 +121,11 @@ export default async function SalesPage({ searchParams }: { searchParams: Promis
         <div className={s.stat}><span>{pick(lang, "Recurrente contratado / mes", "Contracted recurring / mo")}</span><strong>{money(lang, m.recurring_monthly, m.currency)}</strong><small>{pick(lang, "Pago inicial acordado", "Agreed upfront")}: {money(lang, m.upfront_agreed, m.currency)}</small></div>
       </div>)}
       <div className={s.stat}><span>{pick(lang, "Órdenes de trabajo abiertas", "Open work orders")}</span><strong>{openOrders.error ? "—" : openOrders.count}</strong></div>
-      {collections && !collections.error && <div className={s.stat}><span>{pick(lang, "Cobros vencidos", "Overdue collections")}</span>
-        <strong>{overdueByCurrency.size === 0 ? money(lang, 0) : [...overdueByCurrency].map(([cur, v]) => money(lang, v.amount / 100, cur)).join(" · ")}</strong>
-        <small>{[...overdueByCurrency.values()].reduce((a, v) => a + v.sales, 0)} {pick(lang, "venta(s)", "sale(s)")} · <Link href={filterHref(null, null, 0, "overdue")}>{pick(lang, "Ver", "View")}</Link></small></div>}
+      {collections && <div className={s.stat}><span>{pick(lang, "Cobros vencidos", "Overdue collections")}</span>
+        {collections.error ? <strong>—</strong> : <>
+          <strong>{collections.data.length === 0 ? money(lang, 0) : collections.data.map(row => money(lang, row.overdue_amount, row.currency)).join(" · ")}</strong>
+          <small>{collections.data.reduce((total, row) => total + row.sales, 0)} {pick(lang, "venta(s)", "sale(s)")} · <Link href={filterHref(null, null, 0, "overdue")}>{pick(lang, "Ver", "View")}</Link></small>
+        </>}</div>}
       <div className={s.stat}><span>{pick(lang, "Tareas vencidas", "Overdue tasks")}</span><strong>{overdue.error ? "—" : overdue.count}</strong><small><Link href="/admin/workspace/crm/tasks?view=overdue">{pick(lang, "Revisar", "Review")}</Link></small></div>
     </section>)}
     <section className={s.panel} aria-labelledby="sales-list"><header><h2 id="sales-list">{pick(lang, "Ventas registradas", "Recorded sales")}</h2>
@@ -154,7 +148,6 @@ export default async function SalesPage({ searchParams }: { searchParams: Promis
           <Link href={filterHref(contract, delivery, 0, "overdue")} aria-current={paymentFilter === "overdue" ? "page" : undefined}>{pick(lang, "Vencidas", "Overdue")}</Link>
         </nav>
       </div>
-      {paymentFilterUnavailable && <p className={s.muted} role="status">{pick(lang, "El filtro de cobranza requiere acceso financiero y la migración 20261123150000.", "The collections filter needs finance access and migration 20261123150000.")}</p>}
       {sales.error ? <Unavailable lang={lang} code={sales.error} /> : sales.data.length === 0 ? <p className={s.empty}>{pick(lang, "Todavía no hay ventas. Registra la primera para generar proyectos y tareas.", "No sales yet. Record the first one to generate projects and tasks.")}</p> :
       <div className={s.tableWrap}><table className={s.table} data-mobile-cards><thead><tr>
         <th>{pick(lang, "Venta", "Sale")}</th><th>{pick(lang, "Factura", "Invoice")}</th><th>{pick(lang, "Cliente", "Client")}</th><th>{pick(lang, "Fecha", "Date")}</th><th className={s.num}>Total</th><th>{pick(lang, "Servicios", "Services")}</th><th>{pick(lang, "Contrato", "Contract")}</th><th>{pick(lang, "Entrega", "Delivery")}</th><th>{pick(lang, "Cobranza", "Collections")}</th><th>{pick(lang, "Responsable", "Sales rep")}</th>

@@ -20,6 +20,15 @@ on:
       - 'docs/client-operations/**'
       - 'src/app/admin/workspace/crm/documents/**'
       - 'tests/client-experience*'
+      - 'tests/agent-portal*'
+      - 'tests/staff-portal*'
+      - 'tests/staff-invite-signature*'
+      - 'src/app/admin/staff/**'
+      - 'src/app/staff/**'
+      - 'src/components/staff/**'
+      - 'src/app/admin/workspace/crm/messages/**'
+      - 'supabase/functions/staff-invite/**'
+      - 'supabase/functions/_shared/**'
       - '.github/workflows/client-experience.yml'
 concurrency:
   group: client-experience-${{ github.event.pull_request.number || github.ref }}
@@ -41,13 +50,15 @@ jobs:
       - run: node scripts/email/build-auth-templates.cjs --check
       - run: node scripts/docs/build-library.cjs --check
       - run: npm run typecheck
-      - run: node --test tests/client-experience.test.cjs
+      - run: node --test tests/client-experience.test.cjs tests/staff-invite-signature.test.cjs
       - run: npm run build
       - run: node tests/qa/node_modules/playwright/cli.js install --with-deps chromium || node tests/qa/node_modules/playwright/cli.js install chromium
-      - run: node --test --test-concurrency=1 tests/client-experience.database.cjs tests/client-experience.browser.cjs
+      - run: node --test --test-concurrency=1 tests/client-experience.database.cjs tests/client-experience.browser.cjs tests/agent-portal.browser.cjs tests/staff-portal.browser.cjs
         env:
           NODE_PATH: ./tests/qa/node_modules
           CLIENT_EXPERIENCE_BROWSER: '1'
+          AGENT_PORTAL_BROWSER: '1'
+          STAFF_BROWSER: '1'
           EVIDENCE_DIR: evidence/client-experience
       - if: always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02

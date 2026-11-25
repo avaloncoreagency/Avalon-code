@@ -107,6 +107,39 @@ test('receivables: overdue, next due and balance from allocations and unallocate
   assert.deepEqual(r, { total: '1000.00', recorded: '450.00', net_collected: '450.00', balance: '550.00', overdue: '150.00', next_due: day(5), installments: 5 });
 });
 
+test('collections read model counts and filters beyond 500 sales using only authorized receivables', { timeout: 240000 }, async t => {
+  const { db, as, one } = await setup();
+  t.after(() => db.close());
+  await db.exec('reset role');
+  const { id: client } = await one("insert into crm_clients(legal_name,source,owner_id) values('Collections capacity QA','Manual',$1) returning id", [MIGUEL]);
+  await db.query(`insert into crm_sales(sale_number,idempotency_key,correlation_id,client_id,sold_on,currency,subtotal,total,billing_mode,seller_id)
+    select 'COLLECT-' || lpad(n::text,4,'0'),gen_random_uuid(),gen_random_uuid(),$1,current_date-30,
+      case when n = 502 then 'EUR' else 'USD' end,10.25,10.25,'one_time',$2
+    from generate_series(1,503) n`, [client, MIGUEL]);
+  await db.query(`insert into crm_sale_installments(sale_id,seq,kind,due_on,amount,currency)
+    select id,1,'balance',case when sale_number='COLLECT-0503' then current_date+1 else current_date-1 end,total,currency
+    from crm_sales where client_id=$1`, [client]);
+
+  await as(MIGUEL);
+  const count = async kind => Number((await one('select count(*) n from crm_sales_with_receivables($1)', [kind])).n);
+  assert.equal(await count('overdue'), 502);
+  assert.equal(await count('open'), 503);
+  assert.equal(await count('unknown'), 0);
+  const last = (await db.query("select sale_number from crm_sales_with_receivables('overdue') where client_id=$1 and contract_status='pending_signature' order by sale_number offset 500 limit 2", [client])).rows;
+  assert.deepEqual(last.map(x => x.sale_number), ['COLLECT-0501', 'COLLECT-0502']);
+  const metrics = (await db.query('select currency, overdue_amount::text amount, sales::int sales from crm_overdue_collection_metrics()')).rows;
+  assert.deepEqual(metrics, [{ currency: 'EUR', amount: '10.25', sales: 1 }, { currency: 'USD', amount: '5135.25', sales: 501 }]);
+
+  for (const identity of [SAMUEL, STRANGER]) {
+    await as(identity);
+    assert.equal(await count('open'), 0);
+    assert.equal((await db.query('select * from crm_overdue_collection_metrics()')).rows.length, 0);
+  }
+  await db.exec('reset role; set role anon');
+  await assert.rejects(db.query("select * from crm_sales_with_receivables('open')"), /permission denied/i);
+  await assert.rejects(db.query('select * from crm_overdue_collection_metrics()'), /permission denied/i);
+});
+
 test('refunds and chargebacks: verified money only, capped, idempotent, resolvable, and block reversal', { timeout: 240000 }, async t => {
   const { db, as, one } = await setup(); t.after(() => db.close());
   const s = await sale(db, one, 'Refund QA LLC');

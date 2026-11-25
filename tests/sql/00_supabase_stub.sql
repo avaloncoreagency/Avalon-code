@@ -6,6 +6,13 @@ create role service_role nologin bypassrls;
 
 create schema auth;
 create table auth.users (id uuid primary key, email text);
+create table auth.mfa_factors (
+  user_id uuid not null references auth.users(id),
+  status text not null
+);
+create function auth.jwt() returns jsonb language sql stable as $$
+  select nullif(current_setting('request.jwt.claims', true), '')::jsonb
+$$;
 create function auth.uid() returns uuid language sql stable as $$
   select nullif(coalesce(
     nullif(current_setting('request.jwt.claim.sub', true), ''),
