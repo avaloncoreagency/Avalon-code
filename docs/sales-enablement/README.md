@@ -49,7 +49,7 @@ Si un código nuevo o decisión aprobada contradice este kit, **no intentar forz
 | C4 Formación | Siete días, casos sintéticos, rúbrica objetiva | PREPARADO / REVISIÓN | Aprobar evaluación e impartir formación real |
 | C5 Operación | SOP, taxonomía de eventos, KPIs y handoff Ops | PREPARADO / REVISIÓN | Finance valida, accesos CRM/Staff y QA |
 | C6 Welcome Package | Carta ES/EN, onboarding, inventario diez docs y JSON | PREPARADO / REVISIÓN | Legal/owners y distribución Staff aprobada |
-| C7 Handoff | PR Draft, SHAs, verificación de docs y comentario #304 | PENDIENTE DE PR Y VALIDACIÓN | PM admite, revisa y decide integración |
+| C7 Handoff | [PR #352](https://github.com/avaloncoreagency/Avalon-code/pull/352) en DRAFT, verificación de 11 archivos, 43 enlaces y manifiesto; checkpoint #304 | **EN REVISIÓN / NO FUSIONADO** | PM admite, revisa CI/QA exacto y decide integración |
 
 **No confundir:** PREPARADO = archivo de contenido leído/confirmado; APROBADO = revisión documentada; INTEGRADO = merge autorizado con SHA y QA; PUBLICADO = deployment comprobado; ENTRENADO = persona evaluada. No se presume ningún paso posterior.
 
@@ -68,7 +68,7 @@ Si un código nuevo o decisión aprobada contradice este kit, **no intentar forz
 ## Handoff al PROJECT MANAGER
 **ID:** AVL-SALES-TEAM-001 / SM-V3-01 · **Departamento:** Sales & Marketing · **Prioridad:** P1.  
 **Problema:** futuros vendedores carecían de un paquete coherente, bilingüe, con límites de producto, guiones, entrenamiento, operación y manifiesto de bienvenida.  
-**Entregado:** todos los documentos anteriores y manifest.json en rama separada, sin runtime.  
+**Entregado:** todos los documentos anteriores y manifest.json en rama separada, sin runtime, en [PR #352](https://github.com/avaloncoreagency/Avalon-code/pull/352) DRAFT.  
 **Dependencias:** Legal/Compliance (canales/contratos), Finance/KPIs (métricas, comisiones), Business/Product/QA (SKU y demos), Client Operations (entrega), Samuel/Claude/Codex/PM (integración Staff/Agent Portal, con ownership y QA).  
 **Criterio:** revisión editorial de diez documentos, ningún contacto/producto no autorizado ofrecido, enlaces válidos, PR documentado con SHA exacto, aprobación de owners por versión.  
 **Siguiente acción:** PM revisa paquete y asigna únicamente la incorporación del **inventario** en la distribución existente cuando Agent Portal y permisos estén aceptados; sin construir otro sistema ni fusionar de oficio.
