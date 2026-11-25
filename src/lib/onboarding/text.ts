@@ -2,6 +2,7 @@ type Bi = [string, string];
 export const ONBOARDING_OK: Record<string, Bi> = {
   started: ["Onboarding iniciado con su checklist.", "Onboarding started with its checklist."], saved: ["Cambios guardados.", "Changes saved."],
   stage: ["Etapa actualizada.", "Stage updated."], delivered: ["Entrega registrada.", "Delivery recorded."], manual: ["Manual PDF generado (nueva versión).", "PDF manual generated (new version)."],
+  welcome_package: ["Paquete de bienvenida generado (nueva versión). Revísalo y adjúntalo al correo de bienvenida.", "Welcome Package generated (new version). Review it and attach it to the welcome e-mail."],
   email_prepared: ["Mensaje preparado. Revísalo en la vista previa antes de aprobarlo.", "Message prepared. Review the preview before approving it."],
   email_exists: ["Ese mensaje ya estaba preparado: no se duplicó.", "That message was already prepared: nothing was duplicated."],
   email_sent: ["Enviado. El proveedor confirmó el ID del mensaje.", "Sent. The provider confirmed the message id."],

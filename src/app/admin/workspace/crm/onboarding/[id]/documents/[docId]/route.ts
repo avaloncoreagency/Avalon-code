@@ -1,6 +1,7 @@
 import { createHash } from "node:crypto";
 import { getOwnerSession } from "@/lib/auth/session";
 import { isManualSnapshot, manualFileName, renderManualPdf } from "@/lib/docs/manual";
+import { isWelcomeSnapshot, renderWelcomePackagePdf, welcomeFileName } from "@/lib/docs/welcome-package";
 
 export const dynamic = "force-dynamic";
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -16,10 +17,13 @@ export async function GET(_req: Request, { params }: { params: Promise<{ id: str
   if (!UUID.test(id) || !UUID.test(docId)) return new Response("Not found", { status: 404 });
   const r = await session.supabase.from("crm_client_documents").select("snapshot,sha256,onboarding_id,generator").eq("id", docId).eq("onboarding_id", id).maybeSingle();
   const doc = r.data as { snapshot: unknown; sha256: string; generator: string } | null;
-  if (r.error || !doc || !isManualSnapshot(doc.snapshot)) return new Response("Not found", { status: 404 });
-  let pdf: Uint8Array;
-  try { pdf = renderManualPdf(doc.snapshot, doc.generator); } catch { return new Response("Not found", { status: 404 }); }
+  if (r.error || !doc || !(isManualSnapshot(doc.snapshot) || isWelcomeSnapshot(doc.snapshot))) return new Response("Not found", { status: 404 });
+  let pdf: Uint8Array, filename: string;
+  try {
+    if (isWelcomeSnapshot(doc.snapshot)) { pdf = renderWelcomePackagePdf(doc.snapshot); filename = welcomeFileName(doc.snapshot); }
+    else { pdf = renderManualPdf(doc.snapshot as Parameters<typeof renderManualPdf>[0], doc.generator); filename = manualFileName(doc.snapshot as Parameters<typeof manualFileName>[0]); }
+  } catch { return new Response("Not found", { status: 404 }); }
   if (createHash("sha256").update(pdf).digest("hex") !== doc.sha256) return new Response("Integrity check failed", { status: 409 });
-  return new Response(Buffer.from(pdf), { headers: { "content-type": "application/pdf", "content-disposition": `attachment; filename="${manualFileName(doc.snapshot)}"`,
+  return new Response(Buffer.from(pdf), { headers: { "content-type": "application/pdf", "content-disposition": `attachment; filename="${filename}"`,
     "cache-control": "private, no-store", "x-content-type-options": "nosniff" } });
 }

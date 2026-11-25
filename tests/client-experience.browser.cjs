@@ -114,6 +114,18 @@ test('Client experience: onboarding → manual → welcome e-mail → Clients 36
   const anonymous = await (await browser.newContext()).request.get(`${origin}/admin/workspace/crm/onboarding/${onboardingId}/documents/${doc.id}`, { maxRedirects: 0 });
   assert.notEqual(anonymous.status(), 200, 'no public PDF');
 
+  // 4b. G04 Welcome Package: issued client document from canonical data; it never counts as the manual for delivery.
+  await page.getByRole('button', { name: 'Generar paquete de bienvenida' }).click();
+  await page.locator('[data-document="issued"]', { hasText: 'Paquete de bienvenida · v1' }).waitFor();
+  const wp = await one("select id, sha256, kind, version from crm_client_documents where onboarding_id=$1 and kind='welcome_package' and status='issued'", [onboardingId]);
+  assert.equal(wp.version, 1);
+  const wpPdf = await page.request.get(`${origin}/admin/workspace/crm/onboarding/${onboardingId}/documents/${wp.id}`);
+  assert.equal(wpPdf.status(), 200);
+  const wpBytes = await wpPdf.body();
+  assert.equal(require('node:crypto').createHash('sha256').update(wpBytes).digest('hex'), wp.sha256, 'welcome package bytes match the stored hash');
+  assert.ok(!/PENDIENTE|NO DISTRIBUIR/.test(wpBytes.toString('latin1')), 'no internal review stamp on a client document');
+  assert.match(wpPdf.headers()['content-disposition'] ?? '', /Avalon-Welcome-/);
+
   // 5. Welcome e-mail: prepared with real data and the signed-in owner's signature; automatic sending is BLOCKED.
   await page.locator('[data-transport="blocked"]').waitFor();
   const prep = page.locator('form').filter({ has: page.getByRole('button', { name: 'Preparar mensaje' }) });
@@ -183,7 +195,14 @@ test('Client experience: onboarding → manual → welcome e-mail → Clients 36
   assert.equal(await page.locator('[data-library-doc][data-approval="approved"]').count(), 0);
   await page.locator('[data-library-selected="WP-001"] pre').waitFor();
   assert.match(await page.locator('[data-library-selected="WP-001"]').innerText(), /Welcome Package/);
-  const pages = [`/admin/workspace/crm/documents?doc=OB-WEB-001`, `/admin/workspace/crm/onboarding`, `/admin/workspace/crm/onboarding/${onboardingId}`, `/admin/workspace/crm/clients/${client}`, `/admin/settings/communications`];
+  // G03: filters narrow the list; the owners' review pack is offered from the library.
+  await page.goto(`${origin}/admin/workspace/crm/documents?audience=client&service=crm&approval=pending`);
+  const shown = await page.locator('[data-library-doc]').evaluateAll(els => els.map(e => e.getAttribute('data-library-doc')));
+  assert.ok(shown.length > 0 && shown.every(id => !id.startsWith('AG-')), 'client filter hides staff documents');
+  assert.ok(shown.includes('OB-CRM-001') && !shown.includes('OB-WEB-001'), 'service filter keeps CRM and shared documents only');
+  assert.equal(await page.locator('[data-review-pack]').getAttribute('href'), '/admin/workspace/crm/documents/review-pack');
+  const pages = [`/admin/workspace/crm/documents?doc=OB-WEB-001`, `/admin/workspace/crm/documents?audience=client&q=manual`, `/admin/workspace/crm/onboarding`,
+    `/admin/workspace/crm/onboarding/${onboardingId}`, `/admin/workspace/crm/clients/${client}`, `/admin/settings/communications`, `/admin/workspace/crm/communications`];
   for (const width of [320, 375, 390, 430, 768, 1440]) {
     await page.setViewportSize({ width, height: 900 });
     for (const p of pages) {
@@ -205,7 +224,7 @@ test('Client experience pages degrade honestly before migration 20261124140000',
   await db.exec(fs.readFileSync('tests/sql/00_supabase_stub.sql', 'utf8'));
   await db.query('insert into auth.users(id,email) values($1,$2)', [OWNER, 'client-experience-qa@example.invalid']);
   for (const f of fs.readdirSync('supabase/migrations').filter(f => f.endsWith('.sql') && !f.startsWith('20261124140000') && !f.startsWith('20261124190000') && !f.startsWith('20261124200000') && !f.startsWith('20261125100000')
-    && !f.startsWith('20261125120000') && !f.startsWith('20261125120100')).sort()) {
+    && !f.startsWith('20261125120000') && !f.startsWith('20261125120100') && !f.startsWith('20261125140000')).sort()) {
     await db.exec(fs.readFileSync('supabase/migrations/' + f, 'utf8'));
     if (f.startsWith('20261102053022')) await db.query("insert into agency_memberships(user_id,role) values($1,'owner')", [OWNER]);
   }
