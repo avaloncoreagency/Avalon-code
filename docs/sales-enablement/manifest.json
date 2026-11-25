@@ -1,0 +1,143 @@
+{
+  "manifest_id": "AVL-SALES-TEAM-001",
+  "schema_version": "1.0",
+  "package_version": "1.0-draft",
+  "as_of": "2026-11-24",
+  "package_state": "DOCUMENTED_REVIEW_PENDING",
+  "portal_integration_state": "NOT_RUN",
+  "distribution_policy": "Use only pre-existing approved Agent Portal; no new backend or email distribution",
+  "real_sales_status": "NO_GO",
+  "seller_access_status": "UNKNOWN_UNTIL_GRANTS_VERIFIED",
+  "owners_approval_required": true,
+  "source_repo": "avaloncoreagency/Avalon-code",
+  "documents": [
+    {
+      "version": "1.0-draft",
+      "approval_status": "REVIEW_PENDING",
+      "access_requirement": "Authenticated staff session and verified authorized grant in existing Agent Portal; not implemented/verified by this package",
+      "external_sales_allowed": false,
+      "document_id": "AG-SAL-00",
+      "source_path": "docs/sales-enablement/README.md",
+      "language": [
+        "es-ES",
+        "en-US"
+      ],
+      "audience": "all sellers; trainers; owners"
+    },
+    {
+      "version": "1.0-draft",
+      "approval_status": "REVIEW_PENDING",
+      "access_requirement": "Authenticated staff session and verified authorized grant in existing Agent Portal; not implemented/verified by this package",
+      "external_sales_allowed": false,
+      "document_id": "AG-SAL-01",
+      "source_path": "docs/sales-enablement/PLAYBOOK_ES.md",
+      "language": [
+        "es-ES"
+      ],
+      "audience": "Spanish-speaking sellers; trainers"
+    },
+    {
+      "version": "1.0-draft",
+      "approval_status": "REVIEW_PENDING",
+      "access_requirement": "Authenticated staff session and verified authorized grant in existing Agent Portal; not implemented/verified by this package",
+      "external_sales_allowed": false,
+      "document_id": "AG-SAL-02",
+      "source_path": "docs/sales-enablement/PLAYBOOK_EN.md",
+      "language": [
+        "en-US"
+      ],
+      "audience": "English-speaking sellers; trainers"
+    },
+    {
+      "version": "1.0-draft",
+      "approval_status": "REVIEW_PENDING",
+      "access_requirement": "Authenticated staff session and verified authorized grant in existing Agent Portal; not implemented/verified by this package",
+      "external_sales_allowed": false,
+      "document_id": "AG-SAL-03",
+      "source_path": "docs/sales-enablement/SCRIPTS_ES_EN.md",
+      "language": [
+        "es-ES",
+        "en-US"
+      ],
+      "audience": "sellers; supervisors"
+    },
+    {
+      "version": "1.0-draft",
+      "approval_status": "REVIEW_PENDING",
+      "access_requirement": "Authenticated staff session and verified authorized grant in existing Agent Portal; not implemented/verified by this package",
+      "external_sales_allowed": false,
+      "document_id": "AG-SAL-04",
+      "source_path": "docs/sales-enablement/FIELD_KIT_ES_EN.md",
+      "language": [
+        "es-ES",
+        "en-US"
+      ],
+      "audience": "sellers; trainers"
+    },
+    {
+      "version": "1.0-draft",
+      "approval_status": "REVIEW_PENDING",
+      "access_requirement": "Authenticated staff session and verified authorized grant in existing Agent Portal; not implemented/verified by this package",
+      "external_sales_allowed": false,
+      "document_id": "AG-SAL-05",
+      "source_path": "docs/pm-v3/sales/sector-outreach-kit.md",
+      "language": [
+        "es-ES",
+        "en-US"
+      ],
+      "audience": "roofing and fencing sellers"
+    },
+    {
+      "version": "1.0-draft",
+      "approval_status": "REVIEW_PENDING",
+      "access_requirement": "Authenticated staff session and verified authorized grant in existing Agent Portal; not implemented/verified by this package",
+      "external_sales_allowed": false,
+      "document_id": "AG-SAL-06",
+      "source_path": "docs/sales-enablement/TRAINING_7_DAYS_ES_EN.md",
+      "language": [
+        "es-ES",
+        "en-US"
+      ],
+      "audience": "new sellers; trainers; owners"
+    },
+    {
+      "version": "1.0-draft",
+      "approval_status": "REVIEW_PENDING",
+      "access_requirement": "Authenticated staff session and verified authorized grant in existing Agent Portal; not implemented/verified by this package",
+      "external_sales_allowed": false,
+      "document_id": "AG-SAL-07",
+      "source_path": "docs/sales-enablement/DAILY_OPERATIONS_ES_EN.md",
+      "language": [
+        "es-ES",
+        "en-US"
+      ],
+      "audience": "sellers; supervisors; Finance"
+    },
+    {
+      "version": "1.0-draft",
+      "approval_status": "REVIEW_PENDING",
+      "access_requirement": "Authenticated staff session and verified authorized grant in existing Agent Portal; not implemented/verified by this package",
+      "external_sales_allowed": false,
+      "document_id": "AG-SAL-08",
+      "source_path": "docs/sales-enablement/PRESENTATION_ES_EN.md",
+      "language": [
+        "es-ES",
+        "en-US"
+      ],
+      "audience": "sellers; trainers; owners"
+    },
+    {
+      "version": "1.0-draft",
+      "approval_status": "REVIEW_PENDING",
+      "access_requirement": "Authenticated staff session and verified authorized grant in existing Agent Portal; not implemented/verified by this package",
+      "external_sales_allowed": false,
+      "document_id": "AG-SAL-09",
+      "source_path": "docs/sales-enablement/WELCOME_PACKAGE_INVENTORY.md",
+      "language": [
+        "es-ES",
+        "en-US"
+      ],
+      "audience": "onboarding owners; trainers; future sellers"
+    }
+  ]
+}
