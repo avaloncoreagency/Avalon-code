@@ -5,6 +5,8 @@ import { randomUUID } from "node:crypto";
 import { createStaffCasefile, editStaffCasefile, sendStaffMessage, readStaffMessage, createMyWorkItem, updateMyWorkItem, addStaffNote } from "./actions";
 import { WorkCalendar } from "@/components/staff/work-calendar";
 import { StaffCommercialHistory } from "@/components/staff/commercial-history";
+import { SellerPipeline } from "@/components/staff/seller-pipeline";
+import { SELLER_MESSAGES, isSellerTitle } from "@/lib/staff/seller";
 import { getLang } from "@/lib/i18n-server";
 import { pick } from "@/lib/i18n";
 import { DEFAULT_TZ, KIND_LABEL, PRIORITY_LABEL, STATUS_LABEL, dayKey, timeLabel, when, workKpis, type WorkItem } from "@/lib/staff/work";
@@ -25,7 +27,7 @@ const statuses: Record<string, string> = {
 };
 
 export default async function StaffPortal({ searchParams }: {
-  searchParams: Promise<{ status?: string; view?: string; d?: string; commercial?: string }>;
+  searchParams: Promise<{ status?: string; error?: string; view?: string; d?: string; commercial?: string }>;
 }) {
   const { supabase, userId, user, permissions } = await requireStaff();
   const [assigned, files, people, mail, myLeads] = await Promise.all([
@@ -39,7 +41,10 @@ export default async function StaffPortal({ searchParams }: {
       .order("created_at",{ascending:false}).limit(100),
     supabase.rpc("staff_my_leads"),
   ]);
-  const [{ status, view: viewParam, d, commercial }, lang] = await Promise.all([searchParams, getLang()]);
+  const [{ status, error: errorCode, view: viewParam, d, commercial }, lang] = await Promise.all([searchParams, getLang()]);
+  const seller = isSellerTitle(permissions.job_title);
+  // Sellers always keep their own calendar; other employees need the owners' explicit permission.
+  const canCreateOwn = permissions.can_create_events || seller;
   // Work calendar, tasks and notes (migration 20261124100000). RLS returns only what this employee may read.
   const [itemsR, notesR] = await Promise.all([
     supabase.from("staff_work_items").select("id,kind,origin,assignee_id,created_by,title,instructions,starts_at,ends_at,due_at,time_zone,priority,status,lead_id,client_id,assignee_can_reschedule,completion_note,completed_at,version,updated_at")
@@ -73,10 +78,13 @@ export default async function StaffPortal({ searchParams }: {
       <form action={signOut}><button className={s.button} type="submit">Cerrar sesión</button></form>
     </header>
     {status && Object.hasOwn(statuses,status) && <p role="status" className={s.flash}>{statuses[status]}</p>}
+    {status && !Object.hasOwn(statuses,status) && Object.hasOwn(SELLER_MESSAGES,status) && <p role="status" className={s.flash}>{SELLER_MESSAGES[status]}</p>}
+    {errorCode && Object.hasOwn(SELLER_MESSAGES,errorCode) && <p role="alert" className={s.flash} data-tone="error">{SELLER_MESSAGES[errorCode]}</p>}
     {!available && <p role="alert" className={s.flash}>El portal no está disponible en este entorno. No se mostrará información parcial.</p>}
     {available && <>
       <nav className={s.inline} aria-label="Secciones del portal" style={{ flexWrap: "wrap", gap: 8, marginBottom: 12 }}>
-        {[["dashboard", "Mi dashboard"], ["calendar", "Mi calendario"], ["tasks", "Mis tareas"], ["staff-leads", "Mis leads"], ["staff-assigned", "Mis clientes"],
+        {[["dashboard", "Mi dashboard"], ...(seller ? [["seller-leads", "Mis leads"], ["seller-quotes", "Mis propuestas"], ["seller-sales", "Mis ventas"]] : []),
+          ["calendar", "Mi calendario"], ["tasks", "Mis tareas"], ...(seller ? [] : [["staff-leads", "Mis leads"]]), ["staff-assigned", "Mis clientes"],
           ["staff-files", "Mis expedientes"], ["notes", "Mis notas"], ["staff-messages", "Mensajes"], ["staff-commercial", pick(lang, "Mis ventas y comisiones", "My sales and commissions")], ["profile", "Perfil y seguridad"]].map(([id, label]) =>
           <a key={id} className={s.button} href={`#${id}`}>{label}</a>)}
       </nav>
@@ -92,12 +100,13 @@ export default async function StaffPortal({ searchParams }: {
             <div key={label} className={s.stat} data-kpi={label}><span>{label}</span><strong>{value}</strong></div>)}
         </div>
       </section>}
+      {seller && <SellerPipeline supabase={supabase} />}
       <StaffCommercialHistory supabase={supabase} lang={lang} view={view} day={anchor} pageParam={commercial} />
       {workReady && <section className={s.panel} aria-labelledby="calendar">
         <h2 id="calendar">Mi calendario</h2>
         <p className={s.muted}>Solo tus actividades asignadas, las tuyas propias y las compartidas contigo. Los calendarios privados de la dirección no son visibles aquí.</p>
         <WorkCalendar items={items} view={view} anchor={anchor} tz={DEFAULT_TZ} basePath="/staff" today={today} />
-        {permissions.can_create_events ? <details>
+        {canCreateOwn ? <details>
           <summary>Nueva actividad propia</summary>
           <form action={createMyWorkItem} className={s.form} aria-label="Nueva actividad propia">
             <input type="hidden" name="idempotency_key" value={randomUUID()} /><input type="hidden" name="time_zone" value={DEFAULT_TZ} />
@@ -152,7 +161,7 @@ export default async function StaffPortal({ searchParams }: {
           <span className={s.tag}>{n.visibility === "personal" ? "Personal" : "Trabajo"}</span> {n.body}
           <br /><span className={s.muted}>{new Date(n.created_at).toLocaleString("es", { timeZone: DEFAULT_TZ })}{n.author_id !== userId ? " · de otra persona autorizada" : ""}</span></li>)}</ul>}
       </section>}
-      {!myLeads.error && <section className={s.panel} aria-labelledby="staff-leads">
+      {!seller && !myLeads.error && <section className={s.panel} aria-labelledby="staff-leads">
         <h2 id="staff-leads">Mis leads</h2>
         <p className={s.muted}>Solo los leads que la dirección te asignó. Sin valores, pipeline completo ni finanzas.</p>
         {leads.length === 0 ? <p>Por ahora no tienes leads asignados.</p> :
@@ -236,7 +245,7 @@ export default async function StaffPortal({ searchParams }: {
         <h2 id="profile">Perfil y seguridad</h2>
         <dl className={s.detail}>
           <div><dt>Cuenta</dt><dd>{user.email ?? "—"}</dd></div>
-          <div><dt>Permisos</dt><dd>{[permissions.can_create_events && "crear actividades propias", permissions.can_create_casefiles && "expedientes", permissions.can_message && "mensajería"].filter(Boolean).join(" · ") || "solo trabajo asignado"}</dd></div>
+          <div><dt>Permisos</dt><dd>{[seller && "ventas propias (leads, propuestas y cierres)", canCreateOwn && "crear actividades propias", permissions.can_create_casefiles && "expedientes", permissions.can_message && "mensajería"].filter(Boolean).join(" · ") || "solo trabajo asignado"}</dd></div>
           <div><dt>Verificación en dos pasos</dt><dd><Link href="/staff/mfa">Configurar o revisar MFA</Link></dd></div>
         </dl>
         <p className={s.muted}>Tus permisos los gestiona la dirección. Este portal no da acceso al CRM completo, las finanzas ni la administración.</p>

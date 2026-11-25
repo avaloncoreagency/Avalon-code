@@ -171,12 +171,42 @@ export async function assignWorkItem(form: FormData) {
   done("work-assigned");
 }
 
-/** Cancel or reassign an assignment (optimistic version; audit via trigger). */
+/** Owners control every employee calendar: cancel, reassign, reschedule or delete any item (optimistic version;
+ * audit via trigger). The database refuses all of this to employees. */
 export async function manageWorkItem(form: FormData) {
   const { supabase } = await requireOwner();
   const id = get(form, "item_id"), version = Number(get(form, "version")), op = get(form, "op"), to = get(form, "assignee_id");
-  if (!UUID.test(id) || !Number.isInteger(version) || !["cancel", "reassign"].includes(op) || (op === "reassign" && !UUID.test(to))) done("invalid");
-  const patch = op === "cancel" ? { status: "cancelled" } : { assignee_id: to, lead_id: null, client_id: null };
+  if (!UUID.test(id) || !Number.isInteger(version) || !["cancel", "reassign", "reschedule", "delete"].includes(op)
+      || (op === "reassign" && !UUID.test(to))) done("invalid");
+  if (op === "delete") {
+    const { data, error } = await supabase.from("staff_work_items").delete().eq("id", id).eq("version", version).select("id");
+    done(error ? "failed" : data && data.length ? "work-deleted" : "stale");
+  }
+  let patch: Record<string, string | null>;
+  if (op === "reschedule") {
+    const tz = get(form, "time_zone") || DEFAULT_TZ, date = get(form, "date"), start = get(form, "start"), end = get(form, "end");
+    const kind = get(form, "kind");
+    if (!validTimeZone(tz) || !isKind(kind)) done("invalid");
+    const at = localToUtc(date, start || (kind === "task" ? "17:00" : ""), tz);
+    if (!at) done("invalid");
+    const endsAt = kind !== "task" && end ? localToUtc(date, end, tz) : null;
+    if (endsAt && endsAt < at) done("invalid");
+    patch = kind === "task" ? { due_at: at, time_zone: tz } : { starts_at: at, ends_at: endsAt, time_zone: tz };
+    const title = get(form, "title");
+    if (title) { if (title.length > 200) done("invalid"); patch.title = title; }
+  } else {
+    patch = op === "cancel" ? { status: "cancelled" } : { assignee_id: to, lead_id: null, client_id: null };
+  }
   const { data, error } = await supabase.from("staff_work_items").update(patch).eq("id", id).eq("version", version).select("id");
-  done(error ? "failed" : data && data.length ? (op === "cancel" ? "work-cancelled" : "work-reassigned") : "stale");
+  done(error ? "failed" : data && data.length ? ({ cancel: "work-cancelled", reassign: "work-reassigned", reschedule: "work-rescheduled" } as Record<string, string>)[op] : "stale");
+}
+
+/** Owners hand a lead to exactly ONE seller (or take it back with an empty seller). The database closes every other
+ * employee's grant, so the lead, its proposals and its sale are visible only to that seller and the owners. */
+export async function assignLeadToSeller(form: FormData) {
+  const { supabase } = await requireOwner();
+  const leadId = get(form, "lead_id"), seller = get(form, "seller_id");
+  if (!UUID.test(leadId) || (seller && !UUID.test(seller))) done("invalid");
+  const { error } = await supabase.rpc("crm_lead_assign_seller", { p_lead: leadId, p_seller: seller || null });
+  done(error ? (/staff_seller_invalid/.test(error.message) ? "seller-invalid" : "failed") : seller ? "lead-assigned" : "lead-returned");
 }

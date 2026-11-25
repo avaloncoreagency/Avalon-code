@@ -2,7 +2,8 @@ import Link from "next/link";
 import { Suite } from "@/components/suite/suite";
 import { requireOwner } from "@/lib/auth/session";
 import { randomUUID } from "node:crypto";
-import { inviteStaffEmployee, setStaffAccess, grantStaffClient, revokeStaffClient, grantStaffLead, revokeStaffLead, assignWorkItem, manageWorkItem } from "./actions";
+import { inviteStaffEmployee, setStaffAccess, grantStaffClient, revokeStaffClient, grantStaffLead, revokeStaffLead, assignWorkItem, manageWorkItem, assignLeadToSeller } from "./actions";
+import { isSellerTitle } from "@/lib/staff/seller";
 import { WorkCalendar } from "@/components/staff/work-calendar";
 import { DEFAULT_TZ, KIND_LABEL, PRIORITY_LABEL, STATUS_LABEL, dayKey, timeLabel, when, workKpis, type WorkItem } from "@/lib/staff/work";
 import { JOB_TITLES } from "@/lib/auth/staff-roles";
@@ -30,6 +31,9 @@ const statuses: Record<string,string> = {
  "client-granted":"Cliente asignado.","client-revoked":"Acceso al cliente revocado.",
  "lead-granted":"Lead asignado.","lead-revoked":"Acceso al lead revocado.",
  "work-assigned":"Actividad asignada. Solo esa persona la ve.","work-cancelled":"Actividad cancelada.","work-reassigned":"Actividad reasignada.",
+ "work-deleted":"Actividad eliminada del calendario.","work-rescheduled":"Actividad reprogramada.",
+ "lead-assigned":"Lead entregado al vendedor. Solo ese vendedor y la dirección lo ven.","lead-returned":"Lead devuelto a la dirección.",
+ "seller-invalid":"Ese empleado no es un vendedor activo.",
  "work-link-denied":"Ese lead o cliente no está asignado a ese empleado: asígnaselo primero.",stale:"La actividad cambió mientras la editabas; revisa la versión actual.",
  sent:"Mensaje privado enviado.",read:"Mensaje marcado como leído.",
 };
@@ -46,7 +50,7 @@ const inviteStatuses: Readonly<Record<string, readonly [string, string]>> = {
 };
 
 export default async function StaffAdministration({searchParams}:{
- searchParams:Promise<{status?:string;view?:string;d?:string;invite_sender?:string}>;
+ searchParams:Promise<{status?:string;view?:string;d?:string;invite_sender?:string;agent?:string}>;
 }) {
  const {supabase,userId} = await requireOwner();
  const [roster,access,grants,clients,casefiles,contacts,messages,audit,leadGrants,leads] = await Promise.all([
@@ -66,7 +70,7 @@ export default async function StaffAdministration({searchParams}:{
    supabase.from("staff_lead_grants").select("user_id,lead_id,access_level,active").eq("active",true).limit(300),
    supabase.from("crm_leads").select("id,company").eq("archived",false).order("updated_at",{ascending:false}).limit(300),
  ]);
- const {status, view: viewParam, d, invite_sender: inviteSender} = await searchParams;
+ const {status, view: viewParam, d, invite_sender: inviteSender, agent: agentParam} = await searchParams;
  const lang = await getLang();
  const inviteStatus = status && Object.hasOwn(inviteStatuses, status)
    ? pick(lang, ...inviteStatuses[status]) : null;
@@ -86,6 +90,10 @@ export default async function StaffAdministration({searchParams}:{
  const contactsList=(contacts.data ?? []) as Contact[], mail=(messages.data ?? []) as Message[];
  const events=(audit.data ?? []) as AuditEvent[];
  const memberName = (member: StaffMember) => personDisplayName(member, "Empleado");
+ const sellers = members.filter(m=>a.some(x=>x.user_id===m.user_id&&x.active&&isSellerTitle(x.job_title)));
+ // Calendar control: one employee at a time (or the whole team).
+ const agent = agentParam && members.some(m=>m.user_id===agentParam) ? agentParam : "";
+ const agentWork = agent ? work.filter(i=>i.assignee_id===agent) : work;
  const display = new Map(((roster.data ?? []) as StaffMember[]).map(m=>[m.user_id,memberName(m)]));
  const names = new Map(contactsList.map(m=>[m.user_id,m.display_name]));
  return <Suite active="staff"><div className={s.hud}>
@@ -207,8 +215,33 @@ export default async function StaffAdministration({searchParams}:{
         <tbody>{members.filter(m=>a.some(x=>x.user_id===m.user_id)).map(m=>{ const k=workKpis(work.filter(i=>i.assignee_id===m.user_id), nowIso, {leads: lg.filter(x=>x.user_id===m.user_id).length, clients: 0, casefilesOpen: 0});
           return <tr key={m.user_id} data-supervision={m.user_id}><td>{memberName(m)}</td><td className={s.num}>{k.open}</td><td className={s.num}>{k.overdue}</td><td className={s.num}>{k.upcoming7}</td><td className={s.num}>{k.done30}</td><td className={s.num}>{k.leads}</td></tr>; })}</tbody>
       </table></div>
-      <h3>Calendario del equipo</h3>
-      <WorkCalendar items={work} view={view} anchor={anchor} tz={DEFAULT_TZ} basePath="/admin/staff" today={today} names={display} />
+      <h3 id="agent-calendars">Calendario de cada agente</h3>
+      <form method="get" className={s.inline} aria-label="Elegir agente">
+        <input type="hidden" name="view" value={view} /><input type="hidden" name="d" value={anchor} />
+        <label className={s.field}>Agente<select name="agent" defaultValue={agent}><option value="">Todo el equipo</option>
+          {members.filter(m=>a.some(x=>x.user_id===m.user_id)).map(m=><option key={m.user_id} value={m.user_id}>{memberName(m)}</option>)}</select></label>
+        <button className={s.button} type="submit">Ver calendario</button>
+      </form>
+      <WorkCalendar items={agentWork} view={view} anchor={anchor} tz={DEFAULT_TZ} basePath="/admin/staff" today={today} names={display} />
+      <h3>Control de citas y tareas{agent ? ` · ${display.get(agent) ?? "Agente"}` : ""}</h3>
+      <p className={s.muted}>Incluye lo que cada agente registró por su cuenta. Puedes reprogramar, cancelar, reasignar o eliminar cualquier actividad.</p>
+      <ul className={s.list}>{agentWork.filter(i=>i.status!=="done"&&i.status!=="cancelled").slice(0,150).map(i=>{ const w=when(i); return <li key={i.id} className={s.notice} data-agent-item={i.id}>
+        <strong>{i.title}</strong> · {display.get(i.assignee_id)??"Empleado"} · {KIND_LABEL[i.kind][0]} · {STATUS_LABEL[i.status][0]} · {i.origin==="staff_created"?"registrada por el agente":"asignada por la dirección"}{w?` · ${dayKey(w,i.time_zone)} ${timeLabel(w,i.time_zone,"es")}`:""}
+        <details><summary>Reprogramar o editar</summary>
+          <form action={manageWorkItem} className={s.form}><input type="hidden" name="item_id" value={i.id}/><input type="hidden" name="version" value={i.version}/>
+            <input type="hidden" name="op" value="reschedule"/><input type="hidden" name="kind" value={i.kind}/><input type="hidden" name="time_zone" value={i.time_zone}/>
+            <label className={s.field}>Título<input name="title" defaultValue={i.title} maxLength={200} /></label>
+            <div className={s.row}>
+              <label className={s.field}>Fecha<input type="date" name="date" required defaultValue={w?dayKey(w,i.time_zone):today} /></label>
+              <label className={s.field}>{i.kind==="task"?"Vence a las":"Hora"}<input type="time" name="start" required /></label>
+              {i.kind!=="task"&&<label className={s.field}>Fin<input type="time" name="end" /></label>}
+            </div>
+            <button className={s.button} type="submit">Guardar</button>
+          </form>
+        </details>
+        <form action={manageWorkItem} className={s.inline}><input type="hidden" name="item_id" value={i.id}/><input type="hidden" name="version" value={i.version}/><input type="hidden" name="op" value="delete"/>
+          <button className={s.button} type="submit" data-tone="danger">Eliminar</button></form>
+      </li>; })}</ul>
       <h3>Asignaciones abiertas</h3>
       <ul className={s.list}>{work.filter(i=>i.origin==="staff_assigned"&&i.status!=="done"&&i.status!=="cancelled").slice(0,100).map(i=>{ const w=when(i); return <li key={i.id} className={s.notice} data-assignment={i.id}>
         <strong>{i.title}</strong> · {display.get(i.assignee_id)??"Empleado"} · {KIND_LABEL[i.kind][0]} · {STATUS_LABEL[i.status][0]}{w?` · ${dayKey(w,i.time_zone)} ${timeLabel(w,i.time_zone,"es")}`:""}
@@ -221,7 +254,22 @@ export default async function StaffAdministration({searchParams}:{
           <button className={s.button} type="submit">Reasignar</button></form>
       </li>; })}</ul>
     </section>}
-    <section className={s.panel} aria-labelledby="staff-leads"><h2 id="staff-leads">Asignar leads (vendedores)</h2>
+    <section className={s.panel} aria-labelledby="seller-assign"><h2 id="seller-assign">Entregar un lead a un vendedor</h2>
+      <p className={s.muted}>El lead pasa a ser de ese vendedor: lo trabaja, hace propuestas y cierra la venta. Solo ese vendedor y la dirección lo ven; cualquier otro acceso de empleados a ese lead se cierra. Deja el vendedor vacío para devolverlo a la dirección.</p>
+      <form action={assignLeadToSeller} className={s.form}>
+        <label className={s.field}>Lead <select name="lead_id" required defaultValue="">
+          <option value="" disabled>Seleccionar lead</option>
+          {leadOptions.map(l=><option key={l.id} value={l.id}>{l.company}</option>)}
+        </select></label>
+        <label className={s.field}>Vendedor <select name="seller_id" defaultValue="">
+          <option value="">— Devolver a la dirección —</option>
+          {sellers.map(m=><option value={m.user_id} key={m.user_id}>{memberName(m)}</option>)}
+        </select></label>
+        <button className={s.button} type="submit">Entregar lead</button>
+      </form>
+      {sellers.length === 0 && <p className={s.muted}>No hay vendedores activos. Activa a un empleado con cargo «Vendedor» y MFA verificado.</p>}
+    </section>
+    <section className={s.panel} aria-labelledby="staff-leads"><h2 id="staff-leads">Compartir leads (solo consulta)</h2>
       <p className={s.muted}>El vendedor ve solo sus leads asignados: empresa, contacto, etapa y próximo seguimiento. «Trabajar» añade email y teléfono. Nunca ve valores, el pipeline completo ni finanzas.</p>
       <form action={grantStaffLead} className={s.form}>
         <label className={s.field}>Empleado activo <select name="employee_id" required defaultValue="">

@@ -18,7 +18,9 @@ test('staff calendar: assigned + own items only; owners\' private events never r
     await db.exec(fs.readFileSync('supabase/migrations/' + f, 'utf8'));
     if (f.startsWith('20261102053022')) await db.exec(`insert into agency_memberships(user_id,role) values ('${MIGUEL}','owner'),('${SAMUEL}','owner'),('${ANA}','operator'),('${PEDRO}','operator')`);
   }
-  const as = u => db.exec(`reset role;set request.jwt.claim.sub='${u}';set role authenticated;`);
+  // Every session is an AAL2 session and every employee has a verified authenticator (Staff MFA is mandatory).
+  await db.exec(`insert into auth.mfa_factors(user_id,status) select m.user_id,'verified' from agency_memberships m where m.role='operator'`);
+  const as = u => db.exec(`reset role;set request.jwt.claim.sub='${u}';set request.jwt.claims='{"sub":"${u}","aal":"aal2"}';set role authenticated;`);
   const q = (sql, p) => db.query(sql, p).then(r => r.rows);
   const n = async (sql, p) => Number((await q(`select count(*) n from (${sql}) x`, p))[0].n);
   const key = () => crypto.randomUUID();
