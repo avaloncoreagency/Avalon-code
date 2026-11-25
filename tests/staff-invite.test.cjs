@@ -141,3 +141,10 @@ test("an address that already has an account gets a precise reason and is never 
     assert.match(page,new RegExp('"'+status+'": \\["'));
   }
 });
+
+test("the invitation form cannot double-submit and explains how to test with a + alias", () => {
+  const page = fs.readFileSync("src/app/admin/staff/page.tsx", "utf8"), btn = fs.readFileSync("src/components/agents/invite-submit.tsx", "utf8");
+  assert.match(page, /<InviteSubmit /); assert.ok(!/type="submit">Enviar invitación segura/.test(page), "plain submit button replaced");
+  assert.match(btn, /useFormStatus\(\)/); assert.match(btn, /disabled=\{pending\}/);
+  assert.match(page, /tucorreo\+agente1@gmail\.com/);
+});
