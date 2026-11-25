@@ -13,9 +13,13 @@ const ERRORS: Record<string, [string, string]> = {
 };
 
 /** Opt-in TOTP enrollment: QR → first code → factor verified. */
-export function MfaEnroll({ lang }: { lang: Lang }) {
+export function MfaEnroll({ lang, enrollAction = totpEnrollment, staff = false }: {
+  lang: Lang;
+  enrollAction?: typeof totpEnrollment;
+  staff?: boolean;
+}) {
   const es = lang === "es";
-  const [current, act, pending] = useActionState(totpEnrollment, { step: "idle" } as EnrollState);
+  const [current, act, pending] = useActionState(enrollAction, { step: "idle" } as EnrollState);
   const error = "error" in current && current.error ? ERRORS[current.error]?.[es ? 0 : 1] : null;
 
   if (current.step === "done") return <p role="status"><strong>{es ? "Verificación en dos pasos activada." : "Two-step verification enabled."}</strong> {es ? "La próxima vez que inicies sesión se pedirá el código." : "Your next sign-in will ask for the code."}</p>;
@@ -43,7 +47,9 @@ export function MfaEnroll({ lang }: { lang: Lang }) {
   return (
     <form action={act} className={s.form}>
       <input type="hidden" name="intent" value="start" />
-      <p className={s.meta}>{es ? "Recomendado para cuentas propietarias. Necesitarás una app de autenticación en tu teléfono." : "Recommended for owner accounts. You will need an authenticator app on your phone."}</p>
+      <p className={s.meta}>{staff
+        ? (es ? "Necesitarás una app de autenticación en tu teléfono." : "You will need an authenticator app on your phone.")
+        : (es ? "Recomendado para cuentas propietarias. Necesitarás una app de autenticación en tu teléfono." : "Recommended for owner accounts. You will need an authenticator app on your phone.")}</p>
       {error && <p className={s.meta} role="alert" style={{ color: "var(--danger)" }}>{error}</p>}
       <div className={s.actions}><button className={s.btnPrimary} type="submit" disabled={pending}>{pending ? "…" : es ? "Activar verificación en dos pasos" : "Enable two-step verification"}</button></div>
     </form>
