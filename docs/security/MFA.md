@@ -36,3 +36,14 @@ Supabase no genera códigos de respaldo para TOTP, así que la recuperación se 
 - `tests/security.test.cjs`: una sesión AAL1 con un factor verificado pasa a estado "mfa" y no se le concede acceso. AAL2 sí tiene acceso.
 - `tests/auth.integration.cjs`: un propietario con factor es redirigido a `/admin/mfa` desde el dashboard, el Security Command Center y el login, y la API responde 401.
 - **Pendiente:** la prueba real de cada dueño con su teléfono (fases 1 y 2).
+
+
+## OMEGA: paridad Data API/RPC (candidato, no aplicado remotamente)
+
+La migración `20261125005906_enforce_enrolled_mfa_data_access.sql` conserva MFA opt-in y aplica el factor verificado a los helpers `crm_private.is_owner`, `os_private.is_owner`, `crm_private.staff_active` y a la proyección definer `staff_my_leads`. Sin factor verificado no cambia el acceso; con factor verificado exige AAL2. La membresía y la activación siguen siendo obligatorias. El único broker definer nuevo devuelve un booleano de la propia identidad `auth.uid()`, sin argumento de usuario; no expone `auth.mfa_factors`, usa search_path vacío y revoca PUBLIC/anon.
+
+La lectura de la propia membresía y el propio grant de acceso permanece disponible para resolver login/MFA; no expone leads, mensajes ni finanzas. Las rutas Auth de recuperación y desafío no se modifican. La Edge Function de invitaciones conserva su comprobación de factores verificados y token validado por Auth.
+
+`tests/staff-portal.database.cjs` reproduce el fallo previo de lectura CRM bajo owner AAL1 con factor verificado y comprueba denegación directa/RPC, AAL2, aislamiento, suspensión y privacidad de factores. Es prueba local sintética; no acredita MFA alojado ni aceptación con teléfono físico. La migración requiere autorización específica antes de aplicarse en Preview o producción.
+
+Referencia técnica: https://supabase.com/docs/guides/auth/auth-mfa (enforcement para cuentas inscritas).

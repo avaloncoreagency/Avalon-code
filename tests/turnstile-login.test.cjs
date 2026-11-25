@@ -102,6 +102,7 @@ test('login server action verifies human before requesting Supabase credentials'
   const action = load('src/app/login/actions.ts', {
     '@/lib/supabase/server': { createClient: async () => { supabaseCalls++; throw Error('Supabase must not be called'); } },
     '@/lib/auth/access': { getOwnerState: async () => ({ state: 'none' }) },
+    '@/lib/auth/staff': { getStaffState: async () => ({ state: 'none' }) },
     '@/lib/security/turnstile': { verifyLoginHuman: async () => { verified = true; return 'invalid'; } },
     '@/lib/security/rate-limit': {
       AUTH_RULES: { loginPerIp: {limit:100,windowMs:60000}, loginPerAccount: {limit:100,windowMs:60000} },

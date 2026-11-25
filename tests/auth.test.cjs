@@ -13,6 +13,9 @@ function load(file, mocks = {}) {
   const localRequire = id => {
     if (id in mocks) return mocks[id];
     if (id === 'server-only') return {};
+    // Employee portal is separately gated; existing owner-only Auth tests must
+    // not accidentally redirect to staff due to unconfigured synthetic mocks.
+    if (id === '@/lib/auth/staff') return { getStaffState: async () => ({ state: 'none' }) };
     if (id === '@/lib/security/turnstile') return load('src/lib/security/turnstile.ts');
     if (id === 'next/headers') return { headers: async () => new Headers(), cookies: async () => ({ get: () => undefined, set: () => {} }) };
     if (id === '@/lib/security/rate-limit') return load('src/lib/security/rate-limit.ts');
@@ -49,13 +52,24 @@ test('callback origin rejects external inputs and non-HTTPS hosts', () => {
   }
   process.env.APP_ORIGIN = 'http://localhost:3000'; assert.equal(policy.getAppOrigin(), 'http://localhost:3000');
 });
-function callback({ authorized = true, exchangeError = null } = {}) {
+function callback({ authorized = true, exchangeError = null, invitedOperator = false } = {}) {
   const calls = [];
-  const db = { auth: { exchangeCodeForSession: async code => { calls.push(['exchange', code]); return { error: exchangeError }; }, signOut: async options => { calls.push(['logout', options]); return { error: null }; } } };
+  const db = {
+    auth: {
+      exchangeCodeForSession: async code => { calls.push(['exchange', code]); return { error: exchangeError }; },
+      getUser: async () => ({ data: { user: invitedOperator ? { id: 'verified-staff-uuid' } : null }, error: null }),
+      signOut: async options => { calls.push(['logout', options]); return { error: null }; },
+    },
+    from: () => ({
+      select() { return this; }, eq() { return this; },
+      maybeSingle: async () => ({ data: invitedOperator ? { role: 'operator' } : null, error: null }),
+    }),
+  };
   return { calls, handler: load('src/app/admin/auth/callback/route.ts', {
     '@/lib/supabase/server': { createClient: async () => db },
     '@/lib/auth/access': { getAuthorizedMember: async () => authorized ? { role: 'owner' } : null, getOwnerState: async () => authorized ? { state: 'ok', userId: 'verified-uuid', role: 'owner' } : { state: 'none' } },
     '@/lib/auth/policy': policy,
+    '@/lib/auth/email-flow': { grantPasswordFlow: async (id, purpose) => { calls.push(['invite-flow', id, purpose]); } },
   }).GET };
 }
 test('callback exchanges PKCE code and ignores malicious return destinations/host', async () => {
@@ -71,6 +85,15 @@ test('callback rejects nonmembers and closes their session', async () => {
   const result = await handler(new NextRequest('http://localhost:3000/admin/auth/callback?code=synthetic'));
   assert.match(result.headers.get('location'), /error=unauthorized$/);
   assert.deepEqual(calls[1], ['logout', { scope: 'local' }]);
+});
+test('verified invited operator receives password setup, never the owner dashboard', async () => {
+  const { calls, handler } = callback({ authorized: false, invitedOperator: true });
+  const result = await handler(new NextRequest('http://localhost:3000/admin/auth/callback?code=verified-invite'));
+  assert.equal(result.headers.get('location'), 'http://localhost:3000/admin/signup');
+  assert.deepEqual(calls, [
+    ['exchange', 'verified-invite'],
+    ['invite-flow', 'verified-staff-uuid', 'invite'],
+  ]);
 });
 test('callback rejects missing code, provider failure and failed exchange', async () => {
   for (const query of ['', '?error=access_denied&code=synthetic', '?code=synthetic']) {

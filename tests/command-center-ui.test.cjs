@@ -3,7 +3,7 @@ function load(file,stubs={},cache=new Map()){
  const name=path.resolve(file);if(cache.has(name))return cache.get(name).exports;
  const m=new Module(name,module);m.filename=name;m.paths=module.paths;cache.set(name,m);const original=m.require.bind(m);
  m.require=id=>{if(id in stubs)return stubs[id];if(id==='next/link')return {__esModule:true,default:({children,...p})=>React.createElement('a',p,children)};if(id.endsWith('.module.css'))return{__esModule:true,default:new Proxy({},{get:(_,k)=>String(k)})};
- if(id.startsWith('@/')||id.startsWith('./')){const base=id.startsWith('@/')?path.resolve('src',id.slice(2)):path.resolve(path.dirname(name),id);for(const ext of ['.ts','.tsx'])if(fs.existsSync(base+ext))return load(base+ext,stubs,cache);}
+ if(id.startsWith('@/')||id.startsWith('.')){const base=id.startsWith('@/')?path.resolve('src',id.slice(2)):path.resolve(path.dirname(name),id);for(const ext of ['.ts','.tsx'])if(fs.existsSync(base+ext))return load(base+ext,stubs,cache);}
  return original(id);};
  m._compile(ts.transpileModule(fs.readFileSync(name,'utf8'),{compilerOptions:{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2022,jsx:ts.JsxEmit.ReactJSX,esModuleInterop:true}}).outputText,name);return m.exports;
 }

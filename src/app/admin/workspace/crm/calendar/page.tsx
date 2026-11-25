@@ -1,3 +1,4 @@
+import { activeFollowup, agendaIncomplete } from "@/lib/crm/operational-agenda";
 import { loadOwnerDirectory } from "@/lib/identity/directory";
 import { personDisplayName } from "@/lib/identity/owners";
 import Link from "next/link";
@@ -32,18 +33,24 @@ export default async function CalendarPage({ searchParams }: { searchParams: Pro
   const rangeFrom = moveDay(moveMonth(focusDate, -1), -7);
   const rangeTo = moveDay(moveMonth(focusDate, 2), 7);
   const who = q(p, "owner") === "all" ? null : UUID_RE.test(q(p, "owner") ?? "") ? q(p, "owner")! : userId;
+  const pageText = q(p, "agenda_page") ?? "0";
+  const agendaPage = /^\d{1,4}$/.test(pageText) ? Math.min(Number(pageText), 2000) : 0;
+  const pageSize = 50;
   const days = q(p, "days") === "60" ? 60 : 30;
   const now = new Date();
   const from = new Date(now.getTime() - 7 * 86400000).toISOString();
   const to = new Date(now.getTime() + days * 86400000).toISOString();
-  let tasks = supabase.from("crm_tasks").select("id,title,due_at,status,assignee_id").not("status", "in", "(done,cancelled)").gte("due_at", from).lte("due_at", to);
-  let orders = supabase.from("crm_work_orders").select("id,sale_id,due_on,status,assignee_id,crm_departments(label),crm_clients(legal_name)").not("status", "in", "(delivered,cancelled)").gte("due_on", from.slice(0, 10)).lte("due_on", to.slice(0, 10));
-  let leads = supabase.from("crm_leads").select("id,company,follow_up_at,owner_id").eq("archived", false).gte("follow_up_at", from).lte("follow_up_at", to);
+  let tasks = supabase.from("crm_tasks").select("id,title,due_at,status,assignee_id", { count: "exact" }).not("status", "in", "(done,cancelled)").gte("due_at", from).lte("due_at", to);
+  let orders = supabase.from("crm_work_orders").select("id,sale_id,due_on,status,assignee_id,crm_departments(label),crm_clients(legal_name)", { count: "exact" }).not("status", "in", "(delivered,cancelled)").gte("due_on", from.slice(0, 10)).lte("due_on", to.slice(0, 10));
+  const closed = await run<{ id: string }[]>(supabase.from("crm_stages").select("id").in("kind", ["won", "lost"]));
+  const closedIds = [...new Set(["won", "lost", ...(closed.data ?? []).map(stage => stage.id)])];
+  let leads = supabase.from("crm_leads").select("id,company,follow_up_at,owner_id,stage_id", { count: "exact" }).eq("archived", false).not("stage_id", "in", "(won,lost)").gte("follow_up_at", from).lte("follow_up_at", to);
+  for (const stage of closedIds) { if (stage !== "won" && stage !== "lost") leads = leads.neq("stage_id", stage); }
   if (who) { tasks = tasks.eq("assignee_id", who); orders = orders.eq("assignee_id", who); leads = leads.eq("owner_id", who); }
   const [t, o, l, owners, calendarEvents, dayBanners, linkedClients, linkedLeads] = await Promise.all([
-    run<{ id: string; title: string; due_at: string; status: string; assignee_id: string }[]>(tasks.limit(300)),
-    run<{ id: string; sale_id: string; due_on: string; status: string; assignee_id: string; crm_departments: { label: string } | null; crm_clients: { legal_name: string } | null }[]>(orders.limit(200)),
-    run<{ id: string; company: string; follow_up_at: string; owner_id: string }[]>(leads.limit(200)),
+    run<{ id: string; title: string; due_at: string; status: string; assignee_id: string }[]>(tasks.order("due_at").order("id").range(agendaPage * pageSize, (agendaPage + 1) * pageSize - 1)),
+    run<{ id: string; sale_id: string; due_on: string; status: string; assignee_id: string; crm_departments: { label: string } | null; crm_clients: { legal_name: string } | null }[]>(orders.order("due_on").order("id").range(agendaPage * pageSize, (agendaPage + 1) * pageSize - 1)),
+    run<{ id: string; company: string; follow_up_at: string; owner_id: string; stage_id: string }[]>(leads.order("follow_up_at").order("id").range(agendaPage * pageSize, (agendaPage + 1) * pageSize - 1)),
     run<{ user_id: string; email: string }[]>(loadOwnerDirectory(supabase)),
     run<CalendarEvent[]>(supabase.from("crm_events").select("id,title,owner_id,attendee_ids,starts_at,ends_at,timezone,all_day,kind,status,color,description,location,meeting_url,participants,lead_id,client_id,version").neq("status", "cancelled").lt("starts_at", rangeTo + "T00:00:00Z").gt("ends_at", rangeFrom + "T00:00:00Z").order("starts_at").limit(600)),
     run<DayBanner[]>(supabase.from("crm_calendar_banners").select("id,day,title,subtitle,emoji,theme,version").gte("day", rangeFrom).lt("day", rangeTo).order("day").limit(180)),
@@ -54,13 +61,14 @@ export default async function CalendarPage({ searchParams }: { searchParams: Pro
   const items: Item[] = [
     ...(t.data ?? []).map(x => ({ key: `t${x.id}`, at: x.due_at, kind: "task" as const, title: x.title, href: `/admin/workspace/crm/tasks?task=${x.id}`, owner: x.assignee_id, status: x.status, overdue: x.due_at < nowIso })),
     ...(o.data ?? []).map(x => ({ key: `o${x.id}`, at: `${x.due_on}T17:00:00Z`, kind: "delivery" as const, title: `${x.crm_departments?.label ?? ""} · ${x.crm_clients?.legal_name ?? ""}`, href: `/admin/workspace/crm/sales/${x.sale_id}`, owner: x.assignee_id, status: x.status, overdue: x.due_on < nowIso.slice(0, 10) })),
-    ...(l.data ?? []).map(x => ({ key: `l${x.id}`, at: x.follow_up_at, kind: "followup" as const, title: x.company, href: `/admin/workspace/crm/lead/${x.id}`, owner: x.owner_id, status: "open", overdue: x.follow_up_at < nowIso })),
+    ...(closed.error ? [] : l.data ?? []).filter(x => activeFollowup(x.stage_id, closedIds)).map(x => ({ key: `l${x.id}`, at: x.follow_up_at, kind: "followup" as const, title: x.company, href: `/admin/workspace/crm/lead/${x.id}`, owner: x.owner_id, status: "open", overdue: x.follow_up_at < nowIso })),
   ].sort((a, b) => a.at.localeCompare(b.at));
   const byDay = new Map<string, Item[]>();
   for (const item of items) byDay.set(item.at.slice(0, 10), [...(byDay.get(item.at.slice(0, 10)) ?? []), item]);
   const KIND: Record<Item["kind"], [string, string]> = { task: ["Tarea", "Task"], delivery: ["Entrega", "Delivery"], followup: ["Seguimiento", "Follow-up"] };
-  const failed = t.error ?? o.error;
-  const link = (params: Record<string, string>) => `?${new URLSearchParams({ ...(who === null ? { owner: "all" } : who !== userId ? { owner: who } : {}), ...(days === 60 ? { days: "60" } : {}), ...params })}`;
+  const lastPage = Math.max(0, Math.ceil(Math.max(t.count ?? 0, o.count ?? 0, l.count ?? 0) / pageSize) - 1);
+  const failed = agendaIncomplete(t.error, o.error, l.error, closed.error);
+  const link = (params: Record<string, string>) => `?${new URLSearchParams({ date: focusDate, view: calendarView, ...(agendaPage > 0 ? { agenda_page: String(agendaPage) } : {}), ...(who === null ? { owner: "all" } : who !== userId ? { owner: who } : {}), ...(days === 60 ? { days: "60" } : {}), ...params })}`;
   return (
     <Suite active="crm">
       <CrmNavigation active="calendar" lang={lang} />
@@ -70,7 +78,7 @@ export default async function CalendarPage({ searchParams }: { searchParams: Pro
         dataError={calendarEvents.error || dayBanners.error ? pick(lang,
           "El calendario compartido requiere la migración de base de datos de este módulo. Los registros operativos siguen disponibles abajo.",
           "The shared calendar needs its database migration. Operations due dates remain below.") : undefined} />
-      <details style={{ marginTop: 18 }}><summary style={{ cursor: "pointer", padding: "12px 4px", fontWeight: 700 }}>
+      <details open={Boolean(q(p, "agenda_page"))} style={{ marginTop: 18 }}><summary style={{ cursor: "pointer", padding: "12px 4px", fontWeight: 700 }}>
         {pick(lang, "📋 Mostrar vencimientos, entregas y seguimientos del CRM", "📋 Show CRM due dates, deliveries and follow-ups")}
       </summary>
       <section className={s.hud} aria-labelledby="agenda" style={{ marginTop: 18 }}>
@@ -78,14 +86,19 @@ export default async function CalendarPage({ searchParams }: { searchParams: Pro
           <div><p className={s.eyebrow}>{pick(lang, "Calendario operativo", "Operations calendar")}</p><h2 id="agenda" style={{ margin: "6px 0" }}>{pick(lang, "Vencimientos, entregas y seguimientos", "Due dates, deliveries and follow-ups")}</h2>
             <p className={s.lead}>{pick(lang, "Fechas guardadas en tareas, órdenes de trabajo y leads. Horas mostradas en tu zona horaria del navegador.", "Dates stored on tasks, work orders and leads.")}</p></div>
           <div className={s.actions}>
-            <Link className={s.button} href={link({ owner: userId })} aria-current={who === userId ? "page" : undefined}>{pick(lang, "Mío", "Mine")}</Link>
-            <Link className={s.button} href={link({ owner: "all" })} aria-current={who === null ? "page" : undefined}>{pick(lang, "Todos", "Everyone")}</Link>
-            {(owners.data ?? []).filter(x => x.user_id !== userId).map(x => <Link key={x.user_id} className={s.button} href={link({ owner: x.user_id })} aria-current={who === x.user_id ? "page" : undefined}>{personDisplayName(x)}</Link>)}
-            <Link className={`${s.button} ${s.ghost}`} href={link({ days: days === 30 ? "60" : "30" })}>{days === 30 ? pick(lang, "Ver 60 días", "Show 60 days") : pick(lang, "Ver 30 días", "Show 30 days")}</Link>
+            <Link className={s.button} href={link({ owner: userId, agenda_page: "0" })} aria-current={who === userId ? "page" : undefined}>{pick(lang, "Mío", "Mine")}</Link>
+            <Link className={s.button} href={link({ owner: "all", agenda_page: "0" })} aria-current={who === null ? "page" : undefined}>{pick(lang, "Todos", "Everyone")}</Link>
+            {(owners.data ?? []).filter(x => x.user_id !== userId).map(x => <Link key={x.user_id} className={s.button} href={link({ owner: x.user_id, agenda_page: "0" })} aria-current={who === x.user_id ? "page" : undefined}>{personDisplayName(x)}</Link>)}
+            <Link className={`${s.button} ${s.ghost}`} href={link({ days: days === 30 ? "60" : "30", agenda_page: "0" })}>{days === 30 ? pick(lang, "Ver 60 días", "Show 60 days") : pick(lang, "Ver 30 días", "Show 30 days")}</Link>
           </div>
         </header>
         <OpsLinks lang={lang} />
-        {failed ? <p className={s.flash} data-tone="warn" role="status">{pick(lang, "La migración de ventas no está aplicada en este entorno: solo se muestran seguimientos de leads.", "The sales migration is not applied here: only lead follow-ups are shown.")}</p> : null}
+        <nav className={s.actions} aria-label={pick(lang, "Páginas de agenda operativa", "Operations agenda pages")}>
+          {agendaPage > 0 ? <Link className={s.button} href={link({ agenda_page: String(agendaPage - 1) })}>{pick(lang, "Anterior", "Previous")}</Link> : null}
+          <span>{pick(lang, "Página", "Page")} {agendaPage + 1} · {pick(lang, "Hasta 50 registros por tipo, ordenados por fecha e ID. No son totales financieros.", "Up to 50 records per type, ordered by date and ID. These are not financial totals.")}</span>
+          {!failed && agendaPage < lastPage ? <Link className={s.button} href={link({ agenda_page: String(agendaPage + 1) })}>{pick(lang, "Siguiente", "Next")}</Link> : null}
+        </nav>
+        {failed ? <p className={s.flash} data-tone="warn" role="status">{pick(lang, "La agenda está parcialmente disponible. No se pudieron verificar todas las tareas, entregas o seguimientos; los resultados no son un total completo.", "The agenda is partially available. Some tasks, deliveries or follow-ups could not be verified; results are not a complete total.")}</p> : null}
         {byDay.size === 0 ? <p className={s.empty}>{pick(lang, "Sin fechas en este periodo.", "No dates in this period.")}</p> :
           <div className={s.grid}>{[...byDay.entries()].map(([day, list]) => <section key={day} className={s.card} aria-label={formatDate(lang, day)}>
             <h3>{formatDate(lang, day)}</h3>

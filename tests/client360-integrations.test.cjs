@@ -109,7 +109,9 @@ test("client dossier, project creation and navigation use stable IDs and real ow
   assert.match(create, /prefillClientId/);
   assert.match(clientActions, /ownerForAction\(\)/);
   assert.match(clientActions, /\.is\("client_id", null\)\.eq\("version", project\.data\.version\)/);
-  assert.match(sales, /scopedSales\.eq\("client_id", clientId\)/);
+  assert.match(sales, /clientId \? \{ client_id: clientId \} : \{\}/);
+  assert.match(sales, /rpc\("crm_sales_with_receivables"[^\n]+\.match\(filters\)/);
+  assert.match(sales, /from\("crm_sales"\)[^\n]+\.match\(filters\)/);
   assert.match(sales, /!clientId && \(metrics\.error/);
   assert.doesNotMatch(page + overview, /eb442ca9-8991-4dd0-b7e9-648513613d5a|DEMO · Propuesta comercial simulada/);
 });
