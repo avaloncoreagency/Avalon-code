@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { InviteSubmit } from "@/components/agents/invite-submit";
 import { Suite } from "@/components/suite/suite";
 import { requireOwner } from "@/lib/auth/session";
 import { randomUUID } from "node:crypto";
@@ -37,7 +38,7 @@ const inviteStatuses: Readonly<Record<string, readonly [string, string]>> = {
  "invite-sent": ["Supabase Auth aceptó la invitación. La cuenta requiere aprobación del propietario.", "Supabase Auth accepted the invitation. The account requires owner approval."],
  "invite-audit-pending": ["Supabase Auth aceptó la invitación. Falta confirmar el registro de auditoría.", "Supabase Auth accepted the invitation. The audit entry is unconfirmed."],
  "invite-enrollment-pending": ["Supabase Auth aceptó la invitación. No se confirmó el alta del agente. Revisa el estado de la cuenta antes de reenviar.", "Supabase Auth accepted the invitation. Agent enrollment is unconfirmed. Check the account before resending."],
- "invite-email-exists": ["Ese correo ya tiene una cuenta en Avalon. No se envió ninguna invitación ni se concedió acceso. Usa el correo del agente que aún no esté registrado.", "That e-mail already has an Avalon account. No invitation was sent and no access was granted. Use an address that is not registered yet."],
+ "invite-email-exists": ["Ese correo ya tiene una cuenta en Avalon (por ejemplo, la de un propietario), así que NO se envió ninguna invitación ni se concedió acceso. Usa el correo del agente que aún no esté registrado; para una prueba con tu propio Gmail usa un alias como tucorreo+agente1@gmail.com.", "That e-mail already has an Avalon account (for example an owner's), so NO invitation was sent and no access was granted. Use an address that is not registered yet; to test with your own Gmail use an alias such as yourname+agent1@gmail.com."],
  "invite-not-configured": ["Las invitaciones no están configuradas para este dominio. No se envió nada.", "Invitations are not configured for this domain. Nothing was sent."],
  "invite-mfa-required": ["Tu cuenta tiene MFA: vuelve a verificar el segundo factor y reintenta.", "Your account has MFA: verify your second factor again and retry."],
  "invite-forbidden": ["Solo una sesión de propietario puede invitar agentes.", "Only an owner session can invite agents."],
@@ -105,6 +106,7 @@ export default async function StaffAdministration({searchParams}:{
         <label className={s.field}>Correo electrónico del agente
           <input type="email" name="employee_email" autoComplete="email" maxLength={254}
             placeholder="agente@empresa.com" required />
+          <small className={s.muted}>Debe ser un correo sin cuenta en Avalon. Para una prueba con tu propio Gmail usa un alias con «+», por ejemplo tucorreo+agente1@gmail.com.</small>
         </label>
         <label className={s.field}>Nombre del agente (opcional)
           <input name="invitee_name" maxLength={80} autoComplete="off" />
@@ -115,7 +117,7 @@ export default async function StaffAdministration({searchParams}:{
         <label className={s.field}>Idioma de la invitación
           <select name="invite_lang" defaultValue="es"><option value="es">Español</option><option value="en">English</option></select>
         </label>
-        <button className={s.button} type="submit">Enviar invitación segura</button>
+        <InviteSubmit className={s.button} />
       </form>
       <p className={s.muted}>Requiere la función Supabase `staff-invite` habilitada en este entorno y el origen de invitación configurado. El agente no recibe permisos por ser invitado.</p>
     </section>
