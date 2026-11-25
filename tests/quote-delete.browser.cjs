@@ -2,7 +2,6 @@
 // QUOTES-MANAGEMENT-001 end to end on SYNTHETIC data (PGlite + REST bridge + production build). QUOTE_DELETE_BROWSER=1.
 const { test } = require('node:test'), assert = require('node:assert/strict'), fs = require('node:fs');
 const { spawn } = require('node:child_process'), { createServer } = require('node:http');
-const verifiedContract = require('./helpers/verified-contract.cjs');
 const OWNER = '00000000-0000-4000-8000-0000000000f8';
 const DIR = process.env.EVIDENCE_DIR || 'evidence/quote-delete';
 

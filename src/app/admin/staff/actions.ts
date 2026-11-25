@@ -17,6 +17,18 @@ function done(status: string): never {
   redirect(`/admin/staff?status=${status}`);
 }
 
+/** staff-invite error codes → status shown to the owner (anything unknown stays "invite-failed"). */
+const INVITE_FAILURES: Record<string, string> = {
+  invitation_sent_enrollment_pending: "invite-enrollment-pending",
+  email_already_registered: "invite-email-exists",
+  invitation_not_configured: "invite-not-configured",
+  untrusted_redirect: "invite-not-configured",
+  mfa_required: "invite-mfa-required",
+  forbidden: "invite-forbidden",
+  unauthorized: "invite-forbidden",
+  member_limit: "invite-member-limit",
+};
+
 /** Email invitations are issued by a protected Supabase Edge Function,
  * never by shipping an admin key into the Next.js application. The function
  * creates an INACTIVE operator, which owners must activate separately. */
@@ -40,7 +52,7 @@ export async function inviteStaffEmployee(form: FormData) {
       outcome = data.audited === true ? "invite-sent" : "invite-audit-pending";
     } else if (error?.context instanceof Response) {
       const failure = await error.context.json();
-      if (failure?.error === "invitation_sent_enrollment_pending") outcome = "invite-enrollment-pending";
+      outcome = INVITE_FAILURES[String(failure?.error)] ?? outcome;
     }
   } catch { /* A lost or malformed response leaves the outcome unconfirmed. */ }
   done(outcome);

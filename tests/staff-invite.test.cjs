@@ -8,7 +8,7 @@ const OWNER = "00000000-0000-4000-8000-0000000000a1";
 const INVITED = "00000000-0000-4000-8000-0000000000c3";
 const SOURCE = "supabase/functions/staff-invite/index.ts";
 
-function makeEdge({role="owner",missingOrigin=false,roster=0,inviteFails=false,enrolledMfa=false}={}) {
+function makeEdge({role="owner",missingOrigin=false,roster=0,inviteFails=false,inviteExists=false,enrolledMfa=false}={}) {
   const src = fs.readFileSync(SOURCE,"utf8");
   const js = ts.transpileModule(src,{compilerOptions:{
     target:ts.ScriptTarget.ES2022,module:ts.ModuleKind.CommonJS,
@@ -35,7 +35,8 @@ function makeEdge({role="owner",missingOrigin=false,roster=0,inviteFails=false,e
       data=Array.from({length:roster},(_,i)=>({user_id:String(i)}));
     } else if(u.pathname==="/rest/v1/agency_memberships") data=[{role}];
     else if(u.pathname==="/auth/v1/invite") {
-      status=inviteFails?409:200;data=inviteFails?{error:"existing"}:{id:INVITED};
+      if(inviteExists){status=422;data={code:422,error_code:"email_exists",msg:"A user with this email address has already been registered"};}
+      else {status=inviteFails?409:200;data=inviteFails?{error:"existing"}:{id:INVITED};}
     } else throw Error("Unexpected request to "+u.toString());
     return new Response(data===null?"":JSON.stringify(data),{
       status,headers:{"content-type":"application/json"},
@@ -124,4 +125,19 @@ test("owner invite enforces strict input and maximum roster",async()=>{
   const full=makeEdge({roster:50});
   assert.equal((await full.handler(request({email:"x@example.invalid"}))).status,429);
   assert.equal(full.calls.some(x=>x.path==="/auth/v1/invite"),false);
+});
+
+test("an address that already has an account gets a precise reason and is never enrolled or audited",async()=>{
+  const edge=makeEdge({inviteExists:true});
+  const resp=await edge.handler(request({email:"already@example.invalid"}));
+  assert.equal(resp.status,409);
+  assert.deepEqual(await resp.json(),{error:"email_already_registered"});
+  assert.equal(edge.calls.some(x=>x.method==="POST"&&x.path==="/rest/v1/agency_memberships"),false);
+  assert.equal(edge.calls.some(x=>x.path==="/rest/v1/staff_permission_events"),false);
+  const action=fs.readFileSync("src/app/admin/staff/actions.ts","utf8"), page=fs.readFileSync("src/app/admin/staff/page.tsx","utf8");
+  for(const [code,status] of [["email_already_registered","invite-email-exists"],["invitation_not_configured","invite-not-configured"],
+    ["mfa_required","invite-mfa-required"],["forbidden","invite-forbidden"],["member_limit","invite-member-limit"]]){
+    assert.match(action,new RegExp(code+': "'+status+'"'));
+    assert.match(page,new RegExp('"'+status+'": \\["'));
+  }
 });

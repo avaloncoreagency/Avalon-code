@@ -138,6 +138,9 @@ test('collections read model counts and filters beyond 500 sales using only auth
   await db.exec('reset role; set role anon');
   await assert.rejects(db.query("select * from crm_sales_with_receivables('open')"), /permission denied/i);
   await assert.rejects(db.query('select * from crm_overdue_collection_metrics()'), /permission denied/i);
+  await db.exec('reset role');
+  const pinned = (await db.query("select p.proname, p.proconfig from pg_proc p join pg_namespace n on n.oid = p.pronamespace where n.nspname = 'public' and p.proname in ('crm_sales_with_receivables', 'crm_overdue_collection_metrics') order by 1")).rows;
+  assert.deepEqual(pinned.map(r => [r.proname, r.proconfig]), [['crm_overdue_collection_metrics', ['search_path=""']], ['crm_sales_with_receivables', ['search_path=""']]], 'finance read models pin an empty search_path');
 });
 
 test('refunds and chargebacks: verified money only, capped, idempotent, resolvable, and block reversal', { timeout: 240000 }, async t => {
