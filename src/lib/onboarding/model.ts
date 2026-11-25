@@ -33,7 +33,11 @@ const COMMON: Def[] = [
   ["privacy", "Necesidades de privacidad, datos y confidencialidad confirmadas", "Privacy, data and confidentiality needs confirmed"],
 ];
 const BY_PRODUCT: Record<ProductType, Def[]> = {
-  website: [["logo", "Logo (vectorial si existe) y permisos de uso", "Logo (vector if available) and usage permission"], ["domain", "Dominio: propiedad, acceso delegado y quién paga", "Domain: ownership, delegated access and payer"],
+  website: [["logo", "Logo (vectorial si existe) y permisos de uso", "Logo (vector if available) and usage permission"],
+    ["branding", "Identidad de marca: colores, tipografías y tono", "Brand identity: colours, fonts and tone"],
+    ["references", "Sitios de referencia aportados por el cliente", "Reference sites provided by the client"],
+    ["access", "Accesos autorizados entregados por canal seguro (nunca contraseñas en el CRM)", "Authorized access handed over through a secure channel (never passwords in the CRM)"],
+    ["design_approval", "Diseño aprobado por escrito por el cliente antes del desarrollo", "Design approved in writing by the client before development"], ["domain", "Dominio: propiedad, acceso delegado y quién paga", "Domain: ownership, delegated access and payer"],
     ["content", "Contenido aprobado (textos, servicios, FAQ)", "Approved content (copy, services, FAQ)"], ["sections", "Mapa del sitio y secciones acordadas", "Sitemap and sections agreed"],
     ["photos", "Fotografías con licencia o consentimiento", "Photos with license or consent"], ["forms", "Formularios y destino de los envíos", "Forms and submission destination"],
     ["contacts", "Datos de contacto verificados", "Verified contact details"], ["revisions", "Rondas de revisión acordadas", "Revision rounds agreed"], ["publish", "Plan de publicación y hosting", "Publishing and hosting plan"]],
@@ -44,8 +48,11 @@ const BY_PRODUCT: Record<ProductType, Def[]> = {
   crm: [["roles", "Roles y permisos", "Roles and permissions"], ["users", "Usuarios autorizados", "Authorized users"], ["pipeline", "Etapas del pipeline", "Pipeline stages"],
     ["clients", "Relación canónica cliente/lead/venta", "Canonical client/lead/sale relationship"], ["data", "Origen de datos, consentimiento de importación y deduplicación", "Data provenance, import consent and deduplication"],
     ["reports", "Fuente de reportes/KPI (lo no disponible es UNKNOWN)", "Report/KPI source (unavailable is UNKNOWN)"], ["automations", "Automatizaciones acordadas", "Agreed automations"],
-    ["security", "Pruebas de aislamiento entre clientes y denegación", "Cross-client isolation and denial tests"]],
-  marketing: [["goals", "Objetivos medibles acordados", "Measurable goals agreed"], ["materials", "Materiales aprobados", "Approved materials"], ["channels", "Canales acordados", "Agreed channels"],
+    ["security", "Pruebas de aislamiento entre clientes y denegación", "Cross-client isolation and denial tests"],
+    ["integrations", "Integraciones acordadas y sus credenciales gestionadas por el cliente", "Agreed integrations and their client-managed credentials"],
+    ["migration", "Migración de datos con muestra validada por el cliente", "Data migration with a client-validated sample"],
+    ["training", "Capacitación de usuarios realizada", "User training delivered"]],
+  marketing: [["goals", "Objetivos medibles acordados", "Measurable goals agreed"], ["audience", "Audiencia objetivo definida", "Target audience defined"], ["materials", "Materiales aprobados", "Approved materials"], ["channels", "Canales acordados", "Agreed channels"],
     ["budget", "Presupuesto publicitario aprobado por escrito (pagado por el cliente)", "Ad budget approved in writing (paid by the client)"],
     ["policies", "Políticas de anuncios y afirmaciones sustentadas", "Ad policies and substantiated claims"], ["kpi", "KPI y fuente de medición", "KPIs and measurement source"]],
   // Templates only: paused AI products are never activated or presented as delivered from here.

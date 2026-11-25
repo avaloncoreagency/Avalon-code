@@ -291,3 +291,31 @@ test("document library: department packs integrated verbatim, hashed, and only A
   const page = fs.readFileSync("src/app/admin/workspace/crm/documents/page.tsx", "utf8");
   assert.match(page, /await requireOwner\(\)/, "owner-only library");
 });
+
+test("A08 library PDFs: ivory identity, deterministic, pending documents watermarked on every page, owner-only route", () => {
+  const lib = load("src/lib/docs/library.ts"), pdf = load("src/lib/docs/library-pdf.ts");
+  const doc = lib.ALL_DOCUMENTS[0];
+  const a = Buffer.from(pdf.renderLibraryPdf(doc)), b = Buffer.from(pdf.renderLibraryPdf(doc));
+  assert.equal(a.subarray(0, 5).toString(), "%PDF-"); assert.ok(a.equals(b), "same version → same bytes");
+  const s = a.toString("latin1"), pages = Number(/\/Count (\d+)/.exec(s)[1]);
+  assert.ok(pages >= 1); assert.match(s, /avalon-library-1/);
+  if (doc.approval !== "approved") {
+    assert.equal((s.match(/PENDIENTE DE REVISION \/ PENDING REVIEW/g) || []).length, pages, "footer warning on every page");
+    assert.match(s, /NO DISTRIBUIR/); assert.match(pdf.libraryFileName(doc), /-PENDIENTE\.pdf$/);
+  }
+  const approved = pdf.renderLibraryPdf({ ...doc, approval: "approved" });
+  assert.doesNotMatch(Buffer.from(approved).toString("latin1"), /NO DISTRIBUIR/);
+  for (const d of lib.ALL_DOCUMENTS) assert.equal(Buffer.from(pdf.renderLibraryPdf(d)).subarray(0, 5).toString(), "%PDF-", d.id);
+  const blocks = pdf.parseMarkdown("# T\n\n| a | b |\n|---|---|\n| 1 | 2 |\n- x\n1. y\n\ntext **bold**");
+  assert.deepEqual(blocks.map(x => x.kind), ["h1", "li", "li", "li", "li", "p"]); assert.equal(blocks[5].text, "text bold");
+  const route = fs.readFileSync("src/app/admin/workspace/crm/documents/[id]/route.ts", "utf8");
+  assert.match(route, /getOwnerSession\(\)/); assert.match(route, /status: 401/); assert.match(route, /no-store/);
+  assert.match(fs.readFileSync("src/app/admin/workspace/crm/documents/page.tsx", "utf8"), /data-library-pdf/);
+});
+
+test("A06 service checklists: website, CRM and marketing collect what delivery actually needs", () => {
+  const keys = t => model.checklistFor(t).map(i => i.key);
+  for (const k of ["branding", "references", "access", "design_approval"]) assert.ok(keys("website").includes(k), "website " + k);
+  for (const k of ["integrations", "migration", "training"]) assert.ok(keys("crm").includes(k), "crm " + k);
+  assert.ok(keys("marketing").includes("audience"));
+});
