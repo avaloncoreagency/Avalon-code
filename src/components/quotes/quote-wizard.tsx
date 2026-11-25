@@ -21,6 +21,8 @@ type Props = {
   initial: QuoteContent;
   initialInternal: QuoteInternal;
   catalog: CatalogItem[];
+  /** The caller is not the proposal's author: its internal notes are not shown and are kept as they are on save. */
+  internalLocked?: boolean;
 };
 
 const blankCommission = (): QuoteCommission => ({
@@ -29,7 +31,7 @@ const blankCommission = (): QuoteCommission => ({
 });
 
 /** Guided five-step quote builder. Validation mirrors the server and database; nothing is saved until "Guardar". */
-export function QuoteWizard({ lang, mode, action, hidden, initial, initialInternal, catalog }: Props) {
+export function QuoteWizard({ lang, mode, action, hidden, initial, initialInternal, catalog, internalLocked = false }: Props) {
   const es = lang === "es";
   const t = (a: string, b: string) => (es ? a : b);
   const [step, setStep] = useState(0);
@@ -212,13 +214,14 @@ export function QuoteWizard({ lang, mode, action, hidden, initial, initialIntern
         {area("support", "Soporte incluido", "Included support")}
         {area("terms", "Condiciones comerciales", "Commercial terms")}
         {area("notes", "Notas para el cliente", "Notes for the client")}
+        {internalLocked ? <p className={s.muted}>{t("La información interna de esta propuesta pertenece a su autor y a la dirección; se conserva tal cual al guardar.", "This proposal's internal information belongs to its author and the owners; it is kept as is on save.")}</p> :
         <details className={w.internal}>
           <summary>{t("Información interna de Avalon (nunca aparece en el PDF)", "Avalon internal information (never in the PDF)")}</summary>
           {(["directCosts", "marginNote", "confidential"] as const).map(k => (
             <label key={k} className={s.field}>{{ directCosts: t("Costos directos estimados", "Estimated direct costs"), marginNote: t("Margen y contingencia", "Margin and contingency"), confidential: t("Notas confidenciales", "Confidential notes") }[k]}
               <textarea rows={2} maxLength={4000} value={internal[k]} onChange={e => setInternal({ ...internal, [k]: e.target.value })} /></label>
           ))}
-        </details>
+        </details>}
       </fieldset>}
 
       {step === 4 && <fieldset className={s.fieldset}><legend>{steps[4]}</legend>

@@ -32,7 +32,7 @@ export default async function SellerQuoteEdit({ params, searchParams }: { params
         <p className={s.muted}>La versión actual se conserva. Al guardar, la propuesta vuelve a borrador y necesita nueva aprobación de la dirección.</p>
         <QuoteWizard lang="es" mode="revise" action={reviseSellerQuote} catalog={catalog} initial={q.content}
           initialInternal={{ directCosts: String(q.internal?.directCosts ?? ""), marginNote: String(q.internal?.marginNote ?? ""), confidential: String(q.internal?.confidential ?? "") }}
-          hidden={{ quote_id: q.quote_id, expected_version: String(q.version) }} />
+          hidden={{ quote_id: q.quote_id, expected_version: String(q.version) }} internalLocked={q.internal === null} />
       </section>}
   </Shell>;
 }

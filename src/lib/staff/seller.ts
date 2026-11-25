@@ -19,8 +19,8 @@ export type SellerQuote = {
 export type SellerQuoteDetail = {
   quote_id: string; quote_number: string; lead_id: string; company: string; status: QuoteStatus; current_version: number; version: number;
   valid_until: string; content: QuoteContent; content_sha256: string; internal: Record<string, string> | null; model: string;
-  one_time_total: string | number; monthly_total: string | number; contract_status: string; sale_id: string | null;
-  events: { to: QuoteStatus; from: QuoteStatus | null; note: string; at: string; version: number }[];
+  one_time_total: string | number; monthly_total: string | number; contract_status: string; sale_id: string | null; closed: boolean;
+  events: { to: QuoteStatus; from: QuoteStatus | null; note: string | null; at: string; version: number }[];
 };
 export type SellerSale = {
   sale_id: string; sale_number: string; company: string | null; sold_on: string; status: string; currency: string;
@@ -60,6 +60,7 @@ export const SELLER_MESSAGES: Record<string, string> = {
   quote_owner_approval_required: "La aprobación del precio la hace la dirección. Envíala a revisión interna.",
   won_requires_verified_contract: "Antes de cerrar la venta, la dirección debe registrar y verificar el contrato firmado.",
   quote_not_accepted: "Solo se cierra una propuesta aceptada por el cliente.",
+  quote_closed_by_other_seller: "Esta propuesta ya se cerró como venta de otro vendedor; esa venta y su comisión siguen siendo suyas.",
   quote_version_changed: "La propuesta cambió. Recarga antes de cerrar.",
   quote_line_not_in_catalog: "Cada línea debe ser un servicio del catálogo para poder cerrar la venta.",
   quote_needs_service_line: "La propuesta necesita al menos un servicio del catálogo.",

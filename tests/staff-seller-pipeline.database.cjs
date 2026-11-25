@@ -53,6 +53,14 @@ test('seller pipeline: own leads, proposals and sales; isolation between sellers
   await assert.rejects(createLead({ request_key: crypto.randomUUID(), company: 'No soy vendedora' }), /crm_forbidden/, 'non-seller employees cannot create leads');
   await as(ANA, 'aal1');
   await assert.rejects(createLead({ request_key: crypto.randomUUID(), company: 'Sin AAL2' }), /crm_forbidden/, 'AAL1 session cannot act');
+  // Same rule as the app (verified TOTP + AAL2): another factor type, or an unverified TOTP, never opens the portal.
+  const factor = async (type, status) => { await db.exec('reset role'); await db.query('update auth.mfa_factors set factor_type=$2, status=$3 where user_id=$1', [ANA, type, status]); };
+  for (const [type, status] of [['phone', 'verified'], ['webauthn', 'verified'], ['totp', 'unverified']]) {
+    await factor(type, status); await as(ANA);
+    await assert.rejects(createLead({ request_key: crypto.randomUUID(), company: `Factor ${type}` }), /crm_forbidden/, `${type}/${status} is not enough`);
+    assert.equal((await q('select * from staff_seller_leads()')).length, 0);
+  }
+  await factor('totp', 'verified');
 
   await as(ANA);
   const key = crypto.randomUUID();
@@ -93,7 +101,7 @@ test('seller pipeline: own leads, proposals and sales; isolation between sellers
 
   // ── Proposals ────────────────────────────────────────────────────────────────────────────────────────────────
   await as(ANA);
-  const qa = (await one('select crm_quote_create($1,$2,$3::jsonb,$4::jsonb,$5) r', [a1.lead_id, crypto.randomUUID(), JSON.stringify(cA), '{"directCosts":"","marginNote":"","confidential":""}', sha(cA)])).r;
+  const qa = (await one('select crm_quote_create($1,$2,$3::jsonb,$4::jsonb,$5) r', [a1.lead_id, crypto.randomUUID(), JSON.stringify(cA), '{"directCosts":"","marginNote":"Margen privado de Ana","confidential":""}', sha(cA)])).r;
   await assert.rejects(q('select crm_quote_create($1,$2,$3::jsonb,$4::jsonb,$5)', [ownerLead.id, crypto.randomUUID(), JSON.stringify(cA), '{}', sha(cA)]), /crm_forbidden/, 'not on the owners\' lead');
   const myQuotes = await q('select * from staff_seller_quotes()');
   assert.equal(myQuotes.length, 1);
@@ -104,7 +112,8 @@ test('seller pipeline: own leads, proposals and sales; isolation between sellers
   assert.deepEqual(detail.content, cA);
   // Revise, then submit for review. Pricing approval belongs to the owners.
   const cA2 = content('Barbería Ana QA', { lines: [{ code: 'desarrollo-web', name: 'Website', description: 'Sitio + reservas', kind: 'one_time', qty: 1, unitPrice: '1800' }] });
-  assert.equal((await one('select crm_quote_revise($1,$2,$3::jsonb,$4::jsonb,$5,$6) r', [qa.quote_id, await quoteVersion(qa.quote_id), JSON.stringify(cA2), '{}', sha(cA2), 'Ajuste de precio'])).r, 2);
+  assert.equal((await one('select crm_quote_revise($1,$2,$3::jsonb,$4::jsonb,$5,$6) r', [qa.quote_id, await quoteVersion(qa.quote_id), JSON.stringify(cA2), '{"directCosts":"","marginNote":"Margen privado de Ana v2","confidential":""}', sha(cA2), 'Ajuste de precio'])).r, 2);
+  assert.equal((await one('select staff_seller_quote($1) r', [qa.quote_id])).r.internal.marginNote, 'Margen privado de Ana v2', 'the author sees her own internal notes');
   await q('select crm_quote_transition($1,$2,$3,$4)', [qa.quote_id, await quoteVersion(qa.quote_id), 'internal_review', '']);
   await assert.rejects(q('select crm_quote_transition($1,$2,$3,$4)', [qa.quote_id, await quoteVersion(qa.quote_id), 'approved', '']), /quote_owner_approval_required/);
 
@@ -113,10 +122,19 @@ test('seller pipeline: own leads, proposals and sales; isolation between sellers
   assert.equal((await one('select staff_seller_quote($1) r', [qa.quote_id])).r, null, 'not even by id');
   await assert.rejects(q('select crm_quote_transition($1,$2,$3,$4)', [qa.quote_id, 1, 'superseded', 'Intento ajeno de cerrar']), /crm_forbidden/);
   await assert.rejects(q('select crm_quote_delete($1,$2,$3)', [qa.quote_id, 1, 'x']), /quote_delete_forbidden/);
+  // Deleting is reserved to the owners: not even the author may delete her own draft.
+  await as(ANA);
+  const cD = content('Barbería Ana QA', { title: 'Borrador duplicado' });
+  const qd = (await one('select crm_quote_create($1,$2,$3::jsonb,$4::jsonb,$5) r', [a1.lead_id, crypto.randomUUID(), JSON.stringify(cD), '{}', sha(cD)])).r;
+  await assert.rejects(q('select crm_quote_delete($1,$2,$3)', [qd.quote_id, await quoteVersion(qd.quote_id), 'Duplicado']), /quote_delete_forbidden/, 'sellers never delete');
+  await as(MIGUEL);
+  assert.equal((await one('select crm_quote_delete($1,$2,$3) r', [qd.quote_id, await quoteVersion(qd.quote_id), 'Duplicado (QA sintético)'])).r.replayed, false, 'owners may delete');
+  await as(ANA);
+  assert.deepEqual((await q('select quote_id from staff_seller_quotes()')).map(r => r.quote_id), [qa.quote_id], 'a deleted proposal leaves the seller view');
 
   await as(SAMUEL);
   await q('select crm_quote_transition($1,$2,$3,$4)', [qa.quote_id, await quoteVersion(qa.quote_id), 'approved', '']);
-  assert.equal((await q('select * from crm_quotes')).length, 1, 'owners see every proposal');
+  assert.equal((await q('select * from crm_quotes where deleted_at is null')).length, 1, 'owners see every proposal');
 
   await as(ANA);
   await q('select crm_quote_transition($1,$2,$3,$4)', [qa.quote_id, await quoteVersion(qa.quote_id), 'sent', 'Enviada por email al cliente (sintético)']);
@@ -126,6 +144,11 @@ test('seller pipeline: own leads, proposals and sales; isolation between sellers
   await assert.rejects(close(), /won_requires_verified_contract/, 'the contract is verified by an owner first');
   await assert.rejects(q('select crm_confirm_sale($1::jsonb)', [JSON.stringify({ idempotency_key: crypto.randomUUID(), lead_id: a1.lead_id, lines: [{ service_code: 'desarrollo-web' }] })]), /crm_forbidden/,
     'sellers never call the raw sale confirmation');
+  // Even a forged close context only reaches an accepted, current revision of a quote on that same lead.
+  await q("select set_config('avalon.seller_act',$1,false), set_config('avalon.seller_close',$2,false)", [ANA, crypto.randomUUID()]);
+  await assert.rejects(q('select crm_confirm_sale($1::jsonb)', [JSON.stringify({ idempotency_key: crypto.randomUUID(), lead_id: a1.lead_id, quote_version_id: await one("select current_setting('avalon.seller_close') v").then(r => r.v), lines: [{ service_code: 'desarrollo-web', unit_price: '1' }] })]), /crm_forbidden/,
+    'a forged context is not a quote');
+  await q("select set_config('avalon.seller_act','',false), set_config('avalon.seller_close','',false)");
   await as(MIGUEL);
   await verifiedContract(db, a1.lead_id, 'Contrato Barbería Ana QA');
   await as(PEDRO);
@@ -167,6 +190,51 @@ test('seller pipeline: own leads, proposals and sales; isolation between sellers
   await as(ANA);
   assert.equal((await q('select * from staff_seller_leads()')).length, 2);
   await assert.rejects(q('select crm_lead_assign_seller($1,$2)', [ownerLead.id, ANA]), /crm_forbidden/);
+  await assert.rejects(q("insert into staff_lead_grants(user_id,lead_id,access_level) values($1,$2,'work')", [ANA, p1.lead_id]), /row-level security|permission denied|staff_lead_use_assignment/);
+
+  // ── Transfer: the lead moves, the history stays with whoever earned it ───────────────────────────────────────────
+  await as(MIGUEL);
+  await assert.rejects(q("insert into staff_lead_grants(user_id,lead_id,access_level) values($1,$2,'work')", [ANA, p1.lead_id]), /staff_lead_use_assignment/,
+    'a seller is never granted another seller\'s lead: owners reassign it');
+  const com = (await one('select crm_commission_agree($1::jsonb) r', [JSON.stringify({ sale_id: sale.sale_id, kind: 'sale', beneficiary_id: ANA, rate_pct: '10', basis: 'Comisión de venta acordada por escrito (sintético)' })])).r;
+  const before = await one('select beneficiary_id, amount, status from crm_commissions where id=$1', [com.commission_id]);
+  // Ana prepares an upsell (draft) on the same lead with private notes, then the lead is handed to Pedro.
+  await as(ANA);
+  const cU = content('Barbería Ana QA', { title: 'Ampliación' });
+  const qu = (await one('select crm_quote_create($1,$2,$3::jsonb,$4::jsonb,$5) r', [a1.lead_id, crypto.randomUUID(), JSON.stringify(cU), '{"directCosts":"","marginNote":"Nota privada de Ana","confidential":""}', sha(cU)])).r;
+  await as(MIGUEL);
+  await q('select crm_lead_assign_seller($1,$2)', [a1.lead_id, PEDRO]);
+  await as(PEDRO);
+  assert.equal((await q('select * from staff_seller_leads() where lead_id=$1', [a1.lead_id])).length, 1, 'Pedro now works the lead');
+  const inherited = await q('select quote_id, sale_id, sale_number from staff_seller_quotes() where lead_id=$1 order by quote_number', [a1.lead_id]);
+  assert.equal(inherited.length, 2);
+  assert.ok(inherited.every(r => r.sale_id === null && r.sale_number === null), 'Ana\'s sale is not shown to Pedro');
+  const qaSeen = (await one('select staff_seller_quote($1) r', [qa.quote_id])).r;
+  assert.equal(qaSeen.internal, null, 'internal notes stay with the author');
+  assert.equal(qaSeen.sale_id, null);
+  assert.equal(qaSeen.closed, true, 'Pedro knows it is closed (no close button), not whose sale it is');
+  assert.ok(qaSeen.events.length > 0 && qaSeen.events.every(e => e.note === null), 'negotiation notes stay with the author');
+  assert.equal((await one('select staff_seller_quote($1) r', [qu.quote_id])).r.internal, null);
+  await assert.rejects(close(), /quote_closed_by_other_seller/, 'replaying Ana\'s close reveals nothing to Pedro');
+  assert.equal((await q('select * from staff_seller_sales()')).length, 0, 'Pedro inherits no sales');
+  assert.equal((await q('select * from staff_own_commercial_history()')).length, 0, 'nor commissions');
+  // Pedro may revise the inherited draft's client-facing content; Ana's internal notes are carried over, not replaced.
+  const cU2 = content('Barbería Ana QA', { title: 'Ampliación revisada' });
+  await q('select crm_quote_revise($1,$2,$3::jsonb,$4::jsonb,$5,$6)', [qu.quote_id, await quoteVersion(qu.quote_id), JSON.stringify(cU2), '{"directCosts":"","marginNote":"Pedro sobrescribe","confidential":""}', sha(cU2), 'Revisión de Pedro']);
+  await as(ANA);
+  assert.equal((await q('select * from staff_seller_leads() where lead_id=$1', [a1.lead_id])).length, 0, 'Ana no longer sees the lead');
+  assert.equal((await one('select staff_seller_quote($1) r', [qa.quote_id])).r, null, 'nor its proposals');
+  assert.deepEqual((await q('select sale_number from staff_seller_sales()')).map(r => r.sale_number), [sale.sale_number], 'Ana keeps her sale');
+  assert.equal(replay.sale_id, (await close()).sale_id, 'and her close stays idempotent');
+  assert.deepEqual((await q('select record_kind from staff_own_commercial_history() order by record_kind')).map(r => r.record_kind), ['commission', 'sale'], 'and her commission');
+  await as(MIGUEL);
+  assert.deepEqual(await one('select beneficiary_id, amount, status from crm_commissions where id=$1', [com.commission_id]), before, 'commission untouched');
+  assert.equal((await one('select seller_id from crm_sales where id=$1', [sale.sale_id])).seller_id, ANA, 'sale attribution untouched');
+  const qu3 = await one('select v.internal, v.created_by from crm_quote_versions v join crm_quotes q on q.id=v.quote_id and v.version_no=q.current_version where q.id=$1', [qu.quote_id]);
+  assert.deepEqual([qu3.internal.marginNote, qu3.created_by], ['Nota privada de Ana', PEDRO]);
+  assert.deepEqual((await q('select user_id, active from staff_lead_grants where lead_id=$1 order by active', [a1.lead_id])).map(r => [r.user_id, r.active]), [[ANA, false], [PEDRO, true]],
+    'one active seller per lead');
+  await q('select crm_lead_assign_seller($1,$2)', [a1.lead_id, ANA]);
 
   // Suspension closes everything immediately.
   await as(MIGUEL);

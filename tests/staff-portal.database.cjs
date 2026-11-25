@@ -180,7 +180,7 @@ test("staff v1.1: job title is not authorization; seller sees only own granted l
  await as(MIGUEL);
  const [lead]=await q("insert into crm_leads(company,contact,email,phone,source,owner_id,value) values('Lead Sintético','Ana','ana@example.invalid','+10000000','Test',$1,9999) returning id",[MIGUEL]);
  const [other]=await q("insert into crm_leads(company,contact,source,owner_id) values('Otro Lead','Bo','Test',$1) returning id",[MIGUEL]);
- await q("insert into staff_portal_access(user_id,active,job_title) values($1,true,'seller'),($2,true,'operator')",[EMP1,EMP2]);
+ await q("insert into staff_portal_access(user_id,active,job_title) values($1,true,'support'),($2,true,'operator')",[EMP1,EMP2]);
  // A job title can only be one of the defined profiles.
  await assert.rejects(q("update staff_portal_access set job_title='owner' where user_id=$1",[EMP1]),/check/i);
  await q("insert into staff_lead_grants(user_id,lead_id,access_level) values($1,$2,'view')",[EMP1,lead.id]);
@@ -213,9 +213,21 @@ test("staff v1.1: job title is not authorization; seller sees only own granted l
  await q("update staff_lead_grants set active=false where user_id=$1",[EMP1]);
  await as(EMP1);
  assert.equal((await q("select count(*)::int n from staff_my_leads()"))[0].n,0,"revoked lead disappears");
+ // Sellers: the exclusive assignment (crm_leads.owner_id) is the only source of truth; a legacy grant can neither give
+ // nor take away a seller's lead, and reassigning the lead moves the mirror grant with it.
+ await as(MIGUEL);
+ await q("update staff_portal_access set job_title='seller' where user_id=$1",[EMP2]);
+ await assert.rejects(q("insert into staff_lead_grants(user_id,lead_id,access_level) values($1,$2,'view')",[EMP2,other.id]),/staff_lead_use_assignment/);
+ await q("insert into staff_lead_grants(user_id,lead_id,access_level) values($1,$2,'view') on conflict (user_id,lead_id) do update set active=true, access_level='view'",[EMP1,other.id]);
+ await q("update crm_leads set owner_id=$1 where id=$2",[EMP2,other.id]);
+ assert.deepEqual(await q("select access_level,active from staff_lead_grants where user_id=$1 and lead_id=$2",[EMP2,other.id]),[{access_level:"work",active:true}],"assignment creates the mirror grant");
+ assert.deepEqual(await q("select active from staff_lead_grants where user_id=$1 and lead_id=$2",[EMP1,other.id]),[{active:false}],"assignment to a seller is exclusive");
+ await assert.rejects(q("update staff_lead_grants set active=false where user_id=$1 and lead_id=$2",[EMP2,other.id]),/staff_lead_use_assignment/,"revoking a seller's lead goes through reassignment");
+ await q("update crm_leads set owner_id=$1 where id=$2",[MIGUEL,other.id]);
+ assert.deepEqual(await q("select active from staff_lead_grants where user_id=$1 and lead_id=$2",[EMP2,other.id]),[{active:false}],"returning the lead closes the seller's grant");
  await as(MIGUEL);
  const ev=(await q("select action from staff_permission_events where lead_id is not null order by id")).map(r=>r.action);
- assert.deepEqual(ev,["lead_granted","lead_changed","lead_revoked"]);
+ assert.deepEqual(ev,["lead_granted","lead_changed","lead_revoked","lead_granted","lead_revoked","lead_granted","lead_revoked"],"assignment moves are audited too");
  await as(EMP1);
  assert.equal((await q("select count(*)::int n from staff_permission_events"))[0].n,0,"audit is owner-only");
  await db.exec("reset role");

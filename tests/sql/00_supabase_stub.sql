@@ -8,7 +8,8 @@ create schema auth;
 create table auth.users (id uuid primary key, email text);
 create table auth.mfa_factors (
   user_id uuid not null references auth.users(id),
-  status text not null
+  status text not null,
+  factor_type text not null default 'totp'
 );
 create function auth.jwt() returns jsonb language sql stable as $$
   select nullif(current_setting('request.jwt.claims', true), '')::jsonb

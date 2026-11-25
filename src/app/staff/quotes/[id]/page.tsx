@@ -23,7 +23,8 @@ export default async function SellerQuote({ params, searchParams }: { params: Pr
   const c = q.content;
   const next = SELLER_TRANSITIONS[q.status] ?? [];
   const blockers = q.status === "sent" ? acceptanceBlockers(c) : [];
-  const canClose = q.status === "accepted" && !q.sale_id;
+  // `closed` without `sale_id`: the sale belongs to the seller who closed it before the lead was handed over.
+  const canClose = q.status === "accepted" && !q.closed;
   const contractOk = q.contract_status === "verified_signed";
 
   return <Shell title={`${q.quote_number} · ${c.title}`}>
@@ -69,7 +70,8 @@ export default async function SellerQuote({ params, searchParams }: { params: Pr
           <button className={`${s.button} ${s.primary}`} type="submit">Cerrar venta</button>
         </form>}
     </section>}
-    {q.sale_id && <p className={s.flash}>Venta cerrada. La ves en «Mis ventas cerradas».</p>}
+    {q.sale_id ? <p className={s.flash}>Venta cerrada. La ves en «Mis ventas cerradas».</p>
+      : q.closed && <p className={s.flash}>Esta propuesta ya se cerró como venta de quien llevaba el lead antes; esa venta y su comisión siguen siendo suyas.</p>}
 
     <section className={s.panel} aria-labelledby="quote-history">
       <h2 id="quote-history">Historial</h2>
