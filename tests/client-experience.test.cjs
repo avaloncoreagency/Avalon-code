@@ -344,3 +344,54 @@ test("M07 onboarding e-mails: EM-001 events, recorded facts or owner note only, 
   const center = fs.readFileSync("src/app/admin/workspace/crm/communications/page.tsx", "utf8");
   assert.match(center, /requireOwner\(\)/); assert.ok(!/sendMail|approveAndSend/.test(center), "the Communication Center never sends by itself");
 });
+
+test("G04 Welcome Package: canonical data only, verified agreement by reference, approved documents only, deterministic, hashed", () => {
+  const wp = load("src/lib/docs/welcome-package.ts");
+  const base = { lang: "es", version: 1, issuedOn: "2026-11-25", client: { contactName: "Laura QA", companyName: "Barbería Sintética QA" },
+    service: { label: "Sitio web", title: "Sitio web Barbería QA" }, representative: { name: "Miguel Hobaica", title: "Cofundador" },
+    contract: { verified: false, ref: "ACA-MSA-1.2 · deadbeef" }, invoice: null, nextStep: null,
+    checklist: { pending: ["Logo en alta resolución", "Accesos delegados al dominio"], done: 3, total: 14 },
+    support: { email: "avalonacoreagency@gmail.com", phone: null, hours: "" }, documents: [] };
+  const w = wp.buildWelcomePackage(base);
+  assert.equal(w.contract.ref, "", "an unverified agreement never shows a reference");
+  let md = wp.welcomeMarkdown(w);
+  assert.match(md, /no sustituye, resume ni modifica sus condiciones/); assert.ok(!/ACA-MSA/.test(md));
+  assert.match(md, /- Logo en alta resolución/); assert.match(md, /3 de 14 puntos/);
+  assert.ok(!/Teléfono/.test(md), "no phone without an approved number"); assert.ok(!/Factura emitida/.test(md), "no invoice section without an issued invoice");
+  assert.match(md, /se compartirán cuando estén aprobados/, "no pending documents listed");
+  const signed = wp.buildWelcomePackage({ ...base, lang: "en", contract: { verified: true, ref: "ACA-MSA-1.1 · 1234abcd" }, invoice: { number: "INV-QA-0001" },
+    nextStep: { text: "Kickoff call", confirmedOn: "2026-12-01" }, documents: [{ id: "WP-001", title: "Welcome" }] });
+  md = wp.welcomeMarkdown(signed);
+  assert.match(md, /Signed and verified agreement: ACA-MSA-1\.1 · 1234abcd/); assert.match(md, /Issued invoice: INV-QA-0001/);
+  assert.match(md, /Kickoff call \(confirmed for 2026-12-01\)/); assert.match(md, /- WP-001 · Welcome/);
+  const a = Buffer.from(wp.renderWelcomePackagePdf(signed)), b = Buffer.from(wp.renderWelcomePackagePdf(signed));
+  assert.equal(a.subarray(0, 5).toString(), "%PDF-"); assert.ok(a.equals(b), "same snapshot → same bytes (sha256 stays valid)");
+  assert.ok(!/PENDIENTE|NO DISTRIBUIR/.test(a.toString("latin1")), "a client document carries no internal review stamp");
+  assert.ok(wp.isWelcomeSnapshot(signed)); assert.ok(!wp.isWelcomeSnapshot({ schema: "avalon-manual-1" }));
+  assert.match(wp.welcomeFileName(signed), /^Avalon-Welcome-Barberia-Sintetica-QA-v1\.pdf$/);
+  const actions = fs.readFileSync("src/app/admin/workspace/crm/onboarding/actions.ts", "utf8");
+  const gen = actions.slice(actions.indexOf("export async function generateWelcomePackage"), actions.indexOf("// ── E-mail outbox"));
+  assert.match(gen, /clientDocuments\(o\.product_type, L\)/, "only library documents the owners approved");
+  assert.match(gen, /signedAgreement\(supabase, o\.client_id\)/); assert.match(gen, /invoice\.status === "issued" && invoice\.client_id === o\.client_id/);
+  assert.match(gen, /kind: "welcome_package"/); assert.match(gen, /sha256: sha\(pdf\)/);
+  const page = fs.readFileSync("src/app/admin/workspace/crm/onboarding/[id]/page.tsx", "utf8");
+  assert.match(page, /manualIssued: docRows\.some\(d => d\.kind === "manual" && d\.status === "issued"\)/, "a welcome package never satisfies the manual gate");
+});
+
+test("G03 library: search and filters, owners' review pack with the approval matrix, matrix file in sync", () => {
+  const lib = load("src/lib/docs/library.ts");
+  const all = lib.ALL_DOCUMENTS;
+  assert.equal(lib.filterLibrary(all, {}).length, all.length);
+  assert.ok(lib.filterLibrary(all, { audience: "staff" }).every(d => d.audience === "staff"));
+  assert.ok(lib.filterLibrary(all, { approval: "approved" }).every(d => d.approval === "approved"));
+  assert.ok(lib.filterLibrary(all, { service: "crm" }).every(d => d.service === "crm" || d.service === "all"));
+  assert.ok(lib.filterLibrary(all, { q: "bienvenida" }).some(d => d.id === "WP-001"), "accent-insensitive text search");
+  const pack = lib.reviewPackMarkdown(all);
+  for (const d of all) { assert.match(pack, new RegExp(`\\| ${d.id} \\|`)); assert.match(pack, new RegExp(`- ${d.id}: \\[ \\] Aprobar \\(Miguel\\)`)); }
+  assert.match(pack, /este paquete no aprueba nada por sí mismo/);
+  const route = fs.readFileSync("src/app/admin/workspace/crm/documents/review-pack/route.ts", "utf8");
+  assert.match(route, /getOwnerSession\(\)/); assert.match(route, /status: 401/); assert.match(route, /no-store/); assert.match(route, /NO DISTRIBUIR/);
+  const matrix = fs.readFileSync("docs/library/APPROVAL_MATRIX.md", "utf8");
+  assert.equal((matrix.match(/^\| (AG|WP|OB|MN|EM|DEL)-/gm) || []).length, all.length);
+  execFileSync(process.execPath, ["scripts/docs/build-library.cjs", "--check"], { stdio: "pipe" });
+});

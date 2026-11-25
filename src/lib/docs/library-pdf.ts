@@ -37,8 +37,20 @@ export function parseMarkdown(md: string): Block[] {
   return out;
 }
 
+/** Shared ivory editorial renderer (library documents, review pack, client welcome package). */
+export type EditorialInput = { ref: string; version: string; languages: string[]; title: string; markdown: string;
+  /** Footer status; `warn` paints it in the warning colour and, with `banner`, adds the banner under the title. */
+  status: { label: string; warn: boolean; banner?: string }; producer: string };
+
 export function renderLibraryPdf(d: LibraryDoc): Uint8Array {
   const pending = d.approval !== "approved";
+  return renderEditorialPdf({ ref: d.id, version: d.version, languages: d.languages, title: d.title, markdown: d.content, producer: "Avalon OS avalon-library-1",
+    status: pending ? { label: "PENDIENTE DE REVISION / PENDING REVIEW", warn: true, banner: "PENDIENTE DE REVISION - NO DISTRIBUIR / PENDING REVIEW - DO NOT DISTRIBUTE" }
+      : { label: "APROBADO / APPROVED", warn: false } });
+}
+
+export function renderEditorialPdf(d: EditorialInput): Uint8Array {
+  const pending = d.status.warn;
   const pages: string[][] = []; let ops: string[] = []; let y = H;
   const text = (x: number, yy: number, s: string, z: number, bold = false, col = BODY) =>
     ops.push("BT", `/${bold ? "F2" : "F1"} ${z} Tf`, col + " rg", `1 0 0 1 ${x.toFixed(2)} ${yy.toFixed(2)} Tm`, "(" + esc(s) + ") Tj", "ET");
@@ -63,13 +75,13 @@ export function renderLibraryPdf(d: LibraryDoc): Uint8Array {
   rect(0, H - 150, W, 150, SAND);
   mark(M, H - 118, 52);
   text(M + 66, H - 86, "AVALON", 20, true, INK); text(M + 67, H - 101, "CORE AGENCY", 8, true, ACCENT);
-  text(M, H - 176, d.id + "  |  v" + d.version + "  |  " + d.languages.join("/").toUpperCase(), 8.5, true, ACCENT);
+  text(M, H - 176, d.ref + "  |  v" + d.version + "  |  " + d.languages.join("/").toUpperCase(), 8.5, true, ACCENT);
   y = H - 204;
   for (const l of wrap(d.title, 20, W - 2 * M, true).slice(0, 3)) { text(M, y, l, 20, true, INK); y -= 26; }
   rect(M, y + 8, 48, 2, ACCENT); y -= 18;
-  if (pending) { text(M, y, "PENDIENTE DE REVISION - NO DISTRIBUIR / PENDING REVIEW - DO NOT DISTRIBUTE", 8.5, true, WARN); y -= 22; }
+  if (d.status.banner) { text(M, y, d.status.banner, 8.5, true, pending ? WARN : ACCENT); y -= 22; }
 
-  const blocks = parseMarkdown(d.content);
+  const blocks = parseMarkdown(d.markdown);
   if (blocks[0]?.kind === "h1" && clean(blocks[0].text) === clean(d.title)) blocks.shift(); // already on the cover
   for (const b of blocks) {
     if (b.kind === "rule") { need(14); rect(M, y + 4, W - 2 * M, 0.6, RULE); y -= 12; continue; }
@@ -92,12 +104,12 @@ export function renderLibraryPdf(d: LibraryDoc): Uint8Array {
   const kids: number[] = [];
   pages.forEach((p, i) => {
     const foot = ["q", RULE + " rg", `${M} 46 ${W - 2 * M} 0.6 re f`, "Q", "BT", "/F1 7.5 Tf", (pending ? WARN : MUTED) + " rg", `1 0 0 1 ${M} 32 Tm`,
-      "(" + esc(`Avalon Core Agency  |  ${d.id} v${d.version}  |  ${pending ? "PENDIENTE DE REVISION / PENDING REVIEW" : "APROBADO / APPROVED"}  |  ${i + 1} / ${pages.length}`) + ") Tj", "ET"];
+      "(" + esc(`Avalon Core Agency  |  ${d.ref} v${d.version}  |  ${d.status.label}  |  ${i + 1} / ${pages.length}`) + ") Tj", "ET"];
     const stream = [...p, ...foot].join("\n") + "\n";
     const content = add("<< /Length " + Buffer.byteLength(stream, "latin1") + " >>\nstream\n" + stream + "endstream");
     kids.push(add(`<< /Type /Page /Parent ${root} 0 R /MediaBox [0 0 ${W} ${H}] /Resources << /Font << /F1 ${f1} 0 R /F2 ${f2} 0 R >> >> /Contents ${content} 0 R >>`));
   });
-  const info = add(`<< /Title (${esc(d.id + " " + d.title)}) /Producer (Avalon OS avalon-library-1) >>`);
+  const info = add(`<< /Title (${esc(d.ref + " " + d.title)}) /Producer (${esc(d.producer)}) >>`);
   objects[catalog - 1] = `<< /Type /Catalog /Pages ${root} 0 R >>`;
   objects[root - 1] = `<< /Type /Pages /Kids [${kids.map(k => k + " 0 R").join(" ")}] /Count ${kids.length} >>`;
   let pdf = "%PDF-1.4\n%\xe2\xe3\xcf\xd3\n"; const offsets: number[] = [];

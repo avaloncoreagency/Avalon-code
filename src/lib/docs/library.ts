@@ -45,3 +45,28 @@ export const APPROVAL_LABEL: Record<LibraryDoc["approval"], [string, string]> = 
   approved: ["Aprobado por los propietarios", "Approved by the owners"],
   pending: ["Pendiente de revisión (no se distribuye)", "Pending review (not distributed)"],
 };
+
+/** Owner library filters (G03): free text over id/title/content, audience, service and approval state. Pure. */
+export type LibraryFilter = { q?: string; audience?: string; service?: string; approval?: string };
+export function filterLibrary(docs: readonly LibraryDoc[], f: LibraryFilter): LibraryDoc[] {
+  const q = (f.q ?? "").normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().trim().slice(0, 80);
+  const fold = (v: string) => v.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
+  return docs.filter(d => (!f.audience || f.audience === "all" || d.audience === f.audience)
+    && (!f.approval || f.approval === "all" || d.approval === f.approval)
+    && (!f.service || f.service === "all" || d.service === f.service || d.service === "all")
+    && (!q || fold(`${d.id} ${d.title} ${d.content}`).includes(q)));
+}
+
+/** Review pack for Miguel and Samuel (G03): one internal document with the approval matrix and every document's text. */
+export function reviewPackMarkdown(docs: readonly LibraryDoc[]): string {
+  const approved = docs.filter(isDistributable).length;
+  const out = ["# Paquete de revisión de la biblioteca · Library review pack", "",
+    `Documentos: ${docs.length} · aprobados: ${approved} · pendientes: ${docs.length - approved}. La aprobación se registra en el manifiesto de cada paquete mediante un PR revisado por los propietarios; este paquete no aprueba nada por sí mismo.`, "",
+    "## Matriz de aprobación · Approval matrix", "",
+    "| ID | Título | Versión | Idiomas | Audiencia | Servicio | Estado actual | sha256 |", "|---|---|---|---|---|---|---|---|",
+    ...docs.map(d => `| ${d.id} | ${d.title.replace(/\|/g, "/")} | v${d.version} | ${d.languages.join("/").toUpperCase()} | ${d.audience === "staff" ? "Empleados" : "Clientes"} | ${d.service} | ${d.approvalLabel.replace(/_/g, " ")} | ${d.sha256.slice(0, 12)} |`), "",
+    "## Decisión de los propietarios · Owners' decision", "",
+    ...docs.map(d => `- ${d.id}: [ ] Aprobar (Miguel) [ ] Aprobar (Samuel) [ ] Cambios solicitados — notas: ________`), ""];
+  for (const d of docs) out.push("---", `# ${d.id} · ${d.title}`, `Fuente: ${d.source} · v${d.version} · sha256 ${d.sha256.slice(0, 16)}`, "", d.content, "");
+  return out.join("\n");
+}

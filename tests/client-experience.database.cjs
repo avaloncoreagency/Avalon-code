@@ -248,3 +248,17 @@ test('M04/M07 (migrations 20261125120000/120100): onboarding e-mail kinds and on
   const row = await one('select support_email, reply_to_email, client_sender_email, invite_sender_status from avalon_company_settings');
   assert.deepEqual(row, { support_email: 'soporte@example.invalid', reply_to_email: 'avalonacoreagency@gmail.com', client_sender_email: 'avalonacoreagency@gmail.com', invite_sender_status: 'unverified' });
 });
+
+test('G04 (migration 20261125140000): the welcome package is an issued, immutable client document; other kinds refused', { timeout: 240000 }, async t => {
+  const { db, one } = await setup();
+  t.after(() => db.close());
+  const a = await sale(db, one, 'Barberia Sintetica QA', '96000000-0000-4000-8000-000000000003');
+  await db.exec('reset role');
+  const user = (await one("select user_id from agency_memberships where role='owner' limit 1")).user_id;
+  const ins = (kind, v) => db.query(`insert into crm_client_documents(client_id,kind,product_type,version,title,generator,snapshot,sha256,created_by)
+    values($1,$2,'website',$3,'Paquete QA','avalon-welcome-1','{"schema":"avalon-welcome-1"}'::jsonb,$4,$5) returning id`, [a.client, kind, v, 'a'.repeat(64), user]);
+  const doc = (await ins('welcome_package', 1)).rows[0];
+  await assert.rejects(ins('contract', 1), /crm_client_documents_kind_check/, 'contracts are never stored as client documents here');
+  await assert.rejects(db.query("update crm_client_documents set sha256=$2 where id=$1", [doc.id, 'b'.repeat(64)]), /document_immutable/);
+  await db.query("update crm_client_documents set status='superseded' where id=$1", [doc.id]);
+});

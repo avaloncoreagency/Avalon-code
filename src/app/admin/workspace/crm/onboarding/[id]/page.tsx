@@ -13,7 +13,7 @@ import { loadCompany } from "@/lib/comms/company-server";
 import { verifiedAgreement } from "@/lib/onboarding/evidence-server";
 import { smtpConfig } from "@/lib/comms/transport";
 import { ONBOARDING_ERROR, ONBOARDING_OK, OUTBOX_STATUS } from "@/lib/onboarding/text";
-import { approveAndSend, cancelEmail, generateManual, moveOnboarding, prepareEmail, recordAcceptance, recordDelivery, recordManualSend, setQa, toggleChecklist, updateOnboarding } from "../actions";
+import { approveAndSend, cancelEmail, generateManual, generateWelcomePackage, moveOnboarding, prepareEmail, recordAcceptance, recordDelivery, recordManualSend, setQa, toggleChecklist, updateOnboarding } from "../actions";
 import s from "@/components/sales/sales.module.css";
 
 export const dynamic = "force-dynamic";
@@ -40,7 +40,7 @@ export default async function OnboardingDetail({ params, searchParams }: { param
     supabase.from("crm_contacts").select("id,full_name,email,is_primary").eq("client_id", o.client_id).order("is_primary", { ascending: false }),
     supabase.from("os_projects").select("id,name,module,settings").eq("client_id", o.client_id).order("updated_at", { ascending: false }).limit(50),
     supabase.from("crm_invoices").select("id,sale_id,number,amount,currency,status,issued_on").eq("client_id", o.client_id).order("issued_on", { ascending: false }).limit(50),
-    supabase.from("crm_client_documents").select("id,title,version,status,sha256,created_at,product_type").eq("onboarding_id", o.id).order("created_at", { ascending: false }),
+    supabase.from("crm_client_documents").select("id,kind,title,version,status,sha256,created_at,product_type").eq("onboarding_id", o.id).order("created_at", { ascending: false }),
     supabase.from("crm_email_outbox").select("*").eq("onboarding_id", o.id).order("created_at", { ascending: false }).limit(30),
     loadOwnerDirectory(supabase),
     loadCompany(supabase),
@@ -50,9 +50,9 @@ export default async function OnboardingDetail({ params, searchParams }: { param
   const who = (uid: string | null) => uid ? personDisplayName(directory.find(d => (d.user_id ?? d.id) === uid), t("Usuario", "User")) : "—";
   const list = readChecklist(o.checklist); const pr = progress(list);
   const stage = (isStage(o.stage) ? o.stage : "preparation") as Stage;
-  const docRows = (docs.data ?? []) as { id: string; title: string; version: number; status: string; sha256: string; created_at: string }[];
+  const docRows = (docs.data ?? []) as { id: string; kind: string; title: string; version: number; status: string; sha256: string; created_at: string }[];
   const verified = await verifiedAgreement(supabase, o.client_id);
-  const blockers = deliveryBlockers({ productType: o.product_type, checklist: list, qaPassed: o.qa_passed, liveUrl: o.live_url, manualIssued: docRows.some(d => d.status === "issued"),
+  const blockers = deliveryBlockers({ productType: o.product_type, checklist: list, qaPassed: o.qa_passed, liveUrl: o.live_url, manualIssued: docRows.some(d => d.kind === "manual" && d.status === "issued"),
     contractVerified: Boolean(verified), deliveredTo: "xx" }).filter(b => b !== "recipient_missing");
   const acceptance = o.client_accepted_at ? null : acceptanceBlockers({ deliveredAt: o.delivered_at, evidence: "x".repeat(10) });
   const msgs = (outbox.data ?? []) as Msg[];
@@ -121,6 +121,9 @@ export default async function OnboardingDetail({ params, searchParams }: { param
       <p className={s.muted}>{t("El manual se genera con los datos registrados (URL real, alcance del contrato, soporte). No contiene contraseñas. Cada generación crea una versión nueva; las anteriores quedan como «reemplazadas».", "The manual is generated from recorded data (real URL, agreed scope, support). It contains no passwords. Each generation creates a new version; older ones are kept as superseded.")}</p>
       <form action={generateManual} className={s.inline}>{hidden}<select name="lang" defaultValue={lang} aria-label={t("Idioma del manual", "Manual language")}><option value="es">Español</option><option value="en">English</option></select>
         <button className={`${s.button} ${s.primary}`} type="submit">{t("Generar manual PDF", "Generate PDF manual")}</button></form>
+      <form action={generateWelcomePackage} className={s.inline} data-welcome-package-form>{hidden}<select name="lang" defaultValue={lang} aria-label={t("Idioma del paquete", "Package language")}><option value="es">Español</option><option value="en">English</option></select>
+        <button className={s.button} type="submit">{t("Generar paquete de bienvenida", "Generate Welcome Package")}</button>
+        <small className={s.muted}>{t("Solo datos registrados: servicio, acuerdo verificado, factura emitida, próximo paso, checklist pendiente, soporte y documentos aprobados.", "Recorded data only: service, verified agreement, issued invoice, next step, pending checklist, support and approved documents.")}</small></form>
       <ul className={s.list}>{docRows.map(d => <li key={d.id} data-document={d.status}><strong>{d.title}</strong> · {d.status === "issued" ? t("Vigente", "Current") : t("Reemplazado", "Superseded")} · {formatDate(lang, d.created_at)}
         <a className={s.button} href={`/admin/workspace/crm/onboarding/${o.id}/documents/${d.id}`} download>{t("Descargar PDF", "Download PDF")}</a><small className={s.muted}>sha256 {d.sha256.slice(0, 12)}…</small></li>)}</ul>
     </section>
@@ -151,7 +154,7 @@ export default async function OnboardingDetail({ params, searchParams }: { param
         </div>
         <div className={s.inline}>
           <label><input type="checkbox" name="attach_invoice" defaultChecked={Boolean(o.invoice_id)} disabled={!o.invoice_id} /> {t("Adjuntar la factura seleccionada", "Attach the selected invoice")}</label>
-          <label><input type="checkbox" name="attach_documents" defaultChecked={docRows.some(d => d.status === "issued")} disabled={!docRows.some(d => d.status === "issued")} /> {t("Adjuntar el manual vigente", "Attach the current manual")}</label>
+          <label><input type="checkbox" name="attach_documents" defaultChecked={docRows.some(d => d.status === "issued")} disabled={!docRows.some(d => d.status === "issued")} /> {t("Adjuntar los documentos vigentes (manual y paquete de bienvenida)", "Attach the current documents (manual and Welcome Package)")}</label>
         </div>
         <p className={s.muted}>{t(`Remitente: ${company.contact.clientSender} · Responder a: ${company.contact.replyTo}. Preparar no envía nada.`, `From: ${company.contact.clientSender} · Reply-To: ${company.contact.replyTo}. Preparing sends nothing.`)}</p>
         <button className={s.button} type="submit">{t("Preparar mensaje", "Prepare message")}</button>

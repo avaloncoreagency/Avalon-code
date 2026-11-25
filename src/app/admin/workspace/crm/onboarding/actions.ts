@@ -14,6 +14,7 @@ import { verifiedAgreement } from "@/lib/onboarding/evidence-server";
 import { clientDocuments } from "@/lib/docs/library";
 import { renderInvoicePdf, fileName as invoiceFileName } from "@/lib/sales/invoice";
 import { isAgreementSnapshot } from "@/lib/contracts/agreement";
+import { buildWelcomePackage, isWelcomeSnapshot, renderWelcomePackagePdf, welcomeFileName, WELCOME_GENERATOR } from "@/lib/docs/welcome-package";
 
 const BASE = "/admin/workspace/crm/onboarding";
 const sha = (s: string | Uint8Array) => createHash("sha256").update(s).digest("hex");
@@ -196,6 +197,49 @@ export async function generateManual(form: FormData) {
   refresh(o); back(`${BASE}/${id}#documents`, { ok: "manual" });
 }
 
+/**
+ * G04 · Welcome Package: an issued, versioned, hashed client document built only from canonical records (see
+ * lib/docs/welcome-package). The agreement appears only as the reference of the VERIFIED signed agreement; documents only
+ * when the owners approved them in the library; the invoice only when issued for this same client.
+ */
+export async function generateWelcomePackage(form: FormData) {
+  const { supabase, userId } = await ownerForAction();
+  const id = uuidField(form, "id"); if (!id) back(BASE, { error: "onboarding_invalid" });
+  const o = await loadOnb(supabase, id!); const L = lang(form);
+  const [client, contact, signed, inv, prev, company] = await Promise.all([
+    supabase.from("crm_clients").select("legal_name,trade_name").eq("id", o.client_id).single(),
+    supabase.from("crm_contacts").select("full_name").eq("client_id", o.client_id).order("is_primary", { ascending: false }).limit(1).maybeSingle(),
+    signedAgreement(supabase, o.client_id),
+    o.invoice_id ? supabase.from("crm_invoices").select("number,status,client_id").eq("id", o.invoice_id).maybeSingle() : Promise.resolve({ data: null, error: null }),
+    supabase.from("crm_client_documents").select("id,version").eq("client_id", o.client_id).eq("kind", "welcome_package").eq("product_type", o.product_type).order("version", { ascending: false }).limit(1).maybeSingle(),
+    loadCompany(supabase),
+  ]);
+  if (client.error || !client.data) back(`${BASE}/${id}`, { error: "unavailable" });
+  const c = client.data as { legal_name: string; trade_name: string };
+  const invoice = inv.data as { number: string; status: string; client_id: string } | null;
+  const draft = signed.data && signed.data.client_id === o.client_id ? signed.data : null;
+  const rep = (await signerForId(supabase, o.commercial_owner_id, L)) ?? (await signerForUser(supabase, userId, L));
+  const items = readChecklist(o.checklist);
+  const version = ((prev.data as { version?: number } | null)?.version ?? 0) + 1;
+  const snapshot = buildWelcomePackage({ lang: L, version, issuedOn: new Date().toISOString().slice(0, 10),
+    client: { contactName: (contact.data as { full_name?: string } | null)?.full_name || c.legal_name, companyName: c.trade_name || c.legal_name },
+    service: { label: PRODUCT_LABEL[o.product_type][L === "es" ? 0 : 1], title: o.title },
+    representative: { name: rep?.name ?? "", title: rep?.title ?? "" },
+    contract: { verified: Boolean(draft), ref: draft ? `${draft.template_version} · ${draft.id.slice(0, 8)}` : "" },
+    invoice: invoice && invoice.status === "issued" && invoice.client_id === o.client_id ? { number: invoice.number } : null,
+    nextStep: o.next_step ? { text: o.next_step, confirmedOn: o.next_step_confirmed ? o.next_step_on : null } : null,
+    checklist: { pending: items.filter(i => !i.done).map(i => i.label[L === "es" ? 0 : 1]), done: items.filter(i => i.done).length, total: items.length },
+    support: { email: company.contact.supportEmail, phone: company.contact.supportPhone, hours: company.contact.supportHours },
+    documents: clientDocuments(o.product_type, L).map(d => ({ id: d.id, title: d.title })) });
+  const pdf = renderWelcomePackagePdf(snapshot);
+  const r = await supabase.from("crm_client_documents").insert({ client_id: o.client_id, onboarding_id: o.id, project_id: o.project_id, kind: "welcome_package",
+    product_type: o.product_type, version, title: `${L === "es" ? "Paquete de bienvenida" : "Welcome Package"} · v${version}`, generator: WELCOME_GENERATOR,
+    snapshot, sha256: sha(pdf), created_by: userId });
+  if (r.error) back(`${BASE}/${id}#documents`, { error: code(r.error) });
+  if (prev.data) await supabase.from("crm_client_documents").update({ status: "superseded" }).eq("id", (prev.data as { id: string }).id).eq("status", "issued");
+  refresh(o); back(`${BASE}/${id}#documents`, { ok: "welcome_package" });
+}
+
 // ── E-mail outbox ────────────────────────────────────────────────────────────────────────────────────────────────
 type Attach = { type: "invoice"; id: string; sale_id: string; number: string } | { type: "document"; id: string; title: string };
 
@@ -262,10 +306,15 @@ async function buildAttachments(db: SupabaseClient, clientId: string, list: Atta
     } else {
       const d = await db.from("crm_client_documents").select("client_id,snapshot,sha256,status,generator").eq("id", a.id).maybeSingle();
       const doc = d.data as { client_id: string; snapshot: unknown; sha256: string; status: string; generator: string } | null;
-      if (!doc || doc.client_id !== clientId || !isManualSnapshot(doc.snapshot)) return null;
-      let pdf: Uint8Array; try { pdf = renderManualPdf(doc.snapshot, doc.generator); } catch { return null; }
+      if (!doc || doc.client_id !== clientId || doc.status !== "issued") return null;
+      let pdf: Uint8Array, filename: string;
+      try {
+        if (isWelcomeSnapshot(doc.snapshot)) { pdf = renderWelcomePackagePdf(doc.snapshot); filename = welcomeFileName(doc.snapshot); }
+        else if (isManualSnapshot(doc.snapshot)) { pdf = renderManualPdf(doc.snapshot, doc.generator); filename = manualFileName(doc.snapshot); }
+        else return null;
+      } catch { return null; }
       if (sha(pdf) !== doc.sha256) return null; // integrity: the stored hash must match the regenerated bytes
-      out.push({ filename: manualFileName(doc.snapshot), content: pdf, contentType: "application/pdf" });
+      out.push({ filename, content: pdf, contentType: "application/pdf" });
     }
   }
   return out;
