@@ -131,7 +131,7 @@ export default async function QuoteDetail({ params, searchParams }: { params: Pr
     <section className={s.panel} aria-labelledby="quote-pdf">
       <header><h2 id="quote-pdf">{pick(lang, "Vista previa del PDF", "PDF preview")} · v{quote.current_version}</h2>
         <a className={s.button} href={pdf(quote.current_version, true)} target="_blank" rel="noopener">{pick(lang, "Abrir en pestaña nueva", "Open in new tab")}</a></header>
-      {content ? <iframe className={w.preview} src={pdf(quote.current_version, true)} title={pick(lang, "Vista previa de la cotización", "Quote preview")} /> :
+      {content ? <p className={s.muted}>{pick(lang, "Abre el PDF solo cuando quieras revisar o imprimir esta versión. La vista previa no interrumpe el cierre de la venta.", "Open the PDF only when you want to review or print this version. The preview does not interrupt the sales workflow.")}</p> :
         <p className={s.flash} data-tone="error">{pick(lang, "No se pudo leer esta revisión.", "This revision could not be read.")}</p>}
       {downloadable ? <ReviewBeforeDownload lang={lang} href={pdf(quote.current_version, false)} fileName={quoteFileName(quote.quote_number, quote.current_version)} />
         : <p className={s.muted}>{pick(lang, "La descarga para el cliente se habilita cuando esta revisión está aprobada internamente.", "The client download is enabled once this revision is approved internally.")}</p>}
