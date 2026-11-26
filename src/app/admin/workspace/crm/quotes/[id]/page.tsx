@@ -19,6 +19,7 @@ import { QuoteUnavailable } from "@/components/quotes/unavailable";
 import { QuoteClosePanel } from "@/components/sales/quote-close-panel";
 import s from "@/components/sales/sales.module.css";
 import w from "@/components/quotes/quotes.module.css";
+import g from "@/components/sales/quote-path.module.css";
 
 export const dynamic = "force-dynamic";
 type Quote = { id: string; quote_number: string; title: string; status: QuoteStatus; current_version: number; valid_until: string; version: number;
@@ -99,7 +100,7 @@ export default async function QuoteDetail({ params, searchParams }: { params: Pr
       <div className={s.stat}><span>{pick(lang, "Válida hasta", "Valid until")}</span><strong>{formatDate(lang, quote.valid_until)}</strong></div>
     </section>
 
-    {content && <QuoteClosePanel db={supabase} lang={lang} quote={quote} content={content} closeError={q(p, "close_error")} />}
+    {content && <QuoteClosePanel db={supabase} lang={lang} quote={quote} content={content} closeError={q(p, "close_error")} resume={Boolean(okCode?.startsWith("status_") || okCode === "revised" || errCode || q(p, "close_error"))} />}
     {quote.status === "accepted" && <section className={s.panel} aria-labelledby="next-contract">
       <header><h2 id="next-contract">{pick(lang, "Siguiente paso: contrato", "Next step: agreement")}</h2></header>
       {contracts.length > 0 && <p className={s.flash} data-tone="ok">{pick(lang, "Ya existe un borrador de contrato basado en esta cotización.", "An agreement draft based on this quote already exists.")}{" "}
@@ -111,7 +112,7 @@ export default async function QuoteDetail({ params, searchParams }: { params: Pr
     </section>}
 
     <section className={s.panel} aria-labelledby="quote-actions">
-      <header><h2 id="quote-actions">{pick(lang, "Acciones", "Actions")}</h2></header>
+      <details className={g.summary} open={!content || undefined}><summary id="quote-actions">{pick(lang, "Más acciones y correcciones", "More actions and corrections")}</summary><div className={g.detailBody}>
       {QUOTE_TRANSITIONS[quote.status].length === 0 ? <p className={s.muted}>{pick(lang, "Estado final: esta cotización ya no cambia. Para nuevas condiciones crea una nueva cotización.", "Final state: this quote no longer changes. For new terms create a new quote.")}</p> :
         <div className={w.actionsGrid}>{QUOTE_TRANSITIONS[quote.status].map(to => {
           const ui = TRANSITION_UI[to]; if (!ui) return null;
@@ -126,6 +127,7 @@ export default async function QuoteDetail({ params, searchParams }: { params: Pr
             <button type="submit" className={`${s.button} ${to === "accepted" || to === "approved" ? s.primary : ""}`} disabled={blocked}>{pick(lang, ...ui.label)}</button>
           </form>;
         })}</div>}
+      </div></details>
     </section>
 
     <section className={s.panel} aria-labelledby="quote-pdf">
