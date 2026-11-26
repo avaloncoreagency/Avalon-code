@@ -43,6 +43,9 @@ begin
    if not crm_private.is_owner() then raise exception 'quote_owner_approval_required' using errcode='42501'; end if;
    return;
  end if;
+ if not exists (select 1 from public.crm_quote_versions v where v.id=p_revision and v.content_sha256=snapshot.digest) then
+   raise exception 'commercial_offer_changed' using errcode='23514';
+ end if;
  for item in select * from jsonb_each(snapshot.offers) order by key loop
    perform 1 from public.crm_service_catalog c where c.code=item.key and c.active and c.offer_status='approved'
      and jsonb_build_array(c.offer_version,c.offer_approved_at)=item.value for share;
@@ -50,6 +53,27 @@ begin
  end loop;
 end $$;
 revoke all on function crm_private.check_quote_offers(uuid) from public,anon,authenticated;
+
+-- A seller's client-facing PDF must reflect the currently approved exact revision, not just a status label.
+-- Keep the underlying offer snapshots and internal catalog data inaccessible to API roles.
+create function crm_private.quote_distribution_ready(p_revision uuid) returns boolean
+language sql stable set search_path = '' as $distribution$
+  select exists (
+    select 1 from crm_private.quote_commercial_approvals a
+    join public.crm_quote_versions v on v.id = a.revision_id
+    where a.revision_id = p_revision and a.digest = v.content_sha256
+      and not exists (
+        select 1 from jsonb_array_elements(v.content -> 'lines') as line(value)
+        where not exists (
+          select 1 from public.crm_service_catalog c
+          where c.code = line.value ->> 'code' and c.active and c.offer_status = 'approved'
+            and c.offer_approved_by is not null and c.offer_approved_at is not null
+            and a.offers -> c.code = jsonb_build_array(c.offer_version,c.offer_approved_at)
+        )
+      )
+  )
+$distribution$;
+revoke all on function crm_private.quote_distribution_ready(uuid) from public, anon, authenticated, service_role;
 create or replace function public.staff_lead_create(request jsonb) returns jsonb
 language plpgsql security definer set search_path = '' as $$
 declare actor uuid := auth.uid(); v_key uuid; l public.crm_leads; v_email text; v_value numeric; v_follow timestamptz;
@@ -692,6 +716,7 @@ language sql stable security definer set search_path = '' as $$
   select jsonb_build_object('quote_id', q.id, 'quote_number', q.quote_number, 'lead_id', q.lead_id, 'company', l.company,
     'status', q.status, 'current_version', q.current_version, 'version', q.version, 'valid_until', q.valid_until,
     'content', v.content, 'content_sha256', v.content_sha256, 'model', v.model,
+    'distribution_ready', q.status in ('approved','sent','accepted') and crm_private.quote_distribution_ready(v.id),
     'one_time_total', v.one_time_total, 'monthly_total', v.monthly_total, 'contract_status', l.contract_status,
     'contract_verified_for_revision', exists (select 1 from public.crm_contracts co where co.lead_id=q.lead_id and co.verified_quote_revision=v.id and co.status='verified_signed' and co.verified_by is not null),
     'sale_id', (select s.id from public.crm_sales s where s.quote_id = q.id and s.seller_id=auth.uid() and crm_private.seller_can('sales_history') limit 1),

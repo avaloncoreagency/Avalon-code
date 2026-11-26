@@ -19,7 +19,7 @@ export type SellerQuote = {
 export type SellerQuoteDetail = {
   quote_id: string; quote_number: string; lead_id: string; company: string; status: QuoteStatus; current_version: number; version: number;
   valid_until: string; content: QuoteContent; content_sha256: string; model: string;
-  one_time_total: string | number; monthly_total: string | number; contract_status: string; contract_verified_for_revision: boolean; sale_id: string | null; closed: boolean;
+  one_time_total: string | number; monthly_total: string | number; contract_status: string; contract_verified_for_revision: boolean; distribution_ready: boolean; sale_id: string | null; closed: boolean;
   events: { to: QuoteStatus; from: QuoteStatus | null; note: string | null; at: string; version: number }[];
 };
 export type SellerSale = {

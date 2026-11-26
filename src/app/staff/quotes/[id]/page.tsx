@@ -28,6 +28,7 @@ export default async function SellerQuote({ params, searchParams }: { params: Pr
   const blockers = q.status === "sent" ? acceptanceBlockers(c) : [];
   const canClose = grants.includes("sale_close") && q.status === "accepted" && !q.closed && !q.sale_id;
   const contractOk = q.contract_verified_for_revision === true;
+  const canDistribute = DOWNLOADABLE.includes(q.status) && q.distribution_ready === true;
 
   return <Shell title={`${q.quote_number} · ${c.title}`}>
     {status && SELLER_MESSAGES[status] && <p role="status" className={s.flash}>{SELLER_MESSAGES[status]}</p>}
@@ -46,9 +47,9 @@ export default async function SellerQuote({ params, searchParams }: { params: Pr
         {l.description ? <><br /><span className={s.muted}>{l.description}</span></> : null}</li>)}</ul>
       <div className={s.inline} style={{ gap: 8, flexWrap: "wrap" }}>
         {grants.includes("quote_edit") && REVISABLE.includes(q.status) && <Link className={s.button} href={`/staff/quotes/${q.quote_id}/edit`}>Editar (nueva revisión)</Link>}
-        {grants.includes("quote_send") && DOWNLOADABLE.includes(q.status) && <a className={s.button} href={`/staff/quotes/${q.quote_id}/pdf?v=${q.current_version}`}>Descargar PDF</a>}
-        {grants.includes("quote_send") && DOWNLOADABLE.includes(q.status) && <a className={s.button} href={`/staff/quotes/${q.quote_id}/pdf?v=${q.current_version}&view=inline`} target="_blank" rel="noopener">Vista previa</a>}
-        {!DOWNLOADABLE.includes(q.status) && <strong>Borrador interno · No autorizado para distribución</strong>}
+        {grants.includes("quote_send") && canDistribute && <a className={s.button} href={`/staff/quotes/${q.quote_id}/pdf?v=${q.current_version}`}>Descargar PDF</a>}
+        {grants.includes("quote_send") && canDistribute && <a className={s.button} href={`/staff/quotes/${q.quote_id}/pdf?v=${q.current_version}&view=inline`} target="_blank" rel="noopener">Vista previa</a>}
+        {!canDistribute && <strong>{DOWNLOADABLE.includes(q.status) ? "La aprobación de esta versión ya no está vigente. Solicita revisión a la dirección." : "Borrador interno · No autorizado para distribución"}</strong>}
       </div>
     </section>
 

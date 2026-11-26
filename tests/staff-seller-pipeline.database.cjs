@@ -114,6 +114,7 @@ test('seller pipeline: own leads, proposals and sales; isolation between sellers
   assert.equal(detail.quote_number, qa.quote_number);
   assert.deepEqual(detail.content, cA);
   assert.equal(Object.hasOwn(detail, 'internal'), false);
+  assert.equal(detail.distribution_ready,false,'draft PDF cannot be distributed');
   await assert.rejects(q('select crm_quote_delete($1,1,$2)', [qa.quote_id,'Solicitud propia']), /quote_delete_forbidden/);
   const {id: deletion} = await one("select staff_request_quote_deletion($1,1,'Precio incorrecto') id",[qa.quote_id]);
   await assert.rejects(q("select crm_decide_quote_deletion($1,'approved',true)",[deletion]), /crm_forbidden/);
@@ -141,6 +142,7 @@ test('seller pipeline: own leads, proposals and sales; isolation between sellers
   assert.equal((await q('select * from crm_quotes')).length, 1, 'owners see every proposal');
 
   await as(ANA);
+  assert.equal((await one('select staff_seller_quote($1) r',[qa.quote_id])).r.distribution_ready,true,'exact owner-approved revision can be distributed');
   await q('select crm_quote_transition($1,$2,$3,$4)', [qa.quote_id, await quoteVersion(qa.quote_id), 'sent', 'Enviada por email al cliente (sintético)']);
   await q('select crm_quote_transition($1,$2,$3,$4)', [qa.quote_id, await quoteVersion(qa.quote_id), 'accepted', JSON.stringify({signatory:'Representante QA',evidence:'Correo sintético de aceptación'})]);
   const close = () => one('select crm_quote_close_sale($1::jsonb) r', [JSON.stringify({ quote_id: qa.quote_id, version_no: 2, seller_id: MIGUEL })]).then(r => r.r);
@@ -219,6 +221,11 @@ test('seller pipeline: own leads, proposals and sales; isolation between sellers
   assert.equal((await close()).sale_id,sale.sale_id,'original seller keeps safe idempotent replay');
   assert.equal((await q('select * from staff_seller_sales()')).length,1);
 
+  // Changing a catalogue offer revokes distribution readiness without rewriting the historic quote or sale.
+  await as(MIGUEL);
+  await q("update crm_service_catalog set suggested_price=1750 where code='desarrollo-web'");
+  await as(PEDRO);
+  assert.equal((await one('select staff_seller_quote($1) r',[qa.quote_id])).r.distribution_ready,false,'stale approved quote cannot be downloaded for distribution');
   // Suspension closes everything immediately.
   await as(MIGUEL);
   await q('update staff_portal_access set active=false where user_id=$1', [ANA]);

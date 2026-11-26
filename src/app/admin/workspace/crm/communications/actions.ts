@@ -26,7 +26,7 @@ export async function prepareCommercialEmail(form: FormData) {
 
   let clientId: string | null = null, facts: CommercialFacts | null = null;
   if (kind === "quote_sent") {
-    const r = await supabase.from("crm_quotes").select("id,quote_number,title,status,valid_until,client_id,current_version,lead_id").eq("id", source!).maybeSingle();
+    const r = await supabase.from("crm_quotes").select("id,quote_number,title,status,valid_until,client_id,current_version,lead_id").eq("id", source!).is("deleted_at", null).maybeSingle();
     const q = r.data as { id: string; quote_number: string; title: string; status: string; valid_until: string; client_id: string | null; current_version: number; lead_id: string } | null;
     if (!q || !["approved", "sent"].includes(q.status)) back(PAGE, { error: "commercial_fact_missing" });
     const v = await supabase.from("crm_quote_versions").select("one_time_total,monthly_total,content").eq("quote_id", q!.id).eq("version_no", q!.current_version).maybeSingle();
@@ -59,7 +59,7 @@ export async function prepareCommercialEmail(form: FormData) {
     const product = (L === "en" ? sub!.crm_service_catalog?.name_en : "") || sub!.crm_service_catalog?.name || "";
     clientId = sub!.client_id;
     if (kind === "subscription_renewal_notice") {
-      if (sub!.status !== "active" || sub!.cancel_at_period_end || !sub!.current_period_end) back(PAGE, { error: "commercial_fact_missing" });
+      if (sub!.status !== "active" || sub!.renewal_mode === "none" || sub!.cancel_at_period_end || !sub!.current_period_end) back(PAGE, { error: "commercial_fact_missing" });
       facts = { kind, product, periodEnd: sub!.current_period_end!, amount: String(sub!.amount), currency: sub!.currency, period: sub!.period, renewalMode: sub!.renewal_mode };
     } else {
       const scheduled = sub!.cancel_at_period_end && ["active", "suspended"].includes(sub!.status);

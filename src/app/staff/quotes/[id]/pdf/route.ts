@@ -25,7 +25,7 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
   if (error || !q || q.current_version !== v || !isQuoteContent(q.content)) return NextResponse.json({ error: "Quote not available" }, { status: 404 });
   if (createHash("sha256").update(canonicalQuote(q.content)).digest("hex") !== q.content_sha256)
     return NextResponse.json({ error: "Quote integrity check failed" }, { status: 409 });
-  if (!DOWNLOADABLE.includes(q.status))
+  if (!DOWNLOADABLE.includes(q.status) || q.distribution_ready !== true)
     return NextResponse.json({ error: "The owners must approve this revision before it is downloaded" }, { status: 409 });
   let bytes: Uint8Array;
   try {
