@@ -41,6 +41,12 @@ export const ONBOARDING_ERROR: Record<string, Bi> = {
   consent_invalid: ["Autorización incompleta: elige al menos un uso y un canal, y aporta la evidencia.", "Incomplete consent: choose at least one use and channel, and provide evidence."],
   consent_final: ["Esta autorización ya no admite cambios.", "This consent can no longer change."], consent_granted_frozen: ["Una autorización concedida no se amplía: crea una nueva.", "A granted consent cannot be widened: create a new one."],
   settings_invalid: ["Revisa los datos de la configuración.", "Check the settings data."],
+  commercial_invalid: ["Elige el tipo de mensaje, el registro y el contacto.", "Choose the message type, the record and the contact."],
+  commercial_fact_missing: ["Ese registro no respalda el mensaje (por ejemplo: cotización sin aprobar, contrato sin verificar o pago sin verificar).", "That record does not support the message (e.g. unapproved quote, unverified contract or unverified payment)."],
+  commercial_client_unknown: ["El registro todavía no está vinculado a un cliente.", "The record is not linked to a client yet."],
+  commercial_recipient_invalid: ["El contacto debe pertenecer al mismo cliente y tener correo.", "The contact must belong to the same client and have an e-mail."],
+  commercial_signer_unknown: ["Completa tu nombre visible para firmar el correo.", "Complete your display name to sign the e-mail."],
+  commercial_failed: ["No se pudo preparar el mensaje.", "The message could not be prepared."],
 };
 export const OUTBOX_STATUS: Record<string, Bi> = {
   prepared: ["Preparado", "Prepared"], approved: ["Aprobado", "Approved"], sent: ["Enviado", "Sent"], failed: ["Falló", "Failed"],
@@ -56,4 +62,7 @@ export const OUTBOX_KIND: Record<string, Bi> = {
   approval_request: ["Solicitud de aprobación", "Approval request"], delivery_notice: ["Aviso de entrega", "Delivery notice"],
   receipt_confirmation: ["Confirmación de recepción", "Receipt confirmation"], support_info: ["Soporte", "Support"],
   maintenance_notice: ["Mantenimiento", "Maintenance"], renewal_review: ["Renovación", "Renewal"],
+  quote_sent: ["Envío de propuesta", "Proposal sent"], contract_confirmation: ["Confirmación de contrato", "Agreement confirmation"],
+  payment_confirmation: ["Confirmación de pago", "Payment confirmation"], subscription_renewal_notice: ["Aviso de renovación", "Renewal notice"],
+  cancellation_confirmation: ["Confirmación de cancelación", "Cancellation confirmation"],
 };
