@@ -25,6 +25,8 @@ async function setup() {
   const one = async (q, p) => (await db.query(q, p)).rows[0];
   const n = async (q, p) => Number((await one(q, p)).n);
   await as(OWNER);
+  await db.query("update crm_service_catalog set suggested_price=900 where code='desarrollo-web'");
+  await db.query("update crm_service_catalog set offer_status='approved' where code='desarrollo-web'");
   return { db, as, anon, one, n };
 }
 

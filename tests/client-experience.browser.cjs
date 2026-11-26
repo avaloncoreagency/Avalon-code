@@ -28,6 +28,8 @@ test('Client experience: onboarding → manual → welcome e-mail → Clients 36
   }
   await db.query('insert into crm_private.finance_access(user_id) values($1)', [OWNER]);
   await db.exec(`set request.jwt.claim.sub='${OWNER}'; set role authenticated;`);
+  await db.query("update crm_service_catalog set suggested_price=900 where code='desarrollo-web'");
+  await db.query("update crm_service_catalog set offer_status='approved' where code='desarrollo-web'");
   await db.query("insert into office_profiles(user_id,display_name,title) values($1,$2,'Cofundador')", [OWNER, SIGNER]); // own profile only
   const one = async (q, p) => (await db.query(q, p)).rows[0];
   const client = (await one("insert into crm_clients(legal_name,trade_name,source,owner_id) values($1,$1,'Manual',$2) returning id", [COMPANY, OWNER])).id;
