@@ -49,11 +49,18 @@ export async function QuoteClosePanel({ db, lang, quote, content, closeError, re
       "This quote is closed (rejected, expired or superseded) and cannot become a sale. For new terms create a new quote.")}</p></section>;
   const termBlockers = summary.blockers.filter(b => b.code === "quote_variable_terms_incomplete" || b.code === "quote_commission_to_negotiate"
     || b.code === "quote_line_not_in_catalog" || b.code === "quote_line_kind_mismatch" || b.code === "quote_needs_service_line");
+  // Custom concepts may be quoted and reviewed. Catalog mapping is a close-sale prerequisite, not a new approval policy.
+  const pendingTerms = termBlockers.filter(b => {
+    if (b.code === "quote_line_not_in_catalog" || b.code === "quote_line_kind_mismatch") return status === "accepted";
+    if (b.code === "quote_commission_to_negotiate") return status === "sent" || status === "accepted";
+    return true;
+  });
+  const futureTerms = termBlockers.filter(b => !pendingTerms.includes(b));
   const reached = (...st: QuoteStatus[]) => st.includes(status);
   const editHref = `/admin/workspace/crm/quotes/${quote.id}/edit`, contractHref = `/admin/workspace/crm/lead/${quote.lead_id}?tab=contract`;
   // Keep the canonical state machine and version guard. Only the next unfinished step is actionable.
   const steps: { key: string; done: boolean; label: [string, string] }[] = [
-    { key: "terms", done: !termBlockers.length, label: ["Condiciones", "Terms"] },
+    { key: "terms", done: !pendingTerms.length, label: ["Condiciones", "Terms"] },
     { key: "approved", done: reached("approved", "sent", "accepted"), label: ["Aprobación", "Approval"] },
     { key: "sent", done: reached("sent", "accepted"), label: ["Envío", "Send"] },
     { key: "accepted", done: reached("accepted"), label: ["Aceptación", "Acceptance"] },
@@ -100,12 +107,13 @@ export async function QuoteClosePanel({ db, lang, quote, content, closeError, re
     {errText && <p role="alert" className={s.flash} data-tone="error">{pick(lang, ...errText)}</p>}
     {lookupFailed && <p role="alert" className={g.notice}>{t("No se pudo comprobar todo el expediente. Recarga antes de cerrar la venta.", "The complete record could not be checked. Reload before closing the sale.")}</p>}
     <PathResume resume={resume} revision={quote.version} status={status} />
+    {futureTerms.length > 0 && <p className={g.notice}>{t("Puedes continuar con la propuesta, pero antes del cierre debes resolver:", "You can continue with the proposal, but before closing you must resolve:")} {futureTerms.map(b => pick(lang, ...CLOSE_BLOCKER_TEXT[b.code]) + ("line" in b ? ` (${b.line})` : "")).join(" · ")}</p>}
     <div className={g.active} data-path-active={next?.key ?? "close"}>
       <p className={g.kicker}>{next ? `${t("Paso", "Step")} ${steps.indexOf(next)+1} / ${steps.length}` : t("Confirmación final", "Final confirmation")}</p>
       <h3 id="quote-path-current" tabIndex={-1}>{activeTitle}</h3>
       {next?.key === "terms" && <>
         <p className={g.hint}>{t("Resuelve solo lo que falta. Al editar se conserva la versión anterior y se vuelve a revisar la nueva.", "Resolve only what is missing. Editing preserves the previous version and requires review of the new one.")}</p>
-        <ul className={s.list} aria-label={t("Condiciones pendientes", "Missing terms")}>{termBlockers.map((b,i) =>
+        <ul className={s.list} aria-label={t("Condiciones pendientes", "Missing terms")}>{pendingTerms.map((b,i) =>
           <li key={i} data-blocker={b.code}>{pick(lang,...CLOSE_BLOCKER_TEXT[b.code])}{"line" in b ? ` (${b.line})` : ""}
             {"missing" in b && <ul>{b.missing.map(f => <li key={f} data-missing={f}>{pick(lang,...VARIABLE_FIELD_LABEL[f])}</li>)}</ul>}
           </li>)}</ul>
