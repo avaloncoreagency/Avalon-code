@@ -63,6 +63,12 @@ export async function QuoteClosePanel({ db, lang, quote, content, closeError }: 
     : next?.key === "sent" ? "sent" : next?.key === "accepted" ? "accepted" : undefined;
   const transition = target && QUOTE_TRANSITIONS[status].includes(target) ? TRANSITION_UI[target] : undefined;
   const completed = steps.filter(x => x.done).length;
+  const pathLabels: Partial<Record<QuoteStatus, [string, string]>> = {
+    internal_review: ["Continuar a revisión", "Continue to review"],
+    approved: ["Confirmar aprobación", "Confirm approval"],
+    sent: ["Guardar registro de envío", "Save send record"],
+    accepted: ["Guardar evidencia de aceptación", "Save acceptance evidence"],
+  };
 
   return <section className={s.panel} aria-labelledby="close-sale" data-close-ready={summary.blockers.length === 0} data-close-state={summary.blockers.length ? "blocked" : "ready"}>
     {head}
@@ -85,10 +91,10 @@ export async function QuoteClosePanel({ db, lang, quote, content, closeError }: 
               <input type="hidden" name="quote_id" value={quote.id} />
               <input type="hidden" name="expected_version" value={quote.version} />
               <input type="hidden" name="to" value={target} />
-              {NOTE_REQUIRED.includes(target) && transition.note && <label className={s.field}>{pick(lang, ...transition.note)}
+              {NOTE_REQUIRED.includes(target) && transition.note && <label className={s.field}>{target === "sent" ? t("Canal y fecha del envío", "Send channel and date") : t("Persona, fecha, medio y referencia de la aceptación", "Person, date, method and acceptance reference")}
                 <textarea name="note" required minLength={8} maxLength={1000} rows={2} />
               </label>}
-              <button type="submit" className={`${s.button} ${s.primary}`}>{pick(lang, ...transition.label)}</button>
+              <button type="submit" className={`${s.button} ${s.primary}`}>{pick(lang, ...(pathLabels[target] ?? transition.label))}</button>
             </form>
           </>}
           {x.key === "contract" && <a className={`${s.button} ${s.primary}`} href={contractHref}>{t("Abrir contrato de la oportunidad", "Open the opportunity agreement")}</a>}
