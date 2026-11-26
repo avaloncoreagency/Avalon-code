@@ -327,7 +327,7 @@ export async function approveAndSend(form: FormData) {
   const m = await supabase.from("crm_email_outbox").select("*").eq("id", mid).maybeSingle();
   const msg = m.data as { id: string; client_id: string; onboarding_id: string | null; kind: string; status: string; attempts: number; to_email: string; to_name: string;
     from_email: string; reply_to: string; subject: string; body_html: string; body_text: string; lang: Lang; attachments: Attach[] } | null;
-  const page = msg?.onboarding_id ? `${BASE}/${msg.onboarding_id}#emails` : BASE;
+  const page = msg?.onboarding_id ? `${BASE}/${msg.onboarding_id}#emails` : "/admin/workspace/crm/communications";
   if (!msg) back(BASE, { error: "not_found" });
   if (!["prepared", "approved", "failed", "blocked_no_transport"].includes(msg!.status) || msg!.attempts >= 5) back(page, { error: "outbox_final" });
   const claim = await supabase.from("crm_email_outbox").update({ status: "approved", approved_by: userId, approved_at: new Date().toISOString(), attempts: msg!.attempts + 1 })
@@ -351,7 +351,7 @@ export async function approveAndSend(form: FormData) {
     await supabase.from("crm_email_outbox").update({ status: r.status === "blocked_no_transport" ? "blocked_no_transport" : "failed",
       error: r.status === "failed" ? r.error : r.reason }).eq("id", msg!.id);
   }
-  for (const p of [`/admin/workspace/crm/clients/${msg!.client_id}`, msg!.onboarding_id ? `${BASE}/${msg!.onboarding_id}` : BASE]) revalidatePath(p);
+  for (const p of [`/admin/workspace/crm/clients/${msg!.client_id}`, msg!.onboarding_id ? `${BASE}/${msg!.onboarding_id}` : "/admin/workspace/crm/communications"]) revalidatePath(p);
   back(page, r.status === "sent" ? { ok: "email_sent" } : { error: r.status === "blocked_no_transport" ? `outbox_${r.reason}` : "outbox_send_failed" });
 }
 
@@ -362,7 +362,7 @@ export async function recordManualSend(form: FormData) {
   if (!mid) back(BASE, { error: "onboarding_invalid" });
   const m = await supabase.from("crm_email_outbox").select("id,status,onboarding_id,client_id,kind").eq("id", mid).maybeSingle();
   const msg = m.data as { id: string; status: string; onboarding_id: string | null; client_id: string; kind: string } | null;
-  const page = msg?.onboarding_id ? `${BASE}/${msg.onboarding_id}#emails` : BASE;
+  const page = msg?.onboarding_id ? `${BASE}/${msg.onboarding_id}#emails` : "/admin/workspace/crm/communications";
   if (!msg) back(BASE, { error: "not_found" });
   if (evidence.length < 10) back(page, { error: "outbox_evidence_required" });
   const r = await supabase.from("crm_email_outbox").update({ status: "sent", approved_by: userId, approved_at: new Date().toISOString(), sent_at: new Date().toISOString(),

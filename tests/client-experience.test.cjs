@@ -342,7 +342,12 @@ test("M07 onboarding e-mails: EM-001 events, recorded facts or owner note only, 
   assert.ok(!/avalonagencymh/.test(invite), "invitation template shows the corporate mailbox only");
   assert.match(invite, /\{\{ \.ConfirmationURL \}\}/); assert.match(invite, /\{\{ \.Data\.inviter_name \}\}/);
   const center = fs.readFileSync("src/app/admin/workspace/crm/communications/page.tsx", "utf8");
-  assert.match(center, /requireOwner\(\)/); assert.ok(!/sendMail|approveAndSend/.test(center), "the Communication Center never sends by itself");
+  assert.match(center, /requireOwner\(\)/); assert.ok(!/sendMail/.test(center), "the Communication Center has no transport of its own");
+  // Commercial messages (no onboarding) are approved with the ONE canonical send flow, never a second engine.
+  assert.match(center, /import \{ approveAndSend, recordManualSend \} from "\.\.\/onboarding\/actions"/);
+  const commercial = fs.readFileSync("src/app/admin/workspace/crm/communications/actions.ts", "utf8");
+  assert.ok(!/sendMail|status: "sent"/.test(commercial), "preparing a commercial e-mail never sends it");
+  assert.ok(commercial.includes("ct.client_id !== clientId"), "recipient must belong to the same client");
 });
 
 test("G04 Welcome Package: canonical data only, verified agreement by reference, approved documents only, deterministic, hashed", () => {
