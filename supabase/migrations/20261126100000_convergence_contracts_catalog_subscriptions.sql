@@ -152,13 +152,13 @@ create trigger crm_service_catalog_version_snapshot after insert or update on pu
 
 -- Unavailable services are not eligible for a new commercial operation, even if their offer was approved.
 create or replace function crm_private.assert_approved_offer(service_code text) returns void
-language plpgsql set search_path = '' as $
+language plpgsql set search_path = '' as $offer$
 begin
   perform 1 from public.crm_service_catalog c where c.code = service_code and c.active
     and c.availability <> 'unavailable' and c.offer_status = 'approved'
     and c.offer_approved_by is not null and c.offer_approved_at is not null for share;
   if not found then raise exception 'commercial_offer_not_approved' using errcode = '23514'; end if;
-end $;
+end $offer$;
 revoke all on function crm_private.assert_approved_offer(text) from public, anon, authenticated;
 
 -- ── 4. Recurring products: subscriptions, periods and history ──────────────────────────────────────────────────────
