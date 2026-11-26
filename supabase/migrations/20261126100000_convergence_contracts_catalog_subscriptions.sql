@@ -150,6 +150,17 @@ revoke all on function crm_private.catalog_version_snapshot() from public, anon,
 create trigger crm_service_catalog_version_snapshot after insert or update on public.crm_service_catalog
   for each row execute function crm_private.catalog_version_snapshot();
 
+-- Unavailable services are not eligible for a new commercial operation, even if their offer was approved.
+create or replace function crm_private.assert_approved_offer(service_code text) returns void
+language plpgsql set search_path = '' as $
+begin
+  perform 1 from public.crm_service_catalog c where c.code = service_code and c.active
+    and c.availability <> 'unavailable' and c.offer_status = 'approved'
+    and c.offer_approved_by is not null and c.offer_approved_at is not null for share;
+  if not found then raise exception 'commercial_offer_not_approved' using errcode = '23514'; end if;
+end $;
+revoke all on function crm_private.assert_approved_offer(text) from public, anon, authenticated;
+
 -- ── 4. Recurring products: subscriptions, periods and history ──────────────────────────────────────────────────────
 create table public.crm_subscriptions (
   id uuid primary key default gen_random_uuid(),
@@ -253,14 +264,16 @@ declare p public.crm_contract_term_policies; v_key text := request ->> 'key'; v_
 begin
   if auth.uid() is null or not crm_private.is_owner() then raise exception 'crm_forbidden' using errcode = '42501'; end if;
   if request is null or jsonb_typeof(request) <> 'object' or v_key is null then raise exception 'term_policy_invalid' using errcode = '22023'; end if;
+  perform pg_catalog.pg_advisory_xact_lock(pg_catalog.hashtextextended('avalon.term:' || v_key,0));
   select * into p from public.crm_contract_term_policies where key = v_key and status in ('draft', 'proposed') for update;
   if found then
     update public.crm_contract_term_policies set
       title_es = coalesce(request ->> 'title_es', title_es), title_en = coalesce(request ->> 'title_en', title_en),
       body_es = coalesce(request ->> 'body_es', body_es), body_en = coalesce(request ->> 'body_en', body_en),
       params = coalesce(request -> 'params', params), applies_to = coalesce(request ->> 'applies_to', applies_to),
-      service_codes = coalesce((select array_agg(x) from jsonb_array_elements_text(request -> 'service_codes') x), service_codes),
-      status = 'draft', updated_at = now()
+      service_codes = case when request ? 'service_codes' then array(select jsonb_array_elements_text(request -> 'service_codes')) else service_codes end,
+      status = 'draft', legal_review = 'required', legal_review_note = '', legal_reviewed_by = null,
+      legal_reviewed_at = null, approved_at = null, updated_at = now()
     where id = p.id returning * into p;
     delete from public.crm_contract_term_policy_approvals where policy_id = p.id;   -- any edit restarts joint approval
   else
@@ -338,7 +351,7 @@ begin
   select * into c from public.crm_contracts where id = p_contract for update;
   if not found then raise exception 'contract_missing' using errcode = 'P0002'; end if;
   if c.status not in ('draft', 'internal_review') then raise exception 'contract_terms_frozen' using errcode = '23514'; end if;
-  select * into p from public.crm_contract_term_policies where id = p_policy;
+  select * into p from public.crm_contract_term_policies where id = p_policy for share;
   if not found or p.status <> 'approved' then raise exception 'term_policy_not_approved' using errcode = '23514'; end if;
   insert into public.crm_contract_terms (contract_id, policy_id, policy_key, policy_version, title_es, title_en, body_es, body_en, params, sha256, attached_by)
   values (c.id, p.id, p.key, p.version, p.title_es, p.title_en, p.body_es, p.body_en, p.params,
@@ -431,10 +444,10 @@ language plpgsql security definer set search_path = '' as $$
 declare l public.crm_sale_lines; s public.crm_sales; sub public.crm_subscriptions;
 begin
   if auth.uid() is null or not crm_private.is_owner() then raise exception 'crm_forbidden' using errcode = '42501'; end if;
+  select * into l from public.crm_sale_lines where id = p_sale_line for update;
+  if not found then raise exception 'subscription_line_missing' using errcode = 'P0002'; end if;
   select * into sub from public.crm_subscriptions where sale_line_id = p_sale_line;
   if found then return jsonb_build_object('subscription_id', sub.id, 'existing', true); end if;
-  select * into l from public.crm_sale_lines where id = p_sale_line;
-  if not found then raise exception 'subscription_line_missing' using errcode = 'P0002'; end if;
   if l.billing_type not in ('monthly', 'annual') then raise exception 'subscription_line_not_recurring' using errcode = '23514'; end if;
   select * into s from public.crm_sales where id = l.sale_id;
   if s.status <> 'confirmed' or s.client_id is null then raise exception 'subscription_sale_not_confirmed' using errcode = '23514'; end if;
@@ -577,7 +590,7 @@ declare sub public.crm_subscriptions; per public.crm_subscription_periods;
 begin
   if auth.uid() is null or not crm_private.is_owner() then raise exception 'crm_forbidden' using errcode = '42501'; end if;
   if p_units is null or p_units <= 0 or p_units > 1000000000 then raise exception 'subscription_usage_invalid' using errcode = '22023'; end if;
-  select * into sub from public.crm_subscriptions where id = p_sub;
+  select * into sub from public.crm_subscriptions where id = p_sub for update;
   if not found or sub.status not in ('active', 'suspended') then raise exception 'subscription_invalid_transition' using errcode = '23514'; end if;
   update public.crm_subscription_periods set usage = usage + p_units
   where subscription_id = sub.id and period_start = sub.current_period_start returning * into per;

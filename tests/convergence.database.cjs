@@ -57,6 +57,15 @@ test('terms engine: proposals stay inactive until both owners approve and legal 
   await assert.rejects(db.query('select crm_contract_attach_term($1,$2)', [draftContract.id, cancel]), /already_attached/);
   const v2 = (await one(`select crm_term_policy_save('{"key":"initial_cancellation_window","title_es":"Ventana v2","title_en":"Window v2","body_es":"Texto v2 de prueba sintética","body_en":"Synthetic v2 text","params":{"business_days":5}}'::jsonb) r`)).r;
   assert.deepEqual([v2.version, v2.status], [2, 'draft']);
+  await db.query('select crm_term_policy_record_legal_review($1,$2)', [v2.policy_id,'Synthetic legal review for v2 before edit']);
+  await db.query('select crm_term_policy_propose($1)', [v2.policy_id]);
+  await db.query('select crm_term_policy_approve($1)', [v2.policy_id]);
+  await as(SAMUEL);
+  await db.query(`select crm_term_policy_save('{"key":"initial_cancellation_window","body_en":"Changed synthetic legal wording"}'::jsonb)`);
+  const edited = await one('select legal_review,legal_reviewed_by,legal_reviewed_at,status from crm_contract_term_policies where id=$1',[v2.policy_id]);
+  assert.deepEqual(edited,{legal_review:'required',legal_reviewed_by:null,legal_reviewed_at:null,status:'draft'});
+  assert.equal((await all('select * from crm_contract_term_policy_approvals where policy_id=$1',[v2.policy_id])).length,0);
+  await as(MIGUEL);
   const attached = await one('select policy_version, params, sha256 from crm_contract_terms where contract_id=$1', [draftContract.id]);
   assert.deepEqual([attached.policy_version, attached.params.business_days], [1, 3]);
   assert.match(attached.sha256, /^[0-9a-f]{64}$/);
@@ -96,6 +105,13 @@ test('contracts, catalogue and subscriptions: MSA→SOW, termination, scoped adv
   await as(MIGUEL);
   const lead = (await one("insert into crm_leads(company,contact,email,source,owner_id) values('Chino Barber Sintético QA','Contacto','cb@example.invalid','Manual',$1) returning id", [MIGUEL])).id;
   const msaId = await verifiedContract(db, lead, 'MSA sintético QA');
+  await db.query("update crm_service_catalog set availability='unavailable' where code='desarrollo-web'");
+  await db.query("update crm_service_catalog set offer_status='approved' where code='desarrollo-web'");
+  const blocked = {idempotency_key:'91000000-0000-4000-8000-000000000099',lead_id:lead,new_client:{legal_name:'Chino Barber Sintético QA'},seller_id:MIGUEL,lines:[{service_code:'desarrollo-web',unit_price:'1500'}]};
+  await assert.rejects(db.query('select crm_confirm_sale($1::jsonb)',[JSON.stringify(blocked)]),/commercial_offer_not_approved/);
+  assert.equal((await all('select * from crm_sales')).length,0);
+  await db.query("update crm_service_catalog set availability='available' where code='desarrollo-web'");
+  await db.query("update crm_service_catalog set offer_status='approved' where code='desarrollo-web'");
   const sale = (await one('select crm_confirm_sale($1::jsonb) r', [JSON.stringify({ idempotency_key: '91000000-0000-4000-8000-000000000001', lead_id: lead,
     new_client: { legal_name: 'Chino Barber Sintético QA' }, seller_id: MIGUEL,
     lines: [{ service_code: 'desarrollo-web', unit_price: '1500' }, { service_code: 'marketing-mensual', unit_price: '200' }] })])).r;
