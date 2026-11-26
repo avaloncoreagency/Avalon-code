@@ -6,6 +6,7 @@ const { test } = require('node:test');
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const { PGlite } = require('@electric-sql/pglite');
+const approveFixtureOffers = require('./helpers/approve-fixture-offers.cjs');
 
 const MIGUEL = '00000000-0000-4000-8000-0000000000a1';
 const SAMUEL = '00000000-0000-4000-8000-0000000000b2';
@@ -23,6 +24,8 @@ async function setup() {
     await db.exec(fs.readFileSync('supabase/migrations/' + file, 'utf8'));
     if (file.startsWith('20261102053022')) await db.exec(`insert into agency_memberships values('${MIGUEL}','owner'),('${SAMUEL}','owner'),('${STRANGER}','operator')`);
   }
+  // Real owner approval is a prerequisite in this disposable fixture, not a production offer.
+  await approveFixtureOffers(db, MIGUEL, [["recepcionista-ia",900]]);
   const as = async (role, user = '') => db.exec(`reset role;set request.jwt.claim.role='${role}';set request.jwt.claim.sub='${user}';set role ${role}`);
   const q = async (sql, p) => (await db.query(sql, p)).rows;
   const one = async (sql, p) => (await q(sql, p))[0];
