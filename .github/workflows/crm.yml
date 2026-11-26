@@ -61,3 +61,16 @@ jobs:
           SALES_CENTER_BROWSER: '1'
           SALES_SCHEDULE_BROWSER: '1'
           EVIDENCE_DIR: evidence/crm-intelligence
+      - name: Guided quote browser regression (synthetic)
+        run: node --test tests/quotes.browser.cjs
+        env:
+          NODE_PATH: ./tests/qa/node_modules
+          QUOTES_BROWSER: '1'
+          EVIDENCE_DIR: evidence/quote-path
+      - name: Preserve synthetic quote regression screenshots
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: quote-path-${{ github.sha }}
+          path: evidence/quote-path/
+          if-no-files-found: ignore
