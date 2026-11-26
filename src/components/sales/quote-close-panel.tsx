@@ -4,7 +4,9 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { pick, formatDate, type Lang } from "@/lib/i18n";
 import { formatUsd, type QuoteContent } from "@/lib/quotes/model";
 import { BASE_LABEL, CLOSE_BLOCKER_TEXT, VARIABLE_FIELD_LABEL, VARIABLE_KIND_LABEL, closeSummary, type CatalogEntry } from "@/lib/sales/quote-close";
-import { REVISABLE, type QuoteStatus } from "@/lib/quotes/model";
+import { NOTE_REQUIRED, QUOTE_TRANSITIONS, REVISABLE, type QuoteStatus } from "@/lib/quotes/model";
+import { TRANSITION_UI } from "@/lib/quotes/text";
+import { transitionQuote } from "@/app/admin/workspace/crm/quotes/actions";
 import { closeSaleFromQuote } from "@/app/admin/workspace/crm/sales/actions";
 import s from "./sales.module.css";
 
@@ -22,7 +24,7 @@ const CLOSE_ERRORS: Record<string, [string, string]> = {
  */
 export async function QuoteClosePanel({ db, lang, quote, content, closeError }: {
   db: SupabaseClient; lang: Lang; content: QuoteContent; closeError?: string | null;
-  quote: { id: string; status: string; current_version: number; lead_id: string; accepted_at: string | null; quote_number: string };
+  quote: { id: string; status: string; current_version: number; version: number; lead_id: string; accepted_at: string | null; quote_number: string };
 }) {
   const t = (es: string, en: string) => pick(lang, es, en);
   const codes = [...new Set(content.lines.map(l => l.code).filter((c): c is string => !!c))];
@@ -47,23 +49,51 @@ export async function QuoteClosePanel({ db, lang, quote, content, closeError }: 
     || b.code === "quote_line_not_in_catalog" || b.code === "quote_line_kind_mismatch" || b.code === "quote_needs_service_line");
   const reached = (...st: QuoteStatus[]) => st.includes(status);
   const editHref = `/admin/workspace/crm/quotes/${quote.id}/edit`, contractHref = `/admin/workspace/crm/lead/${quote.lead_id}?tab=contract`;
-  // Ordered checklist: what is done, what is next and where to do it. Nothing is ever marked done automatically.
-  const steps: { key: string; done: boolean; label: [string, string]; action?: { href: string; label: [string, string] } }[] = [
-    { key: "terms", done: !terms, label: ["Condiciones completas (servicios, porcentaje, base, exclusiones, vigencia, verificación)", "Complete terms (services, percentage, base, exclusions, term, verification)"],
-      action: REVISABLE.includes(status) ? { href: editHref, label: ["Editar cotización (nueva revisión)", "Edit quote (new revision)"] } : undefined },
-    { key: "approved", done: reached("approved", "sent", "accepted"), label: ["Revisión y aprobación interna", "Internal review and approval"], action: { href: "#quote-actions", label: ["Ir a Acciones", "Go to Actions"] } },
-    { key: "sent", done: reached("sent", "accepted"), label: ["Enviada al cliente (registrar cómo se envió)", "Sent to the client (record how it was sent)"], action: { href: "#quote-actions", label: ["Ir a Acciones", "Go to Actions"] } },
-    { key: "accepted", done: reached("accepted"), label: ["Aceptación del cliente con evidencia (quién, cuándo, cómo)", "Client acceptance with evidence (who, when, how)"], action: { href: "#quote-actions", label: ["Registrar aceptación", "Record acceptance"] } },
-    { key: "contract", done: !!contract.data, label: ["Contrato firmado y verificado por un owner", "Agreement signed and verified by an owner"], action: { href: contractHref, label: ["Abrir contrato de la oportunidad", "Open the opportunity agreement"] } },
+  // Keep the canonical state machine and version guard. Only the next unfinished step is actionable.
+  const steps: { key: string; done: boolean; label: [string, string] }[] = [
+    { key: "terms", done: !terms, label: ["Condiciones completas", "Complete terms"] },
+    { key: "approved", done: reached("approved", "sent", "accepted"), label: ["Revisión y aprobación interna", "Internal review and approval"] },
+    { key: "sent", done: reached("sent", "accepted"), label: ["Envío al cliente", "Send to client"] },
+    { key: "accepted", done: reached("accepted"), label: ["Aceptación con evidencia", "Acceptance with evidence"] },
+    { key: "contract", done: !!contract.data, label: ["Contrato firmado y verificado", "Signed and verified agreement"] },
   ];
   const next = steps.find(x => !x.done);
+  const target: QuoteStatus | undefined = next?.key === "approved"
+    ? status === "draft" ? "internal_review" : status === "internal_review" ? "approved" : undefined
+    : next?.key === "sent" ? "sent" : next?.key === "accepted" ? "accepted" : undefined;
+  const transition = target && QUOTE_TRANSITIONS[status].includes(target) ? TRANSITION_UI[target] : undefined;
+  const completed = steps.filter(x => x.done).length;
 
   return <section className={s.panel} aria-labelledby="close-sale" data-close-ready={summary.blockers.length === 0} data-close-state={summary.blockers.length ? "blocked" : "ready"}>
     {head}
+    <p className={s.muted} role="status">{completed} / {steps.length} {t("pasos completados. Completa el siguiente sin salir de la cotización.", "steps completed. Complete the next step directly from the quote.")}</p>
     <ol className={s.list} aria-label={t("Pasos para cerrar la venta", "Steps to close the sale")}>{steps.map((x, i) =>
-      <li key={x.key} data-step={x.key} data-done={x.done}>
-        <strong>{x.done ? "✓" : `${i + 1}.`} {pick(lang, ...x.label)}</strong>{" "}
-        {!x.done && x.action && <Link className={s.button} href={x.action.href} data-next={next?.key === x.key || undefined}>{pick(lang, ...x.action.label)}</Link>}
+      <li key={x.key} data-step={x.key} data-done={x.done} data-next={next?.key === x.key || undefined} aria-current={next?.key === x.key ? "step" : undefined}>
+        <strong>{x.done ? "✓" : `${i + 1}.`} {pick(lang, ...x.label)}</strong>
+        {next?.key === x.key && <>
+          {x.key === "terms" && <>
+            <p className={s.muted}>{t("Completa los campos pendientes indicados abajo. La revisión anterior se conserva.", "Complete the missing fields listed below. The previous revision is preserved.")}</p>
+            {REVISABLE.includes(status) ? <a className={`${s.button} ${s.primary}`} href={editHref}>{t("Editar cotización (nueva revisión)", "Edit quote (new revision)")}</a>
+              : <a className={`${s.button} ${s.primary}`} href={`/admin/workspace/crm/quotes/new?lead=${quote.lead_id}`}>{t("Crear nueva cotización", "Create new quote")}</a>}
+          </>}
+          {target && transition && <>
+            {target === "internal_review" && <p className={s.muted}>{t("Envía esta versión a revisión. Aún no se comparte con el cliente.", "Submit this version for review. It is not shared with the client yet.")}</p>}
+            {target === "approved" && <p className={s.muted}>{t("Confirma que los servicios, precios y condiciones de esta versión son correctos.", "Confirm the services, prices and terms of this version are correct.")}</p>}
+            {target === "sent" && <p className={s.muted}>{t("Registra un envío que ya realizaste. Esta acción no envía ningún correo ni abre el PDF.", "Record a send you already made. This action does not send an e-mail or open the PDF.")}</p>}
+            {target === "accepted" && <p className={s.muted}>{t("Registra una aceptación real de la versión enviada. Incluye quién, cuándo, cómo y dónde está la evidencia.", "Record actual acceptance of the sent version. Include who, when, how, and where the evidence is stored.")}</p>}
+            <form action={transitionQuote} data-path-transition={target}>
+              <input type="hidden" name="quote_id" value={quote.id} />
+              <input type="hidden" name="expected_version" value={quote.version} />
+              <input type="hidden" name="to" value={target} />
+              {NOTE_REQUIRED.includes(target) && transition.note && <label className={s.field}>{pick(lang, ...transition.note)}
+                <textarea name="note" required minLength={8} maxLength={1000} rows={2} />
+              </label>}
+              <button type="submit" className={`${s.button} ${s.primary}`}>{pick(lang, ...transition.label)}</button>
+            </form>
+          </>}
+          {x.key === "contract" && <a className={`${s.button} ${s.primary}`} href={contractHref}>{t("Abrir contrato de la oportunidad", "Open the opportunity agreement")}</a>}
+        </>}
+        {!x.done && next?.key !== x.key && <small className={s.muted}>{t("Pendiente del paso anterior", "Waiting for the previous step")}</small>}
       </li>)}</ol>
     <p className={s.muted}>{t("Nada se marca como aceptado ni firmado automáticamente: cada paso lo registra un owner con su evidencia.", "Nothing is marked accepted or signed automatically: an owner records each step with its evidence.")}</p>
     <p className={s.muted}>{t("Revisión final. La venta se registrará exactamente con estos términos; no se vuelve a escribir nada.", "Final review. The sale is registered with exactly these terms; nothing is typed again.")}</p>
