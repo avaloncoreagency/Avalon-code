@@ -10,7 +10,7 @@ import { transitionQuote } from "@/app/admin/workspace/crm/quotes/actions";
 import { closeSaleFromQuote } from "@/app/admin/workspace/crm/sales/actions";
 import s from "./sales.module.css";
 import g from "./quote-path.module.css";
-import { PathEvidence, PathSubmit } from "./quote-path-controls";
+import { PathEvidence, PathResume, PathSubmit } from "./quote-path-controls";
 
 const SETTLE: Record<string, [string, string]> = { weekly: ["Semanal", "Weekly"], biweekly: ["Quincenal", "Biweekly"], monthly: ["Mensual", "Monthly"], quarterly: ["Trimestral", "Quarterly"] };
 const MODEL: Record<string, [string, string]> = { fixed: ["Precio fijo", "Fixed price"], monthly: ["Suscripción", "Subscription"], commission: ["Variable (porcentaje / comisión)", "Variable (percentage / commission)"], hybrid: ["Híbrido", "Hybrid"] };
@@ -24,8 +24,8 @@ const CLOSE_ERRORS: Record<string, [string, string]> = {
  * "Cerrar venta" on the accepted quote: the final review of everything the client accepted, the blockers that still
  * prevent closing, and the single action that registers the sale with exactly these terms (crm_quote_close_sale).
  */
-export async function QuoteClosePanel({ db, lang, quote, content, closeError }: {
-  db: SupabaseClient; lang: Lang; content: QuoteContent; closeError?: string | null;
+export async function QuoteClosePanel({ db, lang, quote, content, closeError, resume = false }: {
+  db: SupabaseClient; lang: Lang; content: QuoteContent; closeError?: string | null; resume?: boolean;
   quote: { id: string; status: string; current_version: number; version: number; lead_id: string; client_id?: string | null; valid_until: string; accepted_at: string | null; quote_number: string };
 }) {
   const t = (es: string, en: string) => pick(lang, es, en);
@@ -99,9 +99,10 @@ export async function QuoteClosePanel({ db, lang, quote, content, closeError }: 
       </li>)}</ol>
     {errText && <p role="alert" className={s.flash} data-tone="error">{pick(lang, ...errText)}</p>}
     {lookupFailed && <p role="alert" className={g.notice}>{t("No se pudo comprobar todo el expediente. Recarga antes de cerrar la venta.", "The complete record could not be checked. Reload before closing the sale.")}</p>}
+    <PathResume resume={resume} revision={quote.version} status={status} />
     <div className={g.active} data-path-active={next?.key ?? "close"}>
       <p className={g.kicker}>{next ? `${t("Paso", "Step")} ${steps.indexOf(next)+1} / ${steps.length}` : t("Confirmación final", "Final confirmation")}</p>
-      <h3>{activeTitle}</h3>
+      <h3 id="quote-path-current" tabIndex={-1}>{activeTitle}</h3>
       {next?.key === "terms" && <>
         <p className={g.hint}>{t("Resuelve solo lo que falta. Al editar se conserva la versión anterior y se vuelve a revisar la nueva.", "Resolve only what is missing. Editing preserves the previous version and requires review of the new one.")}</p>
         <ul className={s.list} aria-label={t("Condiciones pendientes", "Missing terms")}>{termBlockers.map((b,i) =>
