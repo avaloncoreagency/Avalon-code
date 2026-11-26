@@ -220,9 +220,22 @@ begin
   foreach t in array array['crm_contract_term_policies', 'crm_contract_term_policy_approvals', 'crm_contract_terms',
     'crm_service_catalog_versions', 'crm_subscriptions', 'crm_subscription_periods', 'crm_subscription_events'] loop
     execute format('alter table public.%I enable row level security', t);
-    execute format('revoke all on public.%I from public, anon, authenticated', t);
+    execute format('revoke all on public.%I from anon', t);
+    execute format('revoke all on public.%I from public, authenticated', t);
     execute format('grant select on public.%I to authenticated', t);
     execute format('create policy %I on public.%I for select to authenticated using ((select crm_private.is_owner()))', t || '_owner_read', t);
+  end loop;
+end $$;
+
+-- Same finite-money rule as every other numeric column (20261123140000): NaN and ±Infinity are refused.
+do $$
+declare r record;
+begin
+  for r in select * from (values ('crm_service_catalog', 'annual_discount_pct'), ('crm_service_catalog', 'max_discount_pct'),
+      ('crm_subscriptions', 'amount'), ('crm_subscriptions', 'included_usage'), ('crm_subscription_periods', 'amount'),
+      ('crm_subscription_periods', 'usage')) v(t, c) loop
+    execute format('alter table public.%I add constraint %I check (%I not in (''NaN''::numeric, ''Infinity''::numeric, ''-Infinity''::numeric))',
+      r.t, r.t || '_' || r.c || '_finite', r.c);
   end loop;
 end $$;
 

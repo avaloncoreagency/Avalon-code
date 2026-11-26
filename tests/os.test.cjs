@@ -146,7 +146,10 @@ test('every module server action re-verifies the owner before touching data', ()
     // Sales Pro schedule/refund/chargeback (20261123150000): SECURITY DEFINER, raise unless auth.uid() is an owner WITH
     // finance access, validate money in SQL (exact total, caps, verified-only refunds, idempotency, optimistic version),
     // no direct DML grants on the new tables (tests/sales-schedule.database.cjs).
-    const REVIEWED_RPCS = new Set(['crm_quote_delete', 'crm_quote_close_sale', 'crm_sale_settlement_record', 'crm_sale_settlement_transition', 'crm_sale_schedule_set', 'crm_payment_refund', 'crm_chargeback_resolve', 'crm_quote_create', 'crm_quote_revise', 'crm_quote_transition', 'crm_confirm_sale', 'crm_record_sale_failure', 'crm_owner_directory', 'os_project_restore_version', 'os_code_review', 'crm_assessment_save', 'crm_lead_duplicate_candidates', 'crm_attribution_record', 'crm_attribution_transition', 'crm_attribution_advance', 'crm_register_client_with_opportunity', 'crm_ensure_client_opportunity', 'crm_register_client_with_opportunity', 'crm_ensure_client_opportunity']);
+    const REVIEWED_RPCS = new Set(['crm_quote_delete', 'crm_quote_close_sale', 'crm_sale_settlement_record', 'crm_sale_settlement_transition', 'crm_sale_schedule_set', 'crm_payment_refund', 'crm_chargeback_resolve', 'crm_quote_create', 'crm_quote_revise', 'crm_quote_transition', 'crm_confirm_sale', 'crm_record_sale_failure', 'crm_owner_directory', 'os_project_restore_version', 'os_code_review', 'crm_assessment_save', 'crm_lead_duplicate_candidates', 'crm_attribution_record', 'crm_attribution_transition', 'crm_attribution_advance', 'crm_register_client_with_opportunity', 'crm_ensure_client_opportunity', 'crm_register_client_with_opportunity', 'crm_ensure_client_opportunity',
+      // AVL-CLAUDE-CONVERGENCE-001: owner-gated in SQL (is_owner), covered by tests/convergence.database.cjs.
+      'crm_subscription_open', 'crm_subscription_activate', 'crm_subscription_renew', 'crm_subscription_suspend', 'crm_subscription_reactivate',
+      'crm_subscription_cancel', 'crm_subscription_record_usage', 'crm_subscription_link_invoice']);
     for (const call of text.matchAll(/\.rpc\(\s*(['"])?([\w]*)\1?/g)) {
       assert.ok(REVIEWED_RPCS.has(call[2]), `${file} calls unreviewed RPC ${call[2] || '(dynamic)'}`);
     }
