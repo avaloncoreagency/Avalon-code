@@ -3,6 +3,7 @@
 // Runs with SALES_SCHEDULE_BROWSER=1. Chromium emulation at 1440 and 390 px — NOT physical Safari.
 // Flow: confirmed sale → schedule created in the UI (exact total) → receipt allocated to an installment → payment
 // verified in the UI → partial refund → chargeback opened (status "disputed") and resolved → list filters and KPI.
+const approveFixtureOffers = require('./helpers/approve-fixture-offers.cjs');
 const { test } = require('node:test'), assert = require('node:assert/strict'), fs = require('node:fs');
 const { spawn } = require('node:child_process'), { createServer } = require('node:http');
 const verifiedContract = require('./helpers/verified-contract.cjs');
@@ -23,6 +24,7 @@ test('Sales Pro collections: schedule, allocation, verification, refund and char
     if (f.startsWith('20261102053022')) await db.query("insert into agency_memberships(user_id,role) values($1,'owner')", [OWNER]);
   }
   await db.query('insert into crm_private.finance_access(user_id) values($1)', [OWNER]);
+  await approveFixtureOffers(db, OWNER, [['desarrollo-web', 1000]]);
   await db.exec(`set request.jwt.claim.sub='${OWNER}'; set role authenticated;`);
   const one = async (q, p) => (await db.query(q, p)).rows[0];
   const sale = async (name, n, daysAgo) => {

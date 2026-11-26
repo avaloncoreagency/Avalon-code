@@ -2,6 +2,7 @@
 // Production Next.js build → test REST bridge → isolated PGlite running every migration
 // with real RLS. Requires `npm run build` first and NODE_PATH=tests/qa/node_modules.
 // SALES_BROWSER=1 runs the Playwright part (CHROME_PATH optional).
+const approveFixtureOffers = require('./helpers/approve-fixture-offers.cjs');
 const { test } = require('node:test');
 const assert = require('node:assert/strict');
 const { spawn } = require('node:child_process');
@@ -46,6 +47,7 @@ test('Nova Restaurant through the real app: one form, three departments, no dupl
     await db.exec(fs.readFileSync(`supabase/migrations/${file}`, 'utf8'));
     if (file.startsWith('20261102053022')) await db.exec(`insert into agency_memberships(user_id,role) values('${MIGUEL}','owner'),('${SAMUEL}','owner');`);
   }
+  await approveFixtureOffers(db, MIGUEL, [['desarrollo-web', 2000], ['recepcionista-ia', 1500], ['marketing-mensual', 700]]);
   const users = new Map();
   const session = (id, email) => {
     const user = { id, email, aud: 'authenticated', role: 'authenticated', app_metadata: { provider: 'email' }, user_metadata: {}, identities: [], created_at: '2026-01-01T00:00:00Z' };

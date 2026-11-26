@@ -2,6 +2,7 @@
 // Correctness is asserted; timings are MEASURED and printed only (no invented thresholds). PGlite is not hosted Supabase:
 // network latency, PostgREST serialisation and RLS caching in production are NOT represented.
 // Author: Claude Code (implementation owner) — not an independent QA result.
+const approveFixtureOffers = require('./helpers/approve-fixture-offers.cjs');
 const { test } = require('node:test');
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
@@ -23,6 +24,7 @@ test('capacity 1/5/10/20/25/50 clients: Clients 360 list, search, pagination, le
   const as = u => db.exec(`reset role;set request.jwt.claim.sub='${u}';set role authenticated;`);
   const one = async (q, p) => (await db.query(q, p)).rows[0];
   const time = async (fn) => { const s = performance.now(); const r = await fn(); return [r, Math.round((performance.now() - s) * 10) / 10]; };
+  await approveFixtureOffers(db, MIGUEL, [['desarrollo-web', 1000]]);
   await as(MIGUEL);
 
   let created = 0;

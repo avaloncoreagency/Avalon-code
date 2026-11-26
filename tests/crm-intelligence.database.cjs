@@ -2,6 +2,7 @@
 // Covers the mandatory scenarios that live in the database: two owners sharing one lead, partial diagnosis, per-question
 // conflict protection, history, reassignment, the 13 existing stages, commercial terms, the contract state machine and the
 // won/active-client gate, plus negative security cases (non-owner, anon, forged transitions, commission edits).
+const approveFixtureOffers = require('./helpers/approve-fixture-offers.cjs');
 const { test } = require('node:test');
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
@@ -23,6 +24,7 @@ async function setup() {
     await db.exec(fs.readFileSync('supabase/migrations/' + file, 'utf8'));
     if (file.startsWith('20261102053022')) await db.exec(`insert into agency_memberships values('${MIGUEL}','owner'),('${SAMUEL}','owner'),('${STRANGER}','operator')`);
   }
+  await approveFixtureOffers(db, MIGUEL, [['recepcionista-ia', 900]]);
   const as = async (role, user = '') => db.exec(`reset role;set request.jwt.claim.role='${role}';set request.jwt.claim.sub='${user}';set role ${role}`);
   const q = async (sql, p) => (await db.query(sql, p)).rows;
   const one = async (sql, p) => (await q(sql, p))[0];
