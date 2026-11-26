@@ -1,10 +1,23 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useFormStatus } from "react-dom";
 import { pick, type Lang } from "@/lib/i18n";
 import s from "./sales.module.css";
 import g from "./quote-path.module.css";
+
+/** Return keyboard and visual focus to the actual next stage after a persisted state transition. */
+export function PathResume({ resume, revision, status }: { resume: boolean; revision: number; status: string }) {
+  useEffect(() => {
+    if (!resume) return;
+    const heading = document.getElementById("quote-path-current");
+    if (heading) {
+      heading.focus({ preventScroll: true });
+      heading.scrollIntoView({ block: "nearest", behavior: "auto" });
+    }
+  }, [resume, revision, status]);
+  return null;
+}
 
 export function PathSubmit({ lang, label, disabled = false }: { lang: Lang; label: string; disabled?: boolean }) {
   const { pending } = useFormStatus();
@@ -24,6 +37,7 @@ export function PathEvidence({ lang, kind, label, action, quoteId, version, disa
   const [person, setPerson] = useState("");
   const [evidence, setEvidence] = useState("");
   const acceptance = kind === "accepted";
+  const filled = Boolean(channel && date && (!acceptance || person.trim()) && evidence.trim().length >= 8);
   const channels = [
     ["email", "Correo electrónico", "E-mail"],
     ["whatsapp", "WhatsApp", "WhatsApp"],
@@ -54,13 +68,13 @@ export function PathEvidence({ lang, kind, label, action, quoteId, version, disa
       </label>
     </div>
     {acceptance && <label className={s.field}>{t("Persona que aceptó", "Person who accepted")}
-      <input name="path_person" value={person} onChange={e => setPerson(e.target.value)} maxLength={120} required pattern=".*\\S.*" placeholder={t("Nombre del contacto autorizado", "Authorized contact name")} />
+      <input name="path_person" value={person} onChange={e => setPerson(e.target.value)} maxLength={120} required pattern={".*\\S.*"} placeholder={t("Nombre del contacto autorizado", "Authorized contact name")} />
     </label>}
     <label className={s.field}>{t("Referencia o evidencia", "Reference or evidence")}
       <textarea name="path_evidence" required minLength={8} maxLength={650} rows={3} value={evidence} onChange={e => setEvidence(e.target.value)}
         placeholder={acceptance ? t("Ej.: respuesta de aceptación guardada en el expediente.", "E.g. acceptance reply saved in the client record.") : t("Ej.: mensaje enviado y guardado en el expediente.", "E.g. sent message saved in the client record.")} />
     </label>
     <p className={g.hint}>{acceptance ? t("Registra únicamente una aceptación real de esta revisión.", "Only record actual acceptance of this revision.") : t("Registrar un envío no envía mensajes ni correos.", "Recording a send does not send messages or e-mails.")}</p>
-    <PathSubmit lang={lang} label={label} disabled={disabled} />
+    <PathSubmit lang={lang} label={label} disabled={disabled || !filled} />
   </form>;
 }
