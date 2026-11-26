@@ -621,7 +621,10 @@ begin
       when 'draft' then 'quote_edit' when 'internal_review' then 'quote_review' when 'sent' then 'quote_send' when 'accepted' then 'quote_accept' else 'denied' end)
     then raise exception 'crm_forbidden' using errcode = '42501'; end if;
   if p_to in ('approved','sent','accepted') then
-    perform crm_private.assert_approved_offer(line ->> 'code') from jsonb_array_elements(cur.content -> 'lines') line;
+    -- Preserve owner-created custom quote-only concepts. They still cannot become a sale without a catalog mapping.
+    -- A seller cannot approve/send/accept a custom concept; every seller line needs an approved offer.
+    perform crm_private.assert_approved_offer(line ->> 'code') from jsonb_array_elements(cur.content -> 'lines') line
+      where line ->> 'code' is not null or not crm_private.is_owner();
   end if;
   if p_to='approved' then
     insert into crm_private.quote_commercial_approvals(revision_id,digest,offers,approved_by)
