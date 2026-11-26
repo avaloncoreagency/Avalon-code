@@ -4,6 +4,7 @@ const fs=require('node:fs');
 const crypto=require('node:crypto');
 const {PGlite}=require('@electric-sql/pglite');
 const contract=require('../helpers/verified-contract.cjs');
+const approveFixtureOffers=require('../helpers/approve-fixture-offers.cjs');
 const A='00000000-0000-4000-8000-0000000000a1', B='00000000-0000-4000-8000-0000000000b2', OUT='00000000-0000-4000-8000-0000000000c3';
 async function setup(t){
  const db=new PGlite();t.after(()=>db.close());
@@ -20,6 +21,7 @@ async function audit(db){const results=await db.exec(diagnostic);return results.
 test('read-only diagnostics distinguish empty coverage, valid records and injected cross-client corruption', {timeout:180000}, async t=>{
  const {db,as,one}=await setup(t);
  const empty=await audit(db);assert.equal(empty.coverage.sales,0);assert.ok(empty.checks.every(c=>c.count===0));
+ await approveFixtureOffers(db,A,[['desarrollo-web',100]]);
  await as(A);
  const lead=(await one("insert into crm_leads(company,source,owner_id) values('Synthetic QA','manual',$1) returning id",[A])).id;
  await contract(db,lead);

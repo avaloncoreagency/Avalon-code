@@ -88,6 +88,13 @@ export default async function Client360({ params, searchParams }: { params: Prom
     run<ProjectRow[]>(supabase.from("os_projects").select(PROJECT_COLUMNS)
       .is("client_id", null).neq("status", "archived").order("updated_at", { ascending: false }).limit(80)),
   ]);
+  // Contracted recurring products (AVL-CLAUDE-CONVERGENCE-001). Amounts only for finance-permitted owners; a missing
+  // migration in this environment shows nothing instead of failing the page.
+  const subscriptions = financePermitted && c ? ((await supabase.from("crm_subscriptions")
+    .select("id,status,period,amount,currency,current_period_end,cancel_at_period_end,ended_on,crm_service_catalog(name,name_en)")
+    .eq("client_id", c.id).order("created_at", { ascending: false }).limit(50)).data ?? []) as unknown as
+    { id: string; status: string; period: string; amount: string; currency: string; current_period_end: string | null; cancel_at_period_end: boolean; ended_on: string | null;
+      crm_service_catalog: { name: string; name_en: string } | null }[] : [];
   // Totals: exact SQL aggregate when available; otherwise the fully paged rows (partial data is labelled partial).
   // A denied finance RPC is authoritative even if the user previously passed a capability check.
   const financeAllowed = financePermitted && financeResult?.allowed === true;
@@ -184,6 +191,15 @@ export default async function Client360({ params, searchParams }: { params: Prom
       <ClientWorkspace supabase={supabase} clientId={c.id} lang={lang} sales={sales.slice(0, SALES_SHOWN)}
         financeAllowed={financeAllowed} finance={finance} ledgerAvailable={ledger?.ok === true}
         />
+      {subscriptions.length > 0 && <section className={s.panel} aria-labelledby="client-subscriptions" data-client-subscriptions>
+        <header><h2 id="client-subscriptions">{pick(lang, "Productos recurrentes", "Recurring products")}</h2><Link href="/admin/workspace/crm/subscriptions">{pick(lang, "Gestionar suscripciones", "Manage subscriptions")}</Link></header>
+        <ul className={s.list}>{subscriptions.map(x => <li key={x.id}>
+          <strong>{(lang === "en" ? x.crm_service_catalog?.name_en : "") || x.crm_service_catalog?.name || "—"}</strong>
+          <span className={s.muted}>{money(lang, x.amount, x.currency)} / {x.period === "annual" ? pick(lang, "año", "year") : pick(lang, "mes", "month")} · <Tag lang={lang} value={x.status} />
+            {x.current_period_end && x.status === "active" ? ` · ${pick(lang, x.cancel_at_period_end ? "termina" : "período hasta", x.cancel_at_period_end ? "ends" : "period until")} ${formatDate(lang, x.current_period_end)}` : ""}
+            {x.ended_on ? ` · ${pick(lang, "finalizó", "ended")} ${formatDate(lang, x.ended_on)}` : ""}</span>
+        </li>)}</ul>
+      </section>}
       {alerts.length > 0 && <section className={s.panel} aria-labelledby="alerts"><h2 id="alerts">{pick(lang, "Alertas", "Alerts")}</h2><ul className={s.list}>{alerts.map(a => <li key={a.key} className={s.notice} data-severity="urgent"><Link href={a.href}>{a.text}</Link></li>)}</ul></section>}
 
       <section className={s.panel} aria-labelledby="projects"><header><h2 id="projects">{pick(lang, "Proyectos por departamento", "Projects by department")}</h2></header>
