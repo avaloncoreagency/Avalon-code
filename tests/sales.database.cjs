@@ -25,6 +25,7 @@ async function setup() {
   const as = user => db.exec(`reset role;set request.jwt.claim.sub='${user}';set role authenticated;`);
   const one = async (sql, params) => (await db.query(sql, params)).rows[0];
   const n = async (sql, params) => Number((await one(sql, params)).n);
+  await require('./helpers/approve-fixture-offers.cjs')(db, MIGUEL, [['desarrollo-web',2000],['recepcionista-ia',1500],['marketing-mensual',700],['crm-personalizado',1000],['generacion-leads',1000],['tienda-online',1000]]);
   return { db, as, one, n };
 }
 
@@ -163,7 +164,7 @@ test('validation failures roll back atomically and are recorded for diagnosis', 
   await as(MIGUEL);
   const bad = [
     [{ lines: [] }, /sale_invalid_lines/],
-    [{ lines: [{ service_code: 'no-existe', unit_price: '1' }] }, /sale_invalid_service/],
+    [{ lines: [{ service_code: 'no-existe', unit_price: '1' }] }, error => error.message === 'commercial_offer_not_approved' && error.code === '23514'],
     [{ lines: [{ service_code: 'desarrollo-web' }] }, /sale_missing_price/],
     [{ lines: [{ service_code: 'desarrollo-web', unit_price: '1e9' }] }, /sale_invalid_amount/],
     [{ lines: [{ service_code: 'desarrollo-web', unit_price: '100', discount: '200' }] }, /sale_invalid_discount/],

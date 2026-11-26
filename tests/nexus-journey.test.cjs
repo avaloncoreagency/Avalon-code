@@ -1,5 +1,5 @@
 const {test}=require('node:test');const assert=require('node:assert/strict');const fs=require('node:fs');const path=require('node:path');const ts=require('typescript');const React=require('react');const {renderToStaticMarkup}=require('react-dom/server');
-function load(file,overrides={},source) {const m={exports:{}};const code=ts.transpileModule(source??fs.readFileSync(file,'utf8'),{compilerOptions:{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2022,jsx:ts.JsxEmit.ReactJSX}}).outputText;new Function('require','module','exports',code)(name=>{if(name==='server-only')return {};if(name in overrides)return overrides[name];if(name.endsWith('.css'))return {__esModule:true,default:new Proxy({},{get:(_,p)=>String(p)})};if(name.startsWith('@/'))return load(path.join('src',name.slice(2))+'.ts',overrides);if(name.startsWith('.'))return load(path.resolve(path.dirname(file),name)+'.ts',overrides);return require(name);},m,m.exports);return m.exports;}
+function load(file,overrides={},source) {const m={exports:{}};const code=ts.transpileModule(source??fs.readFileSync(file,'utf8'),{fileName:file,compilerOptions:{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2022,jsx:ts.JsxEmit.ReactJSX}}).outputText;new Function('require','module','exports',code)(name=>{if(name==='server-only')return {};if(name in overrides)return overrides[name];if(name.endsWith('.css'))return {__esModule:true,default:new Proxy({},{get:(_,p)=>String(p)})};if(name.startsWith('@/'))return load(path.join('src',name.slice(2))+'.ts',overrides);if(name.startsWith('.'))return load(path.resolve(path.dirname(file),name)+'.ts',overrides);return require(name);},m,m.exports);return m.exports;}
 const {journeyAction}=load('src/lib/crm/commercial-journey.ts');const {activeFollowup,agendaIncomplete}=load('src/lib/crm/operational-agenda.ts');
 test('journey recommendations preserve separate evidence, multiple accepted quotes, losses and partial failure',()=>{
  const base={stage:'new',diagnosis:'pending',unavailable:false,sales:0,quotes:0,accepted:0,verifiedContract:false};
@@ -21,12 +21,12 @@ test('real component uses exact canonical relations and server counts above the 
  for(const c of calls.filter(x=>x.table==='crm_quotes')){assert.ok(c.filters.some(x=>x[0]==='eq'&&x[1]==='lead_id'&&x[2]===lead.id));assert.ok(c.filters.some(x=>x[0]==='is'&&x[1]==='deleted_at'&&x[2]===null));}
  assert.match((await renderJourney('en',true)).html,/Partially available/);
 });
-if(process.env.NEXUS_BROWSER==='1')test('isolated rendered journey ES/EN across six widths (Chromium, not physical Safari)',async()=>{
- const {chromium}=require('playwright');const browser=await chromium.launch({headless:true});try{for(const lang of ['es','en'])for(const width of [320,375,390,430,768,1440]){const page=await browser.newPage({viewport:{width,height:900}});const {html}=await renderJourney(lang);await page.setContent('<html><head><style>body{font-family:system-ui,sans-serif;margin:12px;background:#101522;color:white}'+fs.readFileSync('src/components/crm/commercial-journey.module.css','utf8')+'</style></head><body>'+html+'</body></html>');assert.equal(await page.getByRole('heading',{name:lang==='es'?'Camino comercial':'Commercial journey'}).count(),1);assert.ok(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+1));await page.locator('summary').click();assert.ok(await page.getByRole('link',{name:'QA-ONLY'}).isVisible());const dir=process.env.NEXUS_EVIDENCE_DIR;if(dir){fs.mkdirSync(dir,{recursive:true});await page.screenshot({path:path.join(dir,`journey-${lang}-${width}.png`),fullPage:true});}await page.close();}}finally{await browser.close();}
+if(process.env.NEXUS_BROWSER==='1')test('isolated rendered journey ES/EN across seven widths (Chromium, not physical Safari)',async()=>{
+ const {chromium}=require('playwright');const browser=await chromium.launch({headless:true});try{for(const lang of ['es','en'])for(const width of [320,375,390,430,768,1024,1440]){const page=await browser.newPage({viewport:{width,height:900}});const {html}=await renderJourney(lang);await page.setContent('<html><head><style>body{font-family:system-ui,sans-serif;margin:12px;background:#101522;color:white}'+fs.readFileSync('src/components/crm/commercial-journey.module.css','utf8')+'</style></head><body>'+html+'</body></html>');assert.equal(await page.getByRole('heading',{name:lang==='es'?'Camino comercial':'Commercial journey'}).count(),1);assert.ok(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+1));await page.locator('summary').click();assert.ok(await page.getByRole('link',{name:'QA-ONLY'}).isVisible());const dir=process.env.NEXUS_EVIDENCE_DIR;if(dir){fs.mkdirSync(dir,{recursive:true});await page.screenshot({path:path.join(dir,`journey-${lang}-${width}.png`),fullPage:true});}await page.close();}}finally{await browser.close();}
 });
 
 async function calendarHtml(source,failed=false,denied=false,agendaPage=0,total){
- const db={from(table){let fields='';const filters=[];const chain=new Proxy({},{get:(_,method)=>method==='then'?(resolve)=>{let rows=table==='crm_stages'?[{id:'custom-closed'}]:table==='crm_leads'&&fields.includes('follow_up_at')?['new','lost','won','custom-closed'].map(stage=>({id:stage,company:'SYNTH-'+stage,stage_id:stage,follow_up_at:'2026-11-25T12:00:00Z',owner_id:lead.id})):[];for(const [op,key,value] of filters){if(op==='neq')rows=rows.filter(r=>r[key]!==value);if(op==='not'&&key==='stage_id')rows=rows.filter(r=>!['won','lost'].includes(r.stage_id));}resolve({data:failed&&table==='crm_leads'?null:rows,error:failed&&table==='crm_leads'?{code:'42501'}:null,count:table==='crm_leads'&&fields.includes('follow_up_at')?(total??rows.length):rows.length});}:(...args)=>{if(method==='select')fields=args[0];if(method==='range')assert.deepEqual(args,[agendaPage*50,agendaPage*50+49]);filters.push([method,...args]);return chain;}});return chain;}};
+ const db={from(table){let fields='';const filters=[];const chain=new Proxy({},{get:(_,method)=>method==='then'?(resolve)=>{let rows=table==='crm_stages'?[{id:'custom-closed'}]:table==='crm_leads'&&fields.includes('follow_up_at')?['new','lost','won','custom-closed'].map(stage=>({id:stage,company:'SYNTH-'+stage,stage_id:stage,follow_up_at:'2026-11-25T02:30:00Z',owner_id:lead.id})):[];for(const [op,key,value] of filters){if(op==='neq')rows=rows.filter(r=>r[key]!==value);if(op==='not'&&key==='stage_id')rows=rows.filter(r=>!['won','lost'].includes(r.stage_id));}resolve({data:failed&&table==='crm_leads'?null:rows,error:failed&&table==='crm_leads'?{code:'42501'}:null,count:table==='crm_leads'&&fields.includes('follow_up_at')?(total??rows.length):rows.length});}:(...args)=>{if(method==='select')fields=args[0];if(method==='range')assert.deepEqual(args,[agendaPage*50,agendaPage*50+49]);filters.push([method,...args]);return chain;}});return chain;}};
  const Wrapper=({children})=>React.createElement('div',{},children);
  const page=load('src/app/admin/workspace/crm/calendar/page.tsx',{'next/link':{default:({href,children})=>React.createElement('a',{href},children)},'@/components/suite/suite':{Suite:Wrapper},'@/components/crm/shared-calendar':{SharedCalendar:()=>null},'@/components/crm/navigation':{CrmNavigation:()=>null},'@/lib/auth/session':{requireOwner:async()=>{if(denied)throw Error('AUTH_DENIED');return {supabase:db,userId:lead.id};}},'@/lib/i18n-server':{getLang:async()=> 'en'},'@/lib/identity/directory':{loadOwnerDirectory:async()=>({data:[],error:null})},'@/components/sales/ui':{OpsLinks:()=>null,Tag:Wrapper,ownerName:()=> 'Synthetic owner',UUID_RE:/^[0-9a-f-]{36}$/,q:(p,k)=>p[k]??null}},source);
  return renderToStaticMarkup(await page.default({searchParams:Promise.resolve({agenda_page:String(agendaPage),date:'2026-11-24',view:'week'})}));
@@ -48,4 +48,48 @@ test('Sales Center gives the canonical database query the search term before fet
 test('calendar 49/50/51 and later pages preserve date/view and stable server ranges',async()=>{
  for(const total of [49,50,51])assert.equal((await calendarHtml(undefined,false,false,0,total)).includes('>Next</a>'),total>50);
  const last=await calendarHtml(undefined,false,false,4,201);assert.ok(!last.includes('>Next</a>'));assert.match(last,/agenda_page=3/);assert.match(last,/date=2026-11-24/);assert.match(last,/view=week/);
+});
+
+test('agenda groups an evening Eastern follow-up under its local day and avoids empty claims on read failure', async () => {
+ const evening = await calendarHtml();
+ assert.match(evening, /<h3>Nov 24, 2026<\/h3>/);
+ assert.doesNotMatch(await calendarHtml(undefined, true), /No dates in this period/);
+});
+
+test('dashboard counts the whole project portfolio and reports unavailable operations independently', async () => {
+  const projects = Array.from({ length: 501 }, (_, i) => ({
+    id: String(i), module: 'website', name: 'Synthetic site', status: 'active',
+  }));
+  function query(table) {
+    let rows = table === 'os_projects' ? projects : [];
+    let limit = Infinity;
+    let counted = false;
+    const chain = {
+      select(_fields, options) { counted = options?.count === 'exact'; return chain; },
+      eq(key, value) { rows = rows.filter(row => row[key] === value); return chain; },
+      neq(key, value) { rows = rows.filter(row => row[key] !== value); return chain; },
+      range(start, end) { limit = end - start + 1; return chain; },
+      limit(size) { limit = size; return chain; },
+      not() { return chain; }, order() { return chain; }, lte() { return chain; }, lt() { return chain; },
+      then(resolve) {
+        if (['os_marketing_items', 'os_audit'].includes(table)) return resolve({ data: null, error: { code: 'unavailable' } });
+        return resolve({ data: rows.slice(0, limit), error: null, count: counted ? rows.length : null });
+      },
+    };
+    return chain;
+  }
+  const Wrapper = ({children}) => React.createElement('div', {}, children);
+  const db = { from: query, rpc: name => Promise.resolve({data:name === 'crm_sales_metrics' ? [] : null,error:null}) };
+  const page = load('src/app/admin/dashboard/page.tsx', {
+    'next/link': {default: Wrapper},
+    '@/components/suite/suite': {Suite: Wrapper},
+    '@/components/suite/icons': {Icon: () => null},
+    '@/components/suite/module-cards': {ModuleCards: ({stats}) => React.createElement('p', {}, 'websites=' + stats.website.value)},
+    '@/lib/auth/session': { requireOwner: async () => ({supabase:db,user:{},userId:lead.id}), displayName: () => 'Owner' },
+    '@/lib/i18n-server': {getLang: async () => 'en'},
+  });
+  const html = renderToStaticMarkup(await page.default());
+  assert.match(html, /501 total \(not archived\)/);
+  assert.match(html, /websites=501/);
+  assert.doesNotMatch(html, /No activity recorded yet|Nothing planned for the next 14 days/);
 });

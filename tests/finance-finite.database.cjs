@@ -1,6 +1,7 @@
 // Finance P0 (PR #322 follow-up): no money column or money RPC can store NaN or ±Infinity.
 // PostgreSQL numeric accepts 'NaN' and orders it ABOVE every number, so `amount > 0` checks alone let it through.
 // Synthetic PGlite only; no network, no real data.
+const approveFixtureOffers = require('./helpers/approve-fixture-offers.cjs');
 const { test } = require('node:test');
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
@@ -17,6 +18,7 @@ async function setup() {
     await db.exec(fs.readFileSync('supabase/migrations/' + f, 'utf8'));
     if (f.startsWith('20261102053022')) await db.query("insert into agency_memberships values($1,'owner')", [OWNER]);
   }
+  await approveFixtureOffers(db, OWNER, [['desarrollo-web', 1000]]);
   await db.query('insert into crm_private.finance_access(user_id) values($1)', [OWNER]);
   await db.exec(`set request.jwt.claim.sub='${OWNER}'; set role authenticated;`);
   const one = async (q, p) => (await db.query(q, p)).rows[0];
@@ -74,4 +76,21 @@ test('sale → invoice → payment → commission: NaN and Infinity are refused 
   const inv = (await one('select crm_invoice_record($1::jsonb) r', [JSON.stringify({ sale_id: sale.sale_id, number: 'F-0001', amount: '1000.00' })])).r;
   const pay = await one("insert into crm_payments(sale_id, amount, currency, received_on, method, reference, invoice_id) values($1, 999.99, 'USD', current_date, 'transfer', 'OK-REF-1', $2) returning amount::text a", [sale.sale_id, inv.invoice_id]);
   assert.equal(pay.a, '999.99');
+});
+
+test('deletion review snapshots reject each non-finite total before accepting a row', async t => {
+  const { db } = await setup();
+  t.after(() => db.close());
+  await db.exec('reset role');
+  // Constraint checks precede foreign keys. All identifiers here are disposable.
+  for (const column of ['one_time_total', 'monthly_total']) {
+    for (const value of ['NaN', 'Infinity', '-Infinity']) {
+      const amounts = column === 'one_time_total' ? [value, '0'] : ['0', value];
+      await assert.rejects(db.query(`
+        insert into crm_quote_deletion_requests
+          (quote_id,lead_id,requested_by,revision,expected_version,currency,reason,one_time_total,monthly_total)
+        values (gen_random_uuid(),gen_random_uuid(),$1,1,1,'USD','Synthetic review',$2,$3)
+      `, [OWNER, ...amounts]), { code: '23514', constraint: 'crm_quote_deletion_requests_' + column + '_finite' });
+    }
+  }
 });

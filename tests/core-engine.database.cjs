@@ -2,6 +2,7 @@
 // Covers: catalog offer approval/versioning, active catalog, documented invoices, payment reconciliation, commission
 // ledger, finance ledger exactness, project→client lock, cross-client documents, third-party rejection and the
 // synthetic barbershop pilot (B2B only) end to end.
+const approveFixtureOffers = require('./helpers/approve-fixture-offers.cjs');
 const { test } = require('node:test');
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
@@ -67,7 +68,7 @@ test('catalog: offers start as drafts, approval is attributable, edits reopen a 
   assert.deepEqual(active, ['automatizacion', 'crm-personalizado', 'desarrollo-web', 'generacion-leads', 'marketing-mensual', 'tienda-online']);
   const lead = await newLead(db, one, 'Recepción Sintética', 'r@example.invalid');
   await verifiedContract(db, lead);
-  await assert.rejects(sellTo(db, one, lead, 'Recepción Sintética', uuid(1), [{ service_code: 'recepcionista-ia', unit_price: '900' }]), /service|catalog|inactive|not_found|invalid/i);
+  await assert.rejects(sellTo(db, one, lead, 'Recepción Sintética', uuid(1), [{ service_code: 'recepcionista-ia', unit_price: '900' }]), { message: 'commercial_offer_not_approved', code: '23514' });
   // A non-owner member cannot change the catalog.
   await as(STRANGER);
   const r = await db.query("update crm_service_catalog set suggested_price=1 where code='automatizacion' returning id");
@@ -78,6 +79,7 @@ test('barbershop pilot (synthetic, B2B): diagnosis → proposal → contract →
   const { db, as, one, n } = await setup();
   t.after(() => db.close());
   await as(MIGUEL);
+  await approveFixtureOffers(db, MIGUEL, [['desarrollo-web', 1500], ['crm-personalizado', 900.10], ['marketing-mensual', 300]]);
   const company = 'Barbería Piloto Sintética';
   const lead = await newLead(db, one, company, 'piloto@barberia.example.invalid');
   for (const stage of ['contacted', 'qualified', 'proposal']) await db.query('update crm_leads set stage_id=$2 where id=$1', [lead, stage]);
@@ -175,6 +177,7 @@ test('cross-client protection: documents and projects cannot be attached to anot
   const { db, as, one } = await setup();
   t.after(() => db.close());
   await as(MIGUEL);
+  await approveFixtureOffers(db, MIGUEL, [['desarrollo-web', 1000]]);
   const a = await newLead(db, one, 'Cliente A Sintético', 'a@example.invalid');
   const b = await newLead(db, one, 'Cliente B Sintético', 'b@example.invalid');
   await verifiedContract(db, a); await verifiedContract(db, b);

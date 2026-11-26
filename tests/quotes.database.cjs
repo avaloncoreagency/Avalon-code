@@ -1,4 +1,5 @@
 // Quoting Studio on real PostgreSQL (PGlite). Synthetic data only; no external APIs, no production access.
+const approveFixtureOffers = require('./helpers/approve-fixture-offers.cjs');
 const { test } = require("node:test");
 const assert = require("node:assert/strict");
 const fs = require("node:fs");
@@ -18,6 +19,7 @@ async function setup() {
     if (file.startsWith("20261102053022"))
       await db.exec(`insert into agency_memberships values ('${OWNER}','owner'),('${SECOND}','owner'),('${OUTSIDER}','operator');`);
   }
+  await approveFixtureOffers(db, OWNER, [['desarrollo-web', 750.25]]);
   const as = id => db.exec(`reset role;set request.jwt.claim.sub='${id}';set role authenticated;`);
   const one = async (sql, params = []) => (await db.query(sql, params)).rows[0];
   return { db, as, one };

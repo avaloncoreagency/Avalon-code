@@ -3,6 +3,7 @@
 // draft product → project → invoice/finance, with two owners (Miguel, Samuel) and an unauthorized member.
 // Gaps it adds over backbone-e2e / core-engine: public intake + message review + quote + contract gate in ONE chain.
 // Author: Claude Code (implementation owner) — NOT an independent QA result; Codex should re-run/extend it.
+const approveFixtureOffers = require('./helpers/approve-fixture-offers.cjs');
 const { test } = require('node:test');
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
@@ -22,6 +23,7 @@ async function setup() {
     await db.exec(fs.readFileSync('supabase/migrations/' + f, 'utf8'));
     if (f.startsWith('20261102053022')) await db.exec(`insert into agency_memberships values('${MIGUEL}','owner'),('${SAMUEL}','owner'),('${STRANGER}','operator');`);
   }
+  await approveFixtureOffers(db, MIGUEL, [['desarrollo-web', 2000]]);
   const as = u => db.exec(`reset role;set request.jwt.claim.sub='${u}';set role authenticated;`);
   const anon = () => db.exec('reset role; set role anon;');
   const one = async (q, p) => (await db.query(q, p)).rows[0];

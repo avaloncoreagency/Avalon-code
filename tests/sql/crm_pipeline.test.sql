@@ -47,6 +47,8 @@ begin
   assert (select count(*) from public.crm_clients)=1 and (select count(*) from public.crm_conversions where lead_id=l)=1,'one client, one decision';
   assert (select status from public.crm_clients where id=c)='active' and (select origin_lead_id from public.crm_clients where id=c)=l,'client linked to its origin lead';
   assert (select count(*) from public.crm_contacts where client_id=c and is_primary)=1,'lead contact becomes primary contact';
+  update public.crm_service_catalog set suggested_price=1200 where code='desarrollo-web';
+  update public.crm_service_catalog set offer_status='approved' where code='desarrollo-web';
   -- A sale from the converted lead reuses the same client: one client system, no duplicates.
   assert (public.crm_confirm_sale(jsonb_build_object('idempotency_key','99999999-9999-4999-8999-999999999999','lead_id',l,
     'lines',jsonb_build_array(jsonb_build_object('service_code','desarrollo-web','unit_price','1200'))))->>'client_id')::uuid=c,'sale reuses converted client';

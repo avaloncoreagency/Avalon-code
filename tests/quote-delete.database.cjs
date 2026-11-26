@@ -1,4 +1,5 @@
 // QUOTES-MANAGEMENT-001 on real PostgreSQL (PGlite), synthetic data: owner-only logical deletion with dependency guard.
+const approveFixtureOffers = require('./helpers/approve-fixture-offers.cjs');
 const { test } = require('node:test');
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
@@ -16,6 +17,7 @@ test('quote deletion: owners only, confirmed by version, logical, frozen, refuse
     if (f.startsWith('20261102053022')) await db.query("insert into agency_memberships(user_id,role) values($1,'owner'),($2,'owner'),($3,'operator')", [OWNER, OWNER2, EMP]);
   }
   await db.query('insert into crm_private.finance_access(user_id) values($1)', [OWNER]);
+  await approveFixtureOffers(db, OWNER, [['desarrollo-web', 500]]);
   const as = u => db.exec(`reset role; set request.jwt.claim.sub='${u}'; set role authenticated;`);
   const one = async (q, p) => (await db.query(q, p)).rows[0];
   const content = c => ({ schemaVersion: 1, lang: 'es', currency: 'USD', title: `Propuesta ${c}`, issueDate: '2026-11-24', validUntil: '2099-12-31',

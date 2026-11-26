@@ -49,6 +49,10 @@ test("commercial history returns the active agent's sales and commissions only, 
  await db.exec("reset role");
  await db.query("insert into auth.mfa_factors(user_id,status) values ($1,'verified'),($2,'verified')", [EMP1, EMP2]);
  await as(EMP1,'aal2');
+ assert.deepEqual(await read(), [], "active staff with MFA have no commercial history permissions by default");
+ await as(MIGUEL);
+ await db.query("update staff_portal_access set job_title='seller', commercial_permissions=array['sales_history','commission_history'] where user_id in ($1,$2)", [EMP1, EMP2]);
+ await as(EMP1,'aal2');
  const first = await read(), second = await read(1);
  assert.equal(first.length,26);
  assert.equal(second.length,7);

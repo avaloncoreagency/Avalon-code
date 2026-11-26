@@ -76,9 +76,10 @@ export async function getStaffState(client?: SupabaseClient): Promise<StaffState
       access.error || access.data?.active !== true) return { state: "none" };
     const { data: assurance, error: aalError } = await supabase.auth.mfa.getAuthenticatorAssuranceLevel();
     if (aalError || !assurance) return { state: "none" };
-    if (assurance.nextLevel === "aal2" && assurance.currentLevel !== "aal2")
-      return { state: "mfa", userId: user.id, supabase };
     const mfaEnrolled = (user.factors ?? []).some((f: { factor_type: string; status: string }) => f.factor_type === "totp" && f.status === "verified");
+    // Enrolled staff must prove AAL2, even if nextLevel is inconsistent or absent.
+    if ((mfaEnrolled || assurance.nextLevel === "aal2") && assurance.currentLevel !== "aal2")
+      return { state: "mfa", userId: user.id, supabase };
     return {
       state: "ok", role: "employee", userId: user.id, user, supabase, mfaEnrolled,
       permissions: {

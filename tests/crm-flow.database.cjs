@@ -22,6 +22,7 @@ async function setup() {
   const as = u => db.exec(`reset role;set request.jwt.claim.sub='${u}';set role authenticated;`);
   const one = async (q, p) => (await db.query(q, p)).rows[0];
   const n = async (q, p) => Number((await one(q, p)).n);
+  await require('./helpers/approve-fixture-offers.cjs')(db, MIGUEL, [['desarrollo-web',1000],['recepcionista-ia',1000]]);
   return { db, as, one, n };
 }
 const place = (ref, name, extra = {}) => ({ source_ref: 'osm:node/' + ref, name, source_kind: 'osm', lat: 25.77, lon: -80.19, industry: 'dentist', source_label: 'Geoapify Places (OpenStreetMap)', license: 'ODbL', ...extra });

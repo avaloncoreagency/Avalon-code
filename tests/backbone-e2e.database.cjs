@@ -1,6 +1,7 @@
 // Mission 0349 Phase 9: one continuous synthetic chain on real PostgreSQL (PGlite):
 // Radar prospect → evidence/stars → human approval → single lead → pipeline → multi-service sale → one client →
 // work orders → projects (canonical client link) → tasks → payment → delivery progress → outsider denied.
+const approveFixtureOffers = require('./helpers/approve-fixture-offers.cjs');
 const { test } = require('node:test');
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
@@ -17,6 +18,7 @@ test('backbone: prospect → lead → sale → client → orders → projects �
     await db.exec(fs.readFileSync('supabase/migrations/' + f, 'utf8'));
     if (f.startsWith('20261102053022')) await db.exec(`insert into agency_memberships values('${M}','owner'),('${S}','owner'),('${X}','operator');`);
   }
+  await approveFixtureOffers(db, M, [['desarrollo-web', 2000], ['crm-personalizado', 3000], ['marketing-mensual', 600]]);
   const as = u => db.exec(`reset role;set request.jwt.claim.sub='${u}';set role authenticated;`);
   const one = async (q, p) => (await db.query(q, p)).rows[0];
   const n = async (q, p) => Number((await one(q, p)).n);

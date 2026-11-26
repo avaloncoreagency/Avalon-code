@@ -3,6 +3,7 @@ const { test } = require('node:test');
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const { PGlite } = require('@electric-sql/pglite');
+const approveFixtureOffers = require('./helpers/approve-fixture-offers.cjs');
 const verifiedContract = require('./helpers/verified-contract.cjs');
 
 const OWNER = '00000000-0000-4000-8000-0000000000a1';
@@ -19,6 +20,7 @@ async function setup() {
     if (file.startsWith('20261102053022')) await db.exec(`insert into agency_memberships(user_id,role)
       values('${OWNER}','owner'),('${SECOND}','owner'),('${OUTSIDER}','operator')`);
   }
+  await approveFixtureOffers(db, OWNER, [['desarrollo-web', 250]]);
   // Migration crm_client_opportunity_registration is already applied by the ordered migration loop.
   const as = u => db.exec(`reset role; set request.jwt.claim.sub='${u}'; set role authenticated;`);
   const one = async (sql,p) => (await db.query(sql,p)).rows[0];

@@ -8,7 +8,7 @@ const OWNER = "00000000-0000-4000-8000-0000000000a1";
 const INVITED = "00000000-0000-4000-8000-0000000000c3";
 const SOURCE = "supabase/functions/staff-invite/index.ts";
 
-function makeEdge({role="owner",missingOrigin=false,roster=0,inviteFails=false,inviteExists=false,enrolledMfa=false}={}) {
+function makeEdge({role="owner",missingOrigin=false,roster=0,inviteFails=false,inviteExists=false,enrolledMfa=false,authReply,timeoutPhase}={}) {
   const src = fs.readFileSync(SOURCE,"utf8");
   const js = ts.transpileModule(src,{compilerOptions:{
     target:ts.ScriptTarget.ES2022,module:ts.ModuleKind.CommonJS,
@@ -28,14 +28,18 @@ function makeEdge({role="owner",missingOrigin=false,roster=0,inviteFails=false,i
     let data;let status=200;
     if(u.pathname==="/auth/v1/user") data={id:OWNER,factors:enrolledMfa?[{status:"verified",factor_type:"totp"}]:[]};
     else if(u.pathname==="/rest/v1/agency_memberships"&&init.method==="POST") {
+      if(timeoutPhase==="enroll") throw Error("database request timed out");
       data=null; status=201;
     } else if(u.pathname==="/rest/v1/staff_permission_events"&&init.method==="POST") {
+      if(timeoutPhase==="audit") throw Error("audit request timed out");
       data=null; status=201;
     } else if(u.pathname==="/rest/v1/agency_memberships"&&u.searchParams.get("role")==="eq.operator") {
       data=Array.from({length:roster},(_,i)=>({user_id:String(i)}));
     } else if(u.pathname==="/rest/v1/agency_memberships") data=[{role}];
     else if(u.pathname==="/auth/v1/invite") {
-      if(inviteExists){status=422;data={code:422,error_code:"email_exists",msg:"A user with this email address has already been registered"};}
+      if(timeoutPhase==="invite") throw Error("invite request timed out");
+      if(authReply){({status,data}=authReply);}
+      else if(inviteExists){status=422;data={code:422,error_code:"email_exists",msg:"A user with this email address has already been registered"};}
       else {status=inviteFails?409:200;data=inviteFails?{error:"existing"}:{id:INVITED};}
     } else throw Error("Unexpected request to "+u.toString());
     return new Response(data===null?"":JSON.stringify(data),{
@@ -139,5 +143,43 @@ test("an address that already has an account gets a precise reason and is never 
     ["mfa_required","invite-mfa-required"],["forbidden","invite-forbidden"],["member_limit","invite-member-limit"]]){
     assert.match(action,new RegExp(code+': "'+status+'"'));
     assert.match(page,new RegExp('"'+status+'": \\["'));
+  }
+});
+
+test("the invitation form cannot double-submit and explains how to test with a + alias", () => {
+  const page = fs.readFileSync("src/app/admin/staff/page.tsx", "utf8"), btn = fs.readFileSync("src/components/agents/invite-submit.tsx", "utf8");
+  assert.match(page, /<InviteSubmit /); assert.ok(!/type="submit">Enviar invitación segura/.test(page), "plain submit button replaced");
+  assert.match(btn, /useFormStatus\(\)/); assert.match(btn, /disabled=\{pending\}/);
+  assert.match(page, /tucorreo\+agente1@gmail\.com/);
+});
+
+test("Auth mail failure and rate limits never enroll an agent or expose internal details", async () => {
+  const cases = [
+    [500, {error_code:"unexpected_failure",msg:"Error sending invite email",internal:"secret SMTP details"}, 502, "invite_email_failed"],
+    [500, {error_code:"unexpected_failure",msg:"Error inviting user"}, 503, "invite_outcome_unknown"],
+    [429, {error_code:"over_email_send_rate_limit"}, 429, "invite_email_rate_limit"],
+    [429, {error_code:"over_request_rate_limit"}, 429, "invite_request_rate_limit"],
+    [403, {error_code:"email_address_not_authorized"}, 503, "invitation_not_configured"],
+  ];
+  for (const [status,data,http,code] of cases) {
+    const edge=makeEdge({authReply:{status,data}});
+    const res=await edge.handler(request({email:"new@example.invalid"}));
+    assert.equal(res.status,http);
+    assert.deepEqual(await res.json(),{error:code});
+    assert.deepEqual(edge.calls.filter(call=>call.method==="POST").map(call=>call.path),["/auth/v1/invite"]);
+  }
+});
+
+test("transport failures preserve whether Auth accepted the invitation without retrying it", async () => {
+  for (const [phase,http,body] of [
+    ["invite",503,{error:"invite_outcome_unknown"}],
+    ["enroll",503,{error:"invitation_sent_enrollment_pending"}],
+    ["audit",200,{invited:true,requires_owner_activation:true,audited:false}],
+  ]) {
+    const edge=makeEdge({timeoutPhase:phase});
+    const res=await edge.handler(request({email:"new@example.invalid"}));
+    assert.equal(res.status,http);
+    assert.deepEqual(await res.json(),body);
+    assert.equal(edge.calls.filter(call=>call.path==="/auth/v1/invite").length,1);
   }
 });
