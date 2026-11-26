@@ -24,6 +24,10 @@ async function setup() {
   const as = u => db.exec(`reset role; set request.jwt.claim.sub='${u}'; set role authenticated;`);
   const one = async (q, p) => (await db.query(q, p)).rows[0];
   await as(MIGUEL);
+  // The authority candidate requires an explicit owner-approved catalog offer.
+  // Exercise that existing approval path; never bypass the SQL guard.
+  await db.query("update crm_service_catalog set suggested_price=1000 where code='desarrollo-web'");
+  await db.query("update crm_service_catalog set offer_status='approved' where code='desarrollo-web'");
   return { db, as, one };
 }
 
