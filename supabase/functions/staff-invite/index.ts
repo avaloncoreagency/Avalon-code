@@ -17,6 +17,24 @@ const fetchJSON = async (url: string, init: RequestInit) => {
 };
 const object = (value: unknown): Record<string, unknown> | null =>
   value && typeof value === "object" && !Array.isArray(value) ? value as Record<string, unknown> : null;
+function inviteFailure(status: number, data: Record<string, unknown> | null) {
+  const code = data?.error_code;
+  if (status === 422 && (code === "email_exists" || code === "user_already_exists"))
+    return reply(409, { error: "email_already_registered" });
+  if (status === 429)
+    return reply(429, { error: code === "over_email_send_rate_limit" ? "invite_email_rate_limit" : "invite_request_rate_limit" });
+  if (code === "email_address_not_authorized" || code === "email_provider_disabled" || status === 401 || status === 403)
+    return reply(503, { error: "invitation_not_configured" });
+  // Auth exposes a fixed mail-stage message. The underlying SMTP/renderer error is logged
+  // by Auth and may include private data. Never return upstream messages to the caller.
+  if (status === 500 && code === "unexpected_failure" && data?.msg === "Error sending invite email")
+    return reply(502, { error: "invite_email_failed" });
+  if (status >= 500)
+    return reply(503, { error: "invite_outcome_unknown" });
+  if (code === "email_address_invalid" || code === "validation_failed")
+    return reply(400, { error: "invalid_request" });
+  return reply(409, { error: "invite_not_created" });
+}
 // One line, no markup or template delimiters: values are inserted into the Supabase Auth e-mail template.
 const plain = (value: unknown, max: number) => typeof value === "string"
   ? value.normalize("NFC").replace(/[\u0000-\u001f\u007f<>{}]/g, " ").replace(/\s+/g, " ").trim().slice(0, max) : "";
@@ -46,6 +64,7 @@ Deno.serve(async (request: Request) => {
   const bearer = request.headers.get("authorization") ?? "";
   if (!/^Bearer [A-Za-z0-9_.~-]+$/.test(bearer)) return reply(401, { error: "unauthorized" });
   const token = bearer.slice("Bearer ".length);
+  let phase: "authorize" | "invite" | "enroll" | "audit" = "authorize";
   try {
     // Identity is validated by Supabase Auth itself, never decoded from untrusted JWT text.
     const user = await fetchJSON(`${url}/auth/v1/user`, {
@@ -53,6 +72,8 @@ Deno.serve(async (request: Request) => {
     });
     const identity = object(user.data);
     const ownerId = identity?.id;
+    if (user.status >= 500)
+      return reply(503, { error: "temporarily_unavailable" });
     if (!user.ok || !identity || typeof ownerId !== "string" || !UUID.test(ownerId))
       return reply(401, { error: "unauthorized" });
     // Respect the owners' MFA gate even for a direct Edge Function request.
@@ -79,8 +100,9 @@ Deno.serve(async (request: Request) => {
       `${url}/rest/v1/agency_memberships?user_id=eq.${encodeURIComponent(ownerId)}&select=role&limit=1`, {
         headers: { apikey: serviceKey, Authorization: `Bearer ${serviceKey}` },
       });
-    if (!members.ok || !Array.isArray(members.data) ||
-      object(members.data[0])?.role !== "owner")
+    if (!members.ok || !Array.isArray(members.data))
+      return reply(503, { error: "temporarily_unavailable" });
+    if (object(members.data[0])?.role !== "owner")
       return reply(403, { error: "forbidden" });
 
     const raw = await request.text();
@@ -118,6 +140,7 @@ Deno.serve(async (request: Request) => {
 
     // Invite sends a Supabase Auth-managed verification email. It does not grant
     // any CRM, Office, messaging or casefile permissions to the new identity.
+    phase = "invite";
     const invite = await fetchJSON(
       `${url}/auth/v1/invite?redirect_to=${encodeURIComponent(origin + "/admin/signup")}`, {
         method: "POST",
@@ -129,17 +152,15 @@ Deno.serve(async (request: Request) => {
       });
     const invited = object(invite.data);
     const invitedId = invited?.id;
-    // An address that already has an Auth account is never silently enrolled (that would let a pre-registered
-    // account be promoted by an owner's invitation). The owner gets a precise reason instead of a generic failure.
-    if (!invite.ok && invite.status === 422 && invited?.error_code === "email_exists")
-      return reply(409, { error: "email_already_registered" });
-    if (!invite.ok || typeof invitedId !== "string" || !UUID.test(invitedId))
-      return reply(409, { error: "invite_not_created" });
+    if (!invite.ok) return inviteFailure(invite.status, invited);
+    if (typeof invitedId !== "string" || !UUID.test(invitedId))
+      return reply(503, { error: "invitation_sent_enrollment_pending" });
 
     // Pending operator membership only. staff_portal_access is intentionally
     // NOT inserted: account remains completely locked until explicit owner activation.
     // An existing membership (including an owner) is never overwritten.
     // Auth may already have sent the email when the enrollment fails.
+    phase = "enroll";
     const enrollment = await fetchJSON(`${url}/rest/v1/agency_memberships?on_conflict=user_id`, {
       method: "POST",
       headers: {
@@ -152,6 +173,7 @@ Deno.serve(async (request: Request) => {
     if (!enrollment.ok) return reply(503, { error: "invitation_sent_enrollment_pending" });
     // Owner-only audit trail (no email or token stored). Best effort: the invitation itself already succeeded,
     // but the result tells the owner when the audit row is missing instead of claiming full success.
+    phase = "audit";
     const audit = await fetchJSON(`${url}/rest/v1/staff_permission_events`, {
       method: "POST",
       headers: {
@@ -163,6 +185,9 @@ Deno.serve(async (request: Request) => {
     });
     return reply(200, { invited: true, requires_owner_activation: true, audited: audit.ok });
   } catch {
+    if (phase === "audit") return reply(200, { invited: true, requires_owner_activation: true, audited: false });
+    if (phase === "enroll") return reply(503, { error: "invitation_sent_enrollment_pending" });
+    if (phase === "invite") return reply(503, { error: "invite_outcome_unknown" });
     return reply(503, { error: "temporarily_unavailable" });
   }
 });
