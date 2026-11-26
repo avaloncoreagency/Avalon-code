@@ -31,7 +31,8 @@ const statuses: Record<string,string> = {
  failed:"No se pudo confirmar el cambio.", "directory-failed":"Acceso actualizado, pero falló la libreta de contactos.",
  "access-enabled":"Acceso de empleado activado.","access-revoked":"Acceso de empleado revocado.",
  "client-granted":"Cliente asignado.","client-revoked":"Acceso al cliente revocado.",
- "lead-granted":"Lead asignado.","lead-revoked":"Acceso al lead revocado.",
+ "lead-granted":"Lead compartido.","lead-revoked":"Acceso al lead revocado.",
+ "use-assignment":"Los vendedores reciben y devuelven leads solo con «Entregar un lead a un vendedor».",
  "work-assigned":"Actividad asignada. Solo esa persona la ve.","work-cancelled":"Actividad cancelada.","work-reassigned":"Actividad reasignada.",
  "work-deleted":"Actividad eliminada del calendario.","work-rescheduled":"Actividad reprogramada.",
  "lead-assigned":"Lead entregado al vendedor. Solo ese vendedor y la dirección lo ven.","lead-returned":"Lead devuelto a la dirección.",
@@ -287,12 +288,12 @@ export default async function StaffAdministration({searchParams}:{
       </form>
       {sellers.length === 0 && <p className={s.muted}>No hay vendedores activos. Activa a un empleado con cargo «Vendedor» y MFA verificado.</p>}
     </section>
-    <section className={s.panel} aria-labelledby="staff-leads"><h2 id="staff-leads">Compartir leads (solo consulta)</h2>
-      <p className={s.muted}>El vendedor ve solo sus leads asignados: empresa, contacto, etapa y próximo seguimiento. «Trabajar» añade email y teléfono. Nunca ve valores, el pipeline completo ni finanzas.</p>
+    <section className={s.panel} aria-labelledby="staff-leads"><h2 id="staff-leads">Compartir leads con el equipo de apoyo</h2>
+      <p className={s.muted}>Para empleados que no venden (soporte, operaciones): ven empresa, contacto, etapa y próximo seguimiento; «Ver + datos de contacto» añade email y teléfono. Nunca ven valores, el pipeline completo ni finanzas. Los vendedores no aparecen aquí: reciben y devuelven leads solo con «Entregar un lead a un vendedor».</p>
       <form action={grantStaffLead} className={s.form}>
-        <label className={s.field}>Empleado activo <select name="employee_id" required defaultValue="">
+        <label className={s.field}>Empleado de apoyo <select name="employee_id" required defaultValue="">
           <option value="" disabled>Seleccionar empleado</option>
-          {members.filter(m=>a.some(x=>x.user_id===m.user_id&&x.active)).map(m=><option value={m.user_id} key={m.user_id}>{memberName(m)}</option>)}
+          {members.filter(m=>a.some(x=>x.user_id===m.user_id&&x.active&&!isSellerTitle(x.job_title))).map(m=><option value={m.user_id} key={m.user_id}>{memberName(m)}</option>)}
         </select></label>
         <label className={s.field}>Lead <select name="lead_id" required defaultValue="">
           <option value="" disabled>Seleccionar lead</option>
@@ -301,15 +302,20 @@ export default async function StaffAdministration({searchParams}:{
         <label className={s.field}>Alcance <select name="access_level" defaultValue="view">
           <option value="view">Ver resumen</option><option value="work">Ver + datos de contacto</option>
         </select></label>
-        <button className={s.button} type="submit">Asignar lead</button>
+        <button className={s.button} type="submit">Compartir lead</button>
       </form>
-      <ul className={s.list}>{lg.map(row=><li key={row.user_id+row.lead_id} className={s.notice}>
-        <strong>{display.get(row.user_id)??"Empleado"}</strong> · {leadName.get(row.lead_id)??"Lead"} · {row.access_level}
-        <form action={revokeStaffLead} className={s.inline}>
-          <input type="hidden" name="employee_id" value={row.user_id}/><input type="hidden" name="lead_id" value={row.lead_id}/>
-          <button className={s.button} type="submit">Revocar lead</button>
-        </form>
-      </li>)}</ul>
+      <ul className={s.list}>{lg.map(row=>{ const seller=a.some(x=>x.user_id===row.user_id&&isSellerTitle(x.job_title)); return <li key={row.user_id+row.lead_id} className={s.notice}>
+        <strong>{display.get(row.user_id)??"Empleado"}</strong> · {leadName.get(row.lead_id)??"Lead"} · {seller ? "vendedor asignado" : row.access_level === "work" ? "ver + contacto" : "ver resumen"}
+        {seller
+          ? <form action={assignLeadToSeller} className={s.inline}>
+              <input type="hidden" name="lead_id" value={row.lead_id}/><input type="hidden" name="seller_id" value=""/>
+              <button className={s.button} type="submit">Devolver a la dirección</button>
+            </form>
+          : <form action={revokeStaffLead} className={s.inline}>
+              <input type="hidden" name="employee_id" value={row.user_id}/><input type="hidden" name="lead_id" value={row.lead_id}/>
+              <button className={s.button} type="submit">Revocar lead</button>
+            </form>}
+      </li>; })}</ul>
     </section>
     <section className={s.panel}><h2>{pick(lang, "Solicitudes de eliminación", "Quote deletion requests")}</h2>
       {deletionRequests.error ? <p role="alert">{pick(lang,"No se pudo cargar la bandeja.","Could not load requests.")}</p> : !deletionRequests.data?.length && <p>{pick(lang,"Sin solicitudes pendientes.","No pending requests.")}</p>}

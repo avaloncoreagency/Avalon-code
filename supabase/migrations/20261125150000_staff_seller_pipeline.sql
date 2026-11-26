@@ -17,7 +17,7 @@ begin;
 create function crm_private.staff_mfa_satisfied() returns boolean
 language sql stable security definer set search_path = '' as $$
   select auth.uid() is not null and auth.jwt() ->> 'aal' = 'aal2'
-    and exists (select 1 from auth.mfa_factors f where f.user_id = auth.uid() and f.status = 'verified')
+    and exists (select 1 from auth.mfa_factors f where f.user_id = auth.uid() and f.status = 'verified' and f.factor_type::text = 'totp')
 $$;
 revoke all on function crm_private.staff_mfa_satisfied() from public, anon, authenticated;
 grant execute on function crm_private.staff_mfa_satisfied() to authenticated, service_role;
@@ -155,6 +155,11 @@ begin
   -- Sent, accepted or closed quotes are never edited in place: the client may already hold that PDF.
   if q.status not in ('draft', 'internal_review', 'approved') then raise exception 'quote_not_revisable' using errcode = '23514'; end if;
   if length(coalesce(p_note, '')) > 1000 then raise exception 'quote_invalid_note' using errcode = '22023'; end if;
+  -- Internal notes are private to the proposal's author and the owners: a seller who inherits the lead revises the
+  -- client-facing content only and the previous internal notes are carried over untouched.
+  if not crm_private.is_owner() and q.created_by is distinct from actor then
+    select v.internal into p_internal from public.crm_quote_versions v where v.quote_id = q.id and v.version_no = q.current_version;
+  end if;
   select * into chk from crm_private.quote_check(p_content, p_internal, p_sha256);
   select * into latest from public.crm_quote_versions where quote_id = q.id and version_no = q.current_version;
   if latest.content_sha256 = p_sha256 and latest.internal = p_internal then return q.current_version; end if;   -- retry/no-op
@@ -219,7 +224,8 @@ CREATE OR REPLACE FUNCTION public.crm_quote_delete(p_quote uuid, p_expected_vers
 AS $function$
 declare q public.crm_quotes; reason text := btrim(coalesce(p_reason, ''));
 begin
-  if auth.uid() is null or not (crm_private.is_owner() or crm_private.seller_owns_quote(p_quote)) then raise exception 'quote_delete_forbidden' using errcode = '42501'; end if;
+  -- Deleting a proposal is reserved to the owners (sellers revise or supersede, never delete).
+  if auth.uid() is null or not crm_private.is_owner() then raise exception 'quote_delete_forbidden' using errcode = '42501'; end if;
   select * into q from public.crm_quotes where id = p_quote for update;
   if not found then raise exception 'quote_missing' using errcode = 'P0002'; end if;
   if q.deleted_at is not null then return jsonb_build_object('quote_id', q.id, 'replayed', true); end if;
@@ -251,7 +257,12 @@ declare q public.crm_quotes; v public.crm_quote_versions; c jsonb; cm jsonb; lin
   v_duration integer; v_window integer; v_billing text;
 begin
   if auth.uid() is null or not (crm_private.is_owner()
-      or crm_private.seller_owns_quote(crm_private.uuid_or_null(request ->> 'quote_id'))) then raise exception 'crm_forbidden' using errcode = '42501'; end if;
+      or crm_private.seller_owns_quote(crm_private.uuid_or_null(request ->> 'quote_id'))
+      -- The seller who closed it keeps an idempotent replay of their own sale after the lead is handed to someone else.
+      or (crm_private.is_seller() and exists (select 1 from public.crm_sales s
+            where s.quote_id = crm_private.uuid_or_null(request ->> 'quote_id') and s.seller_id = auth.uid()))) then
+    raise exception 'crm_forbidden' using errcode = '42501';
+  end if;
   if request is null or jsonb_typeof(request) <> 'object' then raise exception 'quote_close_invalid' using errcode = '22023'; end if;
   select * into q from public.crm_quotes where id = crm_private.uuid_or_null(request ->> 'quote_id') for update;
   if not found then raise exception 'quote_not_found' using errcode = 'P0002'; end if;
@@ -260,6 +271,11 @@ begin
   if coalesce((request ->> 'version_no')::integer, -1) <> q.current_version then raise exception 'quote_version_changed' using errcode = '40001'; end if;
   select * into existing from public.crm_sales where quote_version_id = v.id;
   if found then
+    -- Replays are idempotent for the seller who closed it (and owners); a seller who later inherits the lead gets no
+    -- view of a sale attributed to someone else.
+    if not crm_private.is_owner() and existing.seller_id is distinct from auth.uid() then
+      raise exception 'quote_closed_by_other_seller' using errcode = '42501';
+    end if;
     return jsonb_build_object('sale_id', existing.id, 'sale_number', existing.sale_number, 'client_id', existing.client_id, 'replayed', true);
   end if;
   if q.status <> 'accepted' then raise exception 'quote_not_accepted' using errcode = '23514'; end if;
@@ -292,12 +308,16 @@ begin
   select e.note into v_note from public.crm_quote_events e where e.quote_id = q.id and e.to_status = 'accepted' order by e.created_at desc limit 1;
   seller := coalesce(crm_private.uuid_or_null(request ->> 'seller_id'), auth.uid());
   -- A seller always closes as themself, inside a transaction-scoped seller context that the CRM guards recognise.
-  if not crm_private.is_owner() then seller := auth.uid(); perform crm_private.begin_seller_act(); end if;
+  if not crm_private.is_owner() then
+    seller := auth.uid(); perform crm_private.begin_seller_act();
+    -- The seller context only authorises confirming the sale of THIS accepted revision (never a direct confirmation).
+    perform set_config('avalon.seller_close', v.id::text, true);
+  end if;
   -- Same transaction: crm_confirm_sale enforces the won gate (verified contract), creates client/work orders/projects,
   -- and replays on the same key. The key is derived from the revision, so retries can never create a second sale.
   r := public.crm_confirm_sale(jsonb_build_object(
     'idempotency_key', md5('avalon-quote-close:' || v.id::text)::uuid,
-    'lead_id', q.lead_id, 'client_id', q.client_id,
+    'lead_id', q.lead_id, 'client_id', q.client_id, 'quote_version_id', v.id,
     'new_client', jsonb_build_object('legal_name', coalesce(nullif(btrim(c -> 'client' ->> 'company'), ''), q.title)),
     'seller_id', seller, 'sold_on', coalesce(nullif(request ->> 'sold_on', ''), current_date::text),
     'billing_mode', v_billing, 'lines', lines,
@@ -356,8 +376,16 @@ declare
   owner_row record;
 begin
   if actor is null or not (crm_private.is_owner()
-      -- A seller reaches this only through crm_quote_close_sale, and only for a lead that is theirs.
-      or (crm_private.seller_acting() and crm_private.seller_owns_lead(crm_private.uuid_or_null(request ->> 'lead_id')))) then raise exception 'crm_forbidden' using errcode = '42501'; end if;
+      -- A seller reaches this only from crm_quote_close_sale for the accepted revision it is closing, and only for a
+      -- lead that is theirs: a direct confirmation by a seller is always refused.
+      or (crm_private.seller_acting() and crm_private.seller_owns_lead(crm_private.uuid_or_null(request ->> 'lead_id'))
+          and nullif(request ->> 'quote_version_id', '') is not null
+          and current_setting('avalon.seller_close', true) = request ->> 'quote_version_id'
+          -- Defense in depth: even a forged context only reaches the accepted, current revision of a quote on that lead.
+          and exists (select 1 from public.crm_quote_versions qv join public.crm_quotes qq on qq.id = qv.quote_id
+            where qv.id = crm_private.uuid_or_null(request ->> 'quote_version_id')
+              and qq.lead_id = crm_private.uuid_or_null(request ->> 'lead_id') and qq.status = 'accepted'
+              and qq.current_version = qv.version_no and qq.deleted_at is null))) then raise exception 'crm_forbidden' using errcode = '42501'; end if;
   if request is null or jsonb_typeof(request) <> 'object' then raise exception 'sale_invalid' using errcode = '22023'; end if;
   key := crm_private.uuid_or_null(request ->> 'idempotency_key');
   if key is null then raise exception 'sale_invalid_key' using errcode = '22023'; end if;
@@ -692,8 +720,8 @@ exception
   when check_violation then raise exception 'staff_lead_invalid' using errcode = '22023';
 end $$;
 
--- Owners hand a lead to exactly one seller (or take it back). Every other employee's lead grant is closed, so the
--- lead is visible only to that seller and the owners.
+-- Owners hand a lead to exactly one seller (or take it back). Every other employee's lead grant is closed (by the
+-- crm_leads_owner_grants trigger below), so the lead is visible only to that seller and the owners.
 create function public.crm_lead_assign_seller(p_lead uuid, p_seller uuid) returns void
 language plpgsql security definer set search_path = '' as $$
 declare v_to uuid;
@@ -708,14 +736,9 @@ begin
     raise exception 'staff_seller_invalid' using errcode = '22023';
   end if;
   v_to := coalesce(p_seller, auth.uid());
-  update public.crm_leads set owner_id = v_to where id = p_lead;
-  update public.staff_lead_grants set active = false, updated_at = now()
-    where lead_id = p_lead and active and user_id is distinct from p_seller;
-  if p_seller is not null then
-    insert into public.staff_lead_grants (user_id, lead_id, access_level, active, granted_by)
-      values (p_seller, p_lead, 'work', true, auth.uid())
-    on conflict (user_id, lead_id) do update set access_level = 'work', active = true, granted_by = excluded.granted_by, updated_at = now();
-  end if;
+  -- Sales, commissions and proposals keep their attribution (seller_id / beneficiary / author); only the lead moves.
+  -- Seller grants follow the assignment through crm_leads_owner_grants.
+  update public.crm_leads set owner_id = v_to where id = p_lead and owner_id is distinct from v_to;
   perform crm_private.log('lead.assigned_to_seller', 'crm', 'crm_leads', p_lead, to_state => case when p_seller is null then 'owner' else 'seller' end);
 end $$;
 
@@ -756,20 +779,26 @@ language sql stable security definer set search_path = '' as $$
   from public.crm_quotes q
   join public.crm_leads l on l.id = q.lead_id and l.owner_id = auth.uid()
   join public.crm_quote_versions v on v.quote_id = q.id and v.version_no = q.current_version
-  left join public.crm_sales s on s.quote_id = q.id
+  left join public.crm_sales s on s.quote_id = q.id and s.seller_id = auth.uid()
   where crm_private.is_seller() and q.deleted_at is null
   order by q.updated_at desc limit 500
 $$;
 
--- One quote with its client-facing content (internal notes are returned only to the seller who owns the lead).
+-- One quote with its client-facing content. Internal notes and event notes only for the proposal's author; the sale
+-- only when it is attributed to the caller (a lead handed to another seller keeps its history with its author).
 create function public.staff_seller_quote(p_quote uuid) returns jsonb
 language sql stable security definer set search_path = '' as $$
   select jsonb_build_object('quote_id', q.id, 'quote_number', q.quote_number, 'lead_id', q.lead_id, 'company', l.company,
     'status', q.status, 'current_version', q.current_version, 'version', q.version, 'valid_until', q.valid_until,
-    'content', v.content, 'content_sha256', v.content_sha256, 'internal', v.internal, 'model', v.model,
+    'content', v.content, 'content_sha256', v.content_sha256,
+    -- Internal notes and the negotiation log belong to the proposal's author (and the owners), not to a later seller.
+    'internal', case when q.created_by = auth.uid() then v.internal end, 'model', v.model,
     'one_time_total', v.one_time_total, 'monthly_total', v.monthly_total, 'contract_status', l.contract_status,
-    'sale_id', (select s.id from public.crm_sales s where s.quote_id = q.id limit 1),
-    'events', coalesce((select jsonb_agg(jsonb_build_object('to', e.to_status, 'from', e.from_status, 'note', e.note,
+    'sale_id', (select s.id from public.crm_sales s where s.quote_id = q.id and s.seller_id = auth.uid() limit 1),
+    -- Whether the proposal was already closed as a sale (by anyone), without revealing whose sale it is.
+    'closed', exists (select 1 from public.crm_sales s where s.quote_id = q.id),
+    'events', coalesce((select jsonb_agg(jsonb_build_object('to', e.to_status, 'from', e.from_status,
+        'note', case when q.created_by = auth.uid() then e.note end,
         'at', e.created_at, 'version', e.version_no) order by e.created_at) from public.crm_quote_events e where e.quote_id = q.id), '[]'::jsonb))
   from public.crm_quotes q
   join public.crm_leads l on l.id = q.lead_id
@@ -811,5 +840,52 @@ create policy staff_items_add on public.staff_work_items for insert to authentic
 -- Owners control every employee calendar: besides creating, editing, reassigning and cancelling, they may delete.
 grant delete on public.staff_work_items to authenticated;
 create policy staff_items_remove on public.staff_work_items for delete to authenticated using ((select crm_private.is_owner()));
+
+-- ── 7. One source of truth for a seller's leads: the exclusive assignment (crm_leads.owner_id) ─────────────────────
+-- Legacy staff_lead_grants stay for non-seller staff (view/work collaboration). For sellers a grant is only the mirror of
+-- the assignment: active iff the lead is theirs, always 'work'. It cannot be granted or revoked on its own.
+create function crm_private.is_seller_user(p_user uuid) returns boolean
+language sql stable security definer set search_path = '' as $$
+  select p_user is not null and exists (select 1 from public.staff_portal_access a
+    where a.user_id = p_user and a.job_title in ('seller', 'account_executive'))
+$$;
+revoke all on function crm_private.is_seller_user(uuid) from public, anon, authenticated;
+
+create function crm_private.staff_lead_grant_exclusive() returns trigger
+language plpgsql security definer set search_path = '' as $$
+declare v_owner uuid;
+begin
+  if not crm_private.is_seller_user(new.user_id) then return new; end if;
+  select l.owner_id into v_owner from public.crm_leads l where l.id = new.lead_id;
+  if new.active is distinct from (v_owner is not distinct from new.user_id) then
+    raise exception 'staff_lead_use_assignment' using errcode = '23514';
+  end if;
+  if new.active then new.access_level := 'work'; end if;
+  return new;
+end $$;
+revoke all on function crm_private.staff_lead_grant_exclusive() from public, anon, authenticated;
+create trigger staff_lead_grant_exclusive before insert or update on public.staff_lead_grants
+  for each row execute function crm_private.staff_lead_grant_exclusive();
+
+create function crm_private.lead_owner_sync_grants() returns trigger
+language plpgsql security definer set search_path = '' as $$
+begin
+  if new.owner_id is not distinct from old.owner_id then return null; end if;
+  -- Handing a lead to (or taking it back from) a seller is exclusive: every other employee's grant is closed, so the
+  -- lead is visible only to that seller and the owners (owners may share it again with non-seller staff afterwards).
+  -- A move between owners only closes seller mirrors.
+  update public.staff_lead_grants g set active = false, updated_at = now()
+    where g.lead_id = new.id and g.active and g.user_id is distinct from new.owner_id
+      and (crm_private.is_seller_user(new.owner_id) or crm_private.is_seller_user(old.owner_id) or crm_private.is_seller_user(g.user_id));
+  if crm_private.is_seller_user(new.owner_id) then
+    insert into public.staff_lead_grants (user_id, lead_id, access_level, active, granted_by)
+      values (new.owner_id, new.id, 'work', true, auth.uid())
+    on conflict (user_id, lead_id) do update set access_level = 'work', active = true, granted_by = excluded.granted_by, updated_at = now();
+  end if;
+  return null;
+end $$;
+revoke all on function crm_private.lead_owner_sync_grants() from public, anon, authenticated;
+create trigger crm_leads_owner_grants after update of owner_id on public.crm_leads
+  for each row execute function crm_private.lead_owner_sync_grants();
 
 commit;

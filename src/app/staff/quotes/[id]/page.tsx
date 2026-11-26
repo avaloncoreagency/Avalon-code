@@ -26,8 +26,8 @@ export default async function SellerQuote({ params, searchParams }: { params: Pr
   const steps: Record<string,string> = {draft:"quote_edit",internal_review:"quote_review",sent:"quote_send",accepted:"quote_accept"};
   const next = (SELLER_TRANSITIONS[q.status] ?? []).filter(step => grants.includes(steps[step]));
   const blockers = q.status === "sent" ? acceptanceBlockers(c) : [];
-  const canClose = grants.includes("sale_close") && q.status === "accepted" && !q.sale_id;
-  const contractOk = q.contract_status === "verified_signed";
+  const canClose = grants.includes("sale_close") && q.status === "accepted" && !q.closed && !q.sale_id;
+  const contractOk = q.contract_verified_for_revision === true;
 
   return <Shell title={`${q.quote_number} · ${c.title}`}>
     {status && SELLER_MESSAGES[status] && <p role="status" className={s.flash}>{SELLER_MESSAGES[status]}</p>}
@@ -72,7 +72,7 @@ export default async function SellerQuote({ params, searchParams }: { params: Pr
       </form></section>}
     {canClose && <section className={s.panel} aria-labelledby="quote-close">
       <h2 id="quote-close">Cerrar la venta</h2>
-      {!contractOk ? <p className={s.flash} data-tone="warn">El cliente aceptó. Falta que la dirección registre y verifique el contrato firmado; después podrás cerrar la venta aquí.</p> :
+      {!contractOk ? <p className={s.flash} data-tone="warn">El cliente aceptó. La dirección debe verificar y vincular el contrato firmado a esta revisión exacta antes de cerrar la venta.</p> :
         <form action={closeSellerSale} className={s.form} aria-label="Cerrar la venta">
           <input type="hidden" name="quote_id" value={q.quote_id} /><input type="hidden" name="version_no" value={q.current_version} />
           <label className={s.field}>Fecha de la venta<input type="date" name="sold_on" defaultValue={new Date().toISOString().slice(0, 10)} /></label>
@@ -80,7 +80,7 @@ export default async function SellerQuote({ params, searchParams }: { params: Pr
           <button className={`${s.button} ${s.primary}`} type="submit">Cerrar venta</button>
         </form>}
     </section>}
-    {q.sale_id && <p className={s.flash}>Venta cerrada. La ves en «Mis ventas cerradas».</p>}
+    {q.sale_id ? <p className={s.flash}>Venta cerrada. La ves en «Mis ventas cerradas».</p> : q.closed && <p className={s.flash}>Esta propuesta ya se cerró como venta. No puedes volver a cerrarla.</p>}
 
     <section className={s.panel} aria-labelledby="quote-history">
       <h2 id="quote-history">Historial</h2>

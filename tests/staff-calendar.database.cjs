@@ -36,7 +36,7 @@ test('staff calendar: assigned + own items only; owners\' private events never r
   await as(MIGUEL);
   const [lead] = await q("insert into crm_leads(company,contact,source,owner_id) values('Lead Ana QA','Cliente','QA',$1) returning id", [MIGUEL]);
   await q("insert into staff_portal_access(user_id,active,job_title,can_create_events) values($1,true,'seller',true),($2,true,'operator',false)", [ANA, PEDRO]);
-  await q("insert into staff_lead_grants(user_id,lead_id,access_level) values($1,$2,'work')", [ANA, lead.id]);
+  await q('update crm_leads set owner_id=$1 where id=$2', [ANA, lead.id]); // sellers receive leads by exclusive assignment
   // An owner cannot link a lead the employee has not been granted.
   await assert.rejects(q("insert into staff_work_items(idempotency_key,kind,origin,assignee_id,title,starts_at,lead_id) values($1,'appointment','staff_assigned',$2,'X',$3,$4)",
     [key(), PEDRO, at(3, 11), lead.id]), /staff_item_lead_not_granted/);
@@ -103,7 +103,7 @@ test('staff calendar: assigned + own items only; owners\' private events never r
 
   // Lead revoked: Ana keeps her history but cannot link that lead again.
   await as(MIGUEL);
-  await q('update staff_lead_grants set active=false where user_id=$1 and lead_id=$2', [ANA, lead.id]);
+  await q('update crm_leads set owner_id=$1 where id=$2', [MIGUEL, lead.id]); // lead returned to the owners
   await as(ANA);
   await assert.rejects(q("insert into staff_work_items(idempotency_key,kind,origin,assignee_id,title,due_at,lead_id) values($1,'task','staff_created',$2,'X',$3,$4)", [key(), ANA, at(15, 9), lead.id]), /staff_item_lead_not_granted/);
   // Suspended: no operational access at all, through any path.

@@ -58,6 +58,13 @@ test('seller pipeline: own leads, proposals and sales; isolation between sellers
   await as(ANA, 'aal1');
   await assert.rejects(createLead({ request_key: crypto.randomUUID(), company: 'Sin AAL2' }), /crm_forbidden/, 'AAL1 session cannot act');
 
+  const factor = async (type,status) => { await db.exec('reset role'); await db.query('update auth.mfa_factors set factor_type=$2,status=$3 where user_id=$1',[ANA,type,status]); };
+  for(const [type,status] of [['phone','verified'],['webauthn','verified'],['totp','unverified']]) {
+    await factor(type,status); await as(ANA);
+    await assert.rejects(createLead({request_key:crypto.randomUUID(),company:'Factor QA'}),/crm_forbidden/);
+    assert.equal((await q('select * from staff_seller_leads()')).length,0);
+  }
+  await factor('totp','verified');
   await as(ANA);
   const key = crypto.randomUUID();
   const a1 = await createLead({ request_key: key, company: 'Barbería Ana QA', contact: 'Luis', email: 'Luis@Example.invalid', phone: '+1 555 0100', value: '2500', next_action: 'Llamar el lunes' });
@@ -150,6 +157,13 @@ test('seller pipeline: own leads, proposals and sales; isolation between sellers
   await as(PEDRO);
   await assert.rejects(close(), /crm_forbidden/, 'another seller cannot close it');
   await as(ANA);
+  assert.equal((await one("select has_function_privilege('authenticated','crm_private.confirm_sale_internal(jsonb)','EXECUTE') allowed")).allowed,false);
+  const revision = (await one("select staff_seller_quote($1) r",[qa.quote_id])).r;
+  assert.equal(revision.contract_verified_for_revision,true);
+  await q("select set_config('avalon.seller_act',$1,false),set_config('avalon.seller_close',$2,false)",[ANA,crypto.randomUUID()]);
+  await assert.rejects(q('select crm_confirm_sale($1::jsonb)',[JSON.stringify({idempotency_key:crypto.randomUUID(),lead_id:a1.lead_id,lines:[{service_code:'desarrollo-web',unit_price:'1'}]})]),/crm_forbidden/);
+  await assert.rejects(q('select crm_private.confirm_sale_internal($1::jsonb)',[JSON.stringify({lead_id:a1.lead_id})]),/permission denied/);
+  await q("select set_config('avalon.seller_act','',false),set_config('avalon.seller_close','',false)");
   const sale = await close();
   const replay = await close();
   assert.equal(replay.sale_id, sale.sale_id);
@@ -186,6 +200,24 @@ test('seller pipeline: own leads, proposals and sales; isolation between sellers
   await as(ANA);
   assert.equal((await q('select * from staff_seller_leads()')).length, 2);
   await assert.rejects(q('select crm_lead_assign_seller($1,$2)', [ownerLead.id, ANA]), /crm_forbidden/);
+
+  // Handoffs are exclusive: no unrelated seller can inherit a closed sale or private notes.
+  await as(MIGUEL);
+  await assert.rejects(q("insert into staff_lead_grants(user_id,lead_id,access_level) values($1,$2,'work')",[ANA,p1.lead_id]),/staff_lead_use_assignment/);
+  await q('select crm_lead_assign_seller($1,$2)',[a1.lead_id,PEDRO]);
+  await as(PEDRO);
+  const transferred=(await one('select staff_seller_quote($1) r',[qa.quote_id])).r;
+  assert.equal(transferred.closed,true);
+  assert.equal(transferred.sale_id,null);
+  assert.equal(Object.hasOwn(transferred,'internal'),false);
+  assert.ok(transferred.events.every(e=>e.note===null));
+  assert.ok((await q('select * from staff_seller_quotes() where lead_id=$1',[a1.lead_id])).every(row=>row.sale_id===null));
+  await assert.rejects(close(),/quote_closed_by_other_seller/);
+  assert.equal((await q('select * from staff_seller_sales()')).length,0);
+  await as(ANA);
+  assert.equal((await one('select staff_seller_quote($1) r',[qa.quote_id])).r,null);
+  assert.equal((await close()).sale_id,sale.sale_id,'original seller keeps safe idempotent replay');
+  assert.equal((await q('select * from staff_seller_sales()')).length,1);
 
   // Suspension closes everything immediately.
   await as(MIGUEL);

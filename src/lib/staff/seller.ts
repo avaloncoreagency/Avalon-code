@@ -19,8 +19,8 @@ export type SellerQuote = {
 export type SellerQuoteDetail = {
   quote_id: string; quote_number: string; lead_id: string; company: string; status: QuoteStatus; current_version: number; version: number;
   valid_until: string; content: QuoteContent; content_sha256: string; model: string;
-  one_time_total: string | number; monthly_total: string | number; contract_status: string; sale_id: string | null;
-  events: { to: QuoteStatus; from: QuoteStatus | null; note: string; at: string; version: number }[];
+  one_time_total: string | number; monthly_total: string | number; contract_status: string; contract_verified_for_revision: boolean; sale_id: string | null; closed: boolean;
+  events: { to: QuoteStatus; from: QuoteStatus | null; note: string | null; at: string; version: number }[];
 };
 export type SellerSale = {
   sale_id: string; sale_number: string; company: string | null; sold_on: string; status: string; currency: string;
@@ -62,6 +62,8 @@ export const SELLER_MESSAGES: Record<string, string> = {
   staff_lead_loss_reason_required: "Para marcarlo como perdido escribe el motivo.",
   quote_owner_approval_required: "La aprobación del precio la hace la dirección. Envíala a revisión interna.",
   won_requires_verified_contract: "Antes de cerrar la venta, la dirección debe registrar y verificar el contrato firmado.",
+  quote_closed_by_other_seller: "Esta propuesta ya fue cerrada; no puedes acceder a una venta ajena.",
+  commercial_offer_changed: "El servicio del catálogo cambió; solicita una nueva revisión y aprobación.",
   quote_not_accepted: "Solo se cierra una propuesta aceptada por el cliente.",
   quote_version_changed: "La propuesta cambió. Recarga antes de cerrar.",
   quote_line_not_in_catalog: "Cada línea debe ser un servicio del catálogo para poder cerrar la venta.",

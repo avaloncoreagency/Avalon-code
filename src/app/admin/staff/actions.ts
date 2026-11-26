@@ -7,6 +7,7 @@ import { getAppOrigin } from "@/lib/auth/policy";
 import { isJobTitle, JOB_TITLES } from "@/lib/auth/staff-roles";
 import { randomUUID } from "node:crypto";
 import { DEFAULT_TZ, isKind, isPriority, localToUtc, validTimeZone } from "@/lib/staff/work";
+import { isSellerTitle } from "@/lib/staff/seller";
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 function get(form: FormData, field: string) {
@@ -137,20 +138,22 @@ export async function revokeStaffClient(form: FormData) {
   done(error || !data ? "failed" : "client-revoked");
 }
 
-/** Seller base: an owner grants ONE lead to an active operator. Employees read it only through the redacted
- * staff_my_leads() projection; crm_leads RLS stays owner-only. */
+/** Owners share ONE lead with an active NON-seller employee (support, operations). Employees read it only through the
+ * redacted staff_my_leads() projection; crm_leads RLS stays owner-only. Sellers receive and return leads only through
+ * the exclusive assignment (assignLeadToSeller); the database refuses any other grant to them. */
 export async function grantStaffLead(form: FormData) {
   const { supabase, userId } = await requireOwner();
   const employeeId = get(form, "employee_id"), leadId = get(form, "lead_id"), access_level = get(form, "access_level");
   if (!UUID.test(employeeId) || !UUID.test(leadId) || !["view", "work"].includes(access_level)) done("invalid");
-  const active = await supabase.from("staff_portal_access").select("active").eq("user_id", employeeId).maybeSingle();
+  const active = await supabase.from("staff_portal_access").select("active,job_title").eq("user_id", employeeId).maybeSingle();
   if (active.error || active.data?.active !== true) done("denied");
+  if (isSellerTitle(active.data?.job_title)) done("use-assignment");
   const lead = await supabase.from("crm_leads").select("id").eq("id", leadId).eq("archived", false).maybeSingle();
   if (lead.error || !lead.data) done("invalid");
   const { error } = await supabase.from("staff_lead_grants").upsert({
     user_id: employeeId, lead_id: leadId, access_level, active: true, granted_by: userId, updated_at: new Date().toISOString(),
   }, { onConflict: "user_id,lead_id" });
-  done(error ? "failed" : "lead-granted");
+  done(error ? (/staff_lead_use_assignment/.test(error.message) ? "use-assignment" : "failed") : "lead-granted");
 }
 
 export async function revokeStaffLead(form: FormData) {
@@ -160,6 +163,7 @@ export async function revokeStaffLead(form: FormData) {
   const { data, error } = await supabase.from("staff_lead_grants")
     .update({ active: false, granted_by: userId, updated_at: new Date().toISOString() })
     .eq("user_id", employeeId).eq("lead_id", leadId).eq("active", true).select("lead_id").maybeSingle();
+  if (error && /staff_lead_use_assignment/.test(error.message)) done("use-assignment");
   done(error || !data ? "failed" : "lead-revoked");
 }
 
@@ -216,7 +220,8 @@ export async function manageWorkItem(form: FormData) {
 }
 
 /** Owners hand a lead to exactly ONE seller (or take it back with an empty seller). The database closes every other
- * employee's grant, so the lead, its proposals and its sale are visible only to that seller and the owners. */
+ * employee's grant, so the lead and its proposals are visible only to that seller and the owners; sales and commissions
+ * keep their attribution to whoever closed them. */
 export async function assignLeadToSeller(form: FormData) {
   const { supabase } = await requireOwner();
   const leadId = get(form, "lead_id"), seller = get(form, "seller_id");

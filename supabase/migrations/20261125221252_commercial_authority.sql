@@ -39,7 +39,10 @@ declare snapshot crm_private.quote_commercial_approvals; item record;
 begin
  select * into snapshot from crm_private.quote_commercial_approvals where revision_id=p_revision;
  -- Older owner approvals lack a snapshot. The existing transition and sale guards still require current eligibility.
- if not found then return; end if;
+ if not found then
+   if not crm_private.is_owner() then raise exception 'quote_owner_approval_required' using errcode='42501'; end if;
+   return;
+ end if;
  for item in select * from jsonb_each(snapshot.offers) order by key loop
    perform 1 from public.crm_service_catalog c where c.code=item.key and c.active and c.offer_status='approved'
      and jsonb_build_array(c.offer_version,c.offer_approved_at)=item.value for share;
@@ -214,7 +217,10 @@ declare q public.crm_quotes; v public.crm_quote_versions; c jsonb; cm jsonb; lin
 begin
   if not crm_private.is_owner() and not crm_private.seller_can('sale_close') then raise exception 'crm_forbidden' using errcode = '42501'; end if;
   if auth.uid() is null or not (crm_private.is_owner()
-      or crm_private.seller_owns_quote(crm_private.uuid_or_null(request ->> 'quote_id'))) then raise exception 'crm_forbidden' using errcode = '42501'; end if;
+      or crm_private.seller_owns_quote(crm_private.uuid_or_null(request ->> 'quote_id'))
+      or (crm_private.seller_can('sale_close') and exists (select 1 from public.crm_sales owned_sale
+        where owned_sale.quote_id = crm_private.uuid_or_null(request ->> 'quote_id') and owned_sale.seller_id = auth.uid()))) then
+    raise exception 'crm_forbidden' using errcode = '42501'; end if;
   if request is null or jsonb_typeof(request) <> 'object' then raise exception 'quote_close_invalid' using errcode = '22023'; end if;
   select * into q from public.crm_quotes where id = crm_private.uuid_or_null(request ->> 'quote_id') for update;
   if not found then raise exception 'quote_not_found' using errcode = 'P0002'; end if;
@@ -223,7 +229,13 @@ begin
   if coalesce((request ->> 'version_no')::integer, -1) <> q.current_version then raise exception 'quote_version_changed' using errcode = '40001'; end if;
   select * into existing from public.crm_sales where quote_version_id = v.id;
   if found then
+    if not crm_private.is_owner() and existing.seller_id is distinct from auth.uid() then
+      raise exception 'quote_closed_by_other_seller' using errcode = '42501'; end if;
     return jsonb_build_object('sale_id', existing.id, 'sale_number', existing.sale_number, 'client_id', existing.client_id, 'replayed', true);
+  end if;
+  if not crm_private.is_owner() then
+    perform 1 from public.crm_leads l where l.id=q.lead_id and l.owner_id=auth.uid() and not l.archived for share;
+    if not found or not crm_private.seller_can('sale_close') then raise exception 'crm_forbidden' using errcode='42501'; end if;
   end if;
   if q.status <> 'accepted' then raise exception 'quote_not_accepted' using errcode = '23514'; end if;
   if not crm_private.is_owner() then
@@ -261,12 +273,15 @@ begin
   select e.note into v_note from public.crm_quote_events e where e.quote_id = q.id and e.to_status = 'accepted' order by e.created_at desc limit 1;
   seller := coalesce(crm_private.uuid_or_null(request ->> 'seller_id'), auth.uid());
   -- A seller always closes as themself, inside a transaction-scoped seller context that the CRM guards recognise.
-  if not crm_private.is_owner() then seller := auth.uid(); perform crm_private.begin_seller_act(); end if;
+  if not crm_private.is_owner() then
+    seller := auth.uid(); perform crm_private.begin_seller_act();
+    perform set_config('avalon.seller_close', v.id::text, true);
+  end if;
   -- Same transaction: crm_confirm_sale enforces the won gate (verified contract), creates client/work orders/projects,
   -- and replays on the same key. The key is derived from the revision, so retries can never create a second sale.
-  r := public.crm_confirm_sale(jsonb_build_object(
+  r := crm_private.confirm_sale_internal(jsonb_build_object(
     'idempotency_key', md5('avalon-quote-close:' || v.id::text)::uuid,
-    'lead_id', q.lead_id, 'client_id', q.client_id,
+    'lead_id', q.lead_id, 'client_id', q.client_id, 'quote_version_id', v.id,
     'new_client', jsonb_build_object('legal_name', coalesce(nullif(btrim(c -> 'client' ->> 'company'), ''), q.title)),
     'seller_id', seller, 'sold_on', coalesce(nullif(request ->> 'sold_on', ''), current_date::text),
     'billing_mode', v_billing, 'lines', lines,
@@ -294,7 +309,7 @@ begin
 exception when invalid_text_representation then raise exception 'quote_close_invalid' using errcode = '22023';
 end $function$;
 
-CREATE OR REPLACE FUNCTION public.crm_confirm_sale(request jsonb)
+CREATE FUNCTION crm_private.confirm_sale_internal(request jsonb)
  RETURNS jsonb
  LANGUAGE plpgsql
  SECURITY DEFINER
@@ -325,8 +340,17 @@ declare
   owner_row record;
 begin
   if actor is null or not (crm_private.is_owner()
-      -- A seller reaches this only through crm_quote_close_sale, and only for a lead that is theirs.
-      or (crm_private.seller_acting() and crm_private.seller_owns_lead(crm_private.uuid_or_null(request ->> 'lead_id')))) then raise exception 'crm_forbidden' using errcode = '42501'; end if;
+      -- This private function is executable only by trusted definer RPCs, never by authenticated callers.
+      or (crm_private.seller_acting() and crm_private.seller_can('sale_close')
+          and crm_private.seller_owns_lead(crm_private.uuid_or_null(request ->> 'lead_id'))
+          and nullif(request ->> 'quote_version_id','') is not null
+          and current_setting('avalon.seller_close',true) = request ->> 'quote_version_id'
+          and exists (select 1 from public.crm_quote_versions qv join public.crm_quotes qq on qq.id=qv.quote_id
+            join public.crm_contracts co on co.verified_quote_revision=qv.id and co.lead_id=qq.lead_id
+            where qv.id=crm_private.uuid_or_null(request ->> 'quote_version_id') and qq.lead_id=crm_private.uuid_or_null(request ->> 'lead_id')
+              and qq.status='accepted' and qq.current_version=qv.version_no and qq.deleted_at is null
+              and co.status='verified_signed' and co.verified_by is not null))) then
+    raise exception 'crm_forbidden' using errcode = '42501'; end if;
   if request is null or jsonb_typeof(request) <> 'object' then raise exception 'sale_invalid' using errcode = '22023'; end if;
   key := crm_private.uuid_or_null(request ->> 'idempotency_key');
   if key is null then raise exception 'sale_invalid_key' using errcode = '22023'; end if;
@@ -555,6 +579,22 @@ begin
     'client_created', client_created, 'contacts', n_contacts, 'work_orders', n_orders, 'projects', n_projects, 'tasks', n_tasks);
 end $function$;
 
+revoke all on function crm_private.confirm_sale_internal(jsonb) from public, anon, authenticated, service_role;
+
+-- Preserve the canonical public API, but never accept a seller-supplied session context as authority.
+CREATE OR REPLACE FUNCTION public.crm_confirm_sale(request jsonb)
+ RETURNS jsonb
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO ''
+AS $function$
+begin
+  if auth.uid() is null or not crm_private.is_owner() then
+    raise exception 'crm_forbidden' using errcode='42501';
+  end if;
+  return crm_private.confirm_sale_internal(request);
+end $function$;
+
 CREATE OR REPLACE FUNCTION public.crm_quote_transition(p_quote uuid, p_expected_version integer, p_to text, p_note text DEFAULT ''::text)
  RETURNS text
  LANGUAGE plpgsql
@@ -585,7 +625,7 @@ begin
   end if;
   if p_to='approved' then
     insert into crm_private.quote_commercial_approvals(revision_id,digest,offers,approved_by)
-    select cur.id,cur.content_sha256, jsonb_object_agg(c.code,jsonb_build_array(c.offer_version,c.offer_approved_at)),actor
+    select cur.id,cur.content_sha256, coalesce(jsonb_object_agg(c.code,jsonb_build_array(c.offer_version,c.offer_approved_at)),'{}'::jsonb),actor
     from public.crm_service_catalog c where c.code in (select l->>'code' from jsonb_array_elements(cur.content->'lines') l)
     on conflict(revision_id) do update set offers=excluded.offers,approved_by=excluded.approved_by,approved_at=now();
   elsif p_to in ('sent','accepted') then
@@ -650,8 +690,10 @@ language sql stable security definer set search_path = '' as $$
     'status', q.status, 'current_version', q.current_version, 'version', q.version, 'valid_until', q.valid_until,
     'content', v.content, 'content_sha256', v.content_sha256, 'model', v.model,
     'one_time_total', v.one_time_total, 'monthly_total', v.monthly_total, 'contract_status', l.contract_status,
-    'sale_id', (select s.id from public.crm_sales s where s.quote_id = q.id limit 1),
-    'events', coalesce((select jsonb_agg(jsonb_build_object('to', e.to_status, 'from', e.from_status, 'note', case when e.actor_id = auth.uid() then e.note else '' end,
+    'contract_verified_for_revision', exists (select 1 from public.crm_contracts co where co.lead_id=q.lead_id and co.verified_quote_revision=v.id and co.status='verified_signed' and co.verified_by is not null),
+    'sale_id', (select s.id from public.crm_sales s where s.quote_id = q.id and s.seller_id=auth.uid() and crm_private.seller_can('sales_history') limit 1),
+    'closed', exists (select 1 from public.crm_sales s where s.quote_id=q.id),
+    'events', coalesce((select jsonb_agg(jsonb_build_object('to', e.to_status, 'from', e.from_status, 'note', case when q.created_by=auth.uid() and e.actor_id=auth.uid() then e.note end,
         'at', e.created_at, 'version', e.version_no) order by e.created_at) from public.crm_quote_events e where e.quote_id = q.id), '[]'::jsonb))
   from public.crm_quotes q
   join public.crm_leads l on l.id = q.lead_id

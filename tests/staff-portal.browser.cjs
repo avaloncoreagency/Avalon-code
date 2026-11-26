@@ -37,7 +37,8 @@ test('Staff portal: owners assign, Ana sees only her work, never owners\' privat
   await one("insert into crm_leads(company,contact,source,owner_id) values('Lead Secreto QA','Nadie','QA',$1) returning id", [MIGUEL]);
   await db.query("insert into staff_portal_access(user_id,active,job_title,can_create_events,can_create_casefiles,can_message) values($1,true,'seller',true,true,true),($2,true,'operator',false,false,false)", [ANA, PEDRO]);
   await db.query("insert into staff_contacts(user_id,display_name,is_listed) values($1,'Ana QA',true),($2,'Pedro QA',true) on conflict (user_id) do update set display_name=excluded.display_name, is_listed=true", [ANA, PEDRO]);
-  await db.query("insert into staff_lead_grants(user_id,lead_id,access_level) values($1,$2,'work'),($1,$3,'view')", [ANA, leadA, leadB]);
+  // Ana is a seller: her leads come only from the exclusive assignment (the database mirrors it as a 'work' grant).
+  await db.query('update crm_leads set owner_id=$1 where id in ($2,$3)', [ANA, leadA, leadB]);
   // Samuel's assignment (Miguel's is created through the UI below).
   await as(SAMUEL);
   await db.query("insert into staff_work_items(idempotency_key,kind,origin,assignee_id,title,instructions,due_at) values($1,'task','staff_assigned',$2,'Tarea de Samuel QA','Enviar resumen',$3)", [crypto.randomUUID(), ANA, at(1, 21)]);
@@ -87,11 +88,18 @@ test('Staff portal: owners assign, Ana sees only her work, never owners\' privat
   await m.page.goto(origin + '/admin/staff');
   const assign = m.page.getByRole('form', { name: 'Asignar actividad' });
   await assign.waitFor();
-  const assignmentSections = ['staff-clients', 'staff-work', 'staff-leads'];
+  const assignmentSections = ['staff-clients', 'staff-work'];
   for (const sectionId of assignmentSections) {
     const select = m.page.locator(`section[aria-labelledby="${sectionId}"] select[name="employee_id"]`);
     assert.deepEqual(await select.selectOption({ label: 'Ana QA' }), [ANA]);
   }
+  // Lead sharing is for non-seller staff; sellers receive leads only through the exclusive assignment.
+  assert.equal(await m.page.locator(`section[aria-labelledby="staff-leads"] select[name="employee_id"] option[value="${ANA}"]`).count(), 0);
+  assert.deepEqual(await m.page.locator('section[aria-labelledby="staff-leads"] select[name="employee_id"]').selectOption({ label: 'Pedro QA' }), [PEDRO]);
+  assert.deepEqual(await m.page.locator('section[aria-labelledby="seller-assign"] select[name="seller_id"]').selectOption({ label: 'Ana QA' }), [ANA]);
+  const anaLeadRows = m.page.locator('section[aria-labelledby="staff-leads"] li').filter({ hasText: 'vendedor asignado' });
+  assert.equal(await anaLeadRows.count(), 2);
+  assert.equal(await anaLeadRows.getByRole('button', { name: 'Revocar lead' }).count(), 0, 'a seller\'s lead is returned, not revoked');
   const roster = m.page.getByRole('region', { name: 'Control de empleados' });
   const anaCard = roster.locator('article').filter({ hasText: 'ana-qa@example.invalid' });
   assert.equal(await anaCard.getByLabel('Nombre visible a compañeros').inputValue(), 'Ana QA');
@@ -174,7 +182,10 @@ test('Staff portal: owners assign, Ana sees only her work, never owners\' privat
   await p.ctx.close();
 
   // 5. Owner revokes one lead → gone from Ana's list; owner suspends Ana → no operational access.
-  await as(MIGUEL); await db.query('update staff_lead_grants set active=false where user_id=$1 and lead_id=$2', [ANA, leadB]); await db.exec('reset role');
+  await m.page.goto(origin + '/admin/staff');
+  await m.page.locator('section[aria-labelledby="staff-leads"] li').filter({ hasText: 'Lead Dos QA' }).getByRole('button', { name: 'Devolver a la dirección' }).click();
+  await m.page.getByText('Lead devuelto a la dirección.').waitFor();
+  assert.equal((await one('select owner_id from crm_leads where id=$1', [leadB])).owner_id, MIGUEL);
   await a.page.goto(origin + '/staff');
   await a.page.getByRole('heading', { name: 'Mis leads' }).waitFor();
   assert.ok(!(await a.page.locator('section[aria-labelledby="staff-leads"]').textContent()).includes('Lead Dos QA'));
