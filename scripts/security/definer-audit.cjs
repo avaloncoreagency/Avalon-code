@@ -6,6 +6,8 @@
  *   token  – authenticated by a hashed bearer token (Project Bridge / Code Exchange)
  *   public – intentionally anonymous, listed in PUBLIC_ALLOWLIST with its justification
  *   self   – only returns/acts on rows of auth.uid() (e.g. directories limited to members)
+ *   seller – requires an active, MFA-verified seller and acts only on that seller's own records
+ *            (crm_private.is_seller / seller_owns_lead / seller_owns_quote)
  * Anything else is reported as UNGATED. Used by tests/definer-gates.test.cjs; no database connection needed.
  */
 const fs = require("fs");
@@ -79,6 +81,7 @@ function classify(name, body) {
   if (/(crm_private|os_private)\.(is_owner|require_owner|require_module)\s*\(/i.test(body)) return "owner";
   if (/token_sha256|token_hash/i.test(body) && /os_private\.(acx_token|bridge_token_guard)|token_sha256\s*=|sha256/i.test(body)) return "token";
   if (/agency_memberships/i.test(body) && /auth\.uid\(\)/i.test(body)) return "self";
+  if (/crm_private\.(is_seller|seller_can|seller_owns_lead|seller_owns_quote)\s*\(/i.test(body)) return "seller";
   return "ungated";
 }
 

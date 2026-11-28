@@ -1,0 +1,180 @@
+# Operation Infinity — recovered inventory and integration checkpoint
+
+Source basis: recovery 88c776ec7549e4c2f890d81ab5e6fdd9916e7a28 plus exact Claude snapshot 305e8557fa5608229583727f9cea643df71c1f1d. Static repository path inventory, not a full runtime audit. Each route not explicitly exercised by a named test remains NOT_RUN; physical iPhone/Safari and hosted preview are not certified.
+
+- App page source files: 102
+- Route handler source files: 45
+- SQL migrations: 78
+
+Integrated: current main, seller pipeline #363, commercial authority #364, convergence #365 (includes invitations #358/#359), quote UX #368 and #366 exact isolated snapshot. Original work branches unchanged. Strict seller redaction, explicit owner grants, verified revision linkage and private sale execution boundary preserved. Owner custom concepts remain quote-only until mapped to an approved catalog item. Commission policy and business rules remain frozen. No hosted changes.
+
+New regression: tests/infinity-restore.database.cjs copies a closed synthetic PGlite directory and reopens the copy to check records, RLS and private execution privileges. Runtime result must be obtained from exact-SHA CI; this does not certify Supabase backups or restore.
+
+## Pages
+- src/app/admin/creative-bridge/page.tsx
+- src/app/admin/dashboard/page.tsx
+- src/app/admin/dev-bridge/ledger/page.tsx
+- src/app/admin/dev-bridge/page.tsx
+- src/app/admin/forgot-password/page.tsx
+- src/app/admin/login/page.tsx
+- src/app/admin/mfa/page.tsx
+- src/app/admin/profile/page.tsx
+- src/app/admin/reset-password/page.tsx
+- src/app/admin/search/page.tsx
+- src/app/admin/security/page.tsx
+- src/app/admin/settings/communications/page.tsx
+- src/app/admin/settings/page.tsx
+- src/app/admin/signup/page.tsx
+- src/app/admin/staff/page.tsx
+- src/app/admin/workspace/[module]/page.tsx
+- src/app/admin/workspace/ai-chatbots/[id]/page.tsx
+- src/app/admin/workspace/ai-chatbots/[id]/studio/page.tsx
+- src/app/admin/workspace/ai-chatbots/builder/page.tsx
+- src/app/admin/workspace/ai-chatbots/page.tsx
+- src/app/admin/workspace/ai-communications/analytics/page.tsx
+- src/app/admin/workspace/ai-communications/appointments/page.tsx
+- src/app/admin/workspace/ai-communications/conversations/page.tsx
+- src/app/admin/workspace/ai-communications/knowledge/page.tsx
+- src/app/admin/workspace/ai-communications/page.tsx
+- src/app/admin/workspace/ai-receptionist/[id]/page.tsx
+- src/app/admin/workspace/ai-receptionist/[id]/studio/page.tsx
+- src/app/admin/workspace/ai-receptionist/builder/page.tsx
+- src/app/admin/workspace/ai-receptionist/page.tsx
+- src/app/admin/workspace/clients/[id]/page.tsx
+- src/app/admin/workspace/crm/[section]/page.tsx
+- src/app/admin/workspace/crm/activity/page.tsx
+- src/app/admin/workspace/crm/calendar/page.tsx
+- src/app/admin/workspace/crm/clients/[id]/contracts/page.tsx
+- src/app/admin/workspace/crm/clients/[id]/page.tsx
+- src/app/admin/workspace/crm/clients/[id]/results/page.tsx
+- src/app/admin/workspace/crm/clients/page.tsx
+- src/app/admin/workspace/crm/communications/page.tsx
+- src/app/admin/workspace/crm/desk/page.tsx
+- src/app/admin/workspace/crm/documents/page.tsx
+- src/app/admin/workspace/crm/inbound/page.tsx
+- src/app/admin/workspace/crm/lead/[id]/discovery/page.tsx
+- src/app/admin/workspace/crm/lead/[id]/page.tsx
+- src/app/admin/workspace/crm/messages/page.tsx
+- src/app/admin/workspace/crm/notifications/page.tsx
+- src/app/admin/workspace/crm/office/hq/page.tsx
+- src/app/admin/workspace/crm/office/manager-work/page.tsx
+- src/app/admin/workspace/crm/office/page.tsx
+- src/app/admin/workspace/crm/onboarding/[id]/page.tsx
+- src/app/admin/workspace/crm/onboarding/page.tsx
+- src/app/admin/workspace/crm/overview/page.tsx
+- src/app/admin/workspace/crm/page.tsx
+- src/app/admin/workspace/crm/quotes/[id]/edit/page.tsx
+- src/app/admin/workspace/crm/quotes/[id]/page.tsx
+- src/app/admin/workspace/crm/quotes/new/page.tsx
+- src/app/admin/workspace/crm/quotes/page.tsx
+- src/app/admin/workspace/crm/sales/[id]/invoices/[invoiceId]/page.tsx
+- src/app/admin/workspace/crm/sales/[id]/page.tsx
+- src/app/admin/workspace/crm/sales/new/page.tsx
+- src/app/admin/workspace/crm/sales/page.tsx
+- src/app/admin/workspace/crm/settings/page.tsx
+- src/app/admin/workspace/crm/subscriptions/page.tsx
+- src/app/admin/workspace/crm/tasks/page.tsx
+- src/app/admin/workspace/crm-creator/[id]/page.tsx
+- src/app/admin/workspace/crm-creator/[id]/studio/page.tsx
+- src/app/admin/workspace/crm-creator/page.tsx
+- src/app/admin/workspace/ecommerce-designer/[id]/page.tsx
+- src/app/admin/workspace/ecommerce-designer/[id]/preview/page.tsx
+- src/app/admin/workspace/ecommerce-designer/[id]/products/[productId]/page.tsx
+- src/app/admin/workspace/ecommerce-designer/page.tsx
+- src/app/admin/workspace/library/[id]/page.tsx
+- src/app/admin/workspace/library/code/page.tsx
+- src/app/admin/workspace/library/page.tsx
+- src/app/admin/workspace/library/tokens/page.tsx
+- src/app/admin/workspace/marketing-hub/[id]/items/[itemId]/page.tsx
+- src/app/admin/workspace/marketing-hub/[id]/page.tsx
+- src/app/admin/workspace/marketing-hub/commercial/campaigns/page.tsx
+- src/app/admin/workspace/marketing-hub/commercial/catalog/page.tsx
+- src/app/admin/workspace/marketing-hub/commercial/knowledge/page.tsx
+- src/app/admin/workspace/marketing-hub/commercial/overview/page.tsx
+- src/app/admin/workspace/marketing-hub/commercial/page.tsx
+- src/app/admin/workspace/marketing-hub/commercial/playbook/page.tsx
+- src/app/admin/workspace/marketing-hub/commercial/router/page.tsx
+- src/app/admin/workspace/marketing-hub/funnels/page.tsx
+- src/app/admin/workspace/marketing-hub/growth/page.tsx
+- src/app/admin/workspace/marketing-hub/page.tsx
+- src/app/admin/workspace/products/[id]/page.tsx
+- src/app/admin/workspace/website-designer/[id]/page.tsx
+- src/app/admin/workspace/website-designer/[id]/pages/[pageId]/page.tsx
+- src/app/admin/workspace/website-designer/[id]/pages/[pageId]/preview/page.tsx
+- src/app/admin/workspace/website-designer/[id]/studio/page.tsx
+- src/app/admin/workspace/website-designer/page.tsx
+- src/app/dashboard/page.tsx
+- src/app/f/[slug]/page.tsx
+- src/app/login/page.tsx
+- src/app/page.tsx
+- src/app/soluciones/[service]/page.tsx
+- src/app/staff/mfa/page.tsx
+- src/app/staff/page.tsx
+- src/app/staff/quotes/[id]/edit/page.tsx
+- src/app/staff/quotes/[id]/page.tsx
+- src/app/staff/quotes/new/page.tsx
+
+## Route handlers
+- src/app/admin/api/notifications/route.ts
+- src/app/admin/api/staff-presence/route.ts
+- src/app/admin/auth/callback/route.ts
+- src/app/admin/auth/confirm/route.ts
+- src/app/admin/workspace/crm/api/route.ts
+- src/app/admin/workspace/crm/clients/[id]/contracts/[agreementId]/route.ts
+- src/app/admin/workspace/crm/documents/[id]/route.ts
+- src/app/admin/workspace/crm/documents/review-pack/route.ts
+- src/app/admin/workspace/crm/office/api/route.ts
+- src/app/admin/workspace/crm/office/executive/route.ts
+- src/app/admin/workspace/crm/office/manager-activity/route.ts
+- src/app/admin/workspace/crm/office/manager-run/route.ts
+- src/app/admin/workspace/crm/office/manager-work/api/route.ts
+- src/app/admin/workspace/crm/office/manager-work/github-history/api/route.ts
+- src/app/admin/workspace/crm/office/photo/[id]/route.ts
+- src/app/admin/workspace/crm/onboarding/[id]/documents/[docId]/route.ts
+- src/app/admin/workspace/crm/pipeline/files/[id]/route.ts
+- src/app/admin/workspace/crm/pipeline/files/route.ts
+- src/app/admin/workspace/crm/pipeline/route.ts
+- src/app/admin/workspace/crm/quotes/[id]/pdf/route.ts
+- src/app/admin/workspace/crm/radar/area/route.ts
+- src/app/admin/workspace/crm/radar/campaigns/route.ts
+- src/app/admin/workspace/crm/radar/control/route.ts
+- src/app/admin/workspace/crm/radar/geocode/route.ts
+- src/app/admin/workspace/crm/radar/places/route.ts
+- src/app/admin/workspace/crm/radar/research/route.ts
+- src/app/admin/workspace/crm/radar/runs/route.ts
+- src/app/admin/workspace/crm/sales/[id]/invoices/[invoiceId]/pdf/route.ts
+- src/app/admin/workspace/crm-creator/[id]/export/route.ts
+- src/app/admin/workspace/ecommerce-designer/[id]/export/route.ts
+- src/app/admin/workspace/library/[id]/export/route.ts
+- src/app/admin/workspace/library/[id]/preview/route.ts
+- src/app/admin/workspace/library/imports/[importId]/process/route.ts
+- src/app/admin/workspace/library/uploads/route.ts
+- src/app/admin/workspace/marketing-hub/[id]/export/route.ts
+- src/app/admin/workspace/products/[id]/brief/route.ts
+- src/app/admin/workspace/website-designer/[id]/pages/[pageId]/export/route.ts
+- src/app/api/creative-bridge/deliveries/route.ts
+- src/app/api/creative-bridge/projects/route.ts
+- src/app/api/dev-bridge/export/route.ts
+- src/app/api/dev-bridge/resume/route.ts
+- src/app/api/dev-bridge/v1/events/route.ts
+- src/app/api/project-bridge/v1/imports/[importId]/route.ts
+- src/app/api/project-bridge/v1/imports/route.ts
+- src/app/staff/quotes/[id]/pdf/route.ts
+
+## Next action
+Inspect exact integrated SHA Actions, independently confirm remaining failures and correct root causes. Hosted SMTP, backup/restore, customer acceptance and joint legal/commercial approvals remain separate gates.
+
+## ASTRA handoff · 2026-11-28
+
+Candidate [#369](https://github.com/avaloncoreagency/Avalon-code/pull/369) started this pass at `9b3ef13a2d80797ede833a291312536af910b572`. Main was `894d73bc72fdc65a0af922a9b8c398680e889dfe`. Compared with [#365](https://github.com/avaloncoreagency/Avalon-code/pull/365) at `50d752797c67b0e80be35614c2aca1ebc1e8efd0` before selecting changes. Exact final runs and handoff belong to [#304](https://github.com/avaloncoreagency/Avalon-code/issues/304).
+
+| Area | Baseline evidence | Regression to run |
+| --- | --- | --- |
+| Orbit Dental | Missing approved CRM offer prevented the unsigned-contract case from reaching its guard | `SALES_BROWSER=1 node --test tests/sales.browser.cjs` |
+| Quote detail at 320px | Native signed-contract select exceeded the page width by 47px | `SALES_CENTER_BROWSER=1 node --test tests/sales-center.browser.cjs` |
+| Archived quote | Seven edit/transition/close elements remained on a read-only record | `QUOTE_DELETE_BROWSER=1 node --test tests/quote-delete.browser.cjs` |
+| Archiving and totals | Summary counted archived quotes. Two deletion-history amounts lacked the common finite-value constraint | `node --test tests/quote-delete.database.cjs tests/finance-finite.database.cjs` |
+| Marketing delivery | Template refused a recorded delivery without a URL | `CLIENT_EXPERIENCE_BROWSER=1 node --test tests/client-experience.browser.cjs` |
+| Private pages | Anonymous route check enumerates admin and staff pages from this checkout | `node --test tests/infinity-routes.integration.cjs` |
+
+Browser commands use a local production build and synthetic fixtures. Install the locked QA dependencies under `tests/qa` and set `NODE_PATH=./tests/qa/node_modules`. DDL is versioned only. Before release, compare the ledger by migration contents and review the existing reconciliation plan. Hosted restore, real owner/agent sessions, an isolated hosted Preview, the pilot in [#346](https://github.com/avaloncoreagency/Avalon-code/pull/346) and physical Safari require separate evidence.

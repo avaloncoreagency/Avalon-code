@@ -25,8 +25,8 @@ if(process.env.NEXUS_BROWSER==='1')test('isolated rendered journey ES/EN across 
  const {chromium}=require('playwright');const browser=await chromium.launch({headless:true});try{for(const lang of ['es','en'])for(const width of [320,375,390,430,768,1440]){const page=await browser.newPage({viewport:{width,height:900}});const {html}=await renderJourney(lang);await page.setContent('<html><head><style>body{font-family:system-ui,sans-serif;margin:12px;background:#101522;color:white}'+fs.readFileSync('src/components/crm/commercial-journey.module.css','utf8')+'</style></head><body>'+html+'</body></html>');assert.equal(await page.getByRole('heading',{name:lang==='es'?'Camino comercial':'Commercial journey'}).count(),1);assert.ok(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+1));await page.locator('summary').click();assert.ok(await page.getByRole('link',{name:'QA-ONLY'}).isVisible());const dir=process.env.NEXUS_EVIDENCE_DIR;if(dir){fs.mkdirSync(dir,{recursive:true});await page.screenshot({path:path.join(dir,`journey-${lang}-${width}.png`),fullPage:true});}await page.close();}}finally{await browser.close();}
 });
 
-async function calendarHtml(source,failed=false,denied=false,agendaPage=0,total){
- const db={from(table){let fields='';const filters=[];const chain=new Proxy({},{get:(_,method)=>method==='then'?(resolve)=>{let rows=table==='crm_stages'?[{id:'custom-closed'}]:table==='crm_leads'&&fields.includes('follow_up_at')?['new','lost','won','custom-closed'].map(stage=>({id:stage,company:'SYNTH-'+stage,stage_id:stage,follow_up_at:'2026-11-25T12:00:00Z',owner_id:lead.id})):[];for(const [op,key,value] of filters){if(op==='neq')rows=rows.filter(r=>r[key]!==value);if(op==='not'&&key==='stage_id')rows=rows.filter(r=>!['won','lost'].includes(r.stage_id));}resolve({data:failed&&table==='crm_leads'?null:rows,error:failed&&table==='crm_leads'?{code:'42501'}:null,count:table==='crm_leads'&&fields.includes('follow_up_at')?(total??rows.length):rows.length});}:(...args)=>{if(method==='select')fields=args[0];if(method==='range')assert.deepEqual(args,[agendaPage*50,agendaPage*50+49]);filters.push([method,...args]);return chain;}});return chain;}};
+async function calendarHtml(source,failed=false,denied=false,agendaPage=0,total,followUpAt='2026-11-25T12:00:00Z'){
+ const db={from(table){let fields='';const filters=[];const chain=new Proxy({},{get:(_,method)=>method==='then'?(resolve)=>{let rows=table==='crm_stages'?[{id:'custom-closed'}]:table==='crm_leads'&&fields.includes('follow_up_at')?['new','lost','won','custom-closed'].map(stage=>({id:stage,company:'SYNTH-'+stage,stage_id:stage,follow_up_at:followUpAt,owner_id:lead.id})):[];for(const [op,key,value] of filters){if(op==='neq')rows=rows.filter(r=>r[key]!==value);if(op==='not'&&key==='stage_id')rows=rows.filter(r=>!['won','lost'].includes(r.stage_id));}resolve({data:failed&&table==='crm_leads'?null:rows,error:failed&&table==='crm_leads'?{code:'42501'}:null,count:table==='crm_leads'&&fields.includes('follow_up_at')?(total??rows.length):rows.length});}:(...args)=>{if(method==='select')fields=args[0];if(method==='range')assert.deepEqual(args,[agendaPage*50,agendaPage*50+49]);filters.push([method,...args]);return chain;}});return chain;}};
  const Wrapper=({children})=>React.createElement('div',{},children);
  const page=load('src/app/admin/workspace/crm/calendar/page.tsx',{'next/link':{default:({href,children})=>React.createElement('a',{href},children)},'@/components/suite/suite':{Suite:Wrapper},'@/components/crm/shared-calendar':{SharedCalendar:()=>null},'@/components/crm/navigation':{CrmNavigation:()=>null},'@/lib/auth/session':{requireOwner:async()=>{if(denied)throw Error('AUTH_DENIED');return {supabase:db,userId:lead.id};}},'@/lib/i18n-server':{getLang:async()=> 'en'},'@/lib/identity/directory':{loadOwnerDirectory:async()=>({data:[],error:null})},'@/components/sales/ui':{OpsLinks:()=>null,Tag:Wrapper,ownerName:()=> 'Synthetic owner',UUID_RE:/^[0-9a-f-]{36}$/,q:(p,k)=>p[k]??null}},source);
  return renderToStaticMarkup(await page.default({searchParams:Promise.resolve({agenda_page:String(agendaPage),date:'2026-11-24',view:'week'})}));
@@ -48,4 +48,70 @@ test('Sales Center gives the canonical database query the search term before fet
 test('calendar 49/50/51 and later pages preserve date/view and stable server ranges',async()=>{
  for(const total of [49,50,51])assert.equal((await calendarHtml(undefined,false,false,0,total)).includes('>Next</a>'),total>50);
  const last=await calendarHtml(undefined,false,false,4,201);assert.ok(!last.includes('>Next</a>'));assert.match(last,/agenda_page=3/);assert.match(last,/date=2026-11-24/);assert.match(last,/view=week/);
+});
+
+test('calendar groups a UTC-next-day follow-up under its actual Eastern day and does not report empty on failed reads',async()=>{
+ const html=await calendarHtml(undefined,false,false,0,1,'2026-11-25T01:30:00Z');
+ assert.match(html,/aria-label="Nov 24, 2026"/);
+ assert.doesNotMatch(html,/aria-label="Nov 25, 2026"/);
+ assert.match(html,/SYNTH-new/);
+ const unavailable=await calendarHtml(undefined,true);
+ assert.match(unavailable,/Dates in this period could not be verified/);
+ assert.doesNotMatch(unavailable,/No dates in this period/);
+});
+
+async function dashboardHtml(failed=false){
+ const calls=[];let stats;
+ const supabase={
+  rpc(name){return Promise.resolve({data:name==='crm_sales_metrics'?[]:{draft:0,sent:0,overdue:0,accepted_without_contract:0},error:null});},
+  from(table){
+   const q={table,filters:[],count:false,limit:null};
+   const chain=new Proxy({},{get:(_,method)=>method==='then'?resolve=>{
+    calls.push(q);
+    const eq=key=>q.filters.find(f=>f[0]==='eq'&&f[1]===key)?.[2];
+    let count=0, data=[];
+    if(table==='os_projects'&&q.count){
+     count=({website:701,ecommerce:40,crm_creator:20,marketing:50,chatbots:10,receptionist:5})[eq('module')]??(eq('status')==='active'?901:1201);
+    }else if(table==='os_projects'){data=[{id:'synthetic-project',module:'website',name:'Recent synthetic project',status:'active'}];}
+    if(table==='os_marketing_items'&&q.count)count=q.filters.some(f=>f[0]==='lt'&&f[1]==='planned_for')?22:34;
+    if(failed&&(table==='os_marketing_items'||table==='os_audit'||(table==='os_projects'&&eq('module')==='website'))){resolve({data:null,error:{code:'42501'},count:null});return;}
+    resolve({data,error:null,count:q.count?count:null});
+   }:(...args)=>{
+    if(method==='select')q.count=args[1]?.count==='exact';
+    if(method==='limit')q.limit=args[0];
+    q.filters.push([method,...args]);return chain;
+   }});
+   return chain;
+  }
+ };
+ const Wrapper=({children})=>React.createElement('div',{},children);
+ const page=load('src/app/admin/dashboard/page.tsx',{
+  'next/link':{default:({href,children,...props})=>React.createElement('a',{href,...props},children)},
+  '@/components/suite/suite':{Suite:Wrapper},
+  '@/components/suite/module-cards':{ModuleCards:props=>{stats=props.stats;return null;}},
+  '@/components/suite/icons':{Icon:()=>null},
+  '@/lib/auth/session':{requireOwner:async()=>({supabase,user:{},userId:lead.id}),displayName:()=> 'Synthetic owner'},
+  '@/lib/i18n-server':{getLang:async()=> 'en'},
+  '@/lib/os/integrations':{INTEGRATIONS:[]},
+  '@/lib/sales/domain':{money:(_lang,value)=>String(value)}
+ });
+ const html=renderToStaticMarkup(await page.default());
+ return {html,stats,calls};
+}
+test('dashboard counts all owner-visible projects and marketing records, separately from bounded previews',async()=>{
+ const {html,stats,calls}=await dashboardHtml();
+ assert.match(html,/<strong>901<\/strong>/);
+ assert.match(html,/1201 total \(not archived\)/);
+ assert.match(html,/<strong>34<\/strong>/);
+ assert.match(html,/22 overdue/);
+ assert.equal(stats.website.value,701);
+ assert.equal(stats.communications.value,15);
+ assert.equal(calls.find(q=>q.table==='os_projects'&&!q.count).limit,6);
+ assert.equal(calls.find(q=>q.table==='os_marketing_items'&&!q.count).limit,8);
+ const bad=await dashboardHtml(true);
+ assert.equal(bad.stats.website.value,null);
+ assert.equal(bad.stats.website.state,'pending');
+ assert.match(bad.html,/Pending content could not be read/);
+ assert.match(bad.html,/Recent activity could not be read/);
+ assert.doesNotMatch(bad.html,/No activity recorded yet/);
 });

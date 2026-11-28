@@ -26,6 +26,7 @@ export function SalesCenterTabs({ lang, active }: { lang: Lang; active: string }
     ["quotes", "/admin/workspace/crm/quotes", "Cotizaciones", "Quotes"],
     ["sales", "/admin/workspace/crm/sales#sales-list", "Ventas cerradas", "Closed sales"],
     ["collections", "/admin/workspace/crm/sales?payment=open#sales-list", "Cobros y liquidaciones", "Collections and settlements"],
+    ["subscriptions", "/admin/workspace/crm/subscriptions", "Suscripciones", "Subscriptions"],
     ["postsale", "/admin/workspace/crm/tasks", "Postventa", "After-sale"],
   ];
   return <nav className={s.centerTabs} aria-label="Sales Center">
@@ -41,7 +42,7 @@ export function OpsHeader({ lang, active, crm, title, eyebrow, lead, actions }: 
   return <>
     <CrmNavigation active={crm === "sales" || active === "sales" || active === "new" ? "sales" : crm === "clients" || active === "clients" ? "clients" : active} lang={lang} />
     <OpsLinks lang={lang} active={active} />
-    {["sales", "new", "quotes", "collections"].includes(active) && <SalesCenterTabs lang={lang} active={active} />}
+    {["sales", "new", "quotes", "collections", "subscriptions"].includes(active) && <SalesCenterTabs lang={lang} active={active} />}
     <header className={s.header}>
       <div><p className={s.eyebrow}>{eyebrow}</p><h1>{title}</h1>{lead && <p className={s.lead}>{lead}</p>}</div>
       {actions && <div className={s.actions}>{actions}</div>}

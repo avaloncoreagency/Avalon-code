@@ -9,6 +9,7 @@ const { createServer } = require('node:http');
 const fs = require('node:fs');
 const { PGlite } = require('@electric-sql/pglite');
 const { startBridge } = require('./support/rest-bridge.cjs');
+const approveFixtureOffers = require('./helpers/approve-fixture-offers.cjs');
 
 const MIGUEL = '00000000-0000-4000-8000-0000000000a1';
 const SAMUEL = '00000000-0000-4000-8000-0000000000b2';
@@ -46,6 +47,7 @@ test('Nova Restaurant through the real app: one form, three departments, no dupl
     await db.exec(fs.readFileSync(`supabase/migrations/${file}`, 'utf8'));
     if (file.startsWith('20261102053022')) await db.exec(`insert into agency_memberships(user_id,role) values('${MIGUEL}','owner'),('${SAMUEL}','owner');`);
   }
+  await approveFixtureOffers(db,MIGUEL,[['desarrollo-web',2000],['recepcionista-ia',1500],['marketing-mensual',700],['crm-personalizado',3000]]);
   const users = new Map();
   const session = (id, email) => {
     const user = { id, email, aud: 'authenticated', role: 'authenticated', app_metadata: { provider: 'email' }, user_metadata: {}, identities: [], created_at: '2026-01-01T00:00:00Z' };

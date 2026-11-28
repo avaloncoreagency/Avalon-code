@@ -7,6 +7,7 @@ const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const { performance } = require('node:perf_hooks');
 const { PGlite } = require('@electric-sql/pglite');
+const approveFixtureOffers = require('./helpers/approve-fixture-offers.cjs');
 const MIGUEL = '00000000-0000-4000-8000-0000000000a1';
 const SAMUEL = '00000000-0000-4000-8000-0000000000b2';
 const uuid = i => `${String(i).padStart(8, '0')}-0000-4000-8000-${String(i).padStart(12, '0')}`;
@@ -20,6 +21,8 @@ test('capacity 1/5/10/20/25/50 clients: Clients 360 list, search, pagination, le
     if (f.startsWith('20261102053022')) await db.exec(`insert into agency_memberships values('${MIGUEL}','owner'),('${SAMUEL}','owner');`);
   }
   await db.query('insert into crm_private.finance_access(user_id) values($1)', [MIGUEL]);
+  // Real owner approval is a prerequisite in this disposable fixture, not a production offer.
+  await approveFixtureOffers(db, MIGUEL, [["desarrollo-web",1000]]);
   const as = u => db.exec(`reset role;set request.jwt.claim.sub='${u}';set role authenticated;`);
   const one = async (q, p) => (await db.query(q, p)).rows[0];
   const time = async (fn) => { const s = performance.now(); const r = await fn(); return [r, Math.round((performance.now() - s) * 10) / 10]; };

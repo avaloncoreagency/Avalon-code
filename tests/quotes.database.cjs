@@ -4,6 +4,7 @@ const assert = require("node:assert/strict");
 const fs = require("node:fs");
 const crypto = require("node:crypto");
 const { PGlite } = require("@electric-sql/pglite");
+const approveFixtureOffers = require('./helpers/approve-fixture-offers.cjs');
 
 const OWNER = "00000000-0000-4000-8000-0000000000a1";
 const SECOND = "00000000-0000-4000-8000-0000000000b2";
@@ -18,6 +19,7 @@ async function setup() {
     if (file.startsWith("20261102053022"))
       await db.exec(`insert into agency_memberships values ('${OWNER}','owner'),('${SECOND}','owner'),('${OUTSIDER}','operator');`);
   }
+  await approveFixtureOffers(db, OWNER, [['desarrollo-web',750.25]]);
   const as = id => db.exec(`reset role;set request.jwt.claim.sub='${id}';set role authenticated;`);
   const one = async (sql, params = []) => (await db.query(sql, params)).rows[0];
   return { db, as, one };

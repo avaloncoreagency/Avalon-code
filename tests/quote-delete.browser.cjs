@@ -81,6 +81,10 @@ test('Quotes: action menu and owner-only deletion with confirmation modal', { ti
   await page.goto(`${origin}/admin/workspace/crm/quotes/${drop}`);
   await page.locator('[data-quote-deleted]').waitFor();
   assert.equal(await page.locator('[data-open-delete]').count(), 0);
+  assert.equal(await page.locator(`a[href$="/${drop}/edit"], a[href="#close-sale"], form input[name="quote_id"]`).count(), 0, 'archived quotes expose only historical records');
+  await page.goto(`${origin}/admin/workspace/crm/quotes/${drop}/edit`);
+  await page.locator('[data-quote-deleted]').waitFor();
+  assert.equal(new URL(page.url()).pathname, `/admin/workspace/crm/quotes/${drop}`);
   assert.deepEqual(errors, []);
   // Mobile: the modal fits.
   const m = await browser.newContext({ viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true, deviceScaleFactor: 1 });

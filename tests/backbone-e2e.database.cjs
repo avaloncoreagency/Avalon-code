@@ -1,6 +1,7 @@
 // Mission 0349 Phase 9: one continuous synthetic chain on real PostgreSQL (PGlite):
 // Radar prospect → evidence/stars → human approval → single lead → pipeline → multi-service sale → one client →
 // work orders → projects (canonical client link) → tasks → payment → delivery progress → outsider denied.
+const approveFixtureOffers = require('./helpers/approve-fixture-offers.cjs');
 const { test } = require('node:test');
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
@@ -17,6 +18,7 @@ test('backbone: prospect → lead → sale → client → orders → projects �
     await db.exec(fs.readFileSync('supabase/migrations/' + f, 'utf8'));
     if (f.startsWith('20261102053022')) await db.exec(`insert into agency_memberships values('${M}','owner'),('${S}','owner'),('${X}','operator');`);
   }
+  await approveFixtureOffers(db, M, [['desarrollo-web', 2000], ['crm-personalizado', 3000], ['marketing-mensual', 600]]);
   const as = u => db.exec(`reset role;set request.jwt.claim.sub='${u}';set role authenticated;`);
   const one = async (q, p) => (await db.query(q, p)).rows[0];
   const n = async (q, p) => Number((await one(q, p)).n);
@@ -81,9 +83,8 @@ test('backbone: prospect → lead → sale → client → orders → projects �
 });
 
 test('AI assistants stay disconnected: adapters return null and every integration is not_connected', () => {
-  const ts = require('typescript');
-  const m = { exports: {} };
-  new Function('module', 'exports', ts.transpileModule(fs.readFileSync('src/lib/os/integrations.ts', 'utf8'), { compilerOptions: { module: ts.ModuleKind.CommonJS } }).outputText)(m, m.exports);
-  assert.equal(m.exports.getAiAdapter(), null); assert.equal(m.exports.getMessagingAdapter(), null); assert.equal(m.exports.getSocialPublisher(), null);
-  assert.ok(m.exports.INTEGRATIONS.every(i => i.status === 'not_connected'));
+  // This isolated job installs only the QA package. Node 22 loads this module's erasable types directly.
+  const { getAiAdapter, getMessagingAdapter, getSocialPublisher, INTEGRATIONS } = require('../src/lib/os/integrations.ts');
+  assert.equal(getAiAdapter(), null); assert.equal(getMessagingAdapter(), null); assert.equal(getSocialPublisher(), null);
+  assert.ok(INTEGRATIONS.every(i => i.status === 'not_connected'));
 });

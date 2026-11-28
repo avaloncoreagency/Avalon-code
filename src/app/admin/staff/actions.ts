@@ -1,4 +1,5 @@
 "use server";
+import { commercialPermissions } from "@/lib/staff/commercial-permissions";
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { requireOwner } from "@/lib/auth/session";
@@ -6,6 +7,7 @@ import { getAppOrigin } from "@/lib/auth/policy";
 import { isJobTitle, JOB_TITLES } from "@/lib/auth/staff-roles";
 import { randomUUID } from "node:crypto";
 import { DEFAULT_TZ, isKind, isPriority, localToUtc, validTimeZone } from "@/lib/staff/work";
+import { isSellerTitle } from "@/lib/staff/seller";
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 function get(form: FormData, field: string) {
@@ -27,6 +29,11 @@ const INVITE_FAILURES: Record<string, string> = {
   forbidden: "invite-forbidden",
   unauthorized: "invite-forbidden",
   member_limit: "invite-member-limit",
+  invite_email_failed: "invite-email-failed",
+  invite_email_rate_limit: "invite-email-rate-limit",
+  invite_request_rate_limit: "invite-request-rate-limit",
+  temporarily_unavailable: "invite-unavailable",
+  invalid_request: "invalid",
 };
 
 /** Email invitations are issued by a protected Supabase Edge Function,
@@ -51,8 +58,15 @@ export async function inviteStaffEmployee(form: FormData) {
     if (!error && data?.invited === true && data.requires_owner_activation === true) {
       outcome = data.audited === true ? "invite-sent" : "invite-audit-pending";
     } else if (error?.context instanceof Response) {
-      const failure = await error.context.json();
-      outcome = INVITE_FAILURES[String(failure?.error)] ?? outcome;
+      if (error.context.status === 404) {
+        outcome = "invite-unavailable";
+      } else if (error.context.status === 401) {
+        outcome = "invite-forbidden";
+      } else {
+        const failure = await error.context.json();
+        const code = typeof failure?.error === "string" ? failure.error : "";
+        if (Object.hasOwn(INVITE_FAILURES, code)) outcome = INVITE_FAILURES[code];
+      }
     }
   } catch { /* A lost or malformed response leaves the outcome unconfirmed. */ }
   done(outcome);
@@ -75,6 +89,7 @@ export async function setStaffAccess(form: FormData) {
       !directory.some(m => m.user_id === employeeId && m.role === "operator"))
     done("denied");
   const saved = await supabase.from("staff_portal_access").upsert({
+    commercial_permissions: commercialPermissions.filter(([key]) => form.getAll("commercial_permissions").includes(key)).map(([key]) => key),
     user_id: employeeId, active, can_create_casefiles, can_message, can_create_events, job_title,
     granted_by: userId, updated_at: new Date().toISOString(),
   }, { onConflict: "user_id" });
@@ -123,20 +138,22 @@ export async function revokeStaffClient(form: FormData) {
   done(error || !data ? "failed" : "client-revoked");
 }
 
-/** Seller base: an owner grants ONE lead to an active operator. Employees read it only through the redacted
- * staff_my_leads() projection; crm_leads RLS stays owner-only. */
+/** Owners share ONE lead with an active NON-seller employee (support, operations). Employees read it only through the
+ * redacted staff_my_leads() projection; crm_leads RLS stays owner-only. Sellers receive and return leads only through
+ * the exclusive assignment (assignLeadToSeller); the database refuses any other grant to them. */
 export async function grantStaffLead(form: FormData) {
   const { supabase, userId } = await requireOwner();
   const employeeId = get(form, "employee_id"), leadId = get(form, "lead_id"), access_level = get(form, "access_level");
   if (!UUID.test(employeeId) || !UUID.test(leadId) || !["view", "work"].includes(access_level)) done("invalid");
-  const active = await supabase.from("staff_portal_access").select("active").eq("user_id", employeeId).maybeSingle();
+  const active = await supabase.from("staff_portal_access").select("active,job_title").eq("user_id", employeeId).maybeSingle();
   if (active.error || active.data?.active !== true) done("denied");
+  if (isSellerTitle(active.data?.job_title)) done("use-assignment");
   const lead = await supabase.from("crm_leads").select("id").eq("id", leadId).eq("archived", false).maybeSingle();
   if (lead.error || !lead.data) done("invalid");
   const { error } = await supabase.from("staff_lead_grants").upsert({
     user_id: employeeId, lead_id: leadId, access_level, active: true, granted_by: userId, updated_at: new Date().toISOString(),
   }, { onConflict: "user_id,lead_id" });
-  done(error ? "failed" : "lead-granted");
+  done(error ? (/staff_lead_use_assignment/.test(error.message) ? "use-assignment" : "failed") : "lead-granted");
 }
 
 export async function revokeStaffLead(form: FormData) {
@@ -146,6 +163,7 @@ export async function revokeStaffLead(form: FormData) {
   const { data, error } = await supabase.from("staff_lead_grants")
     .update({ active: false, granted_by: userId, updated_at: new Date().toISOString() })
     .eq("user_id", employeeId).eq("lead_id", leadId).eq("active", true).select("lead_id").maybeSingle();
+  if (error && /staff_lead_use_assignment/.test(error.message)) done("use-assignment");
   done(error || !data ? "failed" : "lead-revoked");
 }
 
@@ -171,12 +189,50 @@ export async function assignWorkItem(form: FormData) {
   done("work-assigned");
 }
 
-/** Cancel or reassign an assignment (optimistic version; audit via trigger). */
+/** Owners control every employee calendar: cancel, reassign, reschedule or delete any item (optimistic version;
+ * audit via trigger). The database refuses all of this to employees. */
 export async function manageWorkItem(form: FormData) {
   const { supabase } = await requireOwner();
   const id = get(form, "item_id"), version = Number(get(form, "version")), op = get(form, "op"), to = get(form, "assignee_id");
-  if (!UUID.test(id) || !Number.isInteger(version) || !["cancel", "reassign"].includes(op) || (op === "reassign" && !UUID.test(to))) done("invalid");
-  const patch = op === "cancel" ? { status: "cancelled" } : { assignee_id: to, lead_id: null, client_id: null };
+  if (!UUID.test(id) || !Number.isInteger(version) || !["cancel", "reassign", "reschedule", "delete"].includes(op)
+      || (op === "reassign" && !UUID.test(to))) done("invalid");
+  if (op === "delete") {
+    const { data, error } = await supabase.from("staff_work_items").delete().eq("id", id).eq("version", version).select("id");
+    done(error ? "failed" : data && data.length ? "work-deleted" : "stale");
+  }
+  let patch: Record<string, string | null>;
+  if (op === "reschedule") {
+    const tz = get(form, "time_zone") || DEFAULT_TZ, date = get(form, "date"), start = get(form, "start"), end = get(form, "end");
+    const kind = get(form, "kind");
+    if (!validTimeZone(tz) || !isKind(kind)) done("invalid");
+    const at = localToUtc(date, start || (kind === "task" ? "17:00" : ""), tz);
+    if (!at) done("invalid");
+    const endsAt = kind !== "task" && end ? localToUtc(date, end, tz) : null;
+    if (endsAt && endsAt < at) done("invalid");
+    patch = kind === "task" ? { due_at: at, time_zone: tz } : { starts_at: at, ends_at: endsAt, time_zone: tz };
+    const title = get(form, "title");
+    if (title) { if (title.length > 200) done("invalid"); patch.title = title; }
+  } else {
+    patch = op === "cancel" ? { status: "cancelled" } : { assignee_id: to, lead_id: null, client_id: null };
+  }
   const { data, error } = await supabase.from("staff_work_items").update(patch).eq("id", id).eq("version", version).select("id");
-  done(error ? "failed" : data && data.length ? (op === "cancel" ? "work-cancelled" : "work-reassigned") : "stale");
+  done(error ? "failed" : data && data.length ? ({ cancel: "work-cancelled", reassign: "work-reassigned", reschedule: "work-rescheduled" } as Record<string, string>)[op] : "stale");
+}
+
+/** Owners hand a lead to exactly ONE seller (or take it back with an empty seller). The database closes every other
+ * employee's grant, so the lead and its proposals are visible only to that seller and the owners; sales and commissions
+ * keep their attribution to whoever closed them. */
+export async function assignLeadToSeller(form: FormData) {
+  const { supabase } = await requireOwner();
+  const leadId = get(form, "lead_id"), seller = get(form, "seller_id");
+  if (!UUID.test(leadId) || (seller && !UUID.test(seller))) done("invalid");
+  const { error } = await supabase.rpc("crm_lead_assign_seller", { p_lead: leadId, p_seller: seller || null });
+  done(error ? (/staff_seller_invalid/.test(error.message) ? "seller-invalid" : "failed") : seller ? "lead-assigned" : "lead-returned");
+}
+
+export async function decideQuoteDeletion(form: FormData) {
+  const { supabase } = await requireOwner();
+  const {error} = await supabase.rpc("crm_decide_quote_deletion", { p_request: get(form, "request_id"),
+    p_decision: get(form,"decision"), p_confirm: form.get("confirm") === "yes" });
+  done(error ? "failed" : "deletion-reviewed");
 }

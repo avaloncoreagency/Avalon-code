@@ -37,12 +37,14 @@ test('Staff portal: owners assign, Ana sees only her work, never owners\' privat
   await one("insert into crm_leads(company,contact,source,owner_id) values('Lead Secreto QA','Nadie','QA',$1) returning id", [MIGUEL]);
   await db.query("insert into staff_portal_access(user_id,active,job_title,can_create_events,can_create_casefiles,can_message) values($1,true,'seller',true,true,true),($2,true,'operator',false,false,false)", [ANA, PEDRO]);
   await db.query("insert into staff_contacts(user_id,display_name,is_listed) values($1,'Ana QA',true),($2,'Pedro QA',true) on conflict (user_id) do update set display_name=excluded.display_name, is_listed=true", [ANA, PEDRO]);
-  await db.query("insert into staff_lead_grants(user_id,lead_id,access_level) values($1,$2,'work'),($1,$3,'view')", [ANA, leadA, leadB]);
+  // Ana is a seller: her leads come only from the exclusive assignment (the database mirrors it as a 'work' grant).
+  await db.query('update crm_leads set owner_id=$1 where id in ($2,$3)', [ANA, leadA, leadB]);
   // Samuel's assignment (Miguel's is created through the UI below).
   await as(SAMUEL);
   await db.query("insert into staff_work_items(idempotency_key,kind,origin,assignee_id,title,instructions,due_at) values($1,'task','staff_assigned',$2,'Tarea de Samuel QA','Enviar resumen',$3)", [crypto.randomUUID(), ANA, at(1, 21)]);
   await db.exec('reset role');
   const client = (await one("insert into crm_clients(legal_name,source,owner_id,created_by) values('Cliente reservado QA','QA',$1,$1) returning id", [MIGUEL])).id;
+  await db.query("update staff_portal_access set commercial_permissions=array['sales_history','commission_history'] where user_id=$1", [ANA]);
   const sale = (await one(`insert into crm_sales(sale_number,idempotency_key,correlation_id,client_id,sold_on,currency,subtotal,total,billing_mode,seller_id,created_by)
     values('VENTA-QA-ANA',gen_random_uuid(),gen_random_uuid(),$1,current_date,'USD',9876,9876,'one_time',$2,$3) returning id`, [client, ANA, MIGUEL])).id;
   await db.query(`insert into crm_commissions(sale_id,client_id,kind,beneficiary_id,basis,fixed_amount,currency,amount,agreed_by)
@@ -50,9 +52,14 @@ test('Staff portal: owners assign, Ana sees only her work, never owners\' privat
 
   const enc = x => Buffer.from(JSON.stringify(x)).toString('base64url'), exp = Math.floor(Date.now() / 1000) + 3600;
   const users = new Map(), cookies = {};
+  // Two-step verification is mandatory for employees: Ana and Pedro have a verified authenticator and an AAL2 session.
+  const employees = new Set([ANA, PEDRO]);
+  for (const id of employees) await db.query("insert into auth.mfa_factors(user_id,status) values($1,'verified')", [id]);
   for (const [id, email] of people) {
-    const user = { id, email, aud: 'authenticated', role: 'authenticated', app_metadata: { provider: 'email' }, user_metadata: {}, identities: [], created_at: '2026-01-01T00:00:00Z' };
-    const token = enc({ alg: 'HS256', typ: 'JWT' }) + '.' + enc({ sub: id, exp, role: 'authenticated', aal: 'aal1' }) + '.' + enc('synthetic-' + id);
+    const enrolled = employees.has(id);
+    const factors = enrolled ? [{ id: crypto.randomUUID(), factor_type: 'totp', status: 'verified', friendly_name: 'QA', created_at: '2026-01-01T00:00:00Z', updated_at: '2026-01-01T00:00:00Z' }] : [];
+    const user = { id, email, aud: 'authenticated', role: 'authenticated', app_metadata: { provider: 'email' }, user_metadata: {}, identities: [], factors, created_at: '2026-01-01T00:00:00Z' };
+    const token = enc({ alg: 'HS256', typ: 'JWT' }) + '.' + enc({ sub: id, exp, role: 'authenticated', aal: enrolled ? 'aal2' : 'aal1', amr: [{ method: enrolled ? 'totp' : 'password', timestamp: exp - 3600 }] }) + '.' + enc('synthetic-' + id);
     users.set(token, user);
     cookies[id] = 'base64-' + Buffer.from(JSON.stringify({ access_token: token, refresh_token: 'synthetic', token_type: 'bearer', expires_in: 3600, expires_at: exp, user })).toString('base64url');
   }
@@ -81,11 +88,18 @@ test('Staff portal: owners assign, Ana sees only her work, never owners\' privat
   await m.page.goto(origin + '/admin/staff');
   const assign = m.page.getByRole('form', { name: 'Asignar actividad' });
   await assign.waitFor();
-  const assignmentSections = ['staff-clients', 'staff-work', 'staff-leads'];
+  const assignmentSections = ['staff-clients', 'staff-work'];
   for (const sectionId of assignmentSections) {
     const select = m.page.locator(`section[aria-labelledby="${sectionId}"] select[name="employee_id"]`);
     assert.deepEqual(await select.selectOption({ label: 'Ana QA' }), [ANA]);
   }
+  // Lead sharing is for non-seller staff; sellers receive leads only through the exclusive assignment.
+  assert.equal(await m.page.locator(`section[aria-labelledby="staff-leads"] select[name="employee_id"] option[value="${ANA}"]`).count(), 0);
+  assert.deepEqual(await m.page.locator('section[aria-labelledby="staff-leads"] select[name="employee_id"]').selectOption({ label: 'Pedro QA' }), [PEDRO]);
+  assert.deepEqual(await m.page.locator('section[aria-labelledby="seller-assign"] select[name="seller_id"]').selectOption({ label: 'Ana QA' }), [ANA]);
+  const anaLeadRows = m.page.locator('section[aria-labelledby="staff-leads"] li').filter({ hasText: 'vendedor asignado' });
+  assert.equal(await anaLeadRows.count(), 2);
+  assert.equal(await anaLeadRows.getByRole('button', { name: 'Revocar lead' }).count(), 0, 'a seller\'s lead is returned, not revoked');
   const roster = m.page.getByRole('region', { name: 'Control de empleados' });
   const anaCard = roster.locator('article').filter({ hasText: 'ana-qa@example.invalid' });
   assert.equal(await anaCard.getByLabel('Nombre visible a compañeros').inputValue(), 'Ana QA');
@@ -153,7 +167,7 @@ test('Staff portal: owners assign, Ana sees only her work, never owners\' privat
   assert.equal((await one("select status from staff_work_items where title='Tarea de Samuel QA'")).status, 'done');
   await a.page.screenshot({ path: `${DIR}/ana-portal-1440.png`, fullPage: true });
   await a.page.goto(origin + '/staff/mfa');
-  await a.page.getByRole('button', { name: 'Activar verificación en dos pasos' }).waitFor();
+  await a.page.getByText('Ya tienes un autenticador verificado.').waitFor();
   // Ana cannot open the owners' area.
   await a.page.goto(origin + '/admin/staff');
   assert.ok(!/\/admin\/staff$/.test(new URL(a.page.url()).pathname) || !(await a.page.content()).includes('Asignar tarea o cita'), 'no owner area for an employee');
@@ -168,7 +182,10 @@ test('Staff portal: owners assign, Ana sees only her work, never owners\' privat
   await p.ctx.close();
 
   // 5. Owner revokes one lead → gone from Ana's list; owner suspends Ana → no operational access.
-  await as(MIGUEL); await db.query('update staff_lead_grants set active=false where user_id=$1 and lead_id=$2', [ANA, leadB]); await db.exec('reset role');
+  await m.page.goto(origin + '/admin/staff');
+  await m.page.locator('section[aria-labelledby="staff-leads"] li').filter({ hasText: 'Lead Dos QA' }).getByRole('button', { name: 'Devolver a la dirección' }).click();
+  await m.page.getByText('Lead devuelto a la dirección.').waitFor();
+  assert.equal((await one('select owner_id from crm_leads where id=$1', [leadB])).owner_id, MIGUEL);
   await a.page.goto(origin + '/staff');
   await a.page.getByRole('heading', { name: 'Mis leads' }).waitFor();
   assert.ok(!(await a.page.locator('section[aria-labelledby="staff-leads"]').textContent()).includes('Lead Dos QA'));

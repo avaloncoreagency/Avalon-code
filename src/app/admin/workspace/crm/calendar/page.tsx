@@ -38,10 +38,12 @@ export default async function CalendarPage({ searchParams }: { searchParams: Pro
   const pageSize = 50;
   const days = q(p, "days") === "60" ? 60 : 30;
   const now = new Date();
-  const from = new Date(now.getTime() - 7 * 86400000).toISOString();
-  const to = new Date(now.getTime() + days * 86400000).toISOString();
+  const nowMs = now.getTime();
+  const today = dayInZone(now.toISOString(), AVALON_TIME_ZONE);
+  const from = new Date(nowMs - 7 * 86400000).toISOString();
+  const to = new Date(nowMs + days * 86400000).toISOString();
   let tasks = supabase.from("crm_tasks").select("id,title,due_at,status,assignee_id", { count: "exact" }).not("status", "in", "(done,cancelled)").gte("due_at", from).lte("due_at", to);
-  let orders = supabase.from("crm_work_orders").select("id,sale_id,due_on,status,assignee_id,crm_departments(label),crm_clients(legal_name)", { count: "exact" }).not("status", "in", "(delivered,cancelled)").gte("due_on", from.slice(0, 10)).lte("due_on", to.slice(0, 10));
+  let orders = supabase.from("crm_work_orders").select("id,sale_id,due_on,status,assignee_id,crm_departments(label),crm_clients(legal_name)", { count: "exact" }).not("status", "in", "(delivered,cancelled)").gte("due_on", moveDay(today, -7)).lte("due_on", moveDay(today, days));
   const closed = await run<{ id: string }[]>(supabase.from("crm_stages").select("id").in("kind", ["won", "lost"]));
   const closedIds = [...new Set(["won", "lost", ...(closed.data ?? []).map(stage => stage.id)])];
   let leads = supabase.from("crm_leads").select("id,company,follow_up_at,owner_id,stage_id", { count: "exact" }).eq("archived", false).not("stage_id", "in", "(won,lost)").gte("follow_up_at", from).lte("follow_up_at", to);
@@ -57,14 +59,18 @@ export default async function CalendarPage({ searchParams }: { searchParams: Pro
     run<{ id: string; legal_name: string }[]>(supabase.from("crm_clients").select("id,legal_name").neq("status", "archived").order("legal_name").limit(150)),
     run<{ id: string; company: string }[]>(supabase.from("crm_leads").select("id,company").eq("archived", false).order("created_at", { ascending: false }).limit(150)),
   ]);
-  const nowIso = now.toISOString();
+  // SQL DATE values are already calendar days; timestamps use the same zone as formatDate().
+  const agendaDay = (item: Item) => item.kind === "delivery" ? item.at : dayInZone(item.at, AVALON_TIME_ZONE);
   const items: Item[] = [
-    ...(t.data ?? []).map(x => ({ key: `t${x.id}`, at: x.due_at, kind: "task" as const, title: x.title, href: `/admin/workspace/crm/tasks?task=${x.id}`, owner: x.assignee_id, status: x.status, overdue: x.due_at < nowIso })),
-    ...(o.data ?? []).map(x => ({ key: `o${x.id}`, at: `${x.due_on}T17:00:00Z`, kind: "delivery" as const, title: `${x.crm_departments?.label ?? ""} · ${x.crm_clients?.legal_name ?? ""}`, href: `/admin/workspace/crm/sales/${x.sale_id}`, owner: x.assignee_id, status: x.status, overdue: x.due_on < nowIso.slice(0, 10) })),
-    ...(closed.error ? [] : l.data ?? []).filter(x => activeFollowup(x.stage_id, closedIds)).map(x => ({ key: `l${x.id}`, at: x.follow_up_at, kind: "followup" as const, title: x.company, href: `/admin/workspace/crm/lead/${x.id}`, owner: x.owner_id, status: "open", overdue: x.follow_up_at < nowIso })),
-  ].sort((a, b) => a.at.localeCompare(b.at));
+    ...(t.data ?? []).map(x => ({ key: `t${x.id}`, at: x.due_at, kind: "task" as const, title: x.title, href: `/admin/workspace/crm/tasks?task=${x.id}`, owner: x.assignee_id, status: x.status, overdue: Date.parse(x.due_at) < nowMs })),
+    ...(o.data ?? []).map(x => ({ key: `o${x.id}`, at: x.due_on, kind: "delivery" as const, title: `${x.crm_departments?.label ?? ""} · ${x.crm_clients?.legal_name ?? ""}`, href: `/admin/workspace/crm/sales/${x.sale_id}`, owner: x.assignee_id, status: x.status, overdue: x.due_on < today })),
+    ...(closed.error ? [] : l.data ?? []).filter(x => activeFollowup(x.stage_id, closedIds)).map(x => ({ key: `l${x.id}`, at: x.follow_up_at, kind: "followup" as const, title: x.company, href: `/admin/workspace/crm/lead/${x.id}`, owner: x.owner_id, status: "open", overdue: Date.parse(x.follow_up_at) < nowMs })),
+  ].sort((a, b) => agendaDay(a).localeCompare(agendaDay(b)) || Number(a.kind !== "delivery") - Number(b.kind !== "delivery") || Date.parse(a.at) - Date.parse(b.at) || a.key.localeCompare(b.key));
   const byDay = new Map<string, Item[]>();
-  for (const item of items) byDay.set(item.at.slice(0, 10), [...(byDay.get(item.at.slice(0, 10)) ?? []), item]);
+  for (const item of items) {
+    const day = agendaDay(item);
+    byDay.set(day, [...(byDay.get(day) ?? []), item]);
+  }
   const KIND: Record<Item["kind"], [string, string]> = { task: ["Tarea", "Task"], delivery: ["Entrega", "Delivery"], followup: ["Seguimiento", "Follow-up"] };
   const lastPage = Math.max(0, Math.ceil(Math.max(t.count ?? 0, o.count ?? 0, l.count ?? 0) / pageSize) - 1);
   const failed = agendaIncomplete(t.error, o.error, l.error, closed.error);
@@ -74,17 +80,17 @@ export default async function CalendarPage({ searchParams }: { searchParams: Pro
       <CrmNavigation active="calendar" lang={lang} />
       <SharedCalendar events={calendarEvents.data ?? []} banners={dayBanners.data ?? []}
         owners={owners.data ?? []} clients={linkedClients.data ?? []} leads={linkedLeads.data ?? []}
-        userId={userId} initialToday={dayInZone(new Date().toISOString(),AVALON_TIME_ZONE)} initialDate={focusDate} initialView={calendarView} lang={lang}
+        userId={userId} initialToday={today} initialDate={focusDate} initialView={calendarView} lang={lang}
         dataError={calendarEvents.error || dayBanners.error ? pick(lang,
-          "El calendario compartido requiere la migración de base de datos de este módulo. Los registros operativos siguen disponibles abajo.",
-          "The shared calendar needs its database migration. Operations due dates remain below.") : undefined} />
+          "No se pudo verificar todo el calendario compartido. Consulta la agenda operativa disponible abajo.",
+          "Some shared calendar records could not be verified. See the available operations agenda below.") : undefined} />
       <details open={Boolean(q(p, "agenda_page"))} style={{ marginTop: 18 }}><summary style={{ cursor: "pointer", padding: "12px 4px", fontWeight: 700 }}>
         {pick(lang, "📋 Mostrar vencimientos, entregas y seguimientos del CRM", "📋 Show CRM due dates, deliveries and follow-ups")}
       </summary>
       <section className={s.hud} aria-labelledby="agenda" style={{ marginTop: 18 }}>
         <header className={s.header}>
           <div><p className={s.eyebrow}>{pick(lang, "Calendario operativo", "Operations calendar")}</p><h2 id="agenda" style={{ margin: "6px 0" }}>{pick(lang, "Vencimientos, entregas y seguimientos", "Due dates, deliveries and follow-ups")}</h2>
-            <p className={s.lead}>{pick(lang, "Fechas guardadas en tareas, órdenes de trabajo y leads. Horas mostradas en tu zona horaria del navegador.", "Dates stored on tasks, work orders and leads.")}</p></div>
+            <p className={s.lead}>{pick(lang, "Fechas guardadas en tareas, órdenes de trabajo y leads. Horas en la zona de Miami (Eastern Time).", "Dates stored on tasks, work orders and leads. Times shown in Miami (Eastern Time).")}</p></div>
           <div className={s.actions}>
             <Link className={s.button} href={link({ owner: userId, agenda_page: "0" })} aria-current={who === userId ? "page" : undefined}>{pick(lang, "Mío", "Mine")}</Link>
             <Link className={s.button} href={link({ owner: "all", agenda_page: "0" })} aria-current={who === null ? "page" : undefined}>{pick(lang, "Todos", "Everyone")}</Link>
@@ -99,7 +105,7 @@ export default async function CalendarPage({ searchParams }: { searchParams: Pro
           {!failed && agendaPage < lastPage ? <Link className={s.button} href={link({ agenda_page: String(agendaPage + 1) })}>{pick(lang, "Siguiente", "Next")}</Link> : null}
         </nav>
         {failed ? <p className={s.flash} data-tone="warn" role="status">{pick(lang, "La agenda está parcialmente disponible. No se pudieron verificar todas las tareas, entregas o seguimientos; los resultados no son un total completo.", "The agenda is partially available. Some tasks, deliveries or follow-ups could not be verified; results are not a complete total.")}</p> : null}
-        {byDay.size === 0 ? <p className={s.empty}>{pick(lang, "Sin fechas en este periodo.", "No dates in this period.")}</p> :
+        {byDay.size === 0 ? <p className={s.empty}>{failed ? pick(lang, "No se pudieron verificar las fechas de este periodo.", "Dates in this period could not be verified.") : pick(lang, "Sin fechas en este periodo.", "No dates in this period.")}</p> :
           <div className={s.grid}>{[...byDay.entries()].map(([day, list]) => <section key={day} className={s.card} aria-label={formatDate(lang, day)}>
             <h3>{formatDate(lang, day)}</h3>
             <ul className={s.list}>{list.map(i => <li key={i.key} className={s.notice} data-severity={i.overdue ? "urgent" : "normal"}>

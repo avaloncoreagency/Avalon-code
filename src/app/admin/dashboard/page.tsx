@@ -5,10 +5,10 @@ import { Icon } from "@/components/suite/icons";
 import s from "@/components/suite/suite.module.css";
 import { requireOwner, displayName } from "@/lib/auth/session";
 import { getLang } from "@/lib/i18n-server";
-import { pick, formatDate } from "@/lib/i18n";
+import { AVALON_TIME_ZONE, pick, formatDate } from "@/lib/i18n";
 import { run, countRows, recentAudit } from "@/lib/os/data";
 import { INTEGRATIONS } from "@/lib/os/integrations";
-import { OPEN_CONTENT } from "@/lib/os/domain";
+import { dayInZone, moveDay } from "@/lib/crm/shared-calendar";
 import { money } from "@/lib/sales/domain";
 
 export const dynamic = "force-dynamic";
@@ -26,12 +26,11 @@ const MODULE_HREF: Record<string, string> = {
 export default async function DashboardPage() {
   const { supabase, user, userId } = await requireOwner();
   const lang = await getLang();
-  const today = new Date().toISOString().slice(0, 10);
-  const horizon = new Date(Date.now() + 14 * 86_400_000).toISOString().slice(0, 10);
-
   const nowIso = new Date().toISOString();
-  const [projects, pagesPublished, productsActive, upcoming, audit, crmLeads, salesMetrics, activeClients, openOrders, overdueTasks, chatbotCount, receptionCount, quoteSummary, aiUsage] = await Promise.all([
-    run<{ id: string; module: string; name: string; status: string }[]>(supabase.from("os_projects").select("id,module,name,status").neq("status", "archived").order("updated_at", { ascending: false }).limit(500)),
+  const today = dayInZone(nowIso, AVALON_TIME_ZONE);
+  const horizon = moveDay(today, 14);
+  const [projects, pagesPublished, productsActive, upcoming, audit, crmLeads, salesMetrics, activeClients, openOrders, overdueTasks, chatbotCount, receptionCount, quoteSummary, aiUsage, projectTotal, activeProjectCount, websiteCount, ecommerceCount, crmCreatorCount, marketingCount, upcomingCount, overdueContentCount] = await Promise.all([
+    run<{ id: string; module: string; name: string; status: string }[]>(supabase.from("os_projects").select("id,module,name,status").neq("status", "archived").order("updated_at", { ascending: false }).order("id").limit(6)),
     countRows(supabase, "os_website_pages", [["eq", "status", "published"]]),
     countRows(supabase, "os_store_products", [["eq", "status", "active"]]),
     run<{ id: string; title: string; planned_for: string; status: string; project_id: string }[]>(supabase.from("os_marketing_items").select("id,title,planned_for,status,project_id").lte("planned_for", horizon).not("status", "in", "(published,cancelled)").order("planned_for").limit(8)),
@@ -47,28 +46,36 @@ export default async function DashboardPage() {
     run<{ draft: number; sent: number; overdue: number; accepted_without_contract: number }>(supabase.rpc("crm_quote_summary")),
     // AI credits (10.3): only owner-entered records exist today; no provider API is connected, so nothing is fetched or guessed.
     run<UsageRow[]>(supabase.from("crm_usage").select("provider,amount,unit,period_start,period_end,limit_value,threshold,source,mode,created_by,updated_at").order("period_end", { ascending: false }).limit(60)),
+    // A bounded preview is not a total; let PostgREST count the complete RLS-visible result.
+    countRows(supabase, "os_projects", [["neq", "status", "archived"]]),
+    countRows(supabase, "os_projects", [["eq", "status", "active"]]),
+    countRows(supabase, "os_projects", [["eq", "module", "website"], ["neq", "status", "archived"]]),
+    countRows(supabase, "os_projects", [["eq", "module", "ecommerce"], ["neq", "status", "archived"]]),
+    countRows(supabase, "os_projects", [["eq", "module", "crm_creator"], ["neq", "status", "archived"]]),
+    countRows(supabase, "os_projects", [["eq", "module", "marketing"], ["neq", "status", "archived"]]),
+    countRows(supabase, "os_marketing_items", [["gte", "planned_for", today], ["lte", "planned_for", horizon], ["not_in", "status", ["published", "cancelled"]]]),
+    countRows(supabase, "os_marketing_items", [["lt", "planned_for", today], ["not_in", "status", ["published", "cancelled"]]]),
   ]);
   const quotes = quoteSummary.error ? null : quoteSummary.data;
   const salesReady = salesMetrics.error === null;
   const primary = salesMetrics.data?.find(m => m.currency === "USD") ?? salesMetrics.data?.[0];
 
-  const schemaReady = projects.error === null;
-  const byModule = (key: string) => projects.data?.filter(p => p.module === key).length ?? null;
-  const stat = (key: string, es1: string, en1: string): ModuleStat => schemaReady
-    ? { value: byModule(key), label: pick(lang, es1, en1), state: "ready" }
+  const schemaReady = projects.error === null && projectTotal.error === null;
+  const stat = (result: { count: number | null; error: unknown }, es1: string, en1: string): ModuleStat => result.error === null && result.count !== null
+    ? { value: result.count, label: pick(lang, es1, en1), state: "ready" }
     : { value: null, label: "", state: "pending" };
   const stats = {
     crm: crmLeads.error ? { value: null, label: "", state: "pending" as const } : { value: crmLeads.count, label: pick(lang, "leads activos", "active leads"), state: "ready" as const },
-    website: stat("website", "proyectos", "projects"),
-    ecommerce: stat("ecommerce", "tiendas", "stores"),
-    crm_creator: stat("crm_creator", "plantillas CRM", "CRM blueprints"),
+    website: stat(websiteCount, "proyectos", "projects"),
+    ecommerce: stat(ecommerceCount, "tiendas", "stores"),
+    crm_creator: stat(crmCreatorCount, "plantillas CRM", "CRM blueprints"),
     communications: chatbotCount.error || receptionCount.error
       ? { value: null, label: "", state: "pending" as const }
       : { value: (chatbotCount.count ?? 0) + (receptionCount.count ?? 0), label: pick(lang, "agentes registrados", "registered agents"), state: "ready" as const },
-    marketing: stat("marketing", "campañas", "campaigns"),
+    marketing: stat(marketingCount, "campañas", "campaigns"),
   };
-  const overdue = upcoming.data?.filter(i => i.planned_for < today && OPEN_CONTENT(i.status)) ?? [];
-  const activeProjects = projects.data?.filter(p => p.status === "active").length ?? null;
+  const overdue = overdueContentCount.count;
+  const activeProjects = activeProjectCount.count;
   const n = (value: number | null | undefined) => (value === null || value === undefined ? "—" : String(value));
   const passwordEnabled = true;
   const connected = INTEGRATIONS.filter(i => i.status === "connected").length;
@@ -94,10 +101,10 @@ export default async function DashboardPage() {
       </section>
 
       <div className={s.kpis} role="list" aria-label={pick(lang, "Indicadores", "Indicators")}>
-        <div className={s.kpi} role="listitem"><span>{pick(lang, "Proyectos activos", "Active projects")}</span><strong>{n(activeProjects)}</strong><small>{pick(lang, `${n(projects.data?.length)} en total (sin archivar)`, `${n(projects.data?.length)} total (not archived)`)}</small></div>
+        <div className={s.kpi} role="listitem"><span>{pick(lang, "Proyectos activos", "Active projects")}</span><strong>{n(activeProjects)}</strong><small>{pick(lang, `${n(projectTotal.count)} en total (sin archivar)`, `${n(projectTotal.count)} total (not archived)`)}</small></div>
         <div className={s.kpi} role="listitem"><span>{pick(lang, "Páginas publicadas", "Published pages")}</span><strong>{n(pagesPublished.count)}</strong><small>Website Designer</small></div>
         <div className={s.kpi} role="listitem"><span>{pick(lang, "Productos activos", "Active products")}</span><strong>{n(productsActive.count)}</strong><small>E-commerce Designer</small></div>
-        <div className={s.kpi} role="listitem"><span>{pick(lang, "Contenido próximo (14 días)", "Upcoming content (14 days)")}</span><strong>{n(upcoming.data?.length)}</strong><small>{overdue.length ? pick(lang, `${overdue.length} vencido(s)`, `${overdue.length} overdue`) : "Marketing Hub"}</small></div>
+        <div className={s.kpi} role="listitem"><span>{pick(lang, "Contenido próximo (14 días)", "Upcoming content (14 days)")}</span><strong>{n(upcomingCount.count)}</strong><small>{overdue === null ? pick(lang, "Vencidos no verificados", "Overdue count unavailable") : overdue > 0 ? pick(lang, `${overdue} vencido(s)`, `${overdue} overdue`) : "Marketing Hub"}</small></div>
       </div>
 
       <div className={s.sectionTitle}><h2>{pick(lang, "Pulso comercial", "Commercial pulse")}</h2><span>{salesReady ? <Link href="/admin/workspace/crm/sales">{pick(lang, "Ver ventas →", "View sales →")}</Link> : pick(lang, "Migración de ventas pendiente de aprobación", "Sales migration pending approval")}</span></div>
@@ -147,7 +154,7 @@ export default async function DashboardPage() {
             </ul>
           ) : (
             <div className={s.emptyState}>
-              <p>{schemaReady ? pick(lang, "No hay contenido planificado para los próximos 14 días.", "Nothing planned for the next 14 days.") : pick(lang, "Las tareas aparecerán cuando la base de datos de módulos esté activa.", "Tasks will appear once the module database is active.")}</p>
+              <p>{upcoming.error ? pick(lang, "No se pudo consultar el contenido pendiente.", "Pending content could not be read.") : pick(lang, "No hay contenido pendiente hasta los próximos 14 días.", "No pending content through the next 14 days.")}</p>
               <Link href="/admin/workspace/marketing-hub">{pick(lang, "Planificar contenido →", "Plan content →")}</Link>
             </div>
           )}
@@ -161,7 +168,7 @@ export default async function DashboardPage() {
                 return <li key={row.id}><span>{actor} {pick(lang, ...op)} · {pick(lang, ...what)}{row.summary ? <> · <strong>{row.summary}</strong></> : null}</span><small>{formatDate(lang, row.created_at, true)}</small></li>;
               })}
             </ul>
-          ) : <div className={s.emptyState}><p>{pick(lang, "Aún no hay actividad registrada.", "No activity recorded yet.")}</p></div>}
+          ) : <div className={s.emptyState}><p>{audit.error ? pick(lang, "No se pudo consultar la actividad reciente.", "Recent activity could not be read.") : pick(lang, "Aún no hay actividad registrada.", "No activity recorded yet.")}</p></div>}
         </section>
 
         <section className={s.card} aria-labelledby="services-title">
@@ -177,7 +184,7 @@ export default async function DashboardPage() {
           </ul>
           <h2 style={{ marginTop: 22 }}><Icon name="spark" size={18} />{pick(lang, "Accesos rápidos", "Quick access")}</h2>
           <div className={s.quick}>
-            {projects.data?.slice(0, 6).map(p => <Link key={p.id} className={s.pill} href={`${MODULE_HREF[p.module] ?? "/admin/dashboard"}/${p.id}`}>{p.name}</Link>)}
+            {projects.data?.filter(p => MODULE_HREF[p.module]).map(p => <Link key={p.id} className={s.pill} href={`${MODULE_HREF[p.module]}/${p.id}`}>{p.name}</Link>)}
             <Link className={s.pill} href="/admin/workspace/crm/clients">{pick(lang, "Clientes 360°", "Clients 360°")}</Link>
             <Link className={s.pill} href="/admin/workspace/crm/leads">{pick(lang, "Leads Pipeline", "Leads Pipeline")}</Link>
             <Link className={s.pill} href="/admin/dev-bridge">Dev Bridge 2.0</Link>

@@ -30,7 +30,7 @@ export const ONBOARDING_ERROR: Record<string, Bi> = {
   onboarding_acceptance_blocked: ["La aceptación del cliente requiere una entrega registrada y evidencia (mínimo 10 caracteres).", "Client acceptance needs a recorded delivery and evidence (at least 10 characters)."],
   onboarding_acceptance_immutable: ["La aceptación del cliente ya está registrada y no se modifica.", "Client acceptance is already recorded and cannot change."],
   outbox_kind_pending: ["Este tipo de mensaje requiere la migración 20261124190000 (pendiente de aplicar).", "This message type requires migration 20261124190000 (not applied yet)."],
-  outbox_not_delivered: ["El aviso de entrega requiere una entrega registrada con URL real.", "The delivery notice requires a recorded delivery with a real URL."],
+  outbox_not_delivered: ["Registra la entrega y verifica su enlace si el servicio lo requiere.", "Record the delivery and check its link if the service requires one."],
   outbox_note_required: ["Escribe la nota del mensaje: el avance y la renovación no se redactan solos.", "Write the message note: progress and renewal messages are not auto-written."],
   outbox_final: ["Ese mensaje ya no admite cambios.", "That message can no longer change."], outbox_in_progress: ["El mensaje ya se está procesando.", "The message is already being processed."],
   outbox_attachment_invalid: ["Un adjunto no es válido (factura anulada, de otro cliente o documento alterado). No se envió nada.", "An attachment is invalid (void invoice, another client's, or altered document). Nothing was sent."],
@@ -41,6 +41,12 @@ export const ONBOARDING_ERROR: Record<string, Bi> = {
   consent_invalid: ["Autorización incompleta: elige al menos un uso y un canal, y aporta la evidencia.", "Incomplete consent: choose at least one use and channel, and provide evidence."],
   consent_final: ["Esta autorización ya no admite cambios.", "This consent can no longer change."], consent_granted_frozen: ["Una autorización concedida no se amplía: crea una nueva.", "A granted consent cannot be widened: create a new one."],
   settings_invalid: ["Revisa los datos de la configuración.", "Check the settings data."],
+  commercial_invalid: ["Elige el tipo de mensaje, el registro y el contacto.", "Choose the message type, the record and the contact."],
+  commercial_fact_missing: ["Ese registro no respalda el mensaje (por ejemplo: cotización sin aprobar, contrato sin verificar o pago sin verificar).", "That record does not support the message (e.g. unapproved quote, unverified contract or unverified payment)."],
+  commercial_client_unknown: ["El registro todavía no está vinculado a un cliente.", "The record is not linked to a client yet."],
+  commercial_recipient_invalid: ["El contacto debe pertenecer al mismo cliente y tener correo.", "The contact must belong to the same client and have an e-mail."],
+  commercial_signer_unknown: ["Completa tu nombre visible para firmar el correo.", "Complete your display name to sign the e-mail."],
+  commercial_failed: ["No se pudo preparar el mensaje.", "The message could not be prepared."],
 };
 export const OUTBOX_STATUS: Record<string, Bi> = {
   prepared: ["Preparado", "Prepared"], approved: ["Aprobado", "Approved"], sent: ["Enviado", "Sent"], failed: ["Falló", "Failed"],
@@ -56,4 +62,7 @@ export const OUTBOX_KIND: Record<string, Bi> = {
   approval_request: ["Solicitud de aprobación", "Approval request"], delivery_notice: ["Aviso de entrega", "Delivery notice"],
   receipt_confirmation: ["Confirmación de recepción", "Receipt confirmation"], support_info: ["Soporte", "Support"],
   maintenance_notice: ["Mantenimiento", "Maintenance"], renewal_review: ["Renovación", "Renewal"],
+  quote_sent: ["Envío de propuesta", "Proposal sent"], contract_confirmation: ["Confirmación de contrato", "Agreement confirmation"],
+  payment_confirmation: ["Confirmación de pago", "Payment confirmation"], subscription_renewal_notice: ["Aviso de renovación", "Renewal notice"],
+  cancellation_confirmation: ["Confirmación de cancelación", "Cancellation confirmation"],
 };

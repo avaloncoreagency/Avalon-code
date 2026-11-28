@@ -3,6 +3,7 @@
  * Table-based, inline-styled HTML that renders in Gmail/iOS Mail, plus a plain-text alternative. Every value is escaped.
  * The signer always comes from the authenticated identity (official owner names), never from a browser parameter.
  */
+import { isProductType, requiresLiveUrl, type ProductType } from "@/lib/onboarding/model";
 import { officialOwnerName, personDisplayName, type DisplayIdentity } from "@/lib/identity/owners";
 
 export type Lang = "es" | "en";
@@ -196,7 +197,7 @@ export const isLifecycleKind = (v: string): v is LifecycleKind => (LIFECYCLE_KIN
 export type LifecycleInput = {
   kind: LifecycleKind; lang: Lang; contactName: string; companyName: string; product: string; representative: Signer; company: CompanyContact; origin?: string;
   stageLabel: string; progress: { done: number; total: number } | null; nextStep: string | null; note: string;
-  liveUrl: string | null; deliveredOn: string | null;
+  productType: ProductType; liveUrl: string | null; deliveredOn: string | null;
   /** Pending items of the service checklist (website / e-commerce / CRM / marketing), already in the message language. */
   pending?: string[];
 };
@@ -224,10 +225,12 @@ export function renderLifecycle(i: LifecycleInput): Rendered | null {
         note, ...(i.nextStep ? [T(L, `Próximo paso: ${i.nextStep}.`, `Next step: ${i.nextStep}.`)] : [])];
       break;
     case "delivery_notice":
-      if (!i.deliveredOn || !i.liveUrl || !safeUrl(i.liveUrl)) return null;
+      if (!i.deliveredOn || (!i.liveUrl && (!isProductType(i.productType) || requiresLiveUrl(i.productType)))) return null;
+      if (i.liveUrl && !safeUrl(i.liveUrl)?.startsWith("https://")) return null;
       subject = T(L, `Avalon Core Agency — Entrega de ${product}`, `Avalon Core Agency — ${product} delivered`);
       heading = T(L, "Tu producto fue entregado", "Your product has been delivered");
-      lines = [T(L, `El ${i.deliveredOn} registramos la entrega de ${product}, disponible en ${i.liveUrl}.`, `On ${i.deliveredOn} we recorded the delivery of ${product}, available at ${i.liveUrl}.`),
+      lines = [T(L, `El ${i.deliveredOn} registramos la entrega de ${product}.`, `On ${i.deliveredOn} we recorded the delivery of ${product}.`),
+        ...(i.liveUrl ? [T(L, `Dirección de acceso: ${i.liveUrl}`, `Access URL: ${i.liveUrl}`)] : []),
         T(L, "Por favor, responde a este correo para confirmar que lo recibiste o para indicarnos cualquier observación.", "Please reply to this e-mail to confirm receipt or to share any observation."),
         ...(note ? [note] : [])];
       break;
@@ -311,4 +314,95 @@ export function renderLifecycle(i: LifecycleInput): Rendered | null {
   const html = layout(L, { preheader: subject, heading, bodyHtml: p(`${T(L, "Hola", "Hello")}, ${esc(name)}:`) + lines.map(l => p(esc(l))).join(""),
     signer: i.representative, company: i.company, origin: i.origin });
   return { subject, html, text: textLayout(L, [`${T(L, "Hola", "Hello")}, ${name}:`, "", ...lines], i.representative, i.company) };
+}
+
+// ── Commercial messages (quote → contract → payment → subscription) ─────────────────────────────────────────────
+// Each one states only facts recorded in the CRM (numbers, dates, statuses). No clause, price or promise is added.
+export const COMMERCIAL_KINDS = ["quote_sent", "contract_confirmation", "payment_confirmation", "subscription_renewal_notice", "cancellation_confirmation"] as const;
+export type CommercialKind = typeof COMMERCIAL_KINDS[number];
+export const isCommercialKind = (v: string): v is CommercialKind => (COMMERCIAL_KINDS as readonly string[]).includes(v);
+export type CommercialFacts =
+  | { kind: "quote_sent"; quoteNumber: string; title: string; validUntil: string; oneTime: string | null; monthly: string | null; currency: string; url: string | null }
+  | { kind: "contract_confirmation"; contractTitle: string; verifiedOn: string; effectiveOn: string | null }
+  | { kind: "payment_confirmation"; amount: string; currency: string; receivedOn: string; invoiceNumber: string | null }
+  | { kind: "subscription_renewal_notice"; product: string; periodEnd: string; amount: string; currency: string; period: "monthly" | "annual"; renewalMode: "manual" | "auto" | "none" }
+  | { kind: "cancellation_confirmation"; product: string; endsOn: string; atPeriodEnd: boolean };
+export type CommercialInput = { lang: Lang; contactName: string; companyName: string; representative: Signer; company: CompanyContact; origin?: string; note?: string; facts: CommercialFacts };
+
+const money = (amount: string, currency: string, lang: Lang) => {
+  const n = Number(amount);
+  return Number.isFinite(n) ? new Intl.NumberFormat(lang === "en" ? "en-US" : "es-US", { style: "currency", currency: /^[A-Z]{3}$/.test(currency) ? currency : "USD" }).format(n) : "";
+};
+const isoDay = (v: string | null | undefined) => (v && /^\d{4}-\d{2}-\d{2}/.test(v) ? v.slice(0, 10) : "");
+
+/** Returns null when a required recorded fact is missing (the message is never prepared on assumptions). */
+export function renderCommercial(i: CommercialInput): Rendered | null {
+  const L = i.lang, f = i.facts, name = oneLine(i.contactName, 80), co = oneLine(i.companyName, 120), note = (i.note ?? "").trim().slice(0, 1000);
+  let subject: string, heading: string, lines: string[]; let cta: { label: string; url: string } | null = null;
+  switch (f.kind) {
+    case "quote_sent": {
+      const valid = isoDay(f.validUntil);
+      if (!f.quoteNumber || !f.title || !valid) return null;
+      const one = f.oneTime && Number(f.oneTime) > 0 ? money(f.oneTime, f.currency, L) : "", mon = f.monthly && Number(f.monthly) > 0 ? money(f.monthly, f.currency, L) : "";
+      subject = T(L, `Avalon Core Agency — Propuesta ${f.quoteNumber} para ${co}`, `Avalon Core Agency — Proposal ${f.quoteNumber} for ${co}`);
+      heading = T(L, "Tu propuesta", "Your proposal");
+      lines = [T(L, `Te compartimos la propuesta ${f.quoteNumber} — ${oneLine(f.title, 160)}.`, `Please find proposal ${f.quoteNumber} — ${oneLine(f.title, 160)}.`),
+        ...(one ? [T(L, `Inversión inicial: ${one}.`, `One-time investment: ${one}.`)] : []),
+        ...(mon ? [T(L, `Mensualidad: ${mon}.`, `Monthly fee: ${mon}.`)] : []),
+        T(L, `Vigencia: hasta el ${valid}.`, `Valid until ${valid}.`),
+        T(L, "La propuesta no es un contrato: el trabajo empieza después de firmar el acuerdo y confirmar las condiciones de pago.",
+          "This proposal is not a contract: work starts after the agreement is signed and payment terms are confirmed."), ...(note ? [note] : [])];
+      if (f.url && safeUrl(f.url)) cta = { label: T(L, "Ver propuesta", "View proposal"), url: f.url };
+      break;
+    }
+    case "contract_confirmation": {
+      const on = isoDay(f.verifiedOn);
+      if (!f.contractTitle || !on) return null;
+      subject = T(L, `Avalon Core Agency — Confirmación de contrato — ${co}`, `Avalon Core Agency — Agreement confirmation — ${co}`);
+      heading = T(L, "Contrato confirmado", "Agreement confirmed");
+      lines = [T(L, `Confirmamos que el ${on} verificamos el acuerdo firmado «${oneLine(f.contractTitle, 160)}».`, `We confirm that on ${on} we verified the signed agreement “${oneLine(f.contractTitle, 160)}”.`),
+        ...(isoDay(f.effectiveOn) ? [T(L, `Fecha de inicio registrada: ${isoDay(f.effectiveOn)}.`, `Recorded start date: ${isoDay(f.effectiveOn)}.`)] : []),
+        T(L, "El texto firmado es la única referencia de alcance, plazos y condiciones; este correo no lo modifica.", "The signed text is the only reference for scope, timeline and terms; this e-mail does not change it."),
+        ...(note ? [note] : [])];
+      break;
+    }
+    case "payment_confirmation": {
+      const on = isoDay(f.receivedOn), amt = money(f.amount, f.currency, L);
+      if (!on || !amt || Number(f.amount) <= 0) return null;
+      subject = T(L, `Avalon Core Agency — Pago recibido — ${co}`, `Avalon Core Agency — Payment received — ${co}`);
+      heading = T(L, "Pago confirmado", "Payment confirmed");
+      lines = [T(L, `Confirmamos la recepción y verificación de tu pago de ${amt} con fecha ${on}.`, `We confirm we received and verified your payment of ${amt} dated ${on}.`),
+        ...(f.invoiceNumber ? [T(L, `Aplicado a la factura ${oneLine(f.invoiceNumber, 40)}.`, `Applied to invoice ${oneLine(f.invoiceNumber, 40)}.`)] : []),
+        T(L, "Gracias. Conserva este correo como constancia.", "Thank you. Please keep this e-mail for your records."), ...(note ? [note] : [])];
+      break;
+    }
+    case "subscription_renewal_notice": {
+      const end = isoDay(f.periodEnd), amt = money(f.amount, f.currency, L);
+      if (!f.product || !end || !amt || f.renewalMode === "none") return null;
+      const per = f.period === "annual" ? T(L, "anual", "annual") : T(L, "mensual", "monthly");
+      subject = T(L, `Avalon Core Agency — Renovación de ${oneLine(f.product, 80)}`, `Avalon Core Agency — ${oneLine(f.product, 80)} renewal`);
+      heading = T(L, "Próxima renovación", "Upcoming renewal");
+      lines = [T(L, `El período actual de ${oneLine(f.product, 120)} termina el ${end}. El siguiente período ${per} es de ${amt}.`,
+          `The current ${oneLine(f.product, 120)} period ends on ${end}. The next ${per} period is ${amt}.`),
+        f.renewalMode === "manual"
+          ? T(L, "La renovación requiere tu confirmación: responde a este correo si deseas continuar o hacer cambios.", "Renewal needs your confirmation: reply to this e-mail to continue or to request changes.")
+          : T(L, "Se renueva según las condiciones de tu acuerdo firmado. Si deseas cambios o cancelar, responde a este correo antes de esa fecha.",
+            "It renews under your signed agreement. To change or cancel, reply to this e-mail before that date."), ...(note ? [note] : [])];
+      break;
+    }
+    case "cancellation_confirmation": {
+      const end = isoDay(f.endsOn);
+      if (!f.product || !end) return null;
+      subject = T(L, `Avalon Core Agency — Confirmación de cancelación — ${oneLine(f.product, 80)}`, `Avalon Core Agency — Cancellation confirmed — ${oneLine(f.product, 80)}`);
+      heading = T(L, "Cancelación registrada", "Cancellation recorded");
+      lines = [f.atPeriodEnd
+          ? T(L, `Registramos la cancelación de ${oneLine(f.product, 120)}. El servicio sigue activo hasta el ${end} y no se renovará.`, `We recorded the cancellation of ${oneLine(f.product, 120)}. Service stays active until ${end} and will not renew.`)
+          : T(L, `Registramos la cancelación de ${oneLine(f.product, 120)} con efecto el ${end}.`, `We recorded the cancellation of ${oneLine(f.product, 120)} effective ${end}.`),
+        T(L, "Cualquier saldo, reembolso o entrega pendiente se rige por tu acuerdo firmado.", "Any balance, refund or pending delivery is governed by your signed agreement."), ...(note ? [note] : [])];
+      break;
+    }
+  }
+  const html = layout(L, { preheader: subject, heading, bodyHtml: p(`${T(L, "Hola", "Hello")}, ${esc(name)}:`) + lines.map(l => p(esc(l))).join(""),
+    cta, signer: i.representative, company: i.company, origin: i.origin });
+  return { subject, html, text: textLayout(L, [`${T(L, "Hola", "Hello")}, ${name}:`, "", ...lines, ...(cta ? ["", cta.url] : [])], i.representative, i.company) };
 }

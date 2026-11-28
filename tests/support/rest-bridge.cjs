@@ -200,11 +200,15 @@ async function startBridge(db, { users, log = () => {} }) {
     queue = queue.then(async () => {
       const url = new URL(req.url, 'http://bridge');
       const send = (code, body, headers = {}) => { res.writeHead(code, { 'Content-Type': 'application/json', ...headers }); res.end(body === undefined ? '' : JSON.stringify(body, (_k, v) => v instanceof Uint8Array ? '\\x' + Buffer.from(v).toString('hex') : v)); };
-      const user = users.get((req.headers.authorization || '').replace('Bearer ', ''));
+      const bearer = (req.headers.authorization || '').replace('Bearer ', '');
+      const user = users.get(bearer);
       if (url.pathname === '/auth/v1/user') return user ? send(200, user) : send(401, { message: 'invalid synthetic token' });
       if (!url.pathname.startsWith('/rest/v1/')) return send(404, { message: 'not found' });
       // No bearer token = the PostgREST anon role (RLS and grants decide, exactly as in Supabase).
-      const asRole = user ? `set request.jwt.claim.sub='${user.id}'; set role authenticated;` : `set request.jwt.claim.sub=''; set role anon;`;
+      // Like PostgREST, expose the token's claims (sub + aal) so MFA-aware policies see the session's assurance level.
+      let aal = null; try { aal = JSON.parse(Buffer.from(bearer.split('.')[1] || '', 'base64url').toString()).aal ?? null; } catch { aal = null; }
+      const claims = user ? JSON.stringify({ sub: user.id, role: 'authenticated', ...(aal === 'aal1' || aal === 'aal2' ? { aal } : {}) }) : '';
+      const asRole = user ? `set request.jwt.claim.sub='${user.id}'; set request.jwt.claims='${claims}'; set role authenticated;` : `set request.jwt.claim.sub=''; set request.jwt.claims=''; set role anon;`;
       let raw = ''; for await (const chunk of req) raw += chunk;
       const body = raw ? JSON.parse(raw) : null;
       const values = []; const param = v => { values.push(v); return `$${values.length}`; };

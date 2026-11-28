@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { notFound } from "next/navigation";
+import { notFound, redirect } from "next/navigation";
 import { Suite } from "@/components/suite/suite";
 import { OpsHeader, q, UUID_RE, type Query } from "@/components/sales/ui";
 import { requireOwner } from "@/lib/auth/session";
@@ -22,11 +22,12 @@ export default async function EditQuote({ params, searchParams }: { params: Prom
   const { supabase } = await requireOwner();
   const lang = await getLang();
   const p = await searchParams;
-  const quoteR = await run<{ id: string; quote_number: string; status: QuoteStatus; current_version: number; version: number } | null>(
-    supabase.from("crm_quotes").select("id,quote_number,status,current_version,version").eq("id", id).maybeSingle());
+  const quoteR = await run<{ id: string; quote_number: string; status: QuoteStatus; deleted_at?: string | null; current_version: number; version: number } | null>(
+    supabase.from("crm_quotes").select("*").eq("id", id).maybeSingle());
   if (quoteR.error) return <Suite active="crm"><div className={s.hud}><QuoteUnavailable lang={lang} code={quoteR.error} /></div></Suite>;
   const quote = quoteR.data;
   if (!quote) notFound();
+  if (quote.deleted_at) redirect(`/admin/workspace/crm/quotes/${id}`);
   const [versionR, catalogR] = await Promise.all([
     run<{ content: QuoteContent; internal: Record<string, string> } | null>(supabase.from("crm_quote_versions").select("content,internal").eq("quote_id", id).eq("version_no", quote.current_version).maybeSingle()),
     run<Catalog[]>(supabase.from("crm_service_catalog").select("code,name,name_en,deliverables,billing_type,suggested_price,monthly_price,offer_status").eq("active", true).order("name")),

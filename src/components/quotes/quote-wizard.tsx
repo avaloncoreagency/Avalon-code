@@ -19,6 +19,7 @@ type Props = {
   action: (form: FormData) => void | Promise<void>;
   hidden: Record<string, string>;
   initial: QuoteContent;
+  employee?: boolean;
   initialInternal: QuoteInternal;
   catalog: CatalogItem[];
 };
@@ -29,7 +30,7 @@ const blankCommission = (): QuoteCommission => ({
 });
 
 /** Guided five-step quote builder. Validation mirrors the server and database; nothing is saved until "Guardar". */
-export function QuoteWizard({ lang, mode, action, hidden, initial, initialInternal, catalog }: Props) {
+export function QuoteWizard({ lang, mode, action, hidden, initial, initialInternal, catalog, employee = false }: Props) {
   const es = lang === "es";
   const t = (a: string, b: string) => (es ? a : b);
   const [step, setStep] = useState(0);
@@ -212,13 +213,13 @@ export function QuoteWizard({ lang, mode, action, hidden, initial, initialIntern
         {area("support", "Soporte incluido", "Included support")}
         {area("terms", "Condiciones comerciales", "Commercial terms")}
         {area("notes", "Notas para el cliente", "Notes for the client")}
-        <details className={w.internal}>
+        {!employee && <details className={w.internal}>
           <summary>{t("Información interna de Avalon (nunca aparece en el PDF)", "Avalon internal information (never in the PDF)")}</summary>
           {(["directCosts", "marginNote", "confidential"] as const).map(k => (
             <label key={k} className={s.field}>{{ directCosts: t("Costos directos estimados", "Estimated direct costs"), marginNote: t("Margen y contingencia", "Margin and contingency"), confidential: t("Notas confidenciales", "Confidential notes") }[k]}
               <textarea rows={2} maxLength={4000} value={internal[k]} onChange={e => setInternal({ ...internal, [k]: e.target.value })} /></label>
           ))}
-        </details>
+        </details>}
       </fieldset>}
 
       {step === 4 && <fieldset className={s.fieldset}><legend>{steps[4]}</legend>

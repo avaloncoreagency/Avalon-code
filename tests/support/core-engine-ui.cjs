@@ -96,14 +96,19 @@ module.exports = async function coreEngineUI({db,context,miguel,samuel,origin,ev
   // The approval's server refresh can remount the item and collapse its <details>: the status is then in the DOM but
   // hidden. Wait for the persisted state itself, then reopen the disclosure before interacting again.
   const reopen=async()=>{if(!await terms.getByLabel('Monthly price',{exact:true}).isVisible()) await item.locator('summary').filter({hasText:'Commercial offer'}).click();};
-  await item.getByText(/approved · v/).waitFor({state:'attached'});
+  const approved = item.getByText(/approved · v[0-9]+/);
+  await approved.waitFor({state:'attached'});
+  const approvedVersion = Number((await approved.textContent()).match(/approved · v([0-9]+)/)[1]);
   await reopen();
   await terms.getByLabel('Monthly price',{exact:true}).fill('21');
   refresh=refreshed();
   await terms.getByRole('button',{name:'Save commercial terms',exact:true}).click();
   await refresh;
-  await item.getByText(/draft · v2/).waitFor({state:'attached'});
+  // Earlier synthetic flows may have already versioned this offer. Enforce exactly one new revision.
+  await item.getByText(new RegExp('draft · v' + (approvedVersion + 1) + '$')).waitFor({state:'attached'});
   await reopen();
+  await committedValue(terms.getByLabel('Monthly price',{exact:true}), /^21(\.0+)?$/);
+  assert.equal(await terms.getByRole('alert').count(),0,'price change was not rejected');
   // Attachment labels arrive from the server, not the browser's independent Intl implementation.
   await ui.addInitScript(()=>{const Original=Intl.DateTimeFormat;Intl.DateTimeFormat=function(...args){const result=new Original(...args);Object.defineProperty(result,'format',{value:()=> 'DIFFERENT CLIENT ICU'});return result;};});
   for(let i=0;i<3;i++) {

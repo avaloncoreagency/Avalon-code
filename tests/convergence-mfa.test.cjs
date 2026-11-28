@@ -1,0 +1,11 @@
+const {test}=require('node:test');const assert=require('node:assert/strict');const fs=require('node:fs');const ts=require('typescript');
+function load(file,mocks){const loaded={exports:{}};const source=ts.transpileModule(fs.readFileSync(file,'utf8'),{compilerOptions:{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2022}}).outputText;new Function('require','module','exports',source)(id=>{if(id in mocks)return mocks[id];if(id==='server-only')return {};if(id==='./policy')return {hasAllowedProvider:()=>true,isOwner:()=>false};throw Error('Unexpected dependency '+id);},loaded,loaded.exports);return loaded.exports;}
+function client({current='aal1',next='aal1',active=true,role='operator',error=false}={}){return {auth:{getUser:async()=>({data:{user:{id:'synthetic-seller',app_metadata:{provider:'email'},factors:[{factor_type:'totp',status:'verified'}]}},error:null}),mfa:{getAuthenticatorAssuranceLevel:async()=>({data:{currentLevel:current,nextLevel:next},error:error?{}:null})}},from(table){return {select(){return this;},eq(){return this;},async maybeSingle(){return {data:table==='agency_memberships'?{role}:{active,job_title:'seller',commercial_permissions:[]},error:null};}};}};}
+test('staff with verified TOTP never receives ok under AAL1, even with inconsistent nextLevel',async()=>{
+ const oldUrl=process.env.NEXT_PUBLIC_SUPABASE_URL,oldKey=process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY;process.env.NEXT_PUBLIC_SUPABASE_URL='http://synthetic.invalid';process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY='synthetic';
+ try{const {getStaffState}=load('src/lib/auth/access.ts',{'@/lib/supabase/server':{createClient:()=>{throw Error('No live connection allowed');}}});
+ for(const next of ['aal1','aal2',null])assert.equal((await getStaffState(client({next}))).state,'mfa');
+ assert.equal((await getStaffState(client({current:'aal2',next:'aal2'}))).state,'ok');
+ for(const options of [{active:false},{role:'owner'},{error:true}])assert.equal((await getStaffState(client(options))).state,'none');
+ }finally{if(oldUrl===undefined)delete process.env.NEXT_PUBLIC_SUPABASE_URL;else process.env.NEXT_PUBLIC_SUPABASE_URL=oldUrl;if(oldKey===undefined)delete process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY;else process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY=oldKey;}
+});

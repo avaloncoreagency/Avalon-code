@@ -24,7 +24,7 @@ test("commercial history returns the active agent's sales and commissions only, 
  };
  await db.query("insert into agency_memberships(user_id,role) values ($1,'owner'),($2,'operator'),($3,'operator')", [MIGUEL, EMP1, EMP2]);
  await as(MIGUEL);
- await db.query("insert into staff_portal_access(user_id,active) values ($1,true),($2,true)", [EMP1, EMP2]);
+ await db.query("insert into staff_portal_access(user_id,active,job_title,commercial_permissions) values ($1,true,'seller',array['sales_history','commission_history']),($2,true,'seller',array['sales_history','commission_history'])", [EMP1, EMP2]);
  await db.exec("reset role");
  const client = (await db.query("insert into crm_clients(legal_name,source,owner_id,created_by) values('Cliente sintético','QA',$1,$1) returning id", [MIGUEL])).rows[0].id;
  const sales = (await db.query(`
@@ -41,7 +41,14 @@ test("commercial history returns the active agent's sales and commissions only, 
      ($2,$3,'sale',$5,'Synthetic other agreement',67.89,'USD',67.89,$6)`,
    [ownSale.id, otherSale.id, client, EMP1, EMP2, MIGUEL]);
  const read = async (page=0)=>(await db.query("select * from public.staff_own_commercial_history($1)",[page])).rows;
+ // Employees must enrol a verified authenticator: without one, no AAL2 session can open Staff data.
  await as(EMP1);
+ assert.deepEqual(await read(),[], "no verified factor: Staff data stays closed");
+ await as(EMP1,'aal2');
+ assert.deepEqual(await read(),[], "a forged aal2 claim without a verified factor is not enough");
+ await db.exec("reset role");
+ await db.query("insert into auth.mfa_factors(user_id,status) values ($1,'verified'),($2,'verified')", [EMP1, EMP2]);
+ await as(EMP1,'aal2');
  const first = await read(), second = await read(1);
  assert.equal(first.length,26);
  assert.equal(second.length,7);
@@ -57,18 +64,20 @@ test("commercial history returns the active agent's sales and commissions only, 
  assert.ok(own.every(r=>r.sale_number!==otherSale.sale_number));
  assert.equal((await db.query("select * from public.crm_commissions")).rows.length,0);
  assert.equal((await db.query("select * from public.crm_sales")).rows.length,0);
- await as(EMP2);
+ await as(EMP2,'aal2');
  assert.deepEqual((await read()).map(r=>r.amount).sort(),['67.89',null]);
  await as(MIGUEL);
  assert.deepEqual(await read(),[]);
- await db.exec("reset role");
- await db.query("insert into auth.mfa_factors(user_id,status) values ($1,'verified')", [EMP1]);
  await as(EMP1);
- assert.deepEqual(await read(),[]);
+ assert.deepEqual(await read(),[], "an AAL1 session never reads Staff data");
  await as(EMP1,'aal2');
  assert.equal((await read()).length,26);
  await as(MIGUEL);
- await db.query("update staff_portal_access set active=false where user_id=$1",[EMP1]);
+ await db.query("update staff_portal_access set commercial_permissions='{}' where user_id=$1",[EMP1]);
+ await as(EMP1,'aal2');
+ assert.deepEqual(await read(),[], "explicit history grants revoked without modifying any commission record");
+ await as(MIGUEL);
+ await db.query("update staff_portal_access set commercial_permissions=array['sales_history','commission_history'],active=false where user_id=$1",[EMP1]);
  await as(EMP1,'aal2');
  assert.deepEqual(await read(),[], "suspension takes effect for the same AAL2 session");
  await db.exec("reset role; set role anon;");
@@ -90,7 +99,9 @@ test("staff portal: owner-granted clients, isolated personal dossiers, private D
        ('${MIGUEL}','owner'),('${SAMUEL}','owner'),
        ('${EMP1}','operator'),('${EMP2}','operator')`);
  }
- const as=u=>db.exec(`reset role;set request.jwt.claim.sub='${u}';set role authenticated;`);
+ // Every session is an AAL2 session and every employee has a verified authenticator (Staff MFA is mandatory).
+ await db.exec(`insert into auth.mfa_factors(user_id,status) select m.user_id,'verified' from agency_memberships m where m.role='operator'`);
+ const as=u=>db.exec(`reset role;set request.jwt.claim.sub='${u}';set request.jwt.claims='{"sub":"${u}","aal":"aal2"}';set role authenticated;`);
  const q=(sql,params)=>db.query(sql,params).then(r=>r.rows);
  const n=async sql=>Number((await q(`select count(*) n from ${sql}`))[0].n);
 
@@ -166,12 +177,14 @@ test("staff v1.1: job title is not authorization; seller sees only own granted l
    await db.exec(fs.readFileSync("supabase/migrations/"+file,"utf8"));
    if(file.startsWith("20261102053022")) await db.exec(`insert into agency_memberships(user_id,role) values ('${MIGUEL}','owner'),('${EMP1}','operator'),('${EMP2}','operator')`);
  }
- const as=u=>db.exec(`reset role;set request.jwt.claim.sub='${u}';set role authenticated;`);
+ // Every session is an AAL2 session and every employee has a verified authenticator (Staff MFA is mandatory).
+ await db.exec(`insert into auth.mfa_factors(user_id,status) select m.user_id,'verified' from agency_memberships m where m.role='operator'`);
+ const as=u=>db.exec(`reset role;set request.jwt.claim.sub='${u}';set request.jwt.claims='{"sub":"${u}","aal":"aal2"}';set role authenticated;`);
  const q=(sql,p)=>db.query(sql,p).then(r=>r.rows);
  await as(MIGUEL);
  const [lead]=await q("insert into crm_leads(company,contact,email,phone,source,owner_id,value) values('Lead Sintético','Ana','ana@example.invalid','+10000000','Test',$1,9999) returning id",[MIGUEL]);
  const [other]=await q("insert into crm_leads(company,contact,source,owner_id) values('Otro Lead','Bo','Test',$1) returning id",[MIGUEL]);
- await q("insert into staff_portal_access(user_id,active,job_title) values($1,true,'seller'),($2,true,'operator')",[EMP1,EMP2]);
+ await q("insert into staff_portal_access(user_id,active,job_title) values($1,true,'support'),($2,true,'operator')",[EMP1,EMP2]);
  // A job title can only be one of the defined profiles.
  await assert.rejects(q("update staff_portal_access set job_title='owner' where user_id=$1",[EMP1]),/check/i);
  await q("insert into staff_lead_grants(user_id,lead_id,access_level) values($1,$2,'view')",[EMP1,lead.id]);
@@ -204,9 +217,21 @@ test("staff v1.1: job title is not authorization; seller sees only own granted l
  await q("update staff_lead_grants set active=false where user_id=$1",[EMP1]);
  await as(EMP1);
  assert.equal((await q("select count(*)::int n from staff_my_leads()"))[0].n,0,"revoked lead disappears");
+ // Sellers: the exclusive assignment (crm_leads.owner_id) is the only source of truth; a legacy grant can neither give
+ // nor take away a seller's lead, and reassigning the lead moves the mirror grant with it.
+ await as(MIGUEL);
+ await q("update staff_portal_access set job_title='seller' where user_id=$1",[EMP2]);
+ await assert.rejects(q("insert into staff_lead_grants(user_id,lead_id,access_level) values($1,$2,'view')",[EMP2,other.id]),/staff_lead_use_assignment/);
+ await q("insert into staff_lead_grants(user_id,lead_id,access_level) values($1,$2,'view') on conflict (user_id,lead_id) do update set active=true, access_level='view'",[EMP1,other.id]);
+ await q("update crm_leads set owner_id=$1 where id=$2",[EMP2,other.id]);
+ assert.deepEqual(await q("select access_level,active from staff_lead_grants where user_id=$1 and lead_id=$2",[EMP2,other.id]),[{access_level:"work",active:true}],"assignment creates the mirror grant");
+ assert.deepEqual(await q("select active from staff_lead_grants where user_id=$1 and lead_id=$2",[EMP1,other.id]),[{active:false}],"assignment to a seller is exclusive");
+ await assert.rejects(q("update staff_lead_grants set active=false where user_id=$1 and lead_id=$2",[EMP2,other.id]),/staff_lead_use_assignment/,"revoking a seller's lead goes through reassignment");
+ await q("update crm_leads set owner_id=$1 where id=$2",[MIGUEL,other.id]);
+ assert.deepEqual(await q("select active from staff_lead_grants where user_id=$1 and lead_id=$2",[EMP2,other.id]),[{active:false}],"returning the lead closes the seller's grant");
  await as(MIGUEL);
  const ev=(await q("select action from staff_permission_events where lead_id is not null order by id")).map(r=>r.action);
- assert.deepEqual(ev,["lead_granted","lead_changed","lead_revoked"]);
+ assert.deepEqual(ev,["lead_granted","lead_changed","lead_revoked","lead_granted","lead_revoked","lead_granted","lead_revoked"],"assignment moves are audited too");
  await as(EMP1);
  assert.equal((await q("select count(*)::int n from staff_permission_events"))[0].n,0,"audit is owner-only");
  await db.exec("reset role");
@@ -214,7 +239,7 @@ test("staff v1.1: job title is not authorization; seller sees only own granted l
  assert.equal(anon,false,"anon cannot call staff_my_leads");
 });
 
-test('enrolled MFA gates direct owner/Staff RLS and lead RPC without changing opt-in policy', {timeout:120000}, async t => {
+test('MFA gates direct owner/Staff RLS and lead RPC: mandatory for employees, opt-in for owners', {timeout:120000}, async t => {
  const db = new PGlite(); t.after(()=>db.close());
  await db.exec(fs.readFileSync('tests/sql/00_supabase_stub.sql','utf8'));
  await db.query('insert into auth.users(id) values ($1),($2),($3),($4)', [MIGUEL,EMP1,EMP2,OUT]);
@@ -235,18 +260,24 @@ test('enrolled MFA gates direct owner/Staff RLS and lead RPC without changing op
  await db.query("insert into staff_lead_grants(user_id,lead_id,access_level) values($1,$2,'work')",[EMP1,lead]);
  await db.query("insert into staff_contacts(user_id,display_name,is_listed) values($1,'Synthetic B',true)",[EMP2]);
  await db.query("insert into staff_work_items(idempotency_key,kind,origin,assignee_id,title,due_at) values(gen_random_uuid(),'task','staff_assigned',$1,'MFA QA task',now())",[EMP1]);
- await as(EMP1);
+ // Staff MFA is mandatory: without a verified factor an employee reads and writes nothing, whatever the claim says.
+ for (const aal of ['aal1','aal2']) {
+   await as(EMP1,aal);
+   assert.equal((await rows('select * from staff_my_leads()')).length,0,'no factor: lead projection closed');
+   await assertStaffRows(0);
+   await assert.rejects(db.query("insert into staff_casefiles(title) values('Denied')"),/row-level security|permission denied/i);
+ }
+ await db.exec('reset role');
+ await db.query("insert into auth.mfa_factors(user_id,status) values($1,'unverified')",[EMP1]);
+ await as(EMP1,'aal2');
+ assert.equal((await rows('select * from staff_my_leads()')).length,0,'an unverified factor is not enrolment');
+ await db.exec('reset role');
+ await db.query("insert into auth.mfa_factors(user_id,status) values($1,'verified'),($2,'verified'),($3,'verified')",[EMP1,EMP2,MIGUEL]);
+ await as(EMP1,'aal2');
  await db.query("insert into staff_private_messages(recipient_id,body) values($1,'MFA QA message')",[EMP2]);
  await db.query("insert into staff_casefiles(title) values('MFA synthetic dossier')");
  await assertStaffRows(1);
  assert.equal((await rows('select * from staff_my_leads()')).length,1);
- // Only a verified factor changes the existing opt-in policy.
- await db.exec('reset role');
- await db.query("insert into auth.mfa_factors(user_id,status) values($1,'unverified')",[EMP1]);
- await as(EMP1);
- assert.equal((await rows('select * from staff_my_leads()')).length,1);
- await db.exec('reset role');
- await db.query("insert into auth.mfa_factors(user_id,status) values($1,'verified'),($2,'verified')",[EMP1,MIGUEL]);
  await as(MIGUEL);
  assert.equal((await rows('select * from crm_leads')).length,0,'enrolled owner AAL1 cannot read CRM directly');
  assert.equal((await rows('select os_private.is_owner() allowed'))[0].allowed,false,'OS owner gate matches CRM');

@@ -8,6 +8,7 @@ const { createServer } = require('node:http');
 const fs = require('node:fs');
 const { PGlite } = require('@electric-sql/pglite');
 const { startBridge } = require('./support/rest-bridge.cjs');
+const approveFixtureOffers = require('./helpers/approve-fixture-offers.cjs');
 
 const MIGUEL = '00000000-0000-4000-8000-0000000000a1';
 const SAMUEL = '00000000-0000-4000-8000-0000000000b2';
@@ -172,19 +173,30 @@ test('Quoting Studio in the real app: wizard, PDF without internal data, states,
   fs.writeFileSync(`${EVIDENCE}/quote-preview-synthetic.pdf`, pdfBytes);
   assert.equal((await m.request.get(origin + `/admin/workspace/crm/quotes/${quoteId}/pdf?v=1`)).status(), 409, 'no client download before approval');
 
+  // The draft above still proves that missing prices are not invented. Approve its catalog service as the owner before distribution.
+  await approveFixtureOffers(db,MIGUEL,[['desarrollo-web',1500]]);
   // 3. States: review → approved → download (after explicit review) → manual send → acceptance with evidence.
-  await submit(m, m.getByRole('button', { name: 'Enviar a revisión interna' }));
-  await submit(m, m.getByRole('button', { name: 'Aprobar internamente' }));
+  const guided = m.locator('section[aria-labelledby="close-sale"]');
+  await submit(m, guided.getByRole('button', { name: 'Continuar a revisión' }));
+  await submit(m, guided.getByRole('button', { name: 'Confirmar aprobación' }));
   await m.getByText('Aprobada internamente. Ya puedes descargarla').waitFor();
   assert.equal(await m.getByRole('button', { name: 'Descargar PDF' }).isDisabled(), true, 'download requires the review checkbox');
   await m.getByLabel(/Revisé la vista previa/).check();
   const [download] = await Promise.all([m.waitForEvent('download'), m.getByRole('link', { name: 'Descargar PDF' }).click()]);
   assert.match(download.suggestedFilename(), /^Avalon-Quote-Q-\d{4}-\d{4}-v1\.pdf$/);
   assert.equal((await one('select status from crm_quotes where id=$1', [quoteId])).status, 'approved', 'downloading is not sending');
-  await m.getByLabel('¿Cómo y cuándo se envió? (ej.: PDF por correo el 19/11)').fill('PDF enviado por correo al contacto sintético');
-  await submit(m, m.getByRole('button', { name: 'Registrar envío manual' }));
-  await m.getByLabel('Evidencia: quién aceptó, por qué medio y dónde quedó guardado').fill('Contacto QA aceptó por correo; guardado en el expediente');
-  await submit(m, m.getByRole('button', { name: 'Registrar aceptación' }));
+  const evidenceDate = new Date().toISOString().slice(0,10);
+  const sent = guided.locator('form[data-path-transition="sent"]');
+  await sent.locator('select[name="path_channel"]').selectOption('email');
+  await sent.locator('input[name="path_date"]').fill(evidenceDate);
+  await sent.locator('textarea').fill('PDF enviado por correo al contacto sintético');
+  await submit(m, sent.getByRole('button', { name: 'Guardar registro de envío' }));
+  const accepted = guided.locator('form[data-path-transition="accepted"]');
+  await accepted.locator('select[name="path_channel"]').selectOption('email');
+  await accepted.locator('input[name="path_date"]').fill(evidenceDate);
+  await accepted.locator('input[name="path_person"]').fill('Contacto QA');
+  await accepted.locator('textarea').fill('Contacto QA aceptó por correo; guardado en el expediente');
+  await submit(m, accepted.getByRole('button', { name: 'Guardar evidencia de aceptación' }));
   await m.getByText('Aceptación registrada. No se creó ninguna venta ni pago').waitFor();
   await m.screenshot({ path: `${EVIDENCE}/02-quote-accepted.png`, fullPage: true });
   assert.equal((await one('select count(*)::int n from crm_sales')).n, 0, 'acceptance creates no sale');

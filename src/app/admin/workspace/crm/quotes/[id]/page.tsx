@@ -12,13 +12,14 @@ import { QUOTE_TRANSITIONS, NOTE_REQUIRED, REVISABLE, acceptanceBlockers, isQuot
 import { VARIABLE_FIELD_LABEL } from "@/lib/sales/quote-close";
 import { ERROR_TEXT, OK_TEXT, STATUS_LABEL, STATUS_TONE, TRANSITION_UI } from "@/lib/quotes/text";
 import { ReviewBeforeDownload } from "@/components/quotes/review-download";
-import { deleteQuote, transitionQuote } from "../actions";
+import { linkVerifiedContract, deleteQuote, transitionQuote } from "../actions";
 import { DeleteQuoteButton } from "@/components/quotes/delete-quote";
 import { quoteSoftDeleteReady } from "@/lib/quotes/soft-delete";
 import { QuoteUnavailable } from "@/components/quotes/unavailable";
 import { QuoteClosePanel } from "@/components/sales/quote-close-panel";
 import s from "@/components/sales/sales.module.css";
 import w from "@/components/quotes/quotes.module.css";
+import g from "@/components/sales/quote-path.module.css";
 
 export const dynamic = "force-dynamic";
 type Quote = { id: string; quote_number: string; title: string; status: QuoteStatus; current_version: number; valid_until: string; version: number;
@@ -65,6 +66,8 @@ export default async function QuoteDetail({ params, searchParams }: { params: Pr
   const ok = okCode && Object.hasOwn(OK_TEXT, okCode) ? OK_TEXT[okCode] : null;
   const err = errCode ? (Object.hasOwn(ERROR_TEXT, errCode) ? ERROR_TEXT[errCode] : ERROR_TEXT.save) : null;
   const pdf = (v: number, inline: boolean) => `/admin/workspace/crm/quotes/${id}/pdf?v=${v}${inline ? "&view=inline" : ""}`;
+  const verifiedContracts = quote.status === "accepted" ? await supabase.from("crm_contracts").select("id,title,verified_quote_revision")
+    .eq("lead_id",quote.lead_id).eq("status","verified_signed") : null;
   const downloadable = ["approved", "sent", "accepted"].includes(quote.status);
   const today = new Date().toISOString().slice(0, 10);
   const blockers = content ? acceptanceBlockers(content) : [];
@@ -77,9 +80,9 @@ export default async function QuoteDetail({ params, searchParams }: { params: Pr
     <OpsHeader lang={lang} active="quotes" eyebrow={`${pick(lang, "Cotización", "Quote")} ${quote.quote_number} · v${quote.current_version}`} title={quote.title}
       lead={pick(lang, "Una cotización no es un contrato ni una venta. Cada cambio crea una revisión nueva; lo enviado no se modifica.", "A quote is neither an agreement nor a sale. Every change creates a new revision; what was sent is never altered.")}
       actions={<>
-        {REVISABLE.includes(quote.status) && <Link className={`${s.button} ${s.primary}`} href={`/admin/workspace/crm/quotes/${id}/edit`}>{pick(lang, "Editar (nueva revisión)", "Edit (new revision)")}</Link>}
+        {!deleted && REVISABLE.includes(quote.status) && <Link className={`${s.button} ${s.primary}`} href={`/admin/workspace/crm/quotes/${id}/edit`}>{pick(lang, "Editar (nueva revisión)", "Edit (new revision)")}</Link>}
         <Link className={s.button} href={`/admin/workspace/crm/quotes/new?lead=${quote.lead_id}`}>{pick(lang, "Nueva cotización", "New quote")}</Link>
-        <a className={`${s.button} ${quote.status === "accepted" ? s.primary : ""}`} href="#close-sale">{pick(lang, "Cerrar venta", "Close sale")}</a>
+        {!deleted && <a className={`${s.button} ${quote.status === "accepted" ? s.primary : ""}`} href="#close-sale">{pick(lang, "Cerrar venta", "Close sale")}</a>}
         {downloadable && <a className={s.button} href={pdf(quote.current_version, true)} target="_blank" rel="noopener">{pick(lang, "Imprimir", "Print")}</a>}
         {canDelete && !deleted && quote.status !== "accepted" && <DeleteQuoteButton className={s.button} lang={lang} action={deleteQuote} quote={{ id: quote.id, version: quote.version,
           number: quote.quote_number, client: quote.crm_clients?.legal_name ?? quote.crm_leads?.company ?? "—", date: formatDate(lang, quote.created_at),
@@ -99,8 +102,14 @@ export default async function QuoteDetail({ params, searchParams }: { params: Pr
       <div className={s.stat}><span>{pick(lang, "Válida hasta", "Valid until")}</span><strong>{formatDate(lang, quote.valid_until)}</strong></div>
     </section>
 
-    {content && <QuoteClosePanel db={supabase} lang={lang} quote={quote} content={content} closeError={q(p, "close_error")} />}
-    {quote.status === "accepted" && <section className={s.panel} aria-labelledby="next-contract">
+    {!deleted && content && <QuoteClosePanel db={supabase} lang={lang} quote={quote} content={content} closeError={q(p, "close_error")} resume={Boolean(okCode?.startsWith("status_") || okCode === "revised" || errCode || q(p, "close_error"))} />}
+    {!deleted && quote.status === "accepted" && <section className={s.panel} aria-labelledby="next-contract">
+      {cur && !!verifiedContracts?.data?.length && <form className={s.form} action={linkVerifiedContract}>
+        <input type="hidden" name="quote_id" value={quote.id}/><input type="hidden" name="revision" value={cur.id}/>
+        <label className={s.field}>{pick(lang,"Contrato firmado y verificado","Verified signed contract")}<select name="contract_id" required>
+          {verifiedContracts.data.filter(c => !c.verified_quote_revision || c.verified_quote_revision===cur.id).map(c=><option key={c.id} value={c.id}>{c.title}</option>)}</select></label>
+        <label><input name="matched" type="checkbox" value="yes" required/> {pick(lang,"Verifiqué que los términos firmados coinciden con esta revisión aceptada.","I verified that the signed terms match this accepted revision.")}</label>
+        <button className={s.button}>{pick(lang,"Vincular esta revisión","Link this revision")}</button></form>}
       <header><h2 id="next-contract">{pick(lang, "Siguiente paso: contrato", "Next step: agreement")}</h2></header>
       {contracts.length > 0 && <p className={s.flash} data-tone="ok">{pick(lang, "Ya existe un borrador de contrato basado en esta cotización.", "An agreement draft based on this quote already exists.")}{" "}
         <Link href={`/admin/workspace/crm/clients/${quote.client_id}/contracts`}>{pick(lang, "Ver contratos", "View agreements")}</Link></p>}
@@ -110,8 +119,8 @@ export default async function QuoteDetail({ params, searchParams }: { params: Pr
       <p className={s.muted}>{pick(lang, "Aceptar una cotización no registra una venta. La venta se confirma después, con el contrato verificado.", "Accepting a quote does not record a sale. The sale is confirmed later, with the verified agreement.")}</p>
     </section>}
 
-    <section className={s.panel} aria-labelledby="quote-actions">
-      <header><h2 id="quote-actions">{pick(lang, "Acciones", "Actions")}</h2></header>
+    {!deleted && <section className={s.panel} aria-labelledby="quote-actions">
+      <details className={g.summary} open={!content || undefined}><summary id="quote-actions">{pick(lang, "Más acciones y correcciones", "More actions and corrections")}</summary><div className={g.detailBody}>
       {QUOTE_TRANSITIONS[quote.status].length === 0 ? <p className={s.muted}>{pick(lang, "Estado final: esta cotización ya no cambia. Para nuevas condiciones crea una nueva cotización.", "Final state: this quote no longer changes. For new terms create a new quote.")}</p> :
         <div className={w.actionsGrid}>{QUOTE_TRANSITIONS[quote.status].map(to => {
           const ui = TRANSITION_UI[to]; if (!ui) return null;
@@ -126,12 +135,13 @@ export default async function QuoteDetail({ params, searchParams }: { params: Pr
             <button type="submit" className={`${s.button} ${to === "accepted" || to === "approved" ? s.primary : ""}`} disabled={blocked}>{pick(lang, ...ui.label)}</button>
           </form>;
         })}</div>}
-    </section>
+      </div></details>
+    </section>}
 
     <section className={s.panel} aria-labelledby="quote-pdf">
       <header><h2 id="quote-pdf">{pick(lang, "Vista previa del PDF", "PDF preview")} · v{quote.current_version}</h2>
         <a className={s.button} href={pdf(quote.current_version, true)} target="_blank" rel="noopener">{pick(lang, "Abrir en pestaña nueva", "Open in new tab")}</a></header>
-      {content ? <iframe className={w.preview} src={pdf(quote.current_version, true)} title={pick(lang, "Vista previa de la cotización", "Quote preview")} /> :
+      {content ? <p className={s.muted}>{pick(lang, "Abre el PDF solo cuando quieras revisar o imprimir esta versión. La vista previa no interrumpe el cierre de la venta.", "Open the PDF only when you want to review or print this version. The preview does not interrupt the sales workflow.")}</p> :
         <p className={s.flash} data-tone="error">{pick(lang, "No se pudo leer esta revisión.", "This revision could not be read.")}</p>}
       {downloadable ? <ReviewBeforeDownload lang={lang} href={pdf(quote.current_version, false)} fileName={quoteFileName(quote.quote_number, quote.current_version)} />
         : <p className={s.muted}>{pick(lang, "La descarga para el cliente se habilita cuando esta revisión está aprobada internamente.", "The client download is enabled once this revision is approved internally.")}</p>}

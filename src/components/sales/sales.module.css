@@ -53,7 +53,7 @@
 .fieldset { border:1px solid var(--line); border-radius:14px; padding:14px; display:grid; gap:12px; min-width:0; }
 .fieldset legend { padding:0 6px; color:var(--accent); font-size:13px; letter-spacing:.08em; text-transform:uppercase; }
 .row { display:grid; grid-template-columns:repeat(auto-fit,minmax(min(100%,160px),1fr)); gap:10px; }
-.field { display:grid; gap:6px; font-size:13px; color:#cad8ec; min-width:0; }
+.field { display:grid; grid-template-columns:minmax(0,1fr); gap:6px; font-size:13px; color:#cad8ec; min-width:0; }
 .field input, .field select, .field textarea, .toolbar input, .toolbar select { width:100%; box-sizing:border-box; background:#08111f; color:var(--text); border:1px solid #3f5679; border-radius:10px; padding:10px 11px; font:inherit; min-height:42px; }
 .field textarea { resize:vertical; min-height:70px; }
 .field input:focus, .field select:focus, .field textarea:focus { border-color:var(--accent); box-shadow:0 0 0 3px #6fe3ff22; outline:none; }

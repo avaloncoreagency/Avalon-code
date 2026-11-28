@@ -50,13 +50,15 @@ export async function getAuthorizedMember(client?: SupabaseClient) {
 /**
  * The only employee role is an authenticated operator who has an explicit,
  * active staff_portal_access grant. This never upgrades an operator to owner.
- * AAL2 is enforced if a verified MFA factor has been enrolled.
+ * Employees must enrol a verified TOTP factor (the database refuses Staff data otherwise); until they do,
+ * `mfaEnrolled` is false and the portal sends them to /staff/mfa to enrol. AAL2 is enforced once enrolled.
  */
 export type StaffState =
   | { state: "none" }
   | { state: "mfa"; userId: string; supabase: SupabaseClient }
   | { state: "ok"; role: "employee"; userId: string; user: User;
-      supabase: SupabaseClient; permissions: { can_create_casefiles: boolean; can_message: boolean; can_create_events: boolean } };
+      supabase: SupabaseClient; mfaEnrolled: boolean;
+      permissions: { commercial_permissions: string[]; can_create_casefiles: boolean; can_message: boolean; can_create_events: boolean; job_title: string } };
 
 export async function getStaffState(client?: SupabaseClient): Promise<StaffState> {
   if (!process.env.NEXT_PUBLIC_SUPABASE_URL || !process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY)
@@ -67,21 +69,25 @@ export async function getStaffState(client?: SupabaseClient): Promise<StaffState
     if (error || !user || !hasAllowedProvider(user.app_metadata.provider)) return { state: "none" };
     const [membership, access] = await Promise.all([
       supabase.from("agency_memberships").select("role").eq("user_id", user.id).maybeSingle(),
-      supabase.from("staff_portal_access").select("active,can_create_casefiles,can_message,can_create_events")
+      supabase.from("staff_portal_access").select("active,can_create_casefiles,can_message,can_create_events,job_title,commercial_permissions")
         .eq("user_id", user.id).maybeSingle(),
     ]);
     if (membership.error || membership.data?.role !== "operator" ||
       access.error || access.data?.active !== true) return { state: "none" };
     const { data: assurance, error: aalError } = await supabase.auth.mfa.getAuthenticatorAssuranceLevel();
     if (aalError || !assurance) return { state: "none" };
-    if (assurance.nextLevel === "aal2" && assurance.currentLevel !== "aal2")
+    const mfaEnrolled = (user.factors ?? []).some((f: { factor_type: string; status: string }) => f.factor_type === "totp" && f.status === "verified");
+    // Enrolled staff must prove AAL2, even if nextLevel is inconsistent or absent.
+    if ((mfaEnrolled || assurance.nextLevel === "aal2") && assurance.currentLevel !== "aal2")
       return { state: "mfa", userId: user.id, supabase };
     return {
-      state: "ok", role: "employee", userId: user.id, user, supabase,
+      state: "ok", role: "employee", userId: user.id, user, supabase, mfaEnrolled,
       permissions: {
         can_create_casefiles: access.data.can_create_casefiles === true,
+        commercial_permissions: Array.isArray(access.data.commercial_permissions) ? access.data.commercial_permissions : [],
         can_message: access.data.can_message === true,
         can_create_events: access.data.can_create_events === true,
+        job_title: typeof access.data.job_title === "string" ? access.data.job_title : "",
       },
     };
   } catch {

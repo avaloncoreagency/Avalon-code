@@ -5,6 +5,7 @@ const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const crypto = require('node:crypto');
 const verifiedContract = require('./helpers/verified-contract.cjs');
+const approveFixtureOffers = require('./helpers/approve-fixture-offers.cjs');
 const { PGlite } = require('@electric-sql/pglite');
 
 const OWNER = '00000000-0000-4000-8000-0000000000a1';
@@ -20,6 +21,7 @@ async function setup() {
     if (f.startsWith('20261102053022')) await db.query("insert into agency_memberships values($1,'owner'),($2,'owner'),($3,'operator')", [OWNER, NOFIN, OUTSIDER]);
   }
   await db.query('insert into crm_private.finance_access(user_id) values($1)', [OWNER]);
+  await approveFixtureOffers(db,OWNER,[['desarrollo-web',1500],['crm-personalizado',900],['marketing-mensual',300],['generacion-leads',100]]);
   const as = u => db.exec(`reset role; set request.jwt.claim.sub='${u}'; set role authenticated;`);
   const one = async (q, p) => (await db.query(q, p)).rows[0];
   await as(OWNER);

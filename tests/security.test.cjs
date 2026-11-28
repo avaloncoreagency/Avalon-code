@@ -244,7 +244,7 @@ test('every migration table has RLS enabled and anon revoked (default privileges
   }
   for (const t of tables) {
     assert.ok(looped.rls.has(t) || new RegExp(`alter table public\\.${t} enable row level security`, 'i').test(sql), `RLS missing on ${t}`);
-    assert.ok(looped.anon.has(t) || new RegExp(`revoke [^;]*public\\.${t}[^;]*from anon|revoke all on public\\.${t} from anon`, 'i').test(sql), `anon not revoked on ${t}`);
+    assert.ok(looped.anon.has(t) || new RegExp(`revoke [^;]*public\\.${t}[^;]*from (?:public\\s*,\\s*)?anon|revoke all on public\\.${t} from anon`, 'i').test(sql), `anon not revoked on ${t}`);
   }
   // Single reviewed exception: the public quote form RPC (validated, honeypot, SQL-level throttling,
   // creates only pending prospects). Any other anon grant fails this test.

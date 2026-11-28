@@ -7,6 +7,7 @@ const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const crypto = require('node:crypto');
 const verifiedContract = require('./helpers/verified-contract.cjs');
+const approveFixtureOffers = require('./helpers/approve-fixture-offers.cjs');
 const { PGlite } = require('@electric-sql/pglite');
 
 const MIGUEL = '00000000-0000-4000-8000-0000000000a1';
@@ -67,7 +68,7 @@ test('catalog: offers start as drafts, approval is attributable, edits reopen a 
   assert.deepEqual(active, ['automatizacion', 'crm-personalizado', 'desarrollo-web', 'generacion-leads', 'marketing-mensual', 'tienda-online']);
   const lead = await newLead(db, one, 'Recepción Sintética', 'r@example.invalid');
   await verifiedContract(db, lead);
-  await assert.rejects(sellTo(db, one, lead, 'Recepción Sintética', uuid(1), [{ service_code: 'recepcionista-ia', unit_price: '900' }]), /service|catalog|inactive|not_found|invalid/i);
+  await assert.rejects(sellTo(db, one, lead, 'Recepción Sintética', uuid(1), [{ service_code: 'recepcionista-ia', unit_price: '900' }]), err=>err.code==='23514'&&err.message==='commercial_offer_not_approved');
   // A non-owner member cannot change the catalog.
   await as(STRANGER);
   const r = await db.query("update crm_service_catalog set suggested_price=1 where code='automatizacion' returning id");
@@ -77,6 +78,7 @@ test('catalog: offers start as drafts, approval is attributable, edits reopen a 
 test('barbershop pilot (synthetic, B2B): diagnosis → proposal → contract → sale → orders → invoice → payment → commission → ledger', { timeout: 240000 }, async t => {
   const { db, as, one, n } = await setup();
   t.after(() => db.close());
+  await approveFixtureOffers(db,MIGUEL,[['desarrollo-web',1500],['crm-personalizado',900.10],['marketing-mensual',300]]);
   await as(MIGUEL);
   const company = 'Barbería Piloto Sintética';
   const lead = await newLead(db, one, company, 'piloto@barberia.example.invalid');
@@ -174,6 +176,7 @@ test('barbershop pilot (synthetic, B2B): diagnosis → proposal → contract →
 test('cross-client protection: documents and projects cannot be attached to another client', { timeout: 180000 }, async t => {
   const { db, as, one } = await setup();
   t.after(() => db.close());
+  await approveFixtureOffers(db,MIGUEL,[['desarrollo-web',1000]]);
   await as(MIGUEL);
   const a = await newLead(db, one, 'Cliente A Sintético', 'a@example.invalid');
   const b = await newLead(db, one, 'Cliente B Sintético', 'b@example.invalid');

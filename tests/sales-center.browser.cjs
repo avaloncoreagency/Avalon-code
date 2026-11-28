@@ -7,6 +7,7 @@
 const { test } = require('node:test'), assert = require('node:assert/strict'), fs = require('node:fs'), crypto = require('node:crypto');
 const { spawn } = require('node:child_process'), { createServer } = require('node:http');
 const verifiedContract = require('./helpers/verified-contract.cjs');
+const approveFixtureOffers = require('./helpers/approve-fixture-offers.cjs');
 
 const OWNER = '00000000-0000-4000-8000-0000000000f1';
 const DIR = process.env.EVIDENCE_DIR || 'evidence/sales-center';
@@ -28,6 +29,7 @@ test('Sales Center: accepted quote → Cerrar venta → variable sale → settle
     if (f.startsWith('20261102053022')) await db.query("insert into agency_memberships(user_id,role) values($1,'owner')", [OWNER]);
   }
   await db.query('insert into crm_private.finance_access(user_id) values($1)', [OWNER]);
+  await approveFixtureOffers(db,OWNER,[['marketing-mensual',300],['crm-personalizado',900],['desarrollo-web',1500]]);
   await db.exec(`set request.jwt.claim.sub='${OWNER}'; set role authenticated;`);
   const one = async (q, p) => (await db.query(q, p)).rows[0];
 
@@ -102,25 +104,56 @@ test('Sales Center: accepted quote → Cerrar venta → variable sale → settle
   assert.equal(await closePanel().getAttribute('data-close-state'), 'blocked');
   for (const f of ['kind', 'effectiveDate', 'durationMonths', 'refunds']) await closePanel().locator(`[data-missing="${f}"]`).waitFor();
   assert.equal(await closePanel().locator('[data-missing="exclusions"]').count(), 0, 'stated terms are not flagged');
-  await closePanel().getByRole('link', { name: 'Editar cotización (nueva revisión)' }).waitFor();
-  await closePanel().getByRole('link', { name: 'Abrir contrato de la oportunidad' }).waitFor();
+  const edit = closePanel().getByRole('link', { name: 'Editar cotización (nueva revisión)' });
+  await edit.waitFor();
+  assert.equal(await closePanel().getByRole('link', { name: 'Abrir contrato de la oportunidad' }).count(), 0, 'later steps wait for the missing terms');
+  assert.equal(await page.locator('section[aria-labelledby="quote-pdf"] iframe').count(), 0, 'PDF never embeds automatically');
   assert.equal(await closePanel().getByRole('button', { name: 'Cerrar venta' }).isDisabled(), true);
   await page.screenshot({ path: `${DIR}/chino-draft-blocked-1440.png`, fullPage: true });
+  await edit.click();
+  await page.waitForURL(url => url.pathname === `/admin/workspace/crm/quotes/${quote33}/edit`);
+  assert.equal(ctx.pages().length, 1, 'editing does not open a PDF tab');
 
-  // 0c. The complete quote goes draft → review → approved → sent → accepted THROUGH THE UI, with written evidence.
+  // 0c. Execute the real state machine directly within the path to sale, with required evidence.
   await page.goto(quoteUrl);
-  const actions = page.locator('section[aria-labelledby="quote-actions"]');
-  await actions.getByRole('button', { name: 'Enviar a revisión interna' }).click();
-  await actions.getByRole('button', { name: 'Aprobar internamente' }).waitFor();
-  await actions.getByRole('button', { name: 'Aprobar internamente' }).click();
-  await actions.getByRole('button', { name: 'Registrar envío manual' }).waitFor();
-  await actions.locator('form').filter({ has: page.getByRole('button', { name: 'Registrar envío manual' }) }).locator('textarea').fill('PDF enviado por email sintético el día de hoy');
-  await actions.getByRole('button', { name: 'Registrar envío manual' }).click();
-  await actions.getByRole('button', { name: 'Registrar aceptación' }).waitFor();
-  await actions.locator('form').filter({ has: page.getByRole('button', { name: 'Registrar aceptación' }) }).locator('textarea').fill('Aceptada por email del cliente (sintético), archivada en el expediente QA');
-  await actions.getByRole('button', { name: 'Registrar aceptación' }).click();
+  const stepForm = to => closePanel().locator(`form[data-path-transition="${to}"]`);
+  const assertStatus = async status => assert.equal((await one('select status from crm_quotes where id=$1', [quoteId])).status, status);
+  await stepForm('internal_review').getByRole('button', { name: 'Continuar a revisión' }).click();
+  await stepForm('approved').getByRole('button', { name: 'Confirmar aprobación' }).waitFor();
+  await assertStatus('internal_review');
+  await stepForm('approved').getByRole('button', { name: 'Confirmar aprobación' }).click();
+  await stepForm('sent').getByRole('button', { name: 'Guardar registro de envío' }).waitFor();
+  await assertStatus('approved');
+  assert.equal(await page.locator('section[aria-labelledby="quote-pdf"] iframe').count(), 0);
+  const previewLink = page.locator('section[aria-labelledby="quote-pdf"]').getByRole('link', { name: 'Abrir en pestaña nueva' });
+  assert.match(await previewLink.getAttribute('href'), /\/pdf\?v=\d+&view=inline$/);
+  assert.equal(await stepForm('sent').getByRole('button', { name: 'Guardar registro de envío' }).isDisabled(), true, 'send requires channel, date and evidence');
+  await assertStatus('approved');
+  const evidenceDate = new Date().toISOString().slice(0,10);
+  await stepForm('sent').locator('select[name="path_channel"]').selectOption('email');
+  await stepForm('sent').locator('input[name="path_date"]').fill(evidenceDate);
+  assert.equal(await stepForm('sent').getByRole('button', { name: 'Guardar registro de envío' }).isDisabled(), true);
+  await stepForm('sent').locator('textarea').fill('PDF enviado por email sintético el día de hoy');
+  await stepForm('sent').getByRole('button', { name: 'Guardar registro de envío' }).click();
+  await stepForm('accepted').getByRole('button', { name: 'Guardar evidencia de aceptación' }).waitFor();
+  await assertStatus('sent');
+  assert.equal(await stepForm('accepted').getByRole('button', { name: 'Guardar evidencia de aceptación' }).isDisabled(), true, 'acceptance requires person, date, channel and evidence');
+  await assertStatus('sent');
+  await stepForm('accepted').locator('select[name="path_channel"]').selectOption('email');
+  await stepForm('accepted').locator('input[name="path_date"]').fill(evidenceDate);
+  await stepForm('accepted').locator('input[name="path_person"]').fill('Contacto QA');
+  await stepForm('accepted').locator('textarea').fill('Aceptada por email del cliente (sintético), archivada en el expediente QA');
+  await stepForm('accepted').getByRole('button', { name: 'Guardar evidencia de aceptación' }).click();
   await page.waitForFunction(() => document.querySelector('[data-step="accepted"]')?.getAttribute('data-done') === 'true');
-  assert.equal((await one('select status from crm_quotes where id=$1', [quoteId])).status, 'accepted');
+  await assertStatus('accepted');
+  const evidenceRow = await one("select note from crm_quote_events where quote_id=$1 and to_status='accepted' order by created_at desc limit 1", [quoteId]);
+  assert.match(evidenceRow.note, /Correo electrónico.*Fecha:.*Aceptó: Contacto QA.*Evidencia:/);
+  assert.equal(ctx.pages().length, 1, 'workflow stays in the quote tab');
+  assert.equal(new URL(page.url()).pathname, new URL(quoteUrl).pathname);
+  const contractLink = closePanel().getByRole('link', { name: 'Abrir contrato de la oportunidad' });
+  await contractLink.click();
+  await page.waitForURL(url => url.pathname === `/admin/workspace/crm/lead/${lead}` && url.searchParams.get('tab') === 'contract');
+  assert.equal(ctx.pages().length, 1, 'contract navigation stays in the same tab');
 
   // 1. "Nueva venta" starts from accepted quotes; the manual form is collapsed (history / exceptions only).
   await page.goto(`${origin}/admin/workspace/crm/sales/new`);

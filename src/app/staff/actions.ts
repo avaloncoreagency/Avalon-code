@@ -77,7 +77,7 @@ export async function readStaffMessage(form: FormData) {
   finish(path, error || !data ? "failed" : "read");
 }
 
-/** Employee-created work (needs can_create_events). Origin, assignee and author are fixed by the database. */
+/** Employee-created work (sellers always; others need can_create_events). Origin, assignee and author are fixed by the database. */
 export async function createMyWorkItem(form: FormData) {
   const session = await requireStaff();
   if (!session.permissions.can_create_events) redirect("/staff?status=denied#calendar");

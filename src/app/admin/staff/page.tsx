@@ -1,8 +1,11 @@
+import { commercialPermissions } from "@/lib/staff/commercial-permissions";
 import Link from "next/link";
+import { InviteSubmit } from "@/components/agents/invite-submit";
 import { Suite } from "@/components/suite/suite";
 import { requireOwner } from "@/lib/auth/session";
 import { randomUUID } from "node:crypto";
-import { inviteStaffEmployee, setStaffAccess, grantStaffClient, revokeStaffClient, grantStaffLead, revokeStaffLead, assignWorkItem, manageWorkItem } from "./actions";
+import { decideQuoteDeletion, inviteStaffEmployee, setStaffAccess, grantStaffClient, revokeStaffClient, grantStaffLead, revokeStaffLead, assignWorkItem, manageWorkItem, assignLeadToSeller } from "./actions";
+import { isSellerTitle } from "@/lib/staff/seller";
 import { WorkCalendar } from "@/components/staff/work-calendar";
 import { DEFAULT_TZ, KIND_LABEL, PRIORITY_LABEL, STATUS_LABEL, dayKey, timeLabel, when, workKpis, type WorkItem } from "@/lib/staff/work";
 import { JOB_TITLES } from "@/lib/auth/staff-roles";
@@ -14,7 +17,7 @@ import { getLang } from "@/lib/i18n-server";
 import { pick } from "@/lib/i18n";
 export const dynamic = "force-dynamic";
 type StaffMember = { user_id:string; role:string; email:string; display_name:string };
-type Access = { user_id:string; active:boolean; can_create_casefiles:boolean; can_message:boolean; can_create_events:boolean; job_title:string };
+type Access = { commercial_permissions:string[]; user_id:string; active:boolean; can_create_casefiles:boolean; can_message:boolean; can_create_events:boolean; job_title:string };
 type LeadGrant = { user_id:string; lead_id:string; access_level:string; active:boolean };
 type LeadOption = { id:string; company:string };
 type Grant = { user_id:string; client_id:string; client_name:string; access_level:string; active:boolean };
@@ -28,8 +31,12 @@ const statuses: Record<string,string> = {
  failed:"No se pudo confirmar el cambio.", "directory-failed":"Acceso actualizado, pero falló la libreta de contactos.",
  "access-enabled":"Acceso de empleado activado.","access-revoked":"Acceso de empleado revocado.",
  "client-granted":"Cliente asignado.","client-revoked":"Acceso al cliente revocado.",
- "lead-granted":"Lead asignado.","lead-revoked":"Acceso al lead revocado.",
+ "lead-granted":"Lead compartido.","lead-revoked":"Acceso al lead revocado.",
+ "use-assignment":"Los vendedores reciben y devuelven leads solo con «Entregar un lead a un vendedor».",
  "work-assigned":"Actividad asignada. Solo esa persona la ve.","work-cancelled":"Actividad cancelada.","work-reassigned":"Actividad reasignada.",
+ "work-deleted":"Actividad eliminada del calendario.","work-rescheduled":"Actividad reprogramada.",
+ "lead-assigned":"Lead entregado al vendedor. Solo ese vendedor y la dirección lo ven.","lead-returned":"Lead devuelto a la dirección.",
+ "seller-invalid":"Ese empleado no es un vendedor activo.",
  "work-link-denied":"Ese lead o cliente no está asignado a ese empleado: asígnaselo primero.",stale:"La actividad cambió mientras la editabas; revisa la versión actual.",
  sent:"Mensaje privado enviado.",read:"Mensaje marcado como leído.",
 };
@@ -37,8 +44,12 @@ const inviteStatuses: Readonly<Record<string, readonly [string, string]>> = {
  "invite-sent": ["Supabase Auth aceptó la invitación. La cuenta requiere aprobación del propietario.", "Supabase Auth accepted the invitation. The account requires owner approval."],
  "invite-audit-pending": ["Supabase Auth aceptó la invitación. Falta confirmar el registro de auditoría.", "Supabase Auth accepted the invitation. The audit entry is unconfirmed."],
  "invite-enrollment-pending": ["Supabase Auth aceptó la invitación. No se confirmó el alta del agente. Revisa el estado de la cuenta antes de reenviar.", "Supabase Auth accepted the invitation. Agent enrollment is unconfirmed. Check the account before resending."],
- "invite-email-exists": ["Ese correo ya tiene una cuenta en Avalon. No se envió ninguna invitación ni se concedió acceso. Usa el correo del agente que aún no esté registrado.", "That e-mail already has an Avalon account. No invitation was sent and no access was granted. Use an address that is not registered yet."],
- "invite-not-configured": ["Las invitaciones no están configuradas para este dominio. No se envió nada.", "Invitations are not configured for this domain. Nothing was sent."],
+ "invite-email-exists": ["Ese correo ya tiene una cuenta en Avalon (por ejemplo, la de un propietario), así que NO se envió ninguna invitación ni se concedió acceso. Usa el correo del agente que aún no esté registrado; para una prueba con tu propio Gmail usa un alias como tucorreo+agente1@gmail.com.", "That e-mail already has an Avalon account (for example an owner's), so NO invitation was sent and no access was granted. Use an address that is not registered yet; to test with your own Gmail use an alias such as yourname+agent1@gmail.com."],
+ "invite-not-configured": ["Revisa la configuración de correo, dominio y credenciales de Supabase Auth para las invitaciones.", "Check the Supabase Auth email, domain, and credential settings for invitations."],
+ "invite-email-failed": ["Supabase Auth reportó un error al enviar el correo. Revisa el SMTP y la plantilla de invitación antes de reintentar.", "Supabase Auth reported an email delivery error. Check SMTP and the invitation template before retrying."],
+ "invite-email-rate-limit": ["Supabase Auth alcanzó el límite de envío de correos. Revisa el límite o espera antes de reintentar.", "Supabase Auth reached its email sending limit. Check the limit or wait before retrying."],
+ "invite-request-rate-limit": ["Supabase Auth limitó las solicitudes de invitación. Espera antes de reintentar.", "Supabase Auth rate-limited invitation requests. Wait before retrying."],
+ "invite-unavailable": ["El servicio de invitaciones no está disponible. Revisa el despliegue de staff-invite y el estado de Supabase.", "The invitation service is unavailable. Check the staff-invite deployment and Supabase status."],
  "invite-mfa-required": ["Tu cuenta tiene MFA: vuelve a verificar el segundo factor y reintenta.", "Your account has MFA: verify your second factor again and retry."],
  "invite-forbidden": ["Solo una sesión de propietario puede invitar agentes.", "Only an owner session can invite agents."],
  "invite-member-limit": ["Se alcanzó el límite de 50 agentes. No se envió la invitación.", "The 50-agent limit was reached. The invitation was not sent."],
@@ -46,12 +57,12 @@ const inviteStatuses: Readonly<Record<string, readonly [string, string]>> = {
 };
 
 export default async function StaffAdministration({searchParams}:{
- searchParams:Promise<{status?:string;view?:string;d?:string;invite_sender?:string}>;
+ searchParams:Promise<{status?:string;view?:string;d?:string;invite_sender?:string;agent?:string}>;
 }) {
  const {supabase,userId} = await requireOwner();
  const [roster,access,grants,clients,casefiles,contacts,messages,audit,leadGrants,leads] = await Promise.all([
    supabase.rpc("office_directory"),
-   supabase.from("staff_portal_access").select("user_id,active,can_create_casefiles,can_message,can_create_events,job_title"),
+   supabase.from("staff_portal_access").select("user_id,active,can_create_casefiles,can_message,can_create_events,job_title,commercial_permissions"),
    supabase.from("staff_client_grants").select("user_id,client_id,client_name,access_level,active")
      .order("updated_at",{ascending:false}).limit(200),
    supabase.from("crm_clients").select("id,legal_name").neq("status","archived")
@@ -66,7 +77,8 @@ export default async function StaffAdministration({searchParams}:{
    supabase.from("staff_lead_grants").select("user_id,lead_id,access_level,active").eq("active",true).limit(300),
    supabase.from("crm_leads").select("id,company").eq("archived",false).order("updated_at",{ascending:false}).limit(300),
  ]);
- const {status, view: viewParam, d, invite_sender: inviteSender} = await searchParams;
+ const {status, view: viewParam, d, invite_sender: inviteSender, agent: agentParam} = await searchParams;
+ const deletionRequests = await supabase.from("crm_quote_deletion_requests").select("id,quote_id,requested_by,revision,reason,requested_at,one_time_total,monthly_total,currency").eq("status","pending").order("requested_at");
  const lang = await getLang();
  const inviteStatus = status && Object.hasOwn(inviteStatuses, status)
    ? pick(lang, ...inviteStatuses[status]) : null;
@@ -87,12 +99,16 @@ export default async function StaffAdministration({searchParams}:{
  const events=(audit.data ?? []) as AuditEvent[];
  const contactNames = new Map(contactsList.map(contact => [contact.user_id, contact.display_name]));
  const listedContacts = contactsList.filter(contact => contact.is_listed);
- // The permissions form saves the operator's visible name in staff_contacts.
+ // Preserve the saved operator name even when it is not listed in the message directory.
  const memberName = (member: StaffMember, fallback = "Empleado") => {
    const contactName = member.role === "operator" ? contactNames.get(member.user_id) : undefined;
    const label = contactName ? personDisplayName({ ...member, display_name: contactName }, "") : "";
    return label || personDisplayName(member, fallback);
  };
+ const sellers = members.filter(m=>a.some(x=>x.user_id===m.user_id&&x.active&&isSellerTitle(x.job_title)));
+ // Calendar control: one employee at a time (or the whole team).
+ const agent = agentParam && members.some(m=>m.user_id===agentParam) ? agentParam : "";
+ const agentWork = agent ? work.filter(i=>i.assignee_id===agent) : work;
  const display = new Map(((roster.data ?? []) as StaffMember[]).map(m=>[m.user_id,memberName(m)]));
  const names = new Map(listedContacts.map(m=>[m.user_id,m.display_name]));
  return <Suite active="staff"><div className={s.hud}>
@@ -112,6 +128,7 @@ export default async function StaffAdministration({searchParams}:{
         <label className={s.field}>Correo electrónico del agente
           <input type="email" name="employee_email" autoComplete="email" maxLength={254}
             placeholder="agente@empresa.com" required />
+          <small className={s.muted}>Debe ser un correo sin cuenta en Avalon. Para una prueba con tu propio Gmail usa un alias con «+», por ejemplo tucorreo+agente1@gmail.com.</small>
         </label>
         <label className={s.field}>Nombre del agente (opcional)
           <input name="invitee_name" maxLength={80} autoComplete="off" />
@@ -122,7 +139,7 @@ export default async function StaffAdministration({searchParams}:{
         <label className={s.field}>Idioma de la invitación
           <select name="invite_lang" defaultValue="es"><option value="es">Español</option><option value="en">English</option></select>
         </label>
-        <button className={s.button} type="submit">Enviar invitación segura</button>
+        <InviteSubmit className={s.button} />
       </form>
       <p className={s.muted}>Requiere la función Supabase `staff-invite` habilitada en este entorno y el origen de invitación configurado. El agente no recibe permisos por ser invitado.</p>
     </section>
@@ -149,6 +166,9 @@ export default async function StaffAdministration({searchParams}:{
             <label><input type="checkbox" name="can_create_casefiles" value="yes" defaultChecked={current?.can_create_casefiles} /> Crear expedientes privados</label>
             <label><input type="checkbox" name="can_message" value="yes" defaultChecked={current?.can_message} /> Mensajería privada</label>
             <label><input type="checkbox" name="can_create_events" value="yes" defaultChecked={current?.can_create_events} /> Crear actividades propias en su calendario</label>
+            <fieldset><legend>{lang === "en" ? "Commercial permissions" : "Permisos comerciales"}</legend>
+              {commercialPermissions.map(([key, es, en]) => <label key={key} className={s.field}><span><input type="checkbox" name="commercial_permissions" value={key} defaultChecked={current?.commercial_permissions?.includes(key)} /> {lang === "en" ? en : es}</span></label>)}
+            </fieldset>
             <button className={s.button} type="submit">Guardar permisos</button>
           </form>
         </article>;
@@ -214,8 +234,33 @@ export default async function StaffAdministration({searchParams}:{
         <tbody>{members.filter(m=>a.some(x=>x.user_id===m.user_id)).map(m=>{ const k=workKpis(work.filter(i=>i.assignee_id===m.user_id), nowIso, {leads: lg.filter(x=>x.user_id===m.user_id).length, clients: 0, casefilesOpen: 0});
           return <tr key={m.user_id} data-supervision={m.user_id}><td>{memberName(m)}</td><td className={s.num}>{k.open}</td><td className={s.num}>{k.overdue}</td><td className={s.num}>{k.upcoming7}</td><td className={s.num}>{k.done30}</td><td className={s.num}>{k.leads}</td></tr>; })}</tbody>
       </table></div>
-      <h3>Calendario del equipo</h3>
-      <WorkCalendar items={work} view={view} anchor={anchor} tz={DEFAULT_TZ} basePath="/admin/staff" today={today} names={display} />
+      <h3 id="agent-calendars">Calendario de cada agente</h3>
+      <form method="get" className={s.inline} aria-label="Elegir agente">
+        <input type="hidden" name="view" value={view} /><input type="hidden" name="d" value={anchor} />
+        <label className={s.field}>Agente<select name="agent" defaultValue={agent}><option value="">Todo el equipo</option>
+          {members.filter(m=>a.some(x=>x.user_id===m.user_id)).map(m=><option key={m.user_id} value={m.user_id}>{memberName(m)}</option>)}</select></label>
+        <button className={s.button} type="submit">Ver calendario</button>
+      </form>
+      <WorkCalendar items={agentWork} view={view} anchor={anchor} tz={DEFAULT_TZ} basePath="/admin/staff" today={today} names={display} />
+      <h3>Control de citas y tareas{agent ? ` · ${display.get(agent) ?? "Agente"}` : ""}</h3>
+      <p className={s.muted}>Incluye lo que cada agente registró por su cuenta. Puedes reprogramar, cancelar, reasignar o eliminar cualquier actividad.</p>
+      <ul className={s.list}>{agentWork.filter(i=>i.status!=="done"&&i.status!=="cancelled").slice(0,150).map(i=>{ const w=when(i); return <li key={i.id} className={s.notice} data-agent-item={i.id}>
+        <strong>{i.title}</strong> · {display.get(i.assignee_id)??"Empleado"} · {KIND_LABEL[i.kind][0]} · {STATUS_LABEL[i.status][0]} · {i.origin==="staff_created"?"registrada por el agente":"asignada por la dirección"}{w?` · ${dayKey(w,i.time_zone)} ${timeLabel(w,i.time_zone,"es")}`:""}
+        <details><summary>Reprogramar o editar</summary>
+          <form action={manageWorkItem} className={s.form}><input type="hidden" name="item_id" value={i.id}/><input type="hidden" name="version" value={i.version}/>
+            <input type="hidden" name="op" value="reschedule"/><input type="hidden" name="kind" value={i.kind}/><input type="hidden" name="time_zone" value={i.time_zone}/>
+            <label className={s.field}>Título<input name="title" defaultValue={i.title} maxLength={200} /></label>
+            <div className={s.row}>
+              <label className={s.field}>Fecha<input type="date" name="date" required defaultValue={w?dayKey(w,i.time_zone):today} /></label>
+              <label className={s.field}>{i.kind==="task"?"Vence a las":"Hora"}<input type="time" name="start" required /></label>
+              {i.kind!=="task"&&<label className={s.field}>Fin<input type="time" name="end" /></label>}
+            </div>
+            <button className={s.button} type="submit">Guardar</button>
+          </form>
+        </details>
+        <form action={manageWorkItem} className={s.inline}><input type="hidden" name="item_id" value={i.id}/><input type="hidden" name="version" value={i.version}/><input type="hidden" name="op" value="delete"/>
+          <button className={s.button} type="submit" data-tone="danger">Eliminar</button></form>
+      </li>; })}</ul>
       <h3>Asignaciones abiertas</h3>
       <ul className={s.list}>{work.filter(i=>i.origin==="staff_assigned"&&i.status!=="done"&&i.status!=="cancelled").slice(0,100).map(i=>{ const w=when(i); return <li key={i.id} className={s.notice} data-assignment={i.id}>
         <strong>{i.title}</strong> · {display.get(i.assignee_id)??"Empleado"} · {KIND_LABEL[i.kind][0]} · {STATUS_LABEL[i.status][0]}{w?` · ${dayKey(w,i.time_zone)} ${timeLabel(w,i.time_zone,"es")}`:""}
@@ -228,12 +273,27 @@ export default async function StaffAdministration({searchParams}:{
           <button className={s.button} type="submit">Reasignar</button></form>
       </li>; })}</ul>
     </section>}
-    <section className={s.panel} aria-labelledby="staff-leads"><h2 id="staff-leads">Asignar leads (vendedores)</h2>
-      <p className={s.muted}>El vendedor ve solo sus leads asignados: empresa, contacto, etapa y próximo seguimiento. «Trabajar» añade email y teléfono. Nunca ve valores, el pipeline completo ni finanzas.</p>
+    <section className={s.panel} aria-labelledby="seller-assign"><h2 id="seller-assign">Entregar un lead a un vendedor</h2>
+      <p className={s.muted}>El lead pasa a ser de ese vendedor: lo trabaja, hace propuestas y cierra la venta. Solo ese vendedor y la dirección lo ven; cualquier otro acceso de empleados a ese lead se cierra. Deja el vendedor vacío para devolverlo a la dirección.</p>
+      <form action={assignLeadToSeller} className={s.form}>
+        <label className={s.field}>Lead <select name="lead_id" required defaultValue="">
+          <option value="" disabled>Seleccionar lead</option>
+          {leadOptions.map(l=><option key={l.id} value={l.id}>{l.company}</option>)}
+        </select></label>
+        <label className={s.field}>Vendedor <select name="seller_id" defaultValue="">
+          <option value="">— Devolver a la dirección —</option>
+          {sellers.map(m=><option value={m.user_id} key={m.user_id}>{memberName(m)}</option>)}
+        </select></label>
+        <button className={s.button} type="submit">Entregar lead</button>
+      </form>
+      {sellers.length === 0 && <p className={s.muted}>No hay vendedores activos. Activa a un empleado con cargo «Vendedor» y MFA verificado.</p>}
+    </section>
+    <section className={s.panel} aria-labelledby="staff-leads"><h2 id="staff-leads">Compartir leads con el equipo de apoyo</h2>
+      <p className={s.muted}>Para empleados que no venden (soporte, operaciones): ven empresa, contacto, etapa y próximo seguimiento; «Ver + datos de contacto» añade email y teléfono. Nunca ven valores, el pipeline completo ni finanzas. Los vendedores no aparecen aquí: reciben y devuelven leads solo con «Entregar un lead a un vendedor».</p>
       <form action={grantStaffLead} className={s.form}>
-        <label className={s.field}>Empleado activo <select name="employee_id" required defaultValue="">
+        <label className={s.field}>Empleado de apoyo <select name="employee_id" required defaultValue="">
           <option value="" disabled>Seleccionar empleado</option>
-          {members.filter(m=>a.some(x=>x.user_id===m.user_id&&x.active)).map(m=><option value={m.user_id} key={m.user_id}>{memberName(m)}</option>)}
+          {members.filter(m=>a.some(x=>x.user_id===m.user_id&&x.active&&!isSellerTitle(x.job_title))).map(m=><option value={m.user_id} key={m.user_id}>{memberName(m)}</option>)}
         </select></label>
         <label className={s.field}>Lead <select name="lead_id" required defaultValue="">
           <option value="" disabled>Seleccionar lead</option>
@@ -242,16 +302,30 @@ export default async function StaffAdministration({searchParams}:{
         <label className={s.field}>Alcance <select name="access_level" defaultValue="view">
           <option value="view">Ver resumen</option><option value="work">Ver + datos de contacto</option>
         </select></label>
-        <button className={s.button} type="submit">Asignar lead</button>
+        <button className={s.button} type="submit">Compartir lead</button>
       </form>
-      <ul className={s.list}>{lg.map(row=><li key={row.user_id+row.lead_id} className={s.notice}>
-        <strong>{display.get(row.user_id)??"Empleado"}</strong> · {leadName.get(row.lead_id)??"Lead"} · {row.access_level}
-        <form action={revokeStaffLead} className={s.inline}>
-          <input type="hidden" name="employee_id" value={row.user_id}/><input type="hidden" name="lead_id" value={row.lead_id}/>
-          <button className={s.button} type="submit">Revocar lead</button>
-        </form>
-      </li>)}</ul>
+      <ul className={s.list}>{lg.map(row=>{ const seller=a.some(x=>x.user_id===row.user_id&&isSellerTitle(x.job_title)); return <li key={row.user_id+row.lead_id} className={s.notice}>
+        <strong>{display.get(row.user_id)??"Empleado"}</strong> · {leadName.get(row.lead_id)??"Lead"} · {seller ? "vendedor asignado" : row.access_level === "work" ? "ver + contacto" : "ver resumen"}
+        {seller
+          ? <form action={assignLeadToSeller} className={s.inline}>
+              <input type="hidden" name="lead_id" value={row.lead_id}/><input type="hidden" name="seller_id" value=""/>
+              <button className={s.button} type="submit">Devolver a la dirección</button>
+            </form>
+          : <form action={revokeStaffLead} className={s.inline}>
+              <input type="hidden" name="employee_id" value={row.user_id}/><input type="hidden" name="lead_id" value={row.lead_id}/>
+              <button className={s.button} type="submit">Revocar lead</button>
+            </form>}
+      </li>; })}</ul>
     </section>
+    <section className={s.panel}><h2>{pick(lang, "Solicitudes de eliminación", "Quote deletion requests")}</h2>
+      {deletionRequests.error ? <p role="alert">{pick(lang,"No se pudo cargar la bandeja.","Could not load requests.")}</p> : !deletionRequests.data?.length && <p>{pick(lang,"Sin solicitudes pendientes.","No pending requests.")}</p>}
+      {deletionRequests.data?.map(r => <form action={decideQuoteDeletion} key={r.id} className={s.card}>
+        <Link href={`/admin/workspace/crm/quotes/${r.quote_id}`}>{pick(lang,"Cotización","Quote")} · v{r.revision}</Link>
+        <p>{display.get(r.requested_by)} · {r.requested_at.slice(0,10)}</p><p>{r.reason}</p>
+        <p>{r.one_time_total} {r.currency} + {r.monthly_total} {r.currency}/{pick(lang,"mes","month")}</p>
+        <input type="hidden" name="request_id" value={r.id}/><label><input type="checkbox" name="confirm" value="yes"/> {pick(lang,"Confirmo la eliminación lógica de esta versión","I confirm soft deletion of this revision")}</label>
+        <button name="decision" value="approved">{pick(lang,"Aprobar","Approve")}</button><button name="decision" value="rejected">{pick(lang,"Rechazar","Reject")}</button>
+      </form>)}</section>
     <section className={s.panel} aria-labelledby="staff-permission-audit">
       <h2 id="staff-permission-audit">Historial de permisos</h2>
       <p className={s.muted}>Últimos 40 cambios registrados por la base de datos. Solo los propietarios tienen acceso.</p>
