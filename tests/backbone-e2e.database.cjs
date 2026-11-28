@@ -83,9 +83,8 @@ test('backbone: prospect → lead → sale → client → orders → projects �
 });
 
 test('AI assistants stay disconnected: adapters return null and every integration is not_connected', () => {
-  const ts = require('typescript');
-  const m = { exports: {} };
-  new Function('module', 'exports', ts.transpileModule(fs.readFileSync('src/lib/os/integrations.ts', 'utf8'), { compilerOptions: { module: ts.ModuleKind.CommonJS } }).outputText)(m, m.exports);
-  assert.equal(m.exports.getAiAdapter(), null); assert.equal(m.exports.getMessagingAdapter(), null); assert.equal(m.exports.getSocialPublisher(), null);
-  assert.ok(m.exports.INTEGRATIONS.every(i => i.status === 'not_connected'));
+  // This isolated job installs only the QA package. Node 22 loads this module's erasable types directly.
+  const { getAiAdapter, getMessagingAdapter, getSocialPublisher, INTEGRATIONS } = require('../src/lib/os/integrations.ts');
+  assert.equal(getAiAdapter(), null); assert.equal(getMessagingAdapter(), null); assert.equal(getSocialPublisher(), null);
+  assert.ok(INTEGRATIONS.every(i => i.status === 'not_connected'));
 });
