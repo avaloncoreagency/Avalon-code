@@ -258,6 +258,9 @@ export async function prepareEmail(form: FormData) {
     supabase.from("crm_client_documents").select("id,title").eq("onboarding_id", o.id).eq("status", "issued").order("created_at", { ascending: false }).limit(3),
     o.invoice_id ? supabase.from("crm_invoices").select("id,sale_id,number,status,client_id").eq("id", o.invoice_id).maybeSingle() : Promise.resolve({ data: null, error: null }),
   ]);
+  if (client.error || !client.data || contact.error || (docs.error && field(form, "attach_documents") === "on") || (inv.error && field(form, "attach_invoice") === "on")) {
+    back(`${BASE}/${id}#emails`, { error: "unavailable" });
+  }
   const ct = contact.data as { full_name: string; email: string | null; client_id: string } | null;
   if (!ct || ct.client_id !== o.client_id || !ct.email) back(`${BASE}/${id}#emails`, { error: "onboarding_recipient_invalid" });
   const signer = (await signerForId(supabase, o.commercial_owner_id, L)) ?? (await signerForUser(supabase, userId, L));
@@ -272,7 +275,7 @@ export async function prepareEmail(form: FormData) {
     ...documents.map(d => ({ type: "document" as const, id: d.id, title: d.title }))];
   const company2 = company.contact, origin = appOrigin(), company_name = c.trade_name || c.legal_name;
   const stage = isStage(o.stage) ? o.stage : null;
-  const lifecycle = isLifecycleKind(kind) ? renderLifecycle({ kind, lang: L, contactName: ct!.full_name, companyName: company_name, product: o.title, representative: signer!,
+  const lifecycle = isLifecycleKind(kind) ? renderLifecycle({ kind, productType: o.product_type, lang: L, contactName: ct!.full_name, companyName: company_name, product: o.title, representative: signer!,
     company: company2, origin, stageLabel: stage ? STAGE_LABEL[stage][L === "es" ? 0 : 1] : o.stage, progress: progress(readChecklist(o.checklist)),
     nextStep: o.next_step || null, note: field(form, "note").slice(0, 1000), liveUrl: o.live_url || null, deliveredOn: o.delivered_at ? o.delivered_at.slice(0, 10) : null,
     pending: readChecklist(o.checklist).filter(item => !item.done).map(item => item.label[L === "es" ? 0 : 1]) }) : undefined;

@@ -3,6 +3,7 @@
  * Table-based, inline-styled HTML that renders in Gmail/iOS Mail, plus a plain-text alternative. Every value is escaped.
  * The signer always comes from the authenticated identity (official owner names), never from a browser parameter.
  */
+import { isProductType, requiresLiveUrl, type ProductType } from "@/lib/onboarding/model";
 import { officialOwnerName, personDisplayName, type DisplayIdentity } from "@/lib/identity/owners";
 
 export type Lang = "es" | "en";
@@ -196,7 +197,7 @@ export const isLifecycleKind = (v: string): v is LifecycleKind => (LIFECYCLE_KIN
 export type LifecycleInput = {
   kind: LifecycleKind; lang: Lang; contactName: string; companyName: string; product: string; representative: Signer; company: CompanyContact; origin?: string;
   stageLabel: string; progress: { done: number; total: number } | null; nextStep: string | null; note: string;
-  liveUrl: string | null; deliveredOn: string | null;
+  productType: ProductType; liveUrl: string | null; deliveredOn: string | null;
   /** Pending items of the service checklist (website / e-commerce / CRM / marketing), already in the message language. */
   pending?: string[];
 };
@@ -224,10 +225,12 @@ export function renderLifecycle(i: LifecycleInput): Rendered | null {
         note, ...(i.nextStep ? [T(L, `Próximo paso: ${i.nextStep}.`, `Next step: ${i.nextStep}.`)] : [])];
       break;
     case "delivery_notice":
-      if (!i.deliveredOn || !i.liveUrl || !safeUrl(i.liveUrl)) return null;
+      if (!i.deliveredOn || (!i.liveUrl && (!isProductType(i.productType) || requiresLiveUrl(i.productType)))) return null;
+      if (i.liveUrl && !safeUrl(i.liveUrl)?.startsWith("https://")) return null;
       subject = T(L, `Avalon Core Agency — Entrega de ${product}`, `Avalon Core Agency — ${product} delivered`);
       heading = T(L, "Tu producto fue entregado", "Your product has been delivered");
-      lines = [T(L, `El ${i.deliveredOn} registramos la entrega de ${product}, disponible en ${i.liveUrl}.`, `On ${i.deliveredOn} we recorded the delivery of ${product}, available at ${i.liveUrl}.`),
+      lines = [T(L, `El ${i.deliveredOn} registramos la entrega de ${product}.`, `On ${i.deliveredOn} we recorded the delivery of ${product}.`),
+        ...(i.liveUrl ? [T(L, `Dirección de acceso: ${i.liveUrl}`, `Access URL: ${i.liveUrl}`)] : []),
         T(L, "Por favor, responde a este correo para confirmar que lo recibiste o para indicarnos cualquier observación.", "Please reply to this e-mail to confirm receipt or to share any observation."),
         ...(note ? [note] : [])];
       break;

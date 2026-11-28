@@ -1,4 +1,5 @@
 // QUOTES-MANAGEMENT-001 on real PostgreSQL (PGlite), synthetic data: owner-only logical deletion with dependency guard.
+const approveFixtureOffers = require('./helpers/approve-fixture-offers.cjs');
 const { test } = require('node:test');
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
@@ -16,6 +17,7 @@ test('quote deletion: owners only, confirmed by version, logical, frozen, refuse
     if (f.startsWith('20261102053022')) await db.query("insert into agency_memberships(user_id,role) values($1,'owner'),($2,'owner'),($3,'operator')", [OWNER, OWNER2, EMP]);
   }
   await db.query('insert into crm_private.finance_access(user_id) values($1)', [OWNER]);
+  await approveFixtureOffers(db, OWNER, [['desarrollo-web', 500]]);
   const as = u => db.exec(`reset role; set request.jwt.claim.sub='${u}'; set role authenticated;`);
   const one = async (q, p) => (await db.query(q, p)).rows[0];
   const content = c => ({ schemaVersion: 1, lang: 'es', currency: 'USD', title: `Propuesta ${c}`, issueDate: '2026-11-24', validUntil: '2099-12-31',
@@ -56,8 +58,12 @@ test('quote deletion: owners only, confirmed by version, logical, frozen, refuse
   const salesBefore = (await one('select count(*)::int n, sum(total)::text t from crm_sales')).n;
 
   // Owner deletes the draft: logical, audited, idempotent; the other owner can too (both owners, nobody else).
+  const summary = async () => (await one('select crm_quote_summary() as totals')).totals;
+  const beforeDeletion = await summary();
+  assert.equal(beforeDeletion.draft, 1);
   const r = await del(draft.id, await ver(draft.id), 'Cotización de prueba');
   assert.equal(r.replayed, false);
+  assert.deepEqual(await summary(), { ...beforeDeletion, draft: 0 }, 'HUD totals exclude a deleted draft while preserving other statuses');
   assert.equal((await del(draft.id, 999)).replayed, true, 'a double click returns the same result');
   const row = await one('select deleted_at is not null deleted, deleted_by, delete_reason from crm_quotes where id=$1', [draft.id]);
   assert.deepEqual(row, { deleted: true, deleted_by: OWNER, delete_reason: 'Cotización de prueba' });

@@ -30,7 +30,7 @@ export const ONBOARDING_ERROR: Record<string, Bi> = {
   onboarding_acceptance_blocked: ["La aceptación del cliente requiere una entrega registrada y evidencia (mínimo 10 caracteres).", "Client acceptance needs a recorded delivery and evidence (at least 10 characters)."],
   onboarding_acceptance_immutable: ["La aceptación del cliente ya está registrada y no se modifica.", "Client acceptance is already recorded and cannot change."],
   outbox_kind_pending: ["Este tipo de mensaje requiere la migración 20261124190000 (pendiente de aplicar).", "This message type requires migration 20261124190000 (not applied yet)."],
-  outbox_not_delivered: ["El aviso de entrega requiere una entrega registrada con URL real.", "The delivery notice requires a recorded delivery with a real URL."],
+  outbox_not_delivered: ["Registra la entrega y verifica su enlace si el servicio lo requiere.", "Record the delivery and check its link if the service requires one."],
   outbox_note_required: ["Escribe la nota del mensaje: el avance y la renovación no se redactan solos.", "Write the message note: progress and renewal messages are not auto-written."],
   outbox_final: ["Ese mensaje ya no admite cambios.", "That message can no longer change."], outbox_in_progress: ["El mensaje ya se está procesando.", "The message is already being processed."],
   outbox_attachment_invalid: ["Un adjunto no es válido (factura anulada, de otro cliente o documento alterado). No se envió nada.", "An attachment is invalid (void invoice, another client's, or altered document). Nothing was sent."],

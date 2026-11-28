@@ -213,6 +213,19 @@ test("lifecycle e-mails: only recorded facts, owner note required where needed, 
   assert.ok(!prog.html.includes("<b>hoy</b>"), "owner note is escaped");
   assert.equal(email.renderLifecycle({ ...base, kind: "delivery_notice" }), null, "no delivery notice without a recorded delivery");
   assert.equal(email.renderLifecycle({ ...base, kind: "delivery_notice", deliveredOn: "2026-11-24", liveUrl: "javascript:alert(1)" }), null);
+  for (const lang of ["es", "en"]) {
+    const recorded = { ...base, kind: "delivery_notice", lang, deliveredOn: "2026-11-24" };
+    assert.equal(email.renderLifecycle({ ...recorded, productType: undefined }), null);
+    const marketing = email.renderLifecycle({ ...recorded, productType: "marketing" });
+    assert.ok(marketing);
+    assert.match(marketing.text, /2026-11-24/);
+    assert.doesNotMatch(marketing.text, /Access URL|Dirección de acceso|null/);
+    for (const productType of ["website","ecommerce","crm"]) {
+      assert.equal(email.renderLifecycle({ ...recorded, productType }), null);
+      assert.equal(email.renderLifecycle({ ...recorded, productType, liveUrl: "http://localhost/delivery" }), null);
+    }
+    assert.equal(email.renderLifecycle({ ...recorded, productType: "marketing", deliveredOn: null }), null);
+  }
   const del = email.renderLifecycle({ ...base, lang: "en", kind: "delivery_notice", deliveredOn: "2026-11-24", liveUrl: "https://cafe.example" });
   assert.match(del.subject, /delivered/);
   assert.match(del.text, /reply to this e-mail to confirm receipt/);

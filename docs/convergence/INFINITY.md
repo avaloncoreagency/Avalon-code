@@ -2,9 +2,9 @@
 
 Source basis: recovery 88c776ec7549e4c2f890d81ab5e6fdd9916e7a28 plus exact Claude snapshot 305e8557fa5608229583727f9cea643df71c1f1d. Static repository path inventory, not a full runtime audit. Each route not explicitly exercised by a named test remains NOT_RUN; physical iPhone/Safari and hosted preview are not certified.
 
-- App page source files: 101
+- App page source files: 102
 - Route handler source files: 45
-- SQL migrations: 76
+- SQL migrations: 78
 
 Integrated: current main, seller pipeline #363, commercial authority #364, convergence #365 (includes invitations #358/#359), quote UX #368 and #366 exact isolated snapshot. Original work branches unchanged. Strict seller redaction, explicit owner grants, verified revision linkage and private sale execution boundary preserved. Owner custom concepts remain quote-only until mapped to an approved catalog item. Commission policy and business rules remain frozen. No hosted changes.
 
@@ -41,9 +41,6 @@ New regression: tests/infinity-restore.database.cjs copies a closed synthetic PG
 - src/app/admin/workspace/ai-receptionist/builder/page.tsx
 - src/app/admin/workspace/ai-receptionist/page.tsx
 - src/app/admin/workspace/clients/[id]/page.tsx
-- src/app/admin/workspace/crm-creator/[id]/page.tsx
-- src/app/admin/workspace/crm-creator/[id]/studio/page.tsx
-- src/app/admin/workspace/crm-creator/page.tsx
 - src/app/admin/workspace/crm/[section]/page.tsx
 - src/app/admin/workspace/crm/activity/page.tsx
 - src/app/admin/workspace/crm/calendar/page.tsx
@@ -77,6 +74,9 @@ New regression: tests/infinity-restore.database.cjs copies a closed synthetic PG
 - src/app/admin/workspace/crm/settings/page.tsx
 - src/app/admin/workspace/crm/subscriptions/page.tsx
 - src/app/admin/workspace/crm/tasks/page.tsx
+- src/app/admin/workspace/crm-creator/[id]/page.tsx
+- src/app/admin/workspace/crm-creator/[id]/studio/page.tsx
+- src/app/admin/workspace/crm-creator/page.tsx
 - src/app/admin/workspace/ecommerce-designer/[id]/page.tsx
 - src/app/admin/workspace/ecommerce-designer/[id]/preview/page.tsx
 - src/app/admin/workspace/ecommerce-designer/[id]/products/[productId]/page.tsx
@@ -106,6 +106,7 @@ New regression: tests/infinity-restore.database.cjs copies a closed synthetic PG
 - src/app/dashboard/page.tsx
 - src/app/f/[slug]/page.tsx
 - src/app/login/page.tsx
+- src/app/page.tsx
 - src/app/soluciones/[service]/page.tsx
 - src/app/staff/mfa/page.tsx
 - src/app/staff/page.tsx
@@ -118,7 +119,6 @@ New regression: tests/infinity-restore.database.cjs copies a closed synthetic PG
 - src/app/admin/api/staff-presence/route.ts
 - src/app/admin/auth/callback/route.ts
 - src/app/admin/auth/confirm/route.ts
-- src/app/admin/workspace/crm-creator/[id]/export/route.ts
 - src/app/admin/workspace/crm/api/route.ts
 - src/app/admin/workspace/crm/clients/[id]/contracts/[agreementId]/route.ts
 - src/app/admin/workspace/crm/documents/[id]/route.ts
@@ -143,6 +143,7 @@ New regression: tests/infinity-restore.database.cjs copies a closed synthetic PG
 - src/app/admin/workspace/crm/radar/research/route.ts
 - src/app/admin/workspace/crm/radar/runs/route.ts
 - src/app/admin/workspace/crm/sales/[id]/invoices/[invoiceId]/pdf/route.ts
+- src/app/admin/workspace/crm-creator/[id]/export/route.ts
 - src/app/admin/workspace/ecommerce-designer/[id]/export/route.ts
 - src/app/admin/workspace/library/[id]/export/route.ts
 - src/app/admin/workspace/library/[id]/preview/route.ts
@@ -162,3 +163,18 @@ New regression: tests/infinity-restore.database.cjs copies a closed synthetic PG
 
 ## Next action
 Inspect exact integrated SHA Actions, independently confirm remaining failures and correct root causes. Hosted SMTP, backup/restore, customer acceptance and joint legal/commercial approvals remain separate gates.
+
+## ASTRA handoff · 2026-11-28
+
+Candidate [#369](https://github.com/avaloncoreagency/Avalon-code/pull/369) started this pass at `9b3ef13a2d80797ede833a291312536af910b572`. Main was `894d73bc72fdc65a0af922a9b8c398680e889dfe`. Compared with [#365](https://github.com/avaloncoreagency/Avalon-code/pull/365) at `50d752797c67b0e80be35614c2aca1ebc1e8efd0` before selecting changes. Exact final runs and handoff belong to [#304](https://github.com/avaloncoreagency/Avalon-code/issues/304).
+
+| Area | Baseline evidence | Regression to run |
+| --- | --- | --- |
+| Orbit Dental | Missing approved CRM offer prevented the unsigned-contract case from reaching its guard | `SALES_BROWSER=1 node --test tests/sales.browser.cjs` |
+| Quote detail at 320px | Native signed-contract select exceeded the page width by 47px | `SALES_CENTER_BROWSER=1 node --test tests/sales-center.browser.cjs` |
+| Archived quote | Seven edit/transition/close elements remained on a read-only record | `QUOTE_DELETE_BROWSER=1 node --test tests/quote-delete.browser.cjs` |
+| Archiving and totals | Summary counted archived quotes. Two deletion-history amounts lacked the common finite-value constraint | `node --test tests/quote-delete.database.cjs tests/finance-finite.database.cjs` |
+| Marketing delivery | Template refused a recorded delivery without a URL | `CLIENT_EXPERIENCE_BROWSER=1 node --test tests/client-experience.browser.cjs` |
+| Private pages | Anonymous route check enumerates admin and staff pages from this checkout | `node --test tests/infinity-routes.integration.cjs` |
+
+Browser commands use a local production build and synthetic fixtures. Install the locked QA dependencies under `tests/qa` and set `NODE_PATH=./tests/qa/node_modules`. DDL is versioned only. Before release, compare the ledger by migration contents and review the existing reconciliation plan. Hosted restore, real owner/agent sessions, an isolated hosted Preview, the pilot in [#346](https://github.com/avaloncoreagency/Avalon-code/pull/346) and physical Safari require separate evidence.

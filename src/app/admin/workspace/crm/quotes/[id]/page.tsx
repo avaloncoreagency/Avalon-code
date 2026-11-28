@@ -80,9 +80,9 @@ export default async function QuoteDetail({ params, searchParams }: { params: Pr
     <OpsHeader lang={lang} active="quotes" eyebrow={`${pick(lang, "Cotización", "Quote")} ${quote.quote_number} · v${quote.current_version}`} title={quote.title}
       lead={pick(lang, "Una cotización no es un contrato ni una venta. Cada cambio crea una revisión nueva; lo enviado no se modifica.", "A quote is neither an agreement nor a sale. Every change creates a new revision; what was sent is never altered.")}
       actions={<>
-        {REVISABLE.includes(quote.status) && <Link className={`${s.button} ${s.primary}`} href={`/admin/workspace/crm/quotes/${id}/edit`}>{pick(lang, "Editar (nueva revisión)", "Edit (new revision)")}</Link>}
+        {!deleted && REVISABLE.includes(quote.status) && <Link className={`${s.button} ${s.primary}`} href={`/admin/workspace/crm/quotes/${id}/edit`}>{pick(lang, "Editar (nueva revisión)", "Edit (new revision)")}</Link>}
         <Link className={s.button} href={`/admin/workspace/crm/quotes/new?lead=${quote.lead_id}`}>{pick(lang, "Nueva cotización", "New quote")}</Link>
-        <a className={`${s.button} ${quote.status === "accepted" ? s.primary : ""}`} href="#close-sale">{pick(lang, "Cerrar venta", "Close sale")}</a>
+        {!deleted && <a className={`${s.button} ${quote.status === "accepted" ? s.primary : ""}`} href="#close-sale">{pick(lang, "Cerrar venta", "Close sale")}</a>}
         {downloadable && <a className={s.button} href={pdf(quote.current_version, true)} target="_blank" rel="noopener">{pick(lang, "Imprimir", "Print")}</a>}
         {canDelete && !deleted && quote.status !== "accepted" && <DeleteQuoteButton className={s.button} lang={lang} action={deleteQuote} quote={{ id: quote.id, version: quote.version,
           number: quote.quote_number, client: quote.crm_clients?.legal_name ?? quote.crm_leads?.company ?? "—", date: formatDate(lang, quote.created_at),
@@ -102,11 +102,11 @@ export default async function QuoteDetail({ params, searchParams }: { params: Pr
       <div className={s.stat}><span>{pick(lang, "Válida hasta", "Valid until")}</span><strong>{formatDate(lang, quote.valid_until)}</strong></div>
     </section>
 
-    {content && <QuoteClosePanel db={supabase} lang={lang} quote={quote} content={content} closeError={q(p, "close_error")} resume={Boolean(okCode?.startsWith("status_") || okCode === "revised" || errCode || q(p, "close_error"))} />}
-    {quote.status === "accepted" && <section className={s.panel} aria-labelledby="next-contract">
+    {!deleted && content && <QuoteClosePanel db={supabase} lang={lang} quote={quote} content={content} closeError={q(p, "close_error")} resume={Boolean(okCode?.startsWith("status_") || okCode === "revised" || errCode || q(p, "close_error"))} />}
+    {!deleted && quote.status === "accepted" && <section className={s.panel} aria-labelledby="next-contract">
       {cur && !!verifiedContracts?.data?.length && <form className={s.form} action={linkVerifiedContract}>
         <input type="hidden" name="quote_id" value={quote.id}/><input type="hidden" name="revision" value={cur.id}/>
-        <label>{pick(lang,"Contrato firmado y verificado","Verified signed contract")}<select name="contract_id" required>
+        <label className={s.field}>{pick(lang,"Contrato firmado y verificado","Verified signed contract")}<select name="contract_id" required>
           {verifiedContracts.data.filter(c => !c.verified_quote_revision || c.verified_quote_revision===cur.id).map(c=><option key={c.id} value={c.id}>{c.title}</option>)}</select></label>
         <label><input name="matched" type="checkbox" value="yes" required/> {pick(lang,"Verifiqué que los términos firmados coinciden con esta revisión aceptada.","I verified that the signed terms match this accepted revision.")}</label>
         <button className={s.button}>{pick(lang,"Vincular esta revisión","Link this revision")}</button></form>}
@@ -119,7 +119,7 @@ export default async function QuoteDetail({ params, searchParams }: { params: Pr
       <p className={s.muted}>{pick(lang, "Aceptar una cotización no registra una venta. La venta se confirma después, con el contrato verificado.", "Accepting a quote does not record a sale. The sale is confirmed later, with the verified agreement.")}</p>
     </section>}
 
-    <section className={s.panel} aria-labelledby="quote-actions">
+    {!deleted && <section className={s.panel} aria-labelledby="quote-actions">
       <details className={g.summary} open={!content || undefined}><summary id="quote-actions">{pick(lang, "Más acciones y correcciones", "More actions and corrections")}</summary><div className={g.detailBody}>
       {QUOTE_TRANSITIONS[quote.status].length === 0 ? <p className={s.muted}>{pick(lang, "Estado final: esta cotización ya no cambia. Para nuevas condiciones crea una nueva cotización.", "Final state: this quote no longer changes. For new terms create a new quote.")}</p> :
         <div className={w.actionsGrid}>{QUOTE_TRANSITIONS[quote.status].map(to => {
@@ -136,7 +136,7 @@ export default async function QuoteDetail({ params, searchParams }: { params: Pr
           </form>;
         })}</div>}
       </div></details>
-    </section>
+    </section>}
 
     <section className={s.panel} aria-labelledby="quote-pdf">
       <header><h2 id="quote-pdf">{pick(lang, "Vista previa del PDF", "PDF preview")} · v{quote.current_version}</h2>

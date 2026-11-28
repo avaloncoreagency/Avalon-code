@@ -30,6 +30,10 @@ on:
       - 'tests/crm-attribution.database.cjs'
       - 'tests/convergence.database.cjs'
       - 'tests/infinity-restore.database.cjs'
+      - 'tests/infinity-routes.integration.cjs'
+      - 'tests/finance-finite.database.cjs'
+      - 'tests/quote-delete.*'
+      - 'tests/backbone-e2e.database.cjs'
       - 'scripts/security/**'
       - 'tests/qa/**'
       - '.github/workflows/sales-core.yml'
@@ -80,7 +84,7 @@ jobs:
           cache-dependency-path: tests/qa/package-lock.json
       - run: npm ci --prefix tests/qa --no-audit --no-fund
       - name: Sales, RLS, idempotency and timeline tests (PGlite)
-        run: NODE_PATH=tests/qa/node_modules node --test tests/sales.database.cjs tests/radar.database.cjs tests/radar-search-runs.database.cjs tests/public-inquiry.database.cjs tests/pipeline-board.database.cjs tests/office.database.cjs tests/crm.pipeline.database.cjs tests/crm.database.cjs tests/unified.database.cjs tests/commercial-b2c.database.cjs tests/os-projects-modules.database.cjs tests/core-engine.database.cjs tests/crm-attribution.database.cjs tests/crm-flow.database.cjs tests/staff-portal.database.cjs tests/staff-calendar.database.cjs tests/staff-seller-pipeline.database.cjs tests/client-opportunity-link.database.cjs tests/inbound-seed.database.cjs tests/convergence.database.cjs tests/infinity-restore.database.cjs
+        run: NODE_PATH=tests/qa/node_modules node --test tests/sales.database.cjs tests/radar.database.cjs tests/radar-search-runs.database.cjs tests/public-inquiry.database.cjs tests/pipeline-board.database.cjs tests/office.database.cjs tests/crm.pipeline.database.cjs tests/crm.database.cjs tests/unified.database.cjs tests/commercial-b2c.database.cjs tests/os-projects-modules.database.cjs tests/core-engine.database.cjs tests/crm-attribution.database.cjs tests/crm-flow.database.cjs tests/staff-portal.database.cjs tests/staff-calendar.database.cjs tests/staff-seller-pipeline.database.cjs tests/client-opportunity-link.database.cjs tests/inbound-seed.database.cjs tests/convergence.database.cjs tests/infinity-restore.database.cjs tests/finance-finite.database.cjs tests/quote-delete.database.cjs tests/backbone-e2e.database.cjs
       - name: Summary
         if: always()
         run: echo "Synthetic data only. No remote Supabase, Vercel or production resource is touched." >> "$GITHUB_STEP_SUMMARY"
@@ -109,7 +113,8 @@ jobs:
       - run: npm test
       - run: npm run build
       - run: node tests/qa/node_modules/playwright/cli.js install --with-deps chromium || (echo "::warning::apt mirrors unreachable; installing Chromium without extra system fonts (ubuntu-24.04 already ships Chrome libraries). Browser tests still run." && node tests/qa/node_modules/playwright/cli.js install chromium)
-      - run: node --test tests/rest-bridge.http.cjs tests/sales.browser.cjs
+      - run: node --test tests/infinity-routes.integration.cjs tests/rest-bridge.http.cjs tests/sales.browser.cjs
+      - run: QUOTE_DELETE_BROWSER=1 node --test tests/quote-delete.browser.cjs
       - name: Upload screenshots
         if: always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02

@@ -189,6 +189,30 @@ test('Client experience: onboarding → manual → welcome e-mail → Clients 36
   const cfg = await one('select support_hours, updated_by, invite_sender_email, invite_sender_status from avalon_company_settings');
   assert.deepEqual([cfg.support_hours, cfg.updated_by, cfg.invite_sender_email, cfg.invite_sender_status], ['Lunes a viernes 9:00–17:00 (QA)', OWNER, 'avalonacoreagency@gmail.com', 'unverified']);
 
+  // A delivered marketing service has a recipient and delivery evidence, but no hosted URL.
+  await db.exec(`set request.jwt.claim.sub='${OWNER}'; set role authenticated;`);
+  let marketing;
+  try {
+    marketing = (await one("insert into crm_client_onboardings(client_id,product_type,title,commercial_owner_id) values($1,'marketing','Campaña QA',$2) returning id", [client, OWNER])).id;
+    await db.query("update crm_client_onboardings set stage='delivered',qa_passed=true,delivery_approved_by=$2,delivered_at=now(),delivered_to='Laura QA' where id=$1", [marketing, OWNER]);
+  } finally {
+    await db.exec('reset role');
+  }
+  await page.goto(`${origin}/admin/workspace/crm/onboarding/${marketing}`);
+  for (const language of ['es', 'en']) {
+    await prep.locator('select[name="kind"]').selectOption('delivery_notice');
+    await prep.locator('select[name="lang"]').selectOption(language);
+    await prep.getByRole('button', { name: 'Preparar mensaje' }).click();
+    await page.waitForURL(u => u.searchParams.get('ok') === 'email_prepared');
+    await page.reload();
+    const draft = await one("select to_email,body_text,status from crm_email_outbox where onboarding_id=$1 and kind='delivery_notice' and lang=$2", [marketing, language]);
+    assert.equal(draft.to_email, 'laura.qa@example.invalid');
+    assert.equal(draft.status, 'prepared');
+    assert.match(draft.body_text, /Campaña QA/);
+    assert.doesNotMatch(draft.body_text, /Dirección de acceso|Access URL|null/);
+    await page.goto(`${origin}/admin/workspace/crm/onboarding/${marketing}`);
+  }
+
   // 9. Responsive: no horizontal page scroll.
   // 8b. Owner document library: department packs visible to owners, every document pending (never distributed).
   await page.setViewportSize({ width: 1440, height: 900 });
